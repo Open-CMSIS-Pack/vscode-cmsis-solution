@@ -1,0 +1,44 @@
+build-idx:
+  generated-by: csolution version 2.6.0
+  description: USB Device examples
+  cdefault: cdefault.yml
+  csolution: USB_Device.csolution.yml
+  cbuild-run: out/USB_Device+B-U585I-IOT02A.cbuild-run.yml
+  tmpdir: tmp
+  cprojects:
+    - cproject: HID/HID.cproject.yml
+      clayers:
+        - clayer: HID/$Board-Layer$
+    - cproject: MassStorage/MassStorage.cproject.yml
+      clayers:
+        - clayer: MassStorage/$Board-Layer$
+    - cproject: VirtualCOM/VirtualCOM.cproject.yml
+      clayers:
+        - clayer: VirtualCOM/$Board-Layer$
+  cbuilds:
+    - cbuild: HID/HID.Release+B-U585I-IOT02A.cbuild.yml
+      project: HID
+      configuration: .Release+B-U585I-IOT02A
+      clayers:
+        - clayer: Board/B-U585I-IOT02A/CubeMX/Board.cgen.yml
+        - clayer: Board/B-U585I-IOT02A/Board.clayer.yml
+      messages:
+        warnings:
+          - "'compiler' setting in cdefault.yml will be deprecated in CMSIS-Toolbox 3.0.0"
+        info:
+          - USB_Device.cbuild-set.yml - file is already up-to-date
+          - USB_Device.cbuild-pack.yml - file is already up-to-date
+          - HID.Release+B-U585I-IOT02A.cbuild.yml - file generated successfully
+    - cbuild: MassStorage/MassStorage.Debug+B-U585I-IOT02A.cbuild.yml
+      project: MassStorage
+      configuration: .Debug+B-U585I-IOT02A
+      clayers:
+        - clayer: Board/B-U585I-IOT02A/CubeMX/Board.cgen.yml
+        - clayer: Board/B-U585I-IOT02A/Board.clayer.yml
+      messages:
+        warnings:
+          - "'compiler' setting in cdefault.yml will be deprecated in CMSIS-Toolbox 3.0.0"
+        info:
+          - USB_Device.cbuild-set.yml - file is already up-to-date
+          - USB_Device.cbuild-pack.yml - file is already up-to-date
+          - MassStorage.Debug+B-U585I-IOT02A.cbuild.yml - file generated successfully

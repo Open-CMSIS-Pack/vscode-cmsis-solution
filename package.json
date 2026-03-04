@@ -1,0 +1,1556 @@
+{
+  "name": "cmsis-csolution",
+  "displayName": "Arm CMSIS Solution",
+  "description": "Create embedded and Edge AI projects for Arm Cortex-M based devices using the Common Microcontroller Software Interface Standard (CMSIS) and csolution format",
+  "version": "1.66.0",
+  "preview": false,
+  "publisher": "Arm",
+  "author": "Rob Moran <rob.moran@arm.com>",
+  "license": "SEE LICENSE IN LICENSE",
+  "main": "dist/extension.js",
+  "repository": "https://github.com/ARM-software/vscode-cmsis-csolution",
+  "qna": "https://github.com/ARM-software/vscode-cmsis-csolution/issues/new/choose",
+  "bugs": {
+    "url": "https://github.com/ARM-software/vscode-cmsis-csolution/issues"
+  },
+  "icon": "media/arm.png",
+  "galleryBanner": {
+    "color": "#333E48",
+    "theme": "dark"
+  },
+  "engines": {
+    "node": "^20.0.0",
+    "npm": "^10.0.0",
+    "vscode": "^1.63.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "arm",
+    "microcontroller",
+    "embedded",
+    "CMSIS",
+    "Keil",
+    "MDK6"
+  ],
+  "csolution": {
+    "uv2csolutionVersion": "1.6.0",
+    "toolboxVersion": "nightly",
+    "rpcVersion": "0.0.9"
+  },
+  "scripts": {
+    "preprepare": "npm run download:rpc-interface",
+    "prepare": "concurrently npm:download:uv2csolution npm:download:guide npm:download:debug-adapters npm:download:toolbox",
+    "clean": "git clean -f -x ./dist ./out ./tools",
+    "prebuild": "npm run font",
+    "build": "webpack --mode production",
+    "prewatch": "npm run font",
+    "watch": "webpack -w --progress",
+    "lint": "eslint src api",
+    "lint:fix": "eslint src api --fix",
+    "package": "tsx scripts/package.ts",
+    "test": "jest --runInBand",
+    "test:parallel": "jest",
+    "test:watch": "jest --collectCoverage=false --watch",
+    "e2e": "cross-env E2E_LOG_LEVEL=debug npx playwright test --config=playwright.config.ts",
+    "compile": "tsc -p .",
+    "compile:watch": "tsc -p . -w",
+    "download:uv2csolution": "tsx scripts/download-tools.ts uv2csolution",
+    "download:guide": "tsx scripts/download-tools.ts guide",
+    "download:debug-adapters": "tsx scripts/download-tools.ts debug-adapters",
+    "download:toolbox": "tsx scripts/download-tools.ts toolbox",
+    "download:rpc-interface": "tsx scripts/download-tools.ts rpc-interface",
+    "download:node-pty": "tsx scripts/download-tools.ts node-pty",
+    "generate-solar-search-client": "graphql-codegen --config src/solar-search/graphql/codegen.ts",
+    "api:nocheck": "tsc --noEmit -p ./api",
+    "tpip": "tsx scripts/tpip-reporter.ts --header docs/tpip-header.md docs/third-party-licenses.json docs/third-party-licenses.md",
+    "tpip:update": "tsx scripts/update-tpip docs/third-party-licenses.json",
+    "font": "fantasticon",
+    "lint:md": "markdownlint **/*.md -c ./.github/markdownlint.jsonc -i ./node_modules -i ./dist -i ./coverage -i ./tools -i ./test-data -i ./src/e2e-tests/data -i CHANGELOG.md",
+    "copyright:check": "tsx scripts/copyright-manager.ts --mode=check",
+    "copyright:fix": "tsx scripts/copyright-manager.ts --mode=fix"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.6.1",
+    "@arm-software/vscode-environment-manager": "^1.24.4",
+    "@eclipse-cdt-cloud/clangd-contexts": "~0.9.0-next.c7c35a6.0",
+    "@fortawesome/fontawesome-free": "^7.2.0",
+    "@lydell/node-pty": "^1.1.0",
+    "@microsoft/vscode-serial-monitor-api": "^0.1.7",
+    "@vscode/codicons": "^0.0.44",
+    "@vscode/webview-ui-toolkit": "^1.4.0",
+    "antd": "^5.29.3",
+    "async-mutex": "^0.5.0",
+    "eta": "^4.5.1",
+    "fetch-blob": "^4.0.0",
+    "formdata-polyfill": "^4.0.10",
+    "glob": "^13.0.6",
+    "google-protobuf": "^4.0.2",
+    "graphql-request": "^7.4.0",
+    "graphql-tag": "^2.12.6",
+    "jsonc-parser": "^3.3.1",
+    "lodash.debounce": "^4.0.8",
+    "node-fetch": "^3.3.2",
+    "primereact": "^10.9.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-window": "^1.8.11",
+    "sax-ts": "^1.2.13",
+    "semver": "^7.7.4",
+    "tcp-port-used": "^1.0.2",
+    "vscode-jsonrpc": "^8.2.1",
+    "vscode-messenger": "~0.6.0",
+    "vscode-messenger-common": "~0.6.0",
+    "vscode-messenger-webview": "~0.6.0",
+    "which": "^6.0.1",
+    "yaml": "^2.8.2",
+    "yargs-parser": "^21.1.1"
+  },
+  "devDependencies": {
+    "@babel/plugin-transform-modules-commonjs": "^7.28.6",
+    "@eslint/compat": "^2.0.2",
+    "@eslint/eslintrc": "^3.3.4",
+    "@eslint/js": "^9.39.3",
+    "@faker-js/faker": "^9.9.0",
+    "@graphql-codegen/cli": "^6.1.2",
+    "@graphql-codegen/typescript-graphql-request": "^6.4.0",
+    "@graphql-codegen/typescript-operations": "^5.0.8",
+    "@open-cmsis-pack/vsce-helper": "^0.2.4",
+    "@playwright/test": "^1.58.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@twbs/fantasticon": "^3.1.0",
+    "@types/fs-extra": "^11.0.4",
+    "@types/google-protobuf": "3.15.12",
+    "@types/jest": "^29.5.14",
+    "@types/jest-when": "^3.5.5",
+    "@types/lodash.debounce": "^4.0.9",
+    "@types/minimist": "^1.2.5",
+    "@types/ncp": "^2.0.8",
+    "@types/node": "^20.14.8",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.1",
+    "@types/react-window": "^1.8.8",
+    "@types/semver": "^7.7.1",
+    "@types/targz": "^1.0.5",
+    "@types/tcp-port-used": "^1.0.4",
+    "@types/vscode": "^1.63.0",
+    "@types/vscode-webview": "^1.57.5",
+    "@types/which": "^3.0.4",
+    "@types/yargs": "^17.0.35",
+    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/parser": "^8.56.1",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.7.1",
+    "concurrently": "^9.1.2",
+    "copy-webpack-plugin": "^13.0.1",
+    "cross-env": "^10.1.0",
+    "css-loader": "^7.1.4",
+    "dedent": "1.7.1",
+    "eslint": "^9.39.3",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "7.0.1",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "extract-zip": "^2.0.1",
+    "fs-extra": "^11.3.3",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "jest-when": "^3.7.0",
+    "markdownlint-cli": "^0.47.0",
+    "ncp": "^2.0.0",
+    "nock": "^13.5.6",
+    "octokit": "^5.0.5",
+    "playwright": "^1.58.2",
+    "serve": "^14.2.5",
+    "simple-git": "^3.32.3",
+    "style-loader": "^4.0.0",
+    "targz": "^1.0.1",
+    "ts-jest": "^29.4.6",
+    "ts-loader": "^9.5.4",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vscode-uri": "^3.1.0",
+    "webpack": "^5.105.3",
+    "webpack-cli": "^6.0.1",
+    "yargs": "^18.0.0"
+  },
+  "overrides": {
+    "ajv@>=7.0.0": "^8.18.0",
+    "serialize-javascript": "^7.0.3",
+    "@twbs/fantasticon": {
+      "ttf2woff2": "^8.0.1"
+    },
+    "markdownlint-cli": {
+      "minimatch": "^10.2.4"
+    },
+    "serve-handler": {
+      "minimatch": "^3.1.5"
+    }
+  },
+  "contributes": {
+    "icons": {
+      "csolution-cmsis-logo": {
+        "description": "The CMSIS logo",
+        "default": {
+          "fontPath": "dist/codicon.ttf",
+          "fontCharacter": "\\ea62"
+        }
+      },
+      "csolution-component-class": {
+        "description": "component class",
+        "default": {
+          "fontPath": "dist/codicon.ttf",
+          "fontCharacter": "\\ea63"
+        }
+      },
+      "csolution-components": {
+        "description": "components",
+        "default": {
+          "fontPath": "dist/codicon.ttf",
+          "fontCharacter": "\\ea61"
+        }
+      },
+      "csolution-files": {
+        "description": "files",
+        "default": {
+          "fontPath": "dist/codicon.ttf",
+          "fontCharacter": "\\ea64"
+        }
+      },
+      "csolution-layer": {
+        "description": "layer",
+        "default": {
+          "fontPath": "dist/codicon.ttf",
+          "fontCharacter": "\\ea65"
+        }
+      },
+      "csolution-layers": {
+        "description": "layers",
+        "default": {
+          "fontPath": "dist/codicon.ttf",
+          "fontCharacter": "\\ea66"
+        }
+      },
+      "csolution-software-component": {
+        "description": "software components",
+        "default": {
+          "fontPath": "dist/codicon.ttf",
+          "fontCharacter": "\\ea67"
+        }
+      },
+      "csolution-software-component-api": {
+        "description": "apis",
+        "default": {
+          "fontPath": "dist/codicon.ttf",
+          "fontCharacter": "\\ea6a"
+        }
+      },
+      "csolution-build": {
+        "description": "build",
+        "default": {
+          "fontPath": "dist/codicon.ttf",
+          "fontCharacter": "\\ea60"
+        }
+      },
+      "csolution-cmsis-logo-text": {
+        "description": "cmsis-logo-with-text",
+        "default": {
+          "fontPath": "dist/codicon.ttf",
+          "fontCharacter": "\\ea68"
+        }
+      },
+      "run-generator": {
+        "description": "generator",
+        "default": {
+          "fontPath": "dist/codicon.ttf",
+          "fontCharacter": "\\ea69"
+        }
+      },
+      "info-circle": {
+        "description": "info circle",
+        "default": {
+          "fontPath": "dist/codicon.ttf",
+          "fontCharacter": "\\ea6b"
+        }
+      },
+      "info-full-circle": {
+        "description": "filled info circle",
+        "default": {
+          "fontPath": "dist/codicon.ttf",
+          "fontCharacter": "\\ea6c"
+        }
+      }
+    },
+    "viewsWelcome": [
+      {
+        "view": "cmsis-csolution.outline",
+        "contents": "Create a solution from scratch, import an example, or open an existing μVision project to convert it to a CMSIS solution. \n [Create Solution](command:cmsis-csolution.createSolution)\n [Convert a μVision Project to CMSIS Solution](command:cmsis-csolution.convertMicroVisionToCsolution)\n Need help? [Verify the Installation](https://mdk-packs.github.io/vscode-cmsis-solution-docs/installation.html#verify-the-installation) or explore the [overview](https://marketplace.visualstudio.com/items?itemName=Arm.cmsis-csolution).",
+        "when": "!view.arm.cmsis-csolution.welcome.hidden && cmsis-csolution.activeSolutionState == none"
+      },
+      {
+        "view": "cmsis-csolution.outline",
+        "contents": "Create a solution from scratch, import an example, or open an existing μVision project to convert it to a CMSIS solution. \n [Open Solution in Workspace](command:cmsis-csolution.openSolution)\n [Create Solution](command:cmsis-csolution.createSolution)\n [Convert a μVision Project to CMSIS Solution](command:cmsis-csolution.convertMicroVisionToCsolution)\n Need help? [Verify the Installation](https://mdk-packs.github.io/vscode-cmsis-solution-docs/installation.html#verify-the-installation) or explore the [overview](https://marketplace.visualstudio.com/items?itemName=Arm.cmsis-csolution).",
+        "when": "!view.arm.cmsis-csolution.welcome.hidden && cmsis-csolution.activeSolutionState == inactive"
+      },
+      {
+        "view": "cmsis-csolution.outline",
+        "contents": "Select a project in the Build Context editor to get started. \n [Open Build Context Editor](command:cmsis-csolution.manageSolution)\n",
+        "when": "!view.arm.cmsis-csolution.welcome.hidden && cmsis-csolution.selectedContextCount == 0 && cmsis-csolution.activeSolutionState == active"
+      },
+      {
+        "view": "cmsis-csolution.outline",
+        "contents": "Loading…",
+        "when": "!view.arm.cmsis-csolution.welcome.hidden && cmsis-csolution.selectedContextCount !== 0 && (!cmsis-csolution.activeSolutionState || cmsis-csolution.activeSolutionState == active)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cmsis-solution",
+          "title": "CMSIS",
+          "icon": "$(csolution-cmsis-logo-text)"
+        }
+      ]
+    },
+    "views": {
+      "cmsis-solution": [
+        {
+          "id": "cmsis-csolution.outline",
+          "name": "CMSIS",
+          "when": "!view.arm.cmsis-csolution.outline.hidden"
+        }
+      ],
+      "explorer": [
+        {
+          "id": "searchResults",
+          "name": "Search Results"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "workbench.view.extension.cmsis-solution",
+        "key": "ctrl+shift+alt+s",
+        "mac": "cmd+shift+alt+s",
+        "when": "true"
+      },
+      {
+        "command": "cmsis-csolution.list.find",
+        "key": "ctrl+alt+f",
+        "mac": "cmd+alt+f",
+        "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active"
+      }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "cmsis-csolution.build",
+        "required": [
+          "solution"
+        ],
+        "properties": {
+          "solution": {
+            "type": "string",
+            "description": "Path to the csolution.yml to build"
+          },
+          "clean": {
+            "type": "boolean",
+            "default": false,
+            "description": "Remove intermediate and output directories"
+          },
+          "downloadPacks": {
+            "type": "boolean",
+            "default": true,
+            "description": "Download missing software packs with cpackget"
+          },
+          "schemaCheck": {
+            "type": "boolean",
+            "default": true,
+            "description": "Validate project input file(s) against schema"
+          },
+          "debug": {
+            "type": "boolean",
+            "default": false,
+            "description": "Enable debug messages"
+          },
+          "intermediateDirectory": {
+            "type": "string",
+            "description": "Intermediate directory"
+          },
+          "outputDirectory": {
+            "type": "string",
+            "description": "Output directory"
+          },
+          "cmakeTarget": {
+            "type": "string",
+            "description": "CMake target name"
+          },
+          "generator": {
+            "type": "string",
+            "description": "Build system generator (e.g. 'Ninja')"
+          },
+          "rebuild": {
+            "type": "boolean",
+            "description": "Remove intermediate and output directories and rebuild"
+          },
+          "setup": {
+            "type": "boolean",
+            "description": "Setup the build directory and intellisense information"
+          },
+          "jobs": {
+            "type": "integer",
+            "description": "Number of job slots for parallel execution"
+          },
+          "updateRte": {
+            "type": "boolean",
+            "default": true,
+            "description": "Update the RTE directory and files"
+          },
+          "toolchain": {
+            "type": "string",
+            "enum": [
+              "GCC",
+              "AC6",
+              "IAR"
+            ],
+            "toolchain": "Input toolchain to be used"
+          },
+          "active": {
+            "type": "string",
+            "description": "Active target-set name"
+          }
+        }
+      }
+    ],
+    "commands": [
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.refresh",
+        "title": "Refresh (reload packs, update RTE)",
+        "icon": "$(refresh)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.reloadPacks",
+        "title": "Refresh (reload packs)",
+        "icon": "$(refresh)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.build",
+        "title": "Build solution",
+        "icon": "$(csolution-build)",
+        "enablement": "cmsis-csolution.activeSolutionState == active && cmsis-csolution.buildState == idle"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.stopBuild",
+        "title": "Stop Build",
+        "icon": "$(debug-stop)",
+        "enablement": "cmsis-csolution.buildState == building"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.rebuild",
+        "title": "Rebuild solution",
+        "enablement": "cmsis-csolution.activeSolutionState == active"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.cmsisLoad",
+        "title": "Load application to target",
+        "enablement": "cmsis-csolution.executionState == idle && hasLoadTask"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.cmsisErase",
+        "title": "Erase device",
+        "enablement": "cmsis-csolution.executionState == idle && hasEraseTask"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.cmsisRun",
+        "title": "Run current application on target",
+        "enablement": "cmsis-csolution.executionState == idle && hasRunTask"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.cmsisTargetInfo",
+        "title": "Target Information",
+        "enablement": "cmsis-csolution.executionState == idle || cmsis-csolution.executionState == unconfigured"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.clean",
+        "title": "Clean all out and tmp directories",
+        "enablement": "cmsis-csolution.activeSolutionState == active"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.cmsisLoadAndRun",
+        "title": "Load & Run application",
+        "icon": "$(run)",
+        "enablement": "hasLoadRunTask && canStartRun"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.cmsisStopRun",
+        "title": "Stop running",
+        "icon": "$(debug-stop)",
+        "enablement": "canStopRun"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.cmsisLoadAndDebug",
+        "title": "Load & Debug application",
+        "icon": "$(bug)",
+        "enablement": "hasDebugConfig && canStartRun"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.cmsisAttachDebugger",
+        "title": "Attach Debugger",
+        "icon": "$(debug-alt)",
+        "enablement": "hasAttachConfig && canAttachDebug"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.cmsisDetachDebugger",
+        "title": "Detach Debugger",
+        "icon": "$(debug-disconnect)",
+        "enablement": "canDetachDebug"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.openSolution",
+        "title": "Open Solution in Workspace…",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.activateSolution",
+        "title": "Select as active solution",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.deactivateSolution",
+        "title": "Close Solution"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.manageComponentsPacks",
+        "title": "Manage software components",
+        "enablement": "cmsis-csolution.activeSolutionState == active",
+        "icon": "$(csolution-components)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.manageSolution",
+        "title": "Manage Solution Settings",
+        "enablement": "cmsis-csolution.activeSolutionState == active",
+        "icon": "$(gear)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.openManageSolutionUiEditor",
+        "title": "Open Manage Solution UI Editor",
+        "shortTitle": "UI Editor",
+        "icon": "$(preview)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.openManageSolutionTextEditor",
+        "title": "Open Manage Solution Text Editor",
+        "shortTitle": "Text Editor",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.unsetClangdContext",
+        "title": "Clangd information active",
+        "enablement": "cmsis-csolution.activeSolutionState == active",
+        "icon": "$(info-full-circle)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.setClangdContext",
+        "title": "Activate Clangd information",
+        "enablement": "cmsis-csolution.activeSolutionState == active",
+        "icon": "$(info-circle)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.createSolution",
+        "title": "Create Solution…"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.openHelp",
+        "title": "Help",
+        "shortTitle": "Help"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.configureSolution",
+        "title": "Configure Solution",
+        "shortTitle": "Configure Solution…",
+        "icon": "$(circuit-board)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.openProjectFile",
+        "title": "Open cproject.yml file",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.openPrjConfFile",
+        "title": "Open prj.conf file",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.openZephyrTerminal",
+        "title": "Open Zephyr Terminal",
+        "icon": "$(terminal)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.openLayerFile",
+        "title": "Open clayer.yml file",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.openLinkerMapFile",
+        "title": "Open linker map file",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.openDocFile",
+        "title": "Open Documentation",
+        "icon": "$(book)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.copyHeaderFile",
+        "title": "Copy header file",
+        "icon": "$(copy)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.mergeFile",
+        "title": "Merge updated config file",
+        "icon": "$(git-merge)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.openSolutionFile",
+        "title": "Open csolution.yml file",
+        "enablement": "cmsis-csolution.activeSolutionState == active",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getSolutionFile",
+        "title": "Path and name to csolution.yml file of Active Solution"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getSolutionPath",
+        "title": "Deprecated: identical with getSolutionFile"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.setHighlightedComponent",
+        "title": "Set Component to Highlight"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.convertMicroVisionToCsolution",
+        "title": "Convert a μVision project to CMSIS solution…"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getBinaryFile",
+        "title": "Path and name of first ELF/DWARF file in Active Target"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getBinaryFiles",
+        "title": "Path and name of ELF/DWARF files (comma separated) in Active Target"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getProcessorName",
+        "title": "Processor name (pname) of active project; for multi-processor configurations start-pname"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getDeviceName",
+        "title": "Device name of Active Target as specified in csolution.yml"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getBoardName",
+        "title": "Board name of Active Target as specified in csolution.yml"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.installPack",
+        "title": "Install Pack for Given Vendor, Name, and Version"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getTargetPack",
+        "title": "Deprecated: Use getDfpName instead"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.addToGroup",
+        "title": "Add Groups or Files (only for groups)",
+        "icon": "$(plus)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.remove",
+        "title": "Remove"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.showConfigWizardPreview",
+        "title": "Open Preview",
+        "icon": {
+          "light": "./media/preview-light.svg",
+          "dark": "./media/preview-dark.svg"
+        }
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.showConfigWizardSource",
+        "title": "Show Source",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.runGenerator",
+        "title": "Run Configuration Generator",
+        "icon": "$(run-generator)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getDfpName",
+        "title": "Device Family Pack (DFP) used in Active Target"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getBspName",
+        "title": "Board Support Pack (BSP) used in Active Target"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getDfpPath",
+        "title": "Path to content of DFP used in Active Target"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getBspPath",
+        "title": "Path to content of BSP used in Active Target"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getPackRootPath",
+        "title": "Path to CMSIS Pack Root Directory, i.e., CMSIS_PACK_ROOT environment variable or OS default",
+        "shortTitle": "Path to CMSIS Pack Root"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getCbuildRunFile",
+        "title": "Path to cbuild-run.yml file of Active Target"
+      },
+      {
+        "command": "cmsis-csolution.list.find",
+        "title": "Search"
+      },
+      {
+        "command": "cmsis-csolution.showSolutionOutline",
+        "title": "Show Solution Outline"
+      },
+      {
+        "command": "cmsis-csolution.updateDebugTasks",
+        "title": "Update Debug Tasks and Launch Configurations"
+      },
+      {
+        "command": "cmsis-csolution.getActiveTargetSet",
+        "title": "Get name of active run and debug configuration (format: target-type@set)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "cmsis-csolution.runGenerator",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.refresh"
+        },
+        {
+          "command": "cmsis-csolution.build"
+        },
+        {
+          "command": "cmsis-csolution.rebuild"
+        },
+        {
+          "command": "cmsis-csolution.cmsisLoad"
+        },
+        {
+          "command": "cmsis-csolution.cmsisErase"
+        },
+        {
+          "command": "cmsis-csolution.cmsisRun"
+        },
+        {
+          "command": "cmsis-csolution.cmsisTargetInfo"
+        },
+        {
+          "command": "cmsis-csolution.clean"
+        },
+        {
+          "command": "cmsis-csolution.cmsisLoadAndRun"
+        },
+        {
+          "command": "cmsis-csolution.cmsisLoadAndDebug"
+        },
+        {
+          "command": "cmsis-csolution.cmsisAttachDebugger"
+        },
+        {
+          "command": "cmsis-csolution.cmsisDetachDebugger"
+        },
+        {
+          "command": "cmsis-csolution.openSolution"
+        },
+        {
+          "command": "cmsis-csolution.activateSolution",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.getProcessorName",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.getDeviceName",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.getSolutionPath",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.setHighlightedComponent",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.openSolutionFile",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.openProjectFile",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.openPrjConfFile",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.openZephyrTerminal",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.openLayerFile",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.openLinkerMapFile",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.openDocFile",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.copyHeaderFile",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.createSolution"
+        },
+        {
+          "command": "cmsis-csolution.openHelp"
+        },
+        {
+          "command": "cmsis-csolution.manageComponentsPacks"
+        },
+        {
+          "command": "cmsis-csolution.manageSolution"
+        },
+        {
+          "command": "cmsis-csolution.openManageSolutionUiEditor",
+          "when": "resourceFilename =~ /\\.csolution\\.yml$/ && activeCustomEditorId != 'cmsis.manageSolution'"
+        },
+        {
+          "command": "cmsis-csolution.openManageSolutionTextEditor",
+          "when": "resourceFilename =~ /\\.csolution\\.yml$/ && activeCustomEditorId == 'cmsis.manageSolution'"
+        },
+        {
+          "command": "cmsis-csolution.configureSolution"
+        },
+        {
+          "command": "cmsis-csolution.getTargetPack",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.addToGroup",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.showConfigWizardPreview",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.showConfigWizardSource",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.installPack",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.getDfpName",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.getBspName",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.getDfpPath",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.getBspPath",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.getCbuildRunFile",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "cmsis-csolution.build",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && cmsis-csolution.buildState == idle",
+          "group": "navigation@1"
+        },
+        {
+          "command": "cmsis-csolution.stopBuild",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && cmsis-csolution.buildState == building",
+          "group": "navigation@1"
+        },
+        {
+          "command": "cmsis-csolution.cmsisLoadAndRun",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && (cmsis-csolution.executionState == idle || cmsis-csolution.executionState == unconfigured)",
+          "group": "navigation@2"
+        },
+        {
+          "command": "cmsis-csolution.cmsisStopRun",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && (cmsis-csolution.executionState == running || cmsis-csolution.executionState == debugging || cmsis-csolution.executionState == loading || cmsis-csolution.executionState == erasing)",
+          "group": "navigation@2"
+        },
+        {
+          "command": "cmsis-csolution.cmsisLoadAndDebug",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && (cmsis-csolution.executionState != running && cmsis-csolution.executionState != debugging)",
+          "group": "navigation@3"
+        },
+        {
+          "command": "cmsis-csolution.cmsisAttachDebugger",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && (cmsis-csolution.executionState == running)",
+          "group": "navigation@3"
+        },
+        {
+          "command": "cmsis-csolution.cmsisDetachDebugger",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && (cmsis-csolution.executionState == debugging)",
+          "group": "navigation@3"
+        },
+        {
+          "command": "cmsis-csolution.openSolutionFile",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "group": "navigation@4"
+        },
+        {
+          "command": "cmsis-csolution.manageSolution",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "group": "navigation@6"
+        },
+        {
+          "command": "cmsis-csolution.openSolution",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState != none",
+          "group": "a-open@1"
+        },
+        {
+          "command": "cmsis-csolution.createSolution",
+          "when": "view == cmsis-csolution.outline",
+          "group": "a-open@2"
+        },
+        {
+          "command": "cmsis-csolution.convertMicroVisionToCsolution",
+          "when": "view == cmsis-csolution.outline",
+          "group": "a-open@3"
+        },
+        {
+          "command": "cmsis-csolution.deactivateSolution",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "group": "a-open@4"
+        },
+        {
+          "command": "cmsis-csolution.openHelp",
+          "when": "view == cmsis-csolution.outline",
+          "group": "SolutionHelp@2"
+        },
+        {
+          "command": "cmsis-csolution.list.find",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "group": "SolutionHelp@1"
+        },
+        {
+          "command": "cmsis-csolution.clean",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "group": "Build@1"
+        },
+        {
+          "command": "cmsis-csolution.rebuild",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "group": "Build@2"
+        },
+        {
+          "command": "cmsis-csolution.refresh",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "group": "Build@3"
+        },
+        {
+          "command": "cmsis-csolution.reloadPacks",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState != active",
+          "group": "Build@3"
+        },
+        {
+          "command": "cmsis-csolution.cmsisLoad",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "group": "CMSIS"
+        },
+        {
+          "command": "cmsis-csolution.cmsisErase",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "group": "CMSIS"
+        },
+        {
+          "command": "cmsis-csolution.cmsisRun",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "group": "CMSIS"
+        },
+        {
+          "command": "cmsis-csolution.cmsisTargetInfo",
+          "when": "view == cmsis-csolution.outline",
+          "group": "CMSIS"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "cmsis-csolution.openProjectFile",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /\\.cproject\\.ya?ml/",
+          "group": "inline@3"
+        },
+        {
+          "command": "cmsis-csolution.openPrjConfFile",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /\\.cproject-west\\.yml/",
+          "group": "inline@3"
+        },
+        {
+          "command": "cmsis-csolution.openZephyrTerminal",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /\\.cproject-west\\.yml/ && cmsis-csolution.executionState == idle",
+          "group": "inline@3"
+        },
+        {
+          "command": "cmsis-csolution.openLayerFile",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /layerFile/",
+          "group": "inline"
+        },
+        {
+          "command": "cmsis-csolution.openLinkerMapFile",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /linkerMapFile/",
+          "group": "inline"
+        },
+        {
+          "command": "cmsis-csolution.openDocFile",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /docFile/",
+          "group": "inline@8"
+        },
+        {
+          "command": "cmsis-csolution.copyHeaderFile",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /headerFile/",
+          "group": "inline@7"
+        },
+        {
+          "command": "cmsis-csolution.mergeFile",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /mergeFile/",
+          "group": "inline@9"
+        },
+        {
+          "command": "cmsis-csolution.setClangdContext",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /^projectFile/ && viewItem not in cmsis-csolution.activeClangdContext",
+          "group": "inline"
+        },
+        {
+          "command": "cmsis-csolution.unsetClangdContext",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /^projectFile/ && viewItem in cmsis-csolution.activeClangdContext",
+          "group": "inline"
+        },
+        {
+          "command": "cmsis-csolution.manageComponentsPacks",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /\\.cproject\\.ya?ml|components?$|component(?!-gen)/",
+          "group": "inline@5"
+        },
+        {
+          "command": "cmsis-csolution.addToGroup",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /\\.cproject\\.ya?ml|group/",
+          "group": "inline@6"
+        },
+        {
+          "command": "cmsis-csolution.remove",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /group|file/",
+          "group": "contextMenu"
+        },
+        {
+          "command": "cmsis-csolution.runGenerator",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /component-gen/",
+          "group": "inline"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "cmsis-csolution.convertMicroVisionToCsolution",
+          "when": "resourceFilename =~ /.+\\.uvprojx$/i || resourceFilename =~ /.+\\.uvmpw$/i",
+          "group": "navigation"
+        },
+        {
+          "command": "cmsis-csolution.activateSolution",
+          "when": "(resourcePath =~ /.+\\.csolution\\.ya?ml$/ && resourcePath not in cmsis-csolution.activeSolution) || (explorerResourceIsFolder && resourceFilename in cmsis-csolution.solutionRoots)",
+          "group": "navigation"
+        },
+        {
+          "command": "cmsis-csolution.showConfigWizardPreview",
+          "group": "navigation",
+          "when": "resourceLangId == cpp"
+        },
+        {
+          "command": "cmsis-csolution.build",
+          "when": "resourcePath in cmsis-csolution.activeSolution",
+          "group": "CMSIS@1"
+        },
+        {
+          "command": "cmsis-csolution.rebuild",
+          "when": "resourcePath in cmsis-csolution.activeSolution",
+          "group": "CMSIS@2"
+        },
+        {
+          "command": "cmsis-csolution.cmsisLoadAndRun",
+          "when": "resourcePath in cmsis-csolution.activeSolution",
+          "group": "CMSIS@3"
+        },
+        {
+          "command": "cmsis-csolution.cmsisLoadAndDebug",
+          "when": "resourcePath in cmsis-csolution.activeSolution",
+          "group": "CMSIS@4"
+        }
+      ],
+      "touchBar": [
+        {
+          "command": "cmsis-csolution.build",
+          "when": "resourcePath in cmsis-csolution.activeSolution"
+        },
+        {
+          "command": "cmsis-csolution.clean",
+          "when": "resourcePath in cmsis-csolution.activeSolution"
+        },
+        {
+          "command": "cmsis-csolution.rebuild",
+          "when": "resourcePath in cmsis-csolution.activeSolution"
+        },
+        {
+          "command": "cmsis-csolution.cmsisLoad",
+          "when": "resourcePath in cmsis-csolution.activeSolution"
+        },
+        {
+          "command": "cmsis-csolution.cmsisErase",
+          "when": "resourcePath in cmsis-csolution.activeSolution"
+        },
+        {
+          "command": "cmsis-csolution.cmsisRun",
+          "when": "resourcePath in cmsis-csolution.activeSolution"
+        },
+        {
+          "command": "cmsis-csolution.cmsisTargetInfo"
+        },
+        {
+          "command": "cmsis-csolution.cmsisLoadAndRun",
+          "when": "resourcePath in cmsis-csolution.activeSolution"
+        },
+        {
+          "command": "cmsis-csolution.cmsisLoadAndDebug",
+          "when": "resourcePath in cmsis-csolution.activeSolution"
+        },
+        {
+          "command": "cmsis-csolution.activateSolution",
+          "when": "resourcePath in cmsis-csolution.activeSolution"
+        }
+      ],
+      "file/newFile": [
+        {
+          "command": "cmsis-csolution.createSolution",
+          "group": "CMSIS",
+          "when": "true"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "cmsis-csolution.showConfigWizardPreview",
+          "group": "navigation",
+          "when": "(resourceLangId == cpp || resourceLangId == c || resourceFilename =~ /\\.dbgconf/) && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+        },
+        {
+          "command": "cmsis-csolution.showConfigWizardSource",
+          "when": "activeWebviewPanelId == 'cmsis-csolution.configWizard'",
+          "group": "navigation"
+        },
+        {
+          "command": "cmsis-csolution.openManageSolutionUiEditor",
+          "group": "navigation@1",
+          "when": "resourceFilename =~ /\\.csolution\\.yml$/ && activeCustomEditorId != 'cmsis.manageSolution'"
+        },
+        {
+          "command": "cmsis-csolution.openManageSolutionTextEditor",
+          "group": "navigation@2",
+          "when": "resourceFilename =~ /\\.csolution\\.yml$/ && activeCustomEditorId == 'cmsis.manageSolution'"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "cmsis-csolution.showConfigWizardPreview",
+          "group": "1_open",
+          "when": "(resourceLangId == cpp || resourceLangId == c || resourceFilename =~ /\\.dbgconf/) && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "cmsis-csolution.showConfigWizardPreview",
+          "group": "1_open",
+          "when": "(resourceLangId == cpp || resourceLangId == c || resourceFilename =~ /\\.dbgconf/) && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+        }
+      ]
+    },
+    "customEditors": [
+      {
+        "viewType": "cmsis-csolution.configWizard",
+        "displayName": "Configuration Wizard",
+        "selector": [
+          {
+            "filenamePattern": "*.h"
+          },
+          {
+            "filenamePattern": "*.c"
+          },
+          {
+            "filenamePattern": "*.dbgconf"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "cmsis.manageSolution",
+        "displayName": "Manage Solution",
+        "selector": [
+          {
+            "filenamePattern": "*.csolution.yml"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "configuration": {
+      "title": "CMSIS Solution",
+      "properties": {
+        "cmsis-csolution.generateClangSetup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically generate for the active csolution context the required setup (.clangd file and .vscode/settings.json). For AC6 compiler include pre-defined macros in the .clangd file."
+        },
+        "cmsis-csolution.experimentalFeatures": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable experimental features"
+        },
+        "cmsis-csolution.exclude": {
+          "type": "string",
+          "markdownDescription": "Configure a [glob pattern](https://code.visualstudio.com/docs/editor/glob-patterns) for excluding files and folders in searches for csolution files."
+        },
+        "cmsis-csolution.outputDirectory": {
+          "type": "string",
+          "description": "Enter an output directory prefix for 'outdir' and 'tmpdir' and relocated build information files (experimental)."
+        },
+        "cmsis-csolution.useWebServices": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use web services to obtain information about devices, boards, and examples. If enabled, information from the internet database and installed packs is used. If disabled, only information from installed packs is used."
+        },
+        "cmsis-csolution.downloadPacks": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "The CMSIS-Toolbox downloads required software packs using cpackget during setup and project build. This option enables the option ```--packs``` for [cbuild](https://open-cmsis-pack.github.io/cmsis-toolbox/build-tools/#cbuild-invocation)."
+        },
+        "cmsis-csolution.autoDebugLaunch": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Create or update `launch.json` and `tasks.json` with the Debug Adapter configuration of the CMSIS solution project. When disabled, the files `launch.json` and `tasks.json` are no longer modified. (Note: also available in Manage Solution Settings dialog)."
+        },
+        "cmsis-csolution.probe-id": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Specify the unique identifier of a debug probe to connect on your host computer (typically its serial number). Leave empty to connect to the first debug probe that matches the specified type. Try using [Target Information](command:cmsis-csolution.cmsisTargetInfo) with your debug adapter connected."
+        },
+        "cmsis-csolution.environmentVariables": {
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^[a-zA-Z][a-zA-Z0-9_]*$": {
+              "type": "string"
+            }
+          },
+          "default": {},
+          "markdownDescription": "Specify additional environment variables to be set for build, run, and terminals."
+        }
+      }
+    },
+    "yamlValidation": [
+      {
+        "fileMatch": [
+          "*.cbuild-gen-idx.yml",
+          "*.cbuild-gen-idx.yaml"
+        ],
+        "url": "./tools/cmsis-toolbox/etc/cbuild-gen-idx.schema.json"
+      },
+      {
+        "fileMatch": [
+          "*.cbuild-gen.yml",
+          "*.cbuild-gen.yaml"
+        ],
+        "url": "./tools/cmsis-toolbox/etc/cbuild-gen.schema.json"
+      },
+      {
+        "fileMatch": [
+          "*.cbuild-idx.yml",
+          "*.cbuild-idx.yaml"
+        ],
+        "url": "./tools/cmsis-toolbox/etc/cbuild-idx.schema.json"
+      },
+      {
+        "fileMatch": [
+          "*.cbuild-pack.yml",
+          "*.cbuild-pack.yaml"
+        ],
+        "url": "./tools/cmsis-toolbox/etc/cbuild-pack.schema.json"
+      },
+      {
+        "fileMatch": [
+          "*.cbuild-run.yml",
+          "*.cbuild-run.yaml"
+        ],
+        "url": "./tools/cmsis-toolbox/etc/cbuild-run.schema.json"
+      },
+      {
+        "fileMatch": [
+          "*.cbuild.yml",
+          "*.cbuild.yaml"
+        ],
+        "url": "./tools/cmsis-toolbox/etc/cbuild.schema.json"
+      },
+      {
+        "fileMatch": [
+          "*.cgen.yml",
+          "*.cgen.yaml"
+        ],
+        "url": "./tools/cmsis-toolbox/etc/cgen.schema.json"
+      },
+      {
+        "fileMatch": [
+          "*.csolution.yaml",
+          "*.csolution.yml"
+        ],
+        "url": "./tools/cmsis-toolbox/etc/csolution.schema.json"
+      },
+      {
+        "fileMatch": [
+          "*.cproject.yaml",
+          "*.cproject.yml"
+        ],
+        "url": "./tools/cmsis-toolbox/etc/cproject.schema.json"
+      },
+      {
+        "fileMatch": [
+          "*.clayer.yaml",
+          "*.clayer.yml"
+        ],
+        "url": "./tools/cmsis-toolbox/etc/clayer.schema.json"
+      },
+      {
+        "fileMatch": [
+          "cdefault.yaml",
+          "cdefault.yml"
+        ],
+        "url": "./tools/cmsis-toolbox/etc/cdefault.schema.json"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "*",
+        "configurationAttributes": {
+          "launch": {
+            "properties": {
+              "cmsis": {
+                "type": "object",
+                "properties": {
+                  "updateConfiguration": {
+                    "type": "string",
+                    "description": "Set to auto allows the extension to update the configuration file automatically. Set to manual to disable automatic updates.",
+                    "default": "manual",
+                    "enum": [
+                      "auto",
+                      "manual"
+                    ],
+                    "enumDescriptions": [
+                      "Allow the extension to update the configuration file automatically.",
+                      "Disable automatic updates."
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "attach": {
+            "properties": {
+              "cmsis": {
+                "type": "object",
+                "properties": {
+                  "updateConfiguration": {
+                    "type": "string",
+                    "description": "Set to auto allows the extension to update the configuration file automatically. Set to manual to disable automatic updates.",
+                    "default": "manual",
+                    "enum": [
+                      "auto",
+                      "manual"
+                    ],
+                    "enumDescriptions": [
+                      "Allow the extension to update the configuration file automatically.",
+                      "Disable automatic updates."
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "activationEvents": [
+    "workspaceContains:**/*.csolution.yml",
+    "workspaceContains:**/*.csolution.yaml",
+    "workspaceContains:**/*.uvprojx"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "Access to the CMSIS pack cache and local tools is required"
+    }
+  },
+  "extensionKind": [
+    "workspace"
+  ],
+  "extensionPack": [
+    "redhat.vscode-yaml"
+  ],
+  "jest": {
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js"
+    ],
+    "transform": {
+      "\\.js$": [
+        "babel-jest",
+        {
+          "plugins": [
+            "@babel/plugin-transform-modules-commonjs"
+          ]
+        }
+      ],
+      "^.+\\.(ts|tsx|js)$": [
+        "ts-jest",
+        {
+          "tsconfig": "<rootDir>/tsconfig.json"
+        }
+      ]
+    },
+    "transformIgnorePatterns": [
+      "/node_modules/(?!(@vscode/webview-ui-toolkit|@microsoft|exenv-es6|yaml)/)"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/src/e2e-tests/"
+    ],
+    "testMatch": [
+      "**/*.test.+(ts|tsx)"
+    ],
+    "moduleNameMapper": {
+      "\\.(css)$": "<rootDir>/__mocks__/static-assets.js"
+    },
+    "testEnvironment": "jsdom",
+    "setupFiles": [
+      "./jestSetupFile.js"
+    ],
+    "setupFilesAfterEnv": [
+      "./src/__test__/custom-matchers.ts",
+      "./src/generic/map.ts",
+      "./src/generic/array.ts"
+    ],
+    "clearMocks": true,
+    "collectCoverage": true,
+    "collectCoverageFrom": [
+      "**/*.{ts,tsx}",
+      "!**/node_modules/**",
+      "!**/lib/**",
+      "!**/scripts/**",
+      "!**/*.d.ts",
+      "!src/**/*.factories.{ts,tsx}",
+      "!src/vscode-api/**",
+      "!src/e2e-tests/**",
+      "!src/desktop/extension.ts",
+      "!src/solar-search/graphql/client"
+    ],
+    "coverageDirectory": "./coverage",
+    "coverageReporters": [
+      "lcov",
+      "text"
+    ]
+  }
+}

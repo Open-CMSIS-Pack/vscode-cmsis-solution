@@ -1,0 +1,81 @@
+name: Markdown
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/markdown.yml'
+      - '.github/markdownlint.json'
+      - '.github/markdownlint.jsonc'
+      - '**/*.md'
+      - '!.github/workflows/nightly.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint Markdown Files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - name: Configure git settings
+        run: git config --global core.autocrlf false
+
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Register Markdownlint Warning Matcher
+        run: echo "::add-matcher::.github/markdownlint.json"
+
+      - name: Setup Node
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          node-version: '20'
+          registry-url: https://npm.pkg.github.com
+          package-manager-cache: false
+
+      - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+        run: npm ci
+
+      - name: Lint Markdown Files
+        run: npm run lint:md
+
+      - name: Remove Markdownlint Warning Matcher
+        if: always()
+        run: echo "::remove-matcher owner=markdownlint::"
+
+  check-links:
+    name: Check Markdown Links
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Check Links
+        uses: tcort/github-action-markdown-link-check@e7c7a18363c842693fadde5d41a3bd3573a7a225 # v1.1.2
+        with:
+          use-quiet-mode: 'no'
+          use-verbose-mode: 'yes'
+          config-file: '.github/markdown-link-check.jsonc'

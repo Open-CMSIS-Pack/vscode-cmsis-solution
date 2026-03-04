@@ -1,0 +1,54 @@
+version: 2
+
+registries:
+  npm-github:
+    type: npm-registry
+    url: https://npm.pkg.github.com
+    token: ${{secrets.GH_PACKAGES_TOKEN}}
+
+updates:
+  # Maintain dependencies for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      time: "02:00"
+    cooldown:
+      default-days: 3
+
+  # Maintain dependencies for the JavaScript package
+  - package-ecosystem: "npm"
+    directory: "/"
+    registries:
+      - npm-github
+    schedule:
+      interval: "monthly"
+      time: "02:00"
+    cooldown:
+      default-days: 3
+    ignore:
+      - dependency-name: "@types/vscode"
+      - dependency-name: "react"
+        update-types:
+        - version-update:semver-major
+      - dependency-name: "react-dom"
+        update-types:
+        - version-update:semver-major
+      - dependency-name: "@types/react"
+        update-types:
+        - version-update:semver-major
+      - dependency-name: "@types/react-dom"
+        update-types:
+        - version-update:semver-major
+      - dependency-name: "@types/node"
+        update-types:
+        - version-update:semver-major
+      - dependency-name: "jest"
+        update-types:
+        - version-update:semver-major
+      - dependency-name: "@types/jest"
+        update-types:
+        - version-update:semver-major
+      - dependency-name: "nock"
+        update-types:
+        - version-update:semver-major

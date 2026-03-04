@@ -1,0 +1,12 @@
+/**
+ * Some themes don't work well with (or don't even provide) the colour variables we've chosen
+ * to style our elements. For example, the builtin VSCode Light theme does not provide --vscode-input-border.
+ *
+ * Sparingly we can use this file to override or redefine colour variables (or any other CSS)
+ * for specific themes or theme groups.
+ * See https://code.visualstudio.com/api/extension-guides/webview#theming-webview-content for more information.
+ */
+
+body {
+    --arm-input-border: var(--vscode-input-border, var(--vscode-dropdown-border));
+}

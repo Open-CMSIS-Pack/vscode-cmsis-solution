@@ -1,0 +1,49 @@
+layer:
+  type: Board
+  description: B-U585I-IOT02A Board setup for IoT
+  for-board: STMicroelectronics::B-U585I-IOT02A
+  processor:
+    trustzone: off
+
+  generators:
+    options:
+      - generator: CubeMX
+        path: ./CubeMX
+        name: Board
+
+  connections:
+    - connect: B-U585I-IOT02A Board
+      provides:
+        - CMSIS_USB_Device: 0
+        - CMSIS_VIO
+        - STDIN
+        - STDOUT
+        - STDERR
+        - Heap: 1024
+
+  packs:
+    - pack: Keil::STM32U5xx_DFP@>=3.0.0-0
+    - pack: Keil::B-U585I-IOT02A_BSP@>=2.0.0-0
+    - pack: ARM::CMSIS@>=6.0.0
+    - pack: ARM::CMSIS-Compiler@>=2.0.0
+    - pack: ARM::CMSIS-Driver_STM32@>=1.0.0-0
+
+  components:
+    - component: Keil::Device:CubeMX
+
+    - component: ARM::CMSIS:CORE
+
+    - component: Keil::CMSIS Driver:USART
+    - component: Keil::CMSIS Driver:USB Device
+    - component: Keil::CMSIS Driver:VIO:Board&B-U585I-IOT02A
+
+    - component: ARM::CMSIS-Compiler:CORE
+    - component: ARM::CMSIS-Compiler:STDERR:Custom
+    - component: ARM::CMSIS-Compiler:STDOUT:Custom
+    - component: ARM::CMSIS-Compiler:STDIN:Custom
+
+  groups:
+    - group: Board
+      files:
+        - file: ./retarget_stdio.c
+        - file: README.md

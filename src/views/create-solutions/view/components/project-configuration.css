@@ -1,0 +1,18 @@
+/*
+ * Copyright (c) 2023-2026 Arm Limited
+ */
+
+.project-config-row {
+    display: grid;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    gap: 8px;
+}
+
+.layout-header {
+    font-size: 13px;
+}
+
+.add-project-config-row {
+    margin-top: 5px;
+}

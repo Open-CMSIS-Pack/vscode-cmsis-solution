@@ -1,0 +1,278 @@
+name: Nightly
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/nightly.yml
+      - '!**/*.md'
+  schedule:
+    - cron: '0 4 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    if: github.repository == 'Open-CMSIS-Pack/vscode-cmsis-solution'
+    runs-on: [ubuntu-latest]
+    name: 'Build'
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v4.3.1
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          node-version: '20'
+          registry-url: https://npm.pkg.github.com
+          package-manager-cache: false
+
+      - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+        run: npm ci
+
+      - name: Run build
+        run: npm run build
+
+      - name: Lint check
+        run: npm run lint
+
+      - name: Update version for nightly build
+        run: |
+          # Increment patch version by 1 (e.g. 1.64.1 -> 1.64.2)
+          BASE_VERSION=$(node -p "require('./package.json').version.split('-')[0]")
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+          if [ -z "$MAJOR" ] || [ -z "$MINOR" ] || [ -z "$PATCH" ]; then
+            echo "Invalid semver: $BASE_VERSION"
+            exit 1
+          fi
+          if ! [[ "$MAJOR" =~ ^[0-9]+$ && "$MINOR" =~ ^[0-9]+$ && "$PATCH" =~ ^[0-9]+$ ]]; then
+            echo "Invalid semver components (non-numeric): $BASE_VERSION (MAJOR=$MAJOR, MINOR=$MINOR, PATCH=$PATCH)"
+            exit 1
+          fi
+          NEXT_PATCH_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+
+          # Get commit count: since last tag if exists, otherwise total commits
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            COMMIT_COUNT=$(git rev-list --count HEAD ^${LAST_TAG})
+          else
+            COMMIT_COUNT=$(git rev-list --count HEAD)
+          fi
+
+          # Get short commit SHA
+          SHORT_SHA=$(git rev-parse --short HEAD)
+
+          # Create nightly version: 1.64.2-12-abc1234
+          NIGHTLY_VERSION="${NEXT_PATCH_VERSION}-${COMMIT_COUNT}-${SHORT_SHA}"
+          echo "Setting version to ${NIGHTLY_VERSION}"
+
+          # Update package.json
+          npm version "${NIGHTLY_VERSION}" --no-git-tag-version
+
+      - name: Ensure download-tools.sh is executable
+        working-directory: .github/workflows
+        run: chmod +x ./download-tools.sh
+
+      - name: Download dependencies (win32-x64)
+        working-directory: .github/workflows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./download-tools.sh win32-x64
+
+      - name: Package win32-x64
+        run: npm run package -- --target win32-x64
+
+      - name: Download dependencies (win32-arm64)
+        working-directory: .github/workflows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./download-tools.sh win32-arm64
+
+      - name: Package win32-arm64
+        run: npm run package -- --target win32-arm64
+
+      - name: Download dependencies (linux-x64)
+        working-directory: .github/workflows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./download-tools.sh linux-x64
+
+      - name: Package linux-x64
+        run: npm run package -- --target linux-x64
+
+      - name: Download dependencies (linux-arm64)
+        working-directory: .github/workflows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./download-tools.sh linux-arm64
+
+      - name: Package linux-arm64
+        run: npm run package -- --target linux-arm64
+
+      - name: Download dependencies (darwin-x64)
+        working-directory: .github/workflows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./download-tools.sh darwin-x64
+
+      - name: Package darwin-x64
+        run: npm run package -- --target darwin-x64
+
+      - name: Download dependencies (darwin-arm64)
+        working-directory: .github/workflows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./download-tools.sh darwin-arm64
+
+      - name: Package darwin-arm64
+        run: npm run package -- --target darwin-arm64
+
+      - name: Upload win32-x64 VSIX package
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: vsix-package-win32-x64
+          path: ./*win32-x64*.vsix
+          retention-days: 1
+
+      - name: Upload win32-arm64 VSIX package
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: vsix-package-win32-arm64
+          path: ./*win32-arm64*.vsix
+          retention-days: 1
+
+      - name: Upload linux-x64 VSIX package
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: vsix-package-linux-x64
+          path: ./*linux-x64*.vsix
+          retention-days: 1
+
+      - name: Upload linux-arm64 VSIX package
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: vsix-package-linux-arm64
+          path: ./*linux-arm64*.vsix
+          retention-days: 1
+
+      - name: Upload darwin-x64 VSIX package
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: vsix-package-darwin-x64
+          path: ./*darwin-x64*.vsix
+          retention-days: 1
+
+      - name: Upload darwin-arm64 VSIX package
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: vsix-package-darwin-arm64
+          path: ./*darwin-arm64*.vsix
+          retention-days: 1
+
+  test:
+    name: 'Test (windows-latest)'
+    runs-on: windows-latest
+    needs: build
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@c2d88d3ecc89a9ef08eebf45d9637801dcee7eb5 # v4.3.1
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          node-version: '20'
+          registry-url: https://npm.pkg.github.com
+          package-manager-cache: false
+
+      - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+        run: npm ci
+
+      - name: Run build
+        run: npm run build
+
+      - name: Download VSIX package
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: vsix-package-win32-x64
+
+      - name: Setup Node
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Setup vcpkg environment
+        uses: ARM-software/cmsis-actions/vcpkg@afc8e1a46fad8a5e1a08f8477b71050d442f60a7 # v1.1
+        with:
+          config: './src/e2e-tests/vcpkg-configuration.json'
+
+      - name: Activate Arm tool license
+        run: armlm activate --server https://mdk-preview.keil.arm.com --product KEMDK-COM0
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright tests
+        id: tests
+        run: npm run e2e
+
+      - name: Publish Test Results
+        if: always() && steps.tests.conclusion != 'skipped'
+        uses: dorny/test-reporter@b082adf0eced0765477756c2a610396589b8c637 # v2.5.0
+        with:
+          name: Playwright Tests
+          path: e2e-report/results.xml
+          reporter: jest-junit
+
+      - name: Upload HTML report
+        if: always() && steps.tests.conclusion != 'skipped'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: e2e-report
+          path: e2e-report
+
+      - name: Upload Screenshots
+        if: always() && steps.tests.conclusion != 'skipped'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: e2e-screenshots
+          path: e2e-screenshots

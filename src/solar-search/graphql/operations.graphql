@@ -1,0 +1,171 @@
+query getBoard($name: String!, $vendor: String!, $revision: String!) {
+    search_boards(
+        has_example_projects: true
+        cmsis_board_id: {name: $name, vendor: $vendor, revision: $revision}
+    ) {
+        results {
+            id
+            example_projects_count
+        }
+    }
+}
+
+query getBoardProjects($boardId: String!, $offset: Int!, $limit: Int!) {
+    search_projects(board_id: $boardId, offset: $offset, limit: $limit) {
+        results {
+            description
+            download_url
+            format {
+                type
+                ... on UvProjectFormat {
+                    __typename
+                    convertible
+                    type
+                }
+                ... on CsolutionProjectFormat {
+                    cmsis_version
+                    type
+                }
+            }
+            name
+            id
+        }
+    }
+}
+
+query getAllDevices($offset: Int!, $limit: Int!) {
+    search_devices(offset: $offset, limit: $limit) {
+        results {
+            id
+            vendor {
+                name
+            }
+            family
+            sub_family
+            name
+        }
+        metadata {
+            total
+        }
+    }
+}
+
+query getDevice($id: String!) {
+    get_device(id: $id) {
+        id
+        name
+        description
+        vendor {
+            name
+        }
+        family {
+            id
+            name
+        }
+        sub_family {
+            id
+            name
+        }
+        memory {
+            name
+            size
+        }
+        processors {
+            core
+            cortexm_vector_extensions
+            digital_signal_processor
+            endian
+            floating_point_unit
+            max_core_clock_frequency
+            memory_protection_unit
+            trust_zone
+        }
+        source_pack_id {
+            name
+            vendor
+            version
+        }
+    }
+}
+
+query getAllBoards {
+    boards {
+        id
+        name
+        revision
+        vendor {
+            name
+        }
+        cmsis {
+            pack_family_id
+            cmsis_pack_id {
+                version
+            }
+        }
+    }
+}
+
+query getAllBoardsWithDetails {
+    boards {
+        id
+        name
+        revision
+        description
+        vendor {
+            name
+        }
+        devices {
+            id
+            name
+            vendor {
+                name
+            }
+        }
+        cmsis {
+            pack_family_id
+            cmsis_pack_id {
+                version
+            }
+        }
+    }
+}
+
+query getBoardDetails($id: String!) {
+    get_board(id: $id) {
+        id
+        vendor {
+            name
+        }
+        name
+        revision
+        description
+        image_url
+        cmsis {
+            pack_family_id
+            cmsis_pack_id {
+                version
+            }
+        }
+        debug_interfaces {
+            adapter
+            connector
+        }
+        devices {
+            id
+            name
+            vendor {
+                name
+            }
+        }
+    }
+}
+
+query resolvePackFamily($id: String!) {
+    get_pack_family(id: $id) {
+        id
+        cmsis_id {
+            vendor
+            name
+        }
+    }
+}

@@ -1,0 +1,240 @@
+[
+    {
+        "name": "google-protobuf",
+        "version": "4.0.2",
+        "spdx": "(BSD-3-Clause AND Apache-2.0)",
+        "url": "https://github.com/protocolbuffers/protobuf",
+        "license": "https://github.com/protocolbuffers/protobuf/blob/main/LICENSE"
+    },
+    {
+        "name": "@eclipse-cdt-cloud/clangd-contexts",
+        "version": "0.9.0-next.c7c35a6.0",
+        "spdx": "EPL-2.0",
+        "url": "https://github.com/eclipse-cdt-cloud",
+        "license": "https://github.com/eclipse-cdt-cloud/clangd-contexts/blob/main/LICENSE"
+    },
+    {
+        "name": "@fortawesome/fontawesome-free",
+        "version": "7.2.0",
+        "spdx": "(CC-BY-4.0 AND OFL-1.1 AND MIT)",
+        "url": "https://github.com/FortAwesome/Font-Awesome",
+        "license": "https://github.com/FortAwesome/Font-Awesome/blob/6.x/LICENSE.txt"
+    },
+    {
+        "name": "@vscode/codicons",
+        "version": "0.0.44",
+        "spdx": "CC-BY-4.0",
+        "url": "https://github.com/microsoft/vscode-codicons",
+        "license": "https://github.com/microsoft/vscode-codicons/blob/main/LICENSE"
+    },
+    {
+        "name": "@vscode/webview-ui-toolkit",
+        "version": "1.4.0",
+        "spdx": "MIT",
+        "url": "https://github.com/microsoft/vscode-webview-ui-toolkit",
+        "license": "https://github.com/microsoft/vscode-webview-ui-toolkit/blob/main/LICENSE"
+    },
+    {
+        "name": "async-mutex",
+        "version": "0.5.0",
+        "spdx": "MIT",
+        "url": "https://https://github.com/DirtyHairy/async-mutex",
+        "license": "https://github.com/DirtyHairy/async-mutex/blob/master/LICENSE"
+    },
+    {
+        "name": "fetch-blob",
+        "version": "4.0.0",
+        "spdx": "MIT",
+        "url": "https://github.com/node-fetch/fetch-blob",
+        "license": "https://github.com/node-fetch/fetch-blob/blob/main/LICENSE"
+    },
+    {
+        "name": "formdata-polyfill",
+        "version": "4.0.10",
+        "spdx": "MIT",
+        "url": "https://github.com/jimmywarting/FormData",
+        "license": "https://github.com/jimmywarting/FormData/blob/master/LICENSE"
+    },
+    {
+        "name": "graphql-request",
+        "version": "7.4.0",
+        "spdx": "MIT",
+        "url": "https://github.com/jasonkuhrt/graphql-request",
+        "license": "https://github.com/jasonkuhrt/graphql-request/blob/main/LICENSE"
+    },
+    {
+        "name": "graphql-tag",
+        "version": "2.12.6",
+        "spdx": "MIT",
+        "url": "https://github.com/apollographql/graphql-tag",
+        "license": "https://github.com/apollographql/graphql-tag/blob/main/LICENSE"
+    },
+    {
+        "name": "jsonc-parser",
+        "version": "3.3.1",
+        "spdx": "MIT",
+        "url": "https://github.com/microsoft/node-jsonc-parser",
+        "license": "https://github.com/microsoft/node-jsonc-parser/blob/main/LICENSE.md"
+    },
+    {
+        "name": "lodash.debounce",
+        "version": "4.0.8",
+        "spdx": "MIT",
+        "url": "https://github.com/lodash/lodash",
+        "license": "https://github.com/lodash/lodash/blob/master/LICENSE"
+    },
+    {
+        "name": "node-fetch",
+        "version": "3.3.2",
+        "spdx": "MIT",
+        "url": "https://github.com/node-fetch/node-fetch",
+        "license": "https://github.com/node-fetch/node-fetch/blob/master/LICENSE.md"
+    },
+    {
+        "name": "primereact",
+        "version": "10.9.7",
+        "spdx": "MIT",
+        "url": "https://github.com/primefaces/primereact",
+        "license": "https://github.com/primefaces/primereact/blob/master/LICENSE.md"
+    },
+    {
+        "name": "react",
+        "version": "18.3.1",
+        "spdx": "MIT",
+        "url": "https://github.com/facebook/react",
+        "license": "https://github.com/facebook/react/blob/main/LICENSE"
+    },
+    {
+        "name": "react-dom",
+        "version": "18.3.1",
+        "spdx": "MIT",
+        "url": "https://github.com/facebook/react",
+        "license": "https://github.com/facebook/react/blob/main/LICENSE"
+    },
+    {
+        "name": "react-window",
+        "version": "1.8.11",
+        "spdx": "MIT",
+        "url": "https://github.com/bvaughn/react-window",
+        "license": "https://github.com/bvaughn/react-window/blob/master/LICENSE.md"
+    },
+    {
+        "name": "sax-ts",
+        "version": "1.2.13",
+        "spdx": "ISC",
+        "url": "https://github.com/Maxim-Mazurok/sax-ts",
+        "license": "https://github.com/Maxim-Mazurok/sax-ts/blob/master/LICENSE.md"
+    },
+    {
+        "name": "semver",
+        "version": "7.7.4",
+        "spdx": "ISC",
+        "url": "https://github.com/npm/node-semver",
+        "license": "https://github.com/npm/node-semver/blob/main/LICENSE"
+    },
+    {
+        "name": "vscode-messenger",
+        "version": "0.6.0",
+        "spdx": "MIT",
+        "url": "https://github.com/TypeFox/vscode-messenger",
+        "license": "https://github.com/TypeFox/vscode-messenger/blob/main/LICENSE"
+    },
+    {
+        "name": "vscode-messenger-common",
+        "version": "0.6.0",
+        "spdx": "MIT",
+        "url": "https://github.com/TypeFox/vscode-messenger",
+        "license": "https://github.com/TypeFox/vscode-messenger/blob/main/LICENSE"
+    },
+    {
+        "name": "vscode-messenger-webview",
+        "version": "0.6.0",
+        "spdx": "MIT",
+        "url": "https://github.com/TypeFox/vscode-messenger",
+        "license": "https://github.com/TypeFox/vscode-messenger/blob/main/LICENSE"
+    },
+    {
+        "name": "yaml",
+        "version": "2.8.2",
+        "spdx": "ISC",
+        "url": "https://github.com/eemeli/yaml",
+        "license": "https://github.com/eemeli/yaml/blob/main/LICENSE"
+    },
+    {
+        "name": "yargs-parser",
+        "version": "21.1.1",
+        "spdx": "ISC",
+        "url": "https://github.com/yargs/yargs-parser",
+        "license": "https://github.com/yargs/yargs-parser/blob/main/LICENSE.txt"
+    },
+    {
+        "name": "@ant-design/icons",
+        "version": "5.6.1",
+        "spdx": "MIT",
+        "url": "https://github.com/ant-design/ant-design-icons",
+        "license": "https://github.com/ant-design/ant-design-icons/blob/master/LICENSE"
+    },
+    {
+        "name": "antd",
+        "version": "5.29.3",
+        "spdx": "MIT",
+        "url": "https://ant.design",
+        "license": "https://github.com/ant-design/ant-design/blob/master/LICENSE"
+    },
+    {
+        "name": "vscode-jsonrpc",
+        "version": "8.2.1",
+        "spdx": "MIT",
+        "url": "https://github.com/Microsoft/vscode-languageserver-node",
+        "license": "https://github.com/Microsoft/vscode-languageserver-node/blob/main/License.txt"
+    },
+    {
+        "name": "eta",
+        "version": "4.5.1",
+        "spdx": "MIT",
+        "url": "https://github.com/eta-dev/eta",
+        "license": "https://github.com/eta-dev/eta/blob/main/LICENSE"
+    },
+    {
+        "name": "which",
+        "version": "6.0.1",
+        "spdx": "ISC",
+        "url": "https://github.com/npm/node-which",
+        "license": "https://github.com/npm/node-which/blob/main/LICENSE"
+    },
+    {
+        "name": "@microsoft/vscode-serial-monitor-api",
+        "version": "0.1.7",
+        "spdx": "MIT",
+        "url": "https://github.com/microsoft/vscode-serial-monitor",
+        "license": "https://raw.githubusercontent.com/microsoft/vscode-serial-monitor/refs/heads/main/LICENSE"
+    },
+    {
+        "name": "tcp-port-used",
+        "version": "1.0.2",
+        "spdx": "MIT",
+        "url": "https://github.com/stdarg/tcp-port-used",
+        "license": "https://raw.githubusercontent.com/stdarg/tcp-port-used/refs/heads/master/LICENSE"
+    },
+    {
+        "name": "@lydell/node-pty",
+        "version": "1.1.0",
+        "spdx": "MIT",
+        "url": "https://github.com/lydell/node-pty",
+        "license": "https://github.com/lydell/node-pty/blob/split-package/LICENSE"
+    },
+    {
+        "name": "@arm-software/vscode-environment-manager",
+        "version": "1.24.4",
+        "spdx": "LicenseRef-EULA-ARM",
+        "url": "https://github.com/ARM-software/vscode-environment-manager/",
+        "license": "https://github.com/ARM-software/vscode-environment-manager/blob/main/LICENSE"
+    },
+    {
+        "name": "glob",
+        "version": "13.0.6",
+        "spdx": "BlueOak-1.0.0",
+        "url": "https://github.com/isaacs/node-glob",
+        "license": "https://github.com/isaacs/node-glob/blob/main/LICENSE.md"
+    }
+]

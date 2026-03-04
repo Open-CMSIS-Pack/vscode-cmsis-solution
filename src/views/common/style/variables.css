@@ -1,0 +1,13 @@
+:root {
+    --arm-ui-padding: 6px;
+    --arm-input-padding: 4px 8px;
+    --arm-input-border-radius: 2px;
+    --arm-button-radius: 3px;
+    --arm-border-width: 1px;
+    --arm-panel-border-width: 1px;
+    --arm-content-line-height: 1.5;
+    --arm-input-height: 28px;
+    --keil-studio-blue-rgb: 62, 108, 244;
+    --keil-studio-blue: rgba(var(--keil-studio-blue-rgb), 1);
+    --keil-studio-grey: rgba(255, 255, 255, 0.2);
+}

@@ -1,0 +1,16 @@
+/*
+ * Copyright (C) 2026 Arm Limited
+ */
+.manage-component-properties-table tr>td:nth-child(1) {
+    white-space: nowrap;
+    vertical-align: text-top;
+}
+
+.manage-component-properties-table tr>td:nth-child(2),
+.manage-component-properties-table tr>th:nth-child(2) {
+    padding-left: 30px;
+}
+
+.manage-component-properties-table hr {
+    opacity: 0.5;
+}

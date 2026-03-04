@@ -1,0 +1,160 @@
+@import "../../../common/style/base.css";
+
+/*
+ * Copyright (c) 2022-2026 Arm Limited
+ */
+
+.create-solution-frame {
+    padding: 16px;
+    max-width: 650px;
+}
+
+.create-solution-header {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+}
+
+#solution-name {
+    font-weight: bold;
+    color: white;
+}
+
+#create-solution-form {
+    max-width: 650px;
+
+    --section-border: var(--arm-panel-border-width) solid var(--arm-input-border);
+}
+
+#create-solution-form fieldset {
+    margin: 0;
+    padding: 20px 0;
+    border: 0;
+    border-bottom: var(--section-border);
+}
+
+#create-solution-form fieldset:first-child {
+    border-top: var(--section-border);
+}
+
+@media (max-width: 600px) {
+    #create-solution-form {
+        width: 100%;
+        max-width: none;
+    }
+}
+
+.form-row {
+    margin-bottom: 16px;
+}
+
+.form-row--narrow {
+    width: 95vw;
+    max-width: 650px;
+}
+
+.form-row:last-child {
+    margin-bottom: 0;
+}
+
+.form-row > label {
+    display: inline-block;
+    margin-bottom: 8px;
+}
+
+.form-row.radio-buttons > label {
+    margin-bottom: 0;
+}
+
+.checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.checkbox-field label {
+    cursor: pointer;
+}
+
+/* Placeholder text color for dropdowns */
+.form-row.dropdown-select-placeholder .dropdown-select-input-text
+{
+    color: var(--vscode-disabledForeground);
+}
+
+.form-row > .project-config-row {
+    grid-template-columns: 200px 200px 200px 20px;
+}
+
+.trustzone-info {
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    padding-top: 10px;
+    padding-bottom: 15px;
+}
+
+.trustzone-info .codicon-info {
+    margin-right: 5px;
+}
+
+#create-solution-compiler-selector {
+    display: flex;
+    flex-direction: column;
+}
+
+.create-solution-footer {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    justify-content: flex-end;
+    padding: 20px 0 14px;
+    background: linear-gradient(0deg, var(--vscode-editor-background) 90%, rgba(0,0,0,0) 100%);
+}
+
+.create-solution-button-strip {
+    display: flex;
+    gap: 10px;
+}
+
+.create-solution-header > .codicon-link-external {
+    color: var(--keil-studio-blue);
+}
+
+.templates-and-examples-dropdown {
+    max-height: 300px;
+    overflow: auto;
+}
+
+.dropdown-select-content > ul > li {
+    margin-top: 12px;
+    margin-bottom: 12px;
+}
+
+.web-service-indicator {
+    display: flex;
+    margin-left: auto;
+    font-size: 12px;
+}
+
+.offline-indicator {
+    color: var(--vscode-debugConsole-warningForeground);
+    font-weight: bold;
+}
+
+.offline-tooltip {
+    font-size: 11px;
+}
+
+.offline-tooltip[data-tone="even"] {
+    color: var(--vscode-button-foreground);
+}
+
+.offline-tooltip[data-tone="odd"] {
+    color: var(--vscode-button-secondaryForeground);
+}
+
+.preferences-link {
+    color: var(--vscode-textLink-foreground);
+}

@@ -1,0 +1,34 @@
+solution:
+  description: USB Device examples
+  created-for: CMSIS-Toolbox@2.5.0
+  cdefault:
+
+  select-compiler:  # list of tested compilers that can be selected
+    - compiler: AC6
+    - compiler: GCC
+    - compiler: IAR
+    - compiler: CLANG
+
+  compiler: AC6
+  
+  target-types:
+    - type: B-U585I-IOT02A 
+      board: STMicroelectronics::B-U585I-IOT02A
+#     device: STM32U585AIIx
+#      board: MCB1700  #STMicroelectronics::B-U585I-IOT02A
+#      device: LPC1758
+      variables:
+        - Board-Layer: $SolutionDir()$/Board/B-U585I-IOT02A/Board.clayer.yml
+  
+  build-types:
+    - type: Debug
+      debug: on
+      optimize: debug
+    - type: Release
+      debug: off
+      optimize: balanced
+
+  projects:
+    - project: HID/HID.cproject.yml
+    - project: MassStorage/MassStorage.cproject.yml
+    - project: VirtualCOM/VirtualCOM.cproject.yml

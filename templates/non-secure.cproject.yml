@@ -1,0 +1,23 @@
+# A project translates into one executable or library.
+project:
+  device:
+
+  processor:
+    # This project is executed in non-secure mode
+    trustzone: non-secure
+
+  groups:
+    - group: Source Files
+      files:
+        - file: ./main.c
+
+  # List components to use for your application.
+  # A software component is a re-usable unit that may be configurable.
+  components:
+
+  # List executable file formats to be generated.
+  output:
+    type:
+      - elf
+      - hex
+      - map

@@ -1,0 +1,8 @@
+.file-location-picker {
+    display: flex;
+    margin-bottom: 10px;
+}
+
+.file-location-picker vscode-button {
+    margin-left: 8px;
+}

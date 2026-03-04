@@ -1,0 +1,460 @@
+/**
+ * Copyright (C) 2025 - 2026 Arm Limited
+ */
+
+@import "~@vscode/codicons/dist/codicon.css";
+
+html, body {
+    min-height: 100vh;
+    overflow: auto;
+}
+
+#root {
+    min-height: 100vh;
+}
+
+/* Ensure dropdown can overflow its container */
+#root .p-treetable-wrapper {
+    overflow: visible;
+}
+
+#root .p-treetable {
+    overflow: visible;
+}
+
+/* 
+ * Normalize VS Code Webview UI Toolkit components across all themes
+ * to ensure consistent appearance of checkboxes, dropdowns, and text fields.
+ */
+
+vscode-checkbox {
+    /* Use input background for consistency with other form controls */
+    --checkbox-background: var(--vscode-input-background);
+    --checkbox-border: var(--vscode-input-border, var(--vscode-checkbox-border));
+    /* Ensure checkbox frame thickness matches other controls */
+    --checkbox-corner-radius: 3px;
+}
+
+vscode-checkbox::part(control) {
+    /* Normalize border width to match other input controls */
+    border-width: 1px;
+}
+
+vscode-dropdown {
+    /* Ensure the dropdown list can extend beyond the table */
+    position: relative;
+    /* Use consistent input background across all themes */
+    --dropdown-background: var(--vscode-input-background);
+    --dropdown-border: var(--vscode-input-border, var(--vscode-dropdown-border));
+}
+
+vscode-text-field {
+    /* Ensure text field uses same background as other inputs */
+    --input-background: var(--vscode-input-background);
+    --input-border: var(--vscode-input-border);
+}
+
+:root {
+    --rct-color-focustree-item-selected-bg: inherit;
+    --rct-color-focustree-item-hover-bg: inherit;
+    --rct-color-focustree-item-hover-text: inherit;
+    --rct-color-focustree-item-active-bg: inherit;
+    --rct-color-focustree-item-active-text: inherit;
+}
+
+.tree-table-header {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+}
+
+.tree-table-filter {
+    width: 100%;
+}
+
+.tree-table-column-name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.cw-row-focus {
+    display: inline-flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    outline: none;
+}
+
+.cw-row-focus:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 1px;
+    border-radius: 0;
+}
+
+.cw-row-active {
+    background-color: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+}
+
+.cw-row-inactive {
+    background-color: var(--vscode-editor-inactiveSelectionBackground);
+    color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
+}
+
+.p-treetable .p-treetable-tbody > tr.cw-row-inactive {
+    background-color: var(--vscode-editor-inactiveSelectionBackground) !important;
+    color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground)) !important;
+}
+
+.p-treetable .p-treetable-tbody > tr.cw-row-inactive td {
+    color: inherit !important;
+}
+
+.edit-element {
+    background: var(--vscode-input-background);
+    color: var(--vscode-foreground);
+    border: var(--vscode-border);
+}
+
+.edit-element:active {
+    background: var(--vscode-active-background);
+
+}
+
+.p-treetable .p-paginator-top {
+    border-width: 0 0 1px 0;
+    border-radius: 0;
+}
+
+.p-treetable .p-paginator-bottom {
+    border-width: 0 0 1px 0;
+    border-radius: 0;
+}
+
+/* Grayed out row styling */
+.grayed-out-row {
+    opacity: 0.5;
+    color: var(--vscode-disabledForeground);
+    background-color: var(--vscode-editor-inactiveSelectionBackground);
+}
+
+.grayed-out-row * {
+    color: var(--vscode-disabledForeground) !important;
+}
+
+/* Grayed out element styling */
+.grayed-out-element {
+    opacity: 0.6;
+    color: var(--vscode-descriptionForeground);
+    transition: opacity 0.2s ease-in-out;
+}
+
+.grayed-out-element * {
+    color: var(--vscode-descriptionForeground) !important;
+}
+
+/* Ensure table cell content wrappers don't break layout */
+.p-treetable .p-treetable-tbody > tr > td > div {
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+/* Ensure grayed out elements maintain proper table cell alignment */
+.grayed-out-element label,
+.grayed-out-element span {
+    display: inline-block;
+    width: 100%;
+}
+
+/* Highlight selected element */
+.config-wizard-tree .p-treetable-tbody > tr:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.config-wizard-tree .p-treetable-tbody > tr.selected-row {
+    background-color: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+}
+
+.p-treetable .p-treetable-header {
+    padding-top: 0.5rem;
+}
+
+.p-treetable .p-treetable-footer {
+    background: var(--vscode-keybindingTable-headerBackground);
+    color: var(--vscode-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-width: 0 0 1px 0;
+    padding: 1rem 1rem;
+    font-weight: 600;
+}
+
+.p-treetable .p-treetable-thead>tr>th {
+    text-align: left;
+    padding: 1rem 1rem;
+    border: 1px solid var(--vscode-input-border);
+    border-width: 0 0 1px 0;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    background: var(--vscode-background);
+    transition: box-shadow 0.2s;
+}
+
+.p-treetable .p-treetable-tfoot>tr>td {
+    text-align: left;
+    padding: 1rem 1rem;
+    border: 1px solid var(--vscode-input-border);
+    border-width: 0 0 1px 0;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    background: var(--vscode-background);
+}
+
+.p-treetable .p-sortable-column {
+    outline-color: var(--vscode-hoverOutline);
+}
+
+.p-treetable .p-sortable-column .p-sortable-column-icon {
+    color: var(--vscode-foreground);
+    margin-left: 0.5rem;
+}
+
+.p-treetable .p-sortable-column .p-sortable-column-badge {
+    border-radius: 50%;
+    height: 1.143rem;
+    min-width: 1.143rem;
+    line-height: 1.143rem;
+    color: var(--vscode-foreground);
+    background: var(--vscode-background);
+    margin-left: 0.5rem;
+}
+
+.p-treetable .p-sortable-column:not(.p-highlight):hover {
+    background: var(--vscode-background);
+    color: var(--vscode-foreground);
+}
+
+.p-treetable .p-sortable-column:not(.p-highlight):hover .p-sortable-column-icon {
+    color: var(--vscode-foreground);
+}
+
+.p-treetable .p-sortable-column.p-highlight {
+    background: var(--vscode-background);
+    color: var(--vscode-foreground);
+}
+
+.p-treetable .p-sortable-column.p-highlight .p-sortable-column-icon {
+    color: var(--vscode-foreground);
+}
+
+.p-treetable .p-treetable-tbody>tr {
+    background: var(--vscode-background);
+    color: var(--vscode-foreground);
+    transition: box-shadow 0.2s;
+}
+
+.p-treetable .p-treetable-tbody>tr>td {
+    text-align: left;
+    border: 1px solid var(--vscode-input-border);
+    border-width: 0 0 1px 0;
+    padding: 0.25rem 1rem;
+}
+
+.p-treetable .p-treetable-tbody>tr>td .p-treetable-toggler {
+    width: 1rem;
+    height: 1rem;
+    color: var(--vscode-foreground);
+    border: 0 none;
+    background: transparent;
+    border-radius: 50%;
+    transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+    margin-right: 0.5rem;
+}
+
+.p-treetable .p-treetable-tbody>tr>td .p-treetable-toggler:enabled:hover {
+    color: var(--vscode-foreground);
+    border-color: var(--vscode-background);
+    background: transparent;
+}
+
+.p-treetable .p-treetable-tbody>tr>td .p-treetable-toggler:focus-visible {
+    outline: 0 none;
+    outline-offset: 0;
+    box-shadow: 0 0 0 0.2rem var(--vscode-background);
+}
+
+.p-treetable .p-treetable-tbody>tr>td .p-treetable-toggler+.p-checkbox {
+    margin-right: 0.5rem;
+}
+
+.p-treetable .p-treetable-tbody>tr>td .p-treetable-toggler+.p-checkbox .p-indeterminate .p-checkbox-icon {
+    color: var(--vscode-foreground);
+}
+
+.p-treetable .p-treetable-tbody>tr:focus-visible {
+    outline: 0.15rem solid var(--vscode-background);
+    outline-offset: -0.15rem;
+}
+
+.p-treetable .p-treetable-tbody>tr.p-highlight {
+    background: var(--vscode-background);
+    color: var(--vscode-foreground);
+}
+
+.p-treetable .p-treetable-tbody>tr.p-highlight .p-treetable-toggler {
+    color: var(--vscode-foreground);
+}
+
+.p-treetable .p-treetable-tbody>tr.p-highlight .p-treetable-toggler:hover {
+    color: var(--vscode-foreground);
+}
+
+.p-treetable.p-treetable-selectable .p-treetable-tbody>tr:not(.p-highlight):hover,
+.p-treetable.p-treetable-hoverable-rows .p-treetable-tbody>tr:not(.p-highlight):hover {
+    background: var(--vscode-background);
+    color: var(--vscode-foreground);
+}
+
+.p-treetable.p-treetable-selectable .p-treetable-tbody>tr:not(.p-highlight):hover .p-treetable-toggler,
+.p-treetable.p-treetable-hoverable-rows .p-treetable-tbody>tr:not(.p-highlight):hover .p-treetable-toggler {
+    color: var(--vscode-foreground);
+}
+
+.p-treetable .p-column-resizer-helper {
+    background: var(--vscode-background);
+}
+
+.p-treetable .p-treetable-scrollable-header,
+.p-treetable .p-treetable-scrollable-footer {
+    background: var(--vscode-background);
+}
+
+.p-treetable .p-treetable-loading-icon {
+    font-size: 2rem;
+}
+
+.p-treetable .p-treetable-loading-icon.p-icon {
+    width: 2rem;
+    height: 2rem;
+}
+
+.p-treetable.p-treetable-gridlines .p-treetable-header {
+    border-width: 1px 1px 0 1px;
+}
+
+.p-treetable.p-treetable-gridlines .p-treetable-footer {
+    border-width: 0 1px 1px 1px;
+}
+
+.p-treetable.p-treetable-gridlines .p-treetable-top {
+    border-width: 0 1px 0 1px;
+}
+
+.p-treetable.p-treetable-gridlines .p-treetable-bottom {
+    border-width: 0 1px 1px 1px;
+}
+
+.p-treetable.p-treetable-gridlines .p-treetable-thead>tr>th {
+    border-width: 1px;
+}
+
+.p-treetable.p-treetable-gridlines .p-treetable-tbody>tr>td {
+    border-width: 1px;
+}
+
+.p-treetable.p-treetable-gridlines .p-treetable-tfoot>tr>td {
+    border-width: 1px;
+}
+
+.p-treetable.p-treetable-striped .p-treetable-tbody>tr.p-row-odd {
+    background: var(--vscode-background);
+}
+
+.p-treetable.p-treetable-striped .p-treetable-tbody>tr.p-row-odd.p-highlight {
+    background: var(--vscode-background);
+    color: var(--vscode-foreground);
+}
+
+.p-treetable.p-treetable-striped .p-treetable-tbody>tr.p-row-odd.p-highlight .p-row-toggler {
+    color: var(--vscode-foreground);
+}
+
+.p-treetable.p-treetable-striped .p-treetable-tbody>tr.p-row-odd.p-highlight .p-row-toggler:hover {
+    color: var(--vscode-foreground);
+}
+
+.p-treetable.p-treetable-striped .p-treetable-tbody>tr.p-row-odd+.p-row-expanded {
+    background: var(--vscode-background);
+}
+
+.p-treetable.p-treetable-sm .p-treetable-header {
+    padding: 0.875rem 0.875rem;
+}
+
+.p-treetable.p-treetable-sm .p-treetable-thead>tr>th {
+    padding: 0.5rem 0.5rem;
+}
+
+.p-treetable.p-treetable-sm .p-treetable-tbody>tr>td {
+    padding: 0.125rem 0.5rem;
+}
+
+.p-treetable.p-treetable-sm .p-treetable-tfoot>tr>td {
+    padding: 0.5rem 0.5rem;
+}
+
+.p-treetable.p-treetable-sm .p-treetable-footer {
+    padding: 0.5rem 0.5rem;
+}
+
+.p-treetable.p-treetable-lg .p-treetable-header {
+    padding: 1.25rem 1.25rem;
+}
+
+.p-treetable.p-treetable-lg .p-treetable-thead>tr>th {
+    padding: 1.25rem 1.25rem;
+}
+
+.p-treetable.p-treetable-lg .p-treetable-tbody>tr>td {
+    padding: 0.3125rem 1.25rem;
+}
+
+.p-treetable.p-treetable-lg .p-treetable-tfoot>tr>td {
+    padding: 1.25rem 1.25rem;
+}
+
+.p-treetable.p-treetable-lg .p-treetable-footer {
+    padding: 1.25rem 1.25rem;
+}
+
+/* Gray out rows that live under a GuiTypes.check node */
+.tree-dimmed {
+  opacity: 0.55;                /* subtle gray effect */
+}
+
+/* Red/error styling for invalid dropdown selection */
+.tree-dropdown.dropdown-invalid {
+  outline: 2px solid var(--vscode-inputValidation-errorBorder);
+  color: var(--vscode-errorForeground);
+}
+
+.tree-dropdown.dropdown-invalid:focus-within {
+  outline: 3px solid var(--vscode-inputValidation-errorBorder);
+}
+
+/* Red/error styling for inconsistent comment state in code blocks */
+vscode-checkbox.checkbox-inconsistent {
+  outline: 2px solid var(--vscode-inputValidation-errorBorder);
+  outline-offset: 2px;
+}
+
+vscode-checkbox.checkbox-inconsistent:focus-within {
+  outline: 3px solid var(--vscode-inputValidation-errorBorder);
+}

@@ -1,0 +1,168 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Desktop Extension",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": [
+                "--extensionDevelopmentPath=${workspaceFolder}",
+                "${workspaceFolder}/test-workspace"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js",
+            ],
+            "envFile": "${workspaceFolder}/.env",
+            "sourceMapRenames": false
+        },
+        {
+            "name": "Web Extension",
+            "type": "pwa-node",
+            "request": "launch",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": [
+                "run-script",
+                "browser"
+            ],
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Unit Tests",
+            "program": "${workspaceFolder}/node_modules/.bin/jest",
+            "args": [
+                "--collectCoverage", "false"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "disableOptimisticBPs": true,
+            "windows": {
+                "program": "${workspaceFolder}/node_modules/jest/bin/jest",
+            }
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Unit Test Current File",
+            "program": "${workspaceFolder}/node_modules/.bin/jest",
+            "args": [
+                "--collectCoverage", "false",
+                "${fileBasenameNoExtension}"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "disableOptimisticBPs": true,
+            "windows": {
+                "program": "${workspaceFolder}/node_modules/jest/bin/jest"
+            }
+        },
+        {
+            "name": "Debug Playwright E2E Tests",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/node_modules/@playwright/test/cli.js",
+            "args": [
+                "test"
+            ],
+            "env": {},
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "disableOptimisticBPs": true,
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Debug Playwright E2E Tests (Current File)",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/node_modules/@playwright/test/cli.js",
+            "args": [
+                "test",
+                "${fileBasenameNoExtension}"
+            ],
+            "env": {},
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "disableOptimisticBPs": true,
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Extension Tests",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": [
+                "${workspaceFolder}/src/test/data",
+                "--extensionDevelopmentPath=${workspaceFolder}",
+                "--extensionTestsPath=${workspaceFolder}/out/test/suite/index"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/out/**/*.js",
+                "${workspaceFolder}/dist/**/*.js"
+            ],
+            "preLaunchTask": "Compile"
+        },
+        {
+            "name": "Extension Test Current File",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": [
+                "${workspaceFolder}/src/test/data",
+                "--extensionDevelopmentPath=${workspaceFolder}",
+                "--extensionTestsPath=${workspaceFolder}/out/test/suite/index"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/out/**/*.js",
+                "${workspaceFolder}/dist/**/*.js"
+            ],
+            "env": {
+                "TEST_FILE_GLOB": "**/${fileBasenameNoExtension}.js"
+            }
+        },
+        {
+            "type": "node",
+            "request": "attach",
+            "name": "KSC Plugin Host (Docker)",
+            "port": 9339,
+            "timeout": 60000,
+            "stopOnEntry": false,
+            "smartStep": true,
+            "sourceMaps": true,
+            "localRoot": "${workspaceFolder}",
+            "remoteRoot": "/home/studio/mbs-plugins/vscode-cmsis-csolution",
+            "outFiles": [
+                "${workspaceFolder}/dist"
+            ]
+        },
+        {
+            "name": "Launch update-tpip.ts",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "npx",
+            "runtimeArgs": ["ts-node"],
+            "args": ["${workspaceFolder}/scripts/update-tpip.ts", "${workspaceFolder}/docs/third-party-licenses.json"],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen"
+        },
+        {
+              "name": "Launch download-tools.ts",
+              "type": "node",
+              "request": "launch",
+              "runtimeExecutable": "npx",
+              "runtimeArgs": ["tsx"],
+              "args": ["${workspaceFolder}/scripts/download-tools.ts", "-f", "debug-adapters"],
+              "console": "integratedTerminal",
+              "internalConsoleOptions": "neverOpen"
+        }
+    ]
+}

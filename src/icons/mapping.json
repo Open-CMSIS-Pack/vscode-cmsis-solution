@@ -1,0 +1,17 @@
+{
+  "build": 60000,
+  "components": 60001,
+  "cmsis": 60002,
+  "component-class": 60003,
+  "files": 60004,
+  "layer": 60005,
+  "layers": 60006,
+  "software-component": 60007,
+  "cmsis-text": 60008,
+  "run-generator-cog": 60009,
+  "api": 60010,
+  "info-circle": 60011,
+  "info-full-circle": 60012,
+  "update-arrow": 60013,
+  "version-history": 60014
+}

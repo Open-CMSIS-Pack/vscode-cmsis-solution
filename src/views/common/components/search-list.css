@@ -1,0 +1,35 @@
+/**
+ * Copyright (C) 2022-2026 Arm Limited
+ */
+
+.search-list-input {
+    display: flex;
+    margin-bottom: 4px;
+}
+
+.search-list-values li {
+    cursor: pointer;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--arm-fontColorSecondary);
+}
+
+ul.search-list-values li:hover {
+    background-color: var(--vscode-button-background);
+    color: var(--arm-list-hoverForeground);
+}
+
+ul.search-list-values li {
+    border-radius: 4px;
+    line-height: 22px;
+    padding: 0 8px;
+}
+
+.search-list-tag {
+  display: block;
+  font-size: 0.8em;
+  margin-top: -0.8em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -1,0 +1,506 @@
+/**
+ * Copyright 2025-2026 Arm Limited
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import path from 'path';
+import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
+import { buildDocFilePath } from '../../../util';
+import { FileItem } from './solution-outline-file-item';
+import { COutlineItem } from './solution-outline-item';
+import * as manifest from '../../../manifest';
+import { CSolution } from '../../../solutions/csolution';
+import { getMapFilePath, getStatusTooltip, setDocContext, setHeaderContext, setLinkerContext, setMergeDescription, setMergeUpdate } from './solution-outline-utils';
+import { CProjectYamlFile } from '../../../solutions/files/cproject-yaml-file';
+
+export class ProjectItemsBuilder {
+    private _lastPrioritizedComponentList: COutlineItem[] = [];
+
+    public get lastPrioritizedComponentList(): COutlineItem[] {
+        return this._lastPrioritizedComponentList;
+    }
+
+    csolution?: CSolution;
+    private activeContext?: string;
+    constructor() { }
+
+    public addProjectChildren(csolution: CSolution | undefined, cprojectItem: COutlineItem, cprojectFile: CProjectYamlFile, cbuild?: CTreeItem): void {
+        this.csolution = csolution;
+        // Get context from cbuild (contains full context: PROJECT.BUILD-TYPE+TARGET-TYPE)
+        // Falls back to actionContext if cbuild is not available
+        this.activeContext = cbuild?.getValueAsString('context') ?? csolution?.actionContext;
+        const cproject = cprojectFile.topItem;
+        if (!cproject) {
+            return;
+        }
+        if (cbuild && cprojectFile.projectType === 'West') {
+            this.createGroupTree(cprojectItem, cbuild, '');
+            return; // there is nothing else available for West for now
+        }
+        this.createGroupTree(cprojectItem, cproject, '');
+
+        if (cbuild) {
+            this.addGroup(cprojectItem, cbuild.getChild('constructed-files'));
+            this.addGroup(cprojectItem, cbuild.getChild('linker'), undefined, getMapFilePath(cbuild));
+        }
+
+        this.createComponentTree(cprojectItem, cproject, cbuild);
+        this.createLayerNodes(cprojectItem, cbuild);
+    }
+
+    // groups node
+    private createGroupTree(cprojectItem: COutlineItem, groupParent: CTreeItem, parentGroupPath: string) {
+        groupParent.getGrandChildren('groups').map(group => {
+            this.addGroup(cprojectItem, group, parentGroupPath);
+        });
+        cprojectItem.sortChildrenByLabel();
+    }
+
+    private addGroup(cprojectItem: COutlineItem, group?: ITreeItem<CTreeItem>, parentGroupPath?: string, mapFilePath?: string) {
+        if (group) {
+            this.createGroupNode(cprojectItem, group as CTreeItem, parentGroupPath ?? '', mapFilePath);
+        }
+    }
+
+    private createGroupNode(cprojectItem: COutlineItem, group: CTreeItem, parentGroupPath: string, mapFilePath?: string) {
+        const cgroupItem = this.createGroupTreeItem(cprojectItem, group, parentGroupPath, mapFilePath);
+
+        this.createGroupChildren(cgroupItem, group);
+
+        this.setExpandableAttribute(cgroupItem);
+    }
+
+    private createGroupTreeItem(cprojectItem: COutlineItem, group: CTreeItem, parentGroupPath: string, mapFilePath?: string): COutlineItem {
+        const tag = group.getTag() ?? '';
+        const topTag = group.getRoot()?.getChild()?.getTag() ?? '';
+        const rootFileName = group.rootFileName;
+        const mutable = topTag === 'project' || topTag === 'layer';
+
+        const isRegularGroup = mutable && (!tag || tag === '-');
+        const name = group.getValue('group') ?? tag;
+        const groupPath = this.buildGroupPath(parentGroupPath, name);
+        const cgroupItem = this.createGroupItem(cprojectItem, name, mutable);
+
+        if (isRegularGroup) {
+            this.setRegularGroupAttributes(cgroupItem as COutlineItem, groupPath, rootFileName, topTag);
+        }
+
+        // add map file to 'linker' group
+        if (mapFilePath) {
+            setLinkerContext(cgroupItem, mapFilePath);
+        }
+
+        return cgroupItem;
+    }
+
+    private buildGroupPath(parentGroupPath: string, name: string): string {
+        if (parentGroupPath.length > 0) {
+            return parentGroupPath + ';' + name;
+        }
+        return name;
+    }
+
+    private createGroupItem(cprojectItem: COutlineItem, name: string, mutable: boolean): COutlineItem {
+        const cgroupItem = cprojectItem.createChild(name) as COutlineItem;
+
+        cgroupItem.setTag('group');
+        cgroupItem.setAttribute('label', name);
+        cgroupItem.setAttribute('iconPath', 'csolution-files');
+        if (mutable) {
+            cgroupItem.addFeature('group');
+            cgroupItem.mutable = mutable;
+        }
+        return cgroupItem;
+    }
+
+    private setRegularGroupAttributes(cgroupItem: COutlineItem, groupPath: string, rootFileName: string, topTag: string): void {
+        cgroupItem.setAttribute('type', 'group');
+        cgroupItem.setAttribute('groupPath', groupPath);
+        cgroupItem.setAttribute('projectUri', rootFileName);
+
+        if (topTag === 'layer') {
+            cgroupItem.setAttribute('layerUri', rootFileName);
+        }
+    }
+
+    private createGroupChildren(cgroupItem: COutlineItem, group: CTreeItem): void {
+        const isRegularGroup = !group.getTag() || group.getTag() === '-';
+        const fileTreeItem = new FileItem(this.activeContext);
+
+        if (isRegularGroup) {
+            this.createGroupTree(cgroupItem, group, cgroupItem.getAttribute('groupPath') ?? '');
+            fileTreeItem.createFileNodes(cgroupItem, group.getGrandChildren('files'), undefined, undefined, true);
+        } else {
+            fileTreeItem.createFileNodes(cgroupItem, group.getChildren());
+        }
+    }
+
+    private setExpandableAttribute(cgroupItem: COutlineItem): void {
+        const children = cgroupItem.getChildren();
+        const topTag = cgroupItem.getRoot()?.getChild()?.getTag() ?? '';
+        const editable = (topTag === 'project' || topTag === 'layer');
+        const expandable = editable ? '2' : '1';
+
+        cgroupItem.setAttribute('expandable', children.length > 0 ? expandable : '0');
+    }
+
+    // layers node
+    private createLayerNodes(cprojectItem: COutlineItem, cbuild?: CTreeItem) {
+        const clayers = cbuild?.getRoot().getProperty('clayers') as CTreeItem[];
+        if (cbuild && clayers) {
+            this.processLayerNodes(cprojectItem, clayers, cbuild);
+        }
+    }
+
+    private processLayerNodes(cprojectItem: COutlineItem, clayers: CTreeItem[], cbuild: CTreeItem): void {
+        for (const clayer of clayers as CTreeItem[]) {
+            if (!clayer.rootFileName.endsWith('.clayer.yml')) {
+                continue; // skip generator files
+            }
+            this.createLayerNode(cprojectItem, clayer.getChildItem(), cbuild);
+        }
+    }
+
+    private createLayerNode(node: COutlineItem, clayer?: CTreeItem, cbuild?: CTreeItem, idGenerator?: string) {
+        if (!clayer) {
+            return undefined;
+        }
+
+        const absolutePath = clayer.rootFileName;
+        const tag = clayer.getTag() ?? '';
+        const noType = tag === 'generator-import' ? idGenerator + ' generated' : 'Layer: ' + path.basename(absolutePath);
+        const type = clayer.getValue('type');
+        const label = type ? 'Layer Type: ' + type : noType;
+
+        // create layer
+        const clayerItem = node.createChild('layer');
+        clayerItem.setTag('layer');
+        clayerItem.setAttribute('label', label);
+        clayerItem.setAttribute('expandable', '1');
+        clayerItem.addFeature(`${manifest.LAYER_CONTEXT}`);
+        clayerItem.setAttribute('type', 'layerFile');
+        clayerItem.setAttribute('resourcePath', absolutePath);
+        clayerItem.setAttribute('iconPath', 'csolution-layer');
+        clayerItem.setAttribute('tooltip', '- File: ` ' + absolutePath + ' `');
+
+        // create children
+        this.createGroupTree(clayerItem as COutlineItem, clayer, '');
+        if (this.createComponentTree(clayerItem as COutlineItem, clayer, cbuild)) {
+            clayerItem.addFeature('components');
+        }
+    }
+
+    // components node
+    private createComponentTree(cprojectItem: COutlineItem, cproject: CTreeItem, cbuild?: CTreeItem) {
+        const componentsContainer = cproject.getChild('components');
+        if (!componentsContainer) {
+            return false;
+        }
+
+        const children = componentsContainer.getChildren();
+        const size = children.length;
+
+        const ccomponentsItem = cprojectItem.createChild('components');
+        ccomponentsItem.setTag('components');
+
+        ccomponentsItem.setAttribute('label', 'Components' + ` (${size})`);
+        ccomponentsItem.setAttribute('expandable', size > 0 ? '1' : '0');
+        ccomponentsItem.setAttribute('iconPath', 'csolution-components');
+        ccomponentsItem.setAttribute('type', 'components');
+        ccomponentsItem.addFeature('components');
+
+        // create components from project
+        const componentNodes = this.createComponentNodes(ccomponentsItem as COutlineItem, children);
+
+        if (cbuild) {
+            this.addComponentDataFromCbuild(componentNodes, cbuild);
+        }
+
+        this.addComponentOptions(componentNodes);
+
+        // add merge description
+        const components = Array.from(componentNodes.values());
+        const fileStatus = this.getMergeDescriptionAtParentComponentLevel(components);
+        if (fileStatus) {
+            // assign description
+            setMergeDescription(ccomponentsItem, fileStatus);
+
+            // assign tooltip with component ids
+            const prioritizedList = this._lastPrioritizedComponentList;
+            let newTooltip = 'Components with updated configuration files:';
+            for (const comp of prioritizedList) {
+                const compId = comp.getAttribute('label');
+                const compStatus = comp.getAttribute('status');
+                if (compId && compStatus) {
+                    const update = comp.getAttribute('update');
+                    newTooltip += `\n- ${update} ${compId}: ${compStatus}`;
+                }
+            }
+            ccomponentsItem.setAttribute('tooltip', newTooltip);
+        }
+        return true; // do have components to edit
+    }
+
+    private getMergeDescriptionAtParentComponentLevel(components: COutlineItem[]): string | undefined {
+        let result: string | undefined = undefined;
+        const updateRequired: COutlineItem[] = [];
+        const updateRecommended: COutlineItem[] = [];
+        const updateSuggested: COutlineItem[] = [];
+
+        for (const component of components) {
+            const status = component.getAttribute('status');
+            if (!status) {
+                continue;
+            }
+            if (status == 'update required') {
+                updateRequired.push(component);
+            } else if (status == 'update recommended') {
+                updateRecommended.push(component);
+            } else if (status == 'update suggested') {
+                updateSuggested.push(component);
+            }
+        }
+
+        const prioritizedList = [...updateRequired, ...updateRecommended, ...updateSuggested];
+        this._lastPrioritizedComponentList = prioritizedList;
+        const prioritizedFile = prioritizedList[0];
+
+        const fileStatus = prioritizedFile?.getAttribute('status');
+        if (fileStatus) {
+            result = fileStatus;
+        }
+
+        return result;
+    }
+
+    private addComponentOptions(componentNodes: Map<string, COutlineItem>) {
+        const components = componentNodes.values();
+
+        for (const component of components) {
+            // add copy header (if it applies) to component nodes
+            const header = this.getHeaderFile(component);
+            // set context
+            if (header) {
+                setHeaderContext(component);
+                const label = header.getAttribute('label');
+                component.setAttribute('header', label);
+            }
+        }
+    }
+
+    private getHeaderFile(component: COutlineItem): COutlineItem | undefined {
+        // look for api files and header files
+        for (const child of component.getChildren()) {
+            const fileName = child.getAttribute('label');
+            if (fileName?.endsWith('.h')) {
+                return child as COutlineItem;
+            }
+        }
+        return undefined;
+    }
+
+    private createComponentNodes(ccomponentsItem: COutlineItem, projectComponents: ITreeItem<CTreeItem>[]): Map<string, COutlineItem> {
+        const componentNodes = new Map<string, COutlineItem>();
+        for (const component of projectComponents) {
+            const refId = component.getValue();
+            if (!refId) {
+                continue;
+            }
+
+            // create child
+            const ccomponentItem = ccomponentsItem.createChild('component');
+            ccomponentItem.setTag('component');
+            ccomponentItem.setAttribute('label', refId);
+            ccomponentItem.setAttribute('expandable', '0');
+            ccomponentItem.setAttribute('iconPath', 'csolution-software-component');
+
+            componentNodes.set(refId, ccomponentItem as COutlineItem);
+        }
+        return componentNodes;
+    }
+
+    private addComponentDataFromCbuild(componentNodes: Map<string, COutlineItem>, cbuild: CTreeItem) {
+        const apis = cbuild.getChild('apis');
+
+        // look for components
+        for (const component of cbuild.getGrandChildren('components')) {
+            const refId = component.getValueAsString('selected-by');
+            const node = componentNodes.get(refId);
+            if (!node) {
+                continue;
+            }
+
+            // look for api
+            const api = component.getValueAsString('implements');
+            if (api) {
+                const apiChild = apis?.getChildByValue('api', api);
+                this.addApiData(apiChild, node);
+            }
+
+            this.addComponentData(node, component, cbuild);
+        }
+    }
+
+    private addApiData(apiChild: ITreeItem<CTreeItem> | undefined, node: COutlineItem) {
+        if (apiChild == undefined) {
+            return;
+        }
+
+        const docs: ITreeItem<CTreeItem>[] = [];
+        const apiFiles = apiChild.getGrandChildren('files');
+
+        const fileTreeItem = new FileItem(this.activeContext);
+        fileTreeItem.createFileNodes(node, apiFiles, docs, true);
+
+        const fileNodes = node.getChildren();
+        for (const fileNode of fileNodes) {
+            this.addDocFile(fileNode as COutlineItem, docs?.[0]);
+        }
+    }
+
+    private addComponentData(node: COutlineItem, component: ITreeItem<CTreeItem>, cbuild: CTreeItem) {
+        // add files
+        const docs: ITreeItem<CTreeItem>[] = [];
+        const fileTreeItem = new FileItem(this.activeContext);
+        const componentFiles = component.getGrandChildren('files');
+        fileTreeItem.createFileNodes(node, componentFiles, docs);
+
+        // add doc file
+        if (docs.length > 0) {
+            this.addDocFile(node, docs[0]);
+        }
+
+        // create generator import if available
+        this.addGenerator(node, component, cbuild);
+
+        // add merge feature
+        this.addMergeFeature(node, componentFiles);
+
+        const children = node.getChildren();
+        node.setAttribute('expandable', children.length > 0 ? '1' : '0');
+    }
+
+    private addDocFile(node: COutlineItem, docFile?: ITreeItem<CTreeItem>) {
+        const filePath = buildDocFilePath(docFile);
+        if (!filePath) {
+            return;
+        }
+        setDocContext(node);
+        node.setAttribute('docPath', filePath);
+    }
+
+    private addGenerator(node: COutlineItem, component: ITreeItem<CTreeItem>, cbuild: CTreeItem) {
+        const generator = component.getChild('generator');
+        let tooltip =
+            '- component: ` ' + component.getValueAsString('component') + ' `\n' +
+            '- from pack: ` ' + component.getValueAsString('from-pack') + ' `';
+
+        if (generator) {
+            const id = generator.getValueAsString('id');
+            node.addFeature('component-gen');
+            node.setAttribute('type', 'component-gen');
+            node.setAttribute('generator', id);
+            node.setAttribute('cbuild-context', cbuild.getValue('context'));
+
+            tooltip += '\n' + '- generator: ` ' + id + ' `';
+            const fileName = component.resolvePath(generator.getValueAsString('path'));
+            const cgenYml = this.csolution?.getClayer(fileName);
+
+            this.createLayerNode(node, cgenYml?.getChildItem(), cbuild, id);
+        }
+        node.setAttribute('tooltip', tooltip);
+    }
+
+    private addMergeFeature(node: COutlineItem, files: ITreeItem<CTreeItem>[]) {
+        const prioritizedList = this.getPrioritizedMergeFile(files);
+
+        if (!prioritizedList.length) {
+            return;
+        }
+
+        const prioritizedMergeFile = prioritizedList[0];
+        const fileStatus = prioritizedMergeFile.getValue('status');
+        if (!fileStatus) {
+            return;
+        }
+
+        // set status at component level
+        node.setAttribute('status', fileStatus);
+
+        // assign description
+        setMergeDescription(node, fileStatus);
+
+        // assign status symbol for merge update action
+        setMergeUpdate(node, fileStatus);
+
+        // set tooltip
+        const prevTooltip = node.getValue('tooltip');
+        let newTooltip: string = '';
+        for (const file of prioritizedList) {
+            const fileLabel = file.getValue('file');
+            const fileStatus = file.getValue('status');
+            if (fileLabel && fileStatus) {
+                const tooltip = getStatusTooltip(fileLabel, fileStatus);
+                newTooltip += `\n ${tooltip}`;
+            }
+        }
+
+        if (prevTooltip) {
+            node.setAttribute('tooltip', prevTooltip + '\n' + newTooltip);
+        } else {
+            node.setAttribute('tooltip', newTooltip);
+        }
+
+    }
+
+    private getPrioritizedMergeFile(files: ITreeItem<CTreeItem>[]): ITreeItem<CTreeItem>[] {
+        const updateRequired: ITreeItem<CTreeItem>[] = [];
+        const updateRecommended: ITreeItem<CTreeItem>[] = [];
+        const updateSuggested: ITreeItem<CTreeItem>[] = [];
+
+        for (const file of files) {
+            const attr = file.getValue('attr');
+            if (attr !== 'config') {
+                continue;
+            }
+
+            const update = file.getValue('update');
+            if (!update) {
+                continue;
+            }
+
+            const base = file.getValue('base');
+            if (!base) {
+                continue;
+            }
+
+            const fileStatus = file.getValue('status');
+            if (!fileStatus) {
+                continue;
+            }
+
+            if (fileStatus === 'update required') {
+                updateRequired.push(file);
+            } else if (fileStatus === 'update recommended') {
+                updateRecommended.push(file);
+            } else if (fileStatus === 'update suggested') {
+                updateSuggested.push(file);
+            }
+        }
+
+        const prioritizedList = [...updateRequired, ...updateRecommended, ...updateSuggested];
+
+        return prioritizedList;
+    }
+}

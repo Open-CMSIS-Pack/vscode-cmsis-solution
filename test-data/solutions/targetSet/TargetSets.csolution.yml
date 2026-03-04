@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Open-CMSIS-Pack/devtools/main/tools/projmgr/schemas/csolution.schema.json
+solution:
+  target-types:
+    - type: FRDM-K32L3A6
+      board: FRDM-K32L3A6
+      device: K32L3A60VPJ1A
+      target-set:
+      # default target set
+        - set: CMSIS-DAP
+          debugger:
+            # alias adapter name, must be updated to CMSIS-DAP@pyOCD when loaded to Manage Solution 
+            name: DAP-Link 
+            port: 3333
+            protocol: swd
+            clock: 10000000
+            start-pname: cm4
+          images:
+            - image: out/HelloWorld_cm0plus/FRDM-K32L3A6/Debug/HelloWorld_cm0plus.axf
+              load-offset: 0x20000
+            - image: out/HelloWorld_cm0plus/FRDM-K32L3A6/Debug/HelloWorld_cm0plus.axf
+              device: :cm0plus
+            - project-context: project.Debug
+      # another target set
+        - set: FRDM-ST-Link
+          debugger:
+            name: ST-Link@pyOCD
+            port: 3333
+            protocol: swd
+            clock: 10000000
+            start-pname: cm0plus
+            reset-method:
+              auto | hardware | sysreset | vecreset: {}
+            stop-on-launch:
+              reset | main: {}
+            trace:
+              trace-clock: 125.2MHz
+              trace-port: SWO-UART
+            telnet:
+              - mode: semihosting
+                pname: cm0plus
+                serial-monitor: off
+              - mode: UART
+                pname: cm0plus
+                serial-monitor: off
+          images:
+            - image: out/HelloWorld_cm0plus/FRDM-K32L3A6/Debug/HelloWorld_cm0plus.axf
+            - project-context: project1.Release
+              load: image
+    - type: A_FRDM-K32L3A6
+      board: FRDM-K32L3A6
+      device: K32L3A60VPJ1A
+      target-set:
+        - set:
+          debugger:
+            name: MCU-Link@pyOCD
+            port: 3333
+            protocol: swd
+            clock: 10000000
+            start-pname: cm0plus
+          images:
+            - project-context: project.Debug
+              load: image
+            - project-context: project2.Debug
+        - set: ST-Link_Debugging
+          debugger:
+            name: ST-Link@pyOCD
+            port: 3333
+            protocol: swd
+            clock: 10000000
+            start-pname: cm4
+          images:
+            - project-context: project.Debug
+            - project-context: project2.Debug
+  projects:
+    - project: p1/project.cproject.yml
+    - project: p2/project2.cproject.yml
+    - project: prj/not-selected-project.cproject.yml
+  build-types:
+    - type: Debug
+    - type: Release

@@ -1,0 +1,40 @@
+/**
+ * Copyright (C) 2025-2026 Arm Limited
+ */
+
+.ant-btn {
+    height: 29px;
+}
+
+.ant-segmented .ant-segmented-item-label {
+    min-height: 26px;
+    line-height: 26px;
+}
+
+.inline-link.ant-btn-icon-only.ant-btn-variant-link {
+    height: 1em;
+}
+
+.hide-tree-switcher .ant-select-tree-switcher {
+    display: none !important;
+}
+
+.ant-dropdown-trigger {
+    cursor: pointer;
+}
+
+.ant-dropdown-trigger[disabled] {
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+.ant-tooltip .simple-list-namespace .ant-list .ant-list-item {
+    padding: 3px;
+}
+
+.ant-tooltip-inner,
+.ant-tooltip-arrow:after {
+    box-shadow: 0 0px 2px 0 rgba(50, 50, 50, .5),
+        0 0px 0px 1px rgba(200, 200, 200, .5),
+        0 0px 1px 1px rgba(50, 50, 50, 0.5) !important;
+}

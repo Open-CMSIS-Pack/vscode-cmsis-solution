@@ -1,0 +1,50 @@
+div.components-tree-view {
+    position: relative;
+    list-style: none;
+    margin: 0px;
+    padding-top: 10px;
+    min-height: 85%;
+}
+
+div.components-tree-view div.components-tree-view-guide {
+    position: absolute;
+    height: 20px;
+    border-left: 1px solid grey;
+    width: 1px;
+}
+
+div.components-tree-view .components-tree-view-descr {
+    font-size: 0.8em;
+    color: var(--vscode-foreground);
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+div.components-tree-view div.components-tree-view-category, div.components-tree-view div.components-tree-view-item  {
+    position: absolute;
+    border-radius: 4px;
+    padding: 2px;
+    margin: 2px;
+    color: var(--arm-fontColorPrimary);
+    font-weight: normal;
+    white-space: nowrap;
+    width: 100%;
+}
+
+div.components-tree-view div.components-tree-view-item:hover {
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    cursor: pointer;
+}
+
+div.components-tree-view div.components-tree-view-category {
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: bold;
+    cursor: default;
+}
+
+body.vscode-light div.components-tree-view div.components-tree-view-category {
+    color: var(--vscode-foreground);
+}
+

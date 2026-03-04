@@ -1,0 +1,55 @@
+name: DevContainer
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - .devcontainer/**/*
+      - .github/workflows/devcontainer.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions: read-all
+
+env:
+  image_tag: devcontainer:${{ github.head_ref || github.run_id }}
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
+        with:
+          dockerfile: .devcontainer/ubuntu-24.04/Dockerfile
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Build Docker image
+        run: |
+          docker buildx build .devcontainer/ubuntu-24.04/ --tag "${{ env.image_tag }}" --label "runnumber=${{ github.run_id }}" --load
+
+      - uses: addnab/docker-run-action@4f65fabd2431ebc8d299f8e5a018d79a769ae185 # v3
+        with:
+          image: ${{ env.image_tag }}
+          options: -v ${{ github.workspace }}:/workspace -e GITHUB_TOKEN
+          shell: zsh
+          run: |
+            . ~/.zshrc
+            cd /workspace
+            npm install
+            npm run build

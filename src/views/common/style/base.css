@@ -1,0 +1,37 @@
+@import "./reset.css";
+@import "./variables.css";
+@import "./elements.css";
+@import "./theme-overrides.css";
+@import "~@vscode/codicons/dist/codicon.css";
+
+.input-validation-error {
+    color: var(--vscode-errorForeground);
+}
+
+body.vscode-dark,
+body.vscode-high-contrast {
+    --expansion-indicator-color: #494d52;
+}
+
+body.vscode-light,
+body.vscode-high-contrast.vscode-high-contrast-light {
+    --expansion-indicator-color: #787b7f;
+}
+
+/* antd and theme overrides */
+:root {
+    --arm-border-radius: 3px;
+    --arm-component-table-indent-size: 12px;
+}
+
+.ant-btn {
+    border-radius: var(--arm-border-radius);
+}
+
+.ant-btn:disabled {
+    cursor: not-allowed;
+    border-color: revert;
+    color: revert;
+    background: revert;
+    box-shadow: revert;
+}

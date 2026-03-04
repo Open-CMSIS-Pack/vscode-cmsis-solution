@@ -1,0 +1,287 @@
+/*
+ * Copyright (c) 2022-2026 Arm Limited
+ */
+
+@import '../../../common/style/base.css';
+
+.components-packs-view-root {
+    padding: 10px;
+}
+
+.ant-table-wrapper .ant-table {
+    color: var(--vscode-foreground);
+}
+
+.ant-table-wrapper .ant-table-cell-row-hover,
+.ant-table-wrapper .ant-table-tbody .ant-table-row.ant-table-row-selected .ant-table-cell {
+    background-color: unset !important;
+}
+
+.ant-table-wrapper .ant-table-row {
+    transition: background-color 0.3s ease;
+}
+
+.ant-table-wrapper .ant-table-row:focus-within {
+    background-color: var(--vscode-editorIndentGuide-background);
+}
+
+.components-view-actions,
+.components-view-filter {
+    width: 100%;
+}
+
+.ant-table-cell {
+    cursor: default;
+}
+
+.faded {
+    opacity: 0.5;
+    margin-left: 0.5em;
+}
+
+.ant-table-cell *+.faded {
+    margin-left: 0;
+}
+
+.ant-table-row.leaf-node .ant-table-cell {
+    border-color: transparent !important;
+}
+
+.ant-table-row-disabled {
+    background-color: var(--vscode-editorStickyScrollHover-background) !important;
+}
+
+.ant-table-row .group-toggle.codicon {
+    vertical-align: sub;
+    padding: 2px 6px;
+}
+
+.component-properties-edit {
+    height: 16px;
+    padding: 8px;
+    width: 16px;
+}
+
+.ant-radio-button-wrapper:first-child {
+    border-start-start-radius: var(--arm-border-radius);
+    border-end-start-radius: var(--arm-border-radius);
+}
+
+.ant-radio-button-wrapper:last-child {
+    border-start-end-radius: var(--arm-border-radius);
+    border-end-end-radius: var(--arm-border-radius);
+}
+
+.ant-input-group .ant-input-affix-wrapper:not(:last-child) {
+    border-start-start-radius: var(--arm-border-radius) !important;
+    border-end-start-radius: var(--arm-border-radius) !important;
+}
+
+.ant-input-group .ant-input-group-addon {
+    border-radius: var(--arm-border-radius);
+}
+
+.ant-input-group .ant-input {
+    height: unset;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.ant-tooltip {
+    max-width: unset !important;
+}
+
+.ant-tooltip-inner {
+    white-space: nowrap;
+    max-width: none;
+}
+
+.ant-dropdown .ant-dropdown-menu,
+.ant-dropdown-menu-submenu .ant-dropdown-menu {
+    border: 1px solid var(--vscode-focusBorder);
+    border-radius: var(--arm-border-radius);
+}
+
+.ant-segmented-item.ant-segmented-item-selected {
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+.ant-segmented,
+.ant-segmented .ant-segmented-item {
+    border-radius: var(--arm-border-radius);
+}
+
+.ant-checkbox .ant-checkbox-inner {
+    background-color: var(--vscode-settings-checkboxBackground) !important;
+    border-color: var(--vscode-settings-checkboxBorder) !important;
+    color: var(--vscode-settings-checkboxForeground) !important;
+    border-radius: var(--arm-border-radius) !important;
+}
+
+.ant-checkbox-checked .ant-checkbox-inner {
+    background-color: var(--vscode-button-background) !important;
+    color: var(--vscode-button-foreground) !important;
+}
+
+.ant-checkbox:has(input:focus) {
+    outline: 1px solid var(--vscode-focusBorder);
+}
+
+
+.ant-table-body {
+    overflow-x: hidden !important;
+    scrollbar-color: rgb(150, 150, 150, 0) rgb(50, 50, 50, 0) !important;
+    transition: scrollbar-color 0.3s ease-in-out !important;
+}
+
+.ant-table-body:hover {
+    scrollbar-color: var(--vscode-editorStickyScroll-background) !important;
+}
+
+tr:has(*>*>.empty-validation-row) {
+    display: none;
+}
+
+.ant-table-row td:nth-child(1) span {
+    min-width: 32px;
+}
+
+.ant-table-wrapper .ant-table-row-expand-icon-cell {
+    width: 32px;
+    padding-left: 0px;
+}
+
+.ant-table-wrapper .ant-table-row-expand-icon-cell {
+    text-align: start;
+}
+
+.ant-table-row-level-1 td:nth-child(1) span {
+    text-indent: var(--arm-component-table-indent-size);
+}
+
+.ant-table-row-level-1 td:nth-child(2) {
+    text-indent: calc(var(--arm-component-table-indent-size) / 2);
+}
+
+.ant-table-row-level-2 td:nth-child(1) span {
+    text-indent: calc(2 * var(--arm-component-table-indent-size));
+}
+
+.ant-table-row-level-2 td:nth-child(2) {
+    text-indent: calc(var(--arm-component-table-indent-size));
+}
+
+td:nth-child(3),
+td:nth-child(4) {
+    min-width: 22px;
+}
+
+.ant-table-wrapper .ant-table.ant-table-small .ant-table-cell,
+.ant-table-wrapper .ant-table.ant-table-small .ant-table-tbody>tr>td {
+    padding: 2px 4px;
+}
+
+.ant-table-wrapper .ant-table.ant-table-small .ant-table-cell.ant-table-selection-column {
+    padding-right: 5px !important;
+}
+
+.ant-table-wrapper .ant-table-thead>tr>th:not(:last-child):not(.ant-table-selection-column):not(.ant-table-row-expand-icon-cell):not([colspan])::before,
+.ant-table-wrapper .ant-table-thead>tr>td:not(:last-child):not(.ant-table-selection-column):not(.ant-table-row-expand-icon-cell):not([colspan])::before {
+    background-color: unset;
+}
+
+td>div>span {
+    width: 100%;
+    display: inline-block;
+    margin-left: -9px;
+}
+
+.validation-row {
+    padding-left: 5%;
+}
+
+.validation-table {
+    width: unset !important;
+}
+
+.validation-table tr td:nth-child(1) {
+    width: 5%;
+}
+
+.validation-table tr td {
+    border-left: 10px solid transparent !important;
+}
+
+.ant-table .ant-dropdown-trigger {
+    padding: 2px 5px !important;
+}
+
+.ant-dropdown-menu-item {
+    padding: 0px 2px !important;
+    border-radius: 0px !important;
+}
+
+.ant-col {
+    padding: 5px;
+}
+
+.ant-table-cell .codicon-warning {
+    padding: 0px !important;
+    margin: -2px;
+    text-indent: -14px;
+}
+
+th.ant-table-cell {
+    padding: 8px 0px !important;
+}
+
+.components-view-root th.ant-table-cell:nth-child(2) {
+    text-indent: -10px;
+}
+
+.packs-view-root .expandable-references {
+    display: flex;
+}
+
+.packs-view-root .expandable-references>span.left {
+    flex: auto;
+}
+
+.packs-view-root .expandable-references>span.right {
+    flex: 1;
+    margin-right: 3rem;
+}
+
+.packs-view-root .expandable-references .right>a {
+    white-space: nowrap;
+    display: block;
+}
+
+.packs-view-root .used-version-col {
+    display: flex;
+    flex-direction: row;
+}
+
+.packs-view-root .used-version-col>span:first-child {
+    flex: 1;
+}
+
+.packs-view-root .used-version-col>span:last-child {
+    flex: 2;
+}
+
+.packs-view-root tr.ant-table-row {
+    vertical-align: unset;
+}
+
+.packs-view-root tr td:first-child,
+.packs-view-root tr th:first-child {
+    padding-left: 24px !important;
+}
+
+.packs-view-root .ant-table-wrapper {
+    padding-top: 4px;
+}

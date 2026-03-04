@@ -1,0 +1,67 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "npm",
+			"script": "build",
+			"group": "build",
+			"problemMatcher": [],
+			"label": "Webpack Build",
+			"detail": "webpack --mode production"
+		},
+		{
+			"type": "npm",
+			"script": "watch",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": [],
+			"label": "Webpack Watch",
+			"detail": "webpack -w"
+		},
+		{
+			"type": "npm",
+			"script": "compile",
+			"group": {
+				"kind": "build",
+				"isDefault": false
+			},
+			"problemMatcher": [
+				"$tsc-watch"
+			],
+			"label": "Compile"
+		},
+		{
+			"type": "npm",
+			"script": "compile:watch",
+			"group": {
+				"kind": "build",
+				"isDefault": false
+			},
+			"problemMatcher": [
+				"$tsc-watch"
+			],
+			"label": "Compile Watch"
+		},
+		{
+			"type": "npm",
+			"script": "test:watch",
+			"group": {
+				"kind": "test",
+				"isDefault": true
+			},
+			"label": "Unit Test Watch"
+		},
+		{
+			"type": "npm",
+			"script": "e2e",
+			"group": {
+				"kind": "test",
+				"isDefault": false
+			},
+			"label": "E2E Tests",
+			"detail": "Runs Playwright tests"
+		}
+	]
+}

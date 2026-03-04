@@ -1,0 +1,39 @@
+{
+    "solutionName": "test",
+    "solutionPath": "TEST_PATH/simple/test.csolution.yml",
+    "targets": [
+        {
+            "name": "TEST_TARGET",
+            "targetSets": [
+                {
+                    "name": "",
+                    "images": []
+                }
+            ],
+            "selectedSet": ""
+        }
+    ],
+    "selectedTarget": {
+        "name": "TEST_TARGET",
+        "targetSets": [
+            {
+                "name": "",
+                "images": []
+            }
+        ],
+        "selectedSet": ""
+    },
+    "projects": [
+        {
+            "name": "project",
+            "path": "TEST_PATH/simple/project.cproject.yml",
+            "selected": true,
+            "load": "image+symbols",
+            "selectedBuildType": "Debug",
+            "buildTypes": [
+                "Debug"
+            ]
+        }
+    ],
+    "images": []
+}

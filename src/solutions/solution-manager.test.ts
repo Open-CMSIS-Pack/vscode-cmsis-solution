@@ -1,0 +1,264 @@
+/**
+ * Copyright 2022-2026 Arm Limited
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import 'jest';
+import * as vscode from 'vscode';
+import * as path from 'path';
+import { SolutionLoadState, SolutionManagerImpl } from './solution-manager';
+import { EventEmitter, Event, ExtensionContext, ConfigurationChangeEvent, } from 'vscode';
+import { ActiveSolutionTracker, SolutionDetails, } from './active-solution-tracker';
+import { waitTimeout } from '../__test__/test-waits';
+import { commandsProviderFactory, MockCommandsProvider, } from '../vscode-api/commands-provider.factories';
+import { SolutionEventHub, ConvertResultData } from './solution-event-hub';
+import { extensionApiProviderFactory } from '../vscode-api/extension-api-provider.factories';
+import { EnvironmentManagerApiV1, VcpkgResults } from '@arm-software/vscode-environment-manager';
+import { TestDataHandler } from '../__test__/test-data';
+
+
+const convertResultData: ConvertResultData = { severity: 'success', detection: false };
+
+describe('SolutionManager', () => {
+    let mockActiveSolutionTracker: {
+        activeSolution: string | undefined;
+        onDidChangeActiveSolution: Event<void>;
+        onActiveSolutionFilesChanged: Event<void>;
+        getSolutionDetails: jest.Mock;
+        triggerReload: jest.Mock;
+        suspendWatch: boolean;
+    };
+    let changeActiveSolutionEmitter: EventEmitter<void>;
+    let solutionManager: SolutionManagerImpl;
+    let loadStateChangeListener: jest.Mock;
+    let changeConfigurationEmitter: EventEmitter<ConfigurationChangeEvent>;
+    let commandsProvider: MockCommandsProvider;
+    let changeSolutionFilesEmitter: EventEmitter<void>;
+    let vcpkgActivateEmitter: EventEmitter<VcpkgResults>;
+    let environmentManagerApi: Pick<EnvironmentManagerApiV1, 'onDidActivate' | 'getActiveTools'>;
+    let eventHub: SolutionEventHub;
+    let convertMock: jest.Mock;
+    let loadBuildFilesListener: jest.Mock;
+    let tmpSolutionsDir: string;
+    let testSolutionPath: string;
+
+    const testDataHandler = new TestDataHandler();
+
+    beforeAll(async () => {
+        tmpSolutionsDir = testDataHandler.copyTestDataToTmp('solutions');
+    });
+
+    afterAll(async () => {
+        testDataHandler.dispose();
+        jest.restoreAllMocks();
+    });
+
+    beforeEach(async () => {
+        changeConfigurationEmitter = new EventEmitter();
+        (
+            vscode.workspace as {
+                onDidChangeConfiguration: Event<ConfigurationChangeEvent>;
+            }
+        ).onDidChangeConfiguration = changeConfigurationEmitter.event;
+
+        changeActiveSolutionEmitter = new EventEmitter<void>();
+        changeSolutionFilesEmitter = new EventEmitter<void>();
+
+        testSolutionPath = path.join(tmpSolutionsDir, 'USBD', 'USB_Device.csolution.yml');
+
+        mockActiveSolutionTracker = {
+            activeSolution: testSolutionPath,
+            onDidChangeActiveSolution: changeActiveSolutionEmitter.event,
+            onActiveSolutionFilesChanged: changeSolutionFilesEmitter.event,
+            getSolutionDetails: jest.fn(
+                (solutionPath: string): SolutionDetails => ({
+                    path: solutionPath,
+                    displayName: path.basename(solutionPath),
+                }),
+            ),
+            triggerReload: jest.fn(() => changeSolutionFilesEmitter.fire()),
+            suspendWatch: false,
+        };
+
+        eventHub = new SolutionEventHub();
+        convertMock = jest.fn(() => {
+            setTimeout(() => {
+                eventHub.fireConvertCompleted(convertResultData);
+            }, 1);
+        });
+        eventHub.onDidConvertRequested(convertMock);
+
+        vcpkgActivateEmitter = new EventEmitter<VcpkgResults>();
+        environmentManagerApi = {
+            onDidActivate: vcpkgActivateEmitter.event,
+            getActiveTools: jest.fn(),
+        };
+
+        commandsProvider = commandsProviderFactory();
+
+        solutionManager = new SolutionManagerImpl(
+            mockActiveSolutionTracker as unknown as ActiveSolutionTracker,
+            eventHub,
+            commandsProvider,
+            extensionApiProviderFactory(environmentManagerApi),
+        );
+        loadStateChangeListener = jest.fn();
+        solutionManager.onDidChangeLoadState(loadStateChangeListener);
+        loadBuildFilesListener = jest.fn();
+        solutionManager.onLoadedBuildFiles(loadBuildFilesListener);
+        await solutionManager.activate({
+            subscriptions: [],
+        } as unknown as ExtensionContext);
+    });
+
+
+    it('register the command on activation', async () => {
+        expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(1);
+        expect(commandsProvider.registerCommand).toHaveBeenCalledWith(
+            SolutionManagerImpl.refreshCommandId,
+            expect.any(Function),
+            expect.anything(),
+        );
+    });
+
+    it('reloads the active solution when the refresh command is executed', async () => {
+        // Initialize solution state first
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(100);
+
+        await commandsProvider.mockRunRegistered(
+            SolutionManagerImpl.refreshCommandId,
+        );
+
+        await waitTimeout(100);
+
+        const expectedLoadState: SolutionLoadState = {
+            solutionPath: testSolutionPath, loaded: true, converted: true,
+        };
+
+        expect(solutionManager.loadState).toEqual(expectedLoadState);
+        expect(loadBuildFilesListener).toHaveBeenCalledTimes(2);
+        expect(loadBuildFilesListener).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining([
+                convertResultData.severity,
+                convertResultData.detection,
+            ]),
+        );
+        expect(loadBuildFilesListener).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining([
+                convertResultData.severity,
+                convertResultData.detection,
+            ]),
+        );
+    });
+
+    it('sets the idle state when there is no active solution', async () => {
+        mockActiveSolutionTracker.activeSolution = undefined;
+        changeActiveSolutionEmitter.fire();
+
+        const expectedLoadState: SolutionLoadState = { solutionPath: undefined };
+        expect(solutionManager.loadState).toEqual(expectedLoadState);
+        expect(loadStateChangeListener).toHaveBeenCalledTimes(1);
+        expect(loadStateChangeListener).toHaveBeenCalledWith(
+            expect.objectContaining({ newState: expectedLoadState }),
+        );
+    });
+
+    it('reloads the solution when a file in the active solution is modified', async () => {
+        // Initialize solution state first
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(100);
+
+        changeSolutionFilesEmitter.fire();
+
+        await waitTimeout(100);
+
+        const expectedLoadState: SolutionLoadState = {
+            solutionPath: testSolutionPath, loaded: true, converted: true,
+        };
+        expect(solutionManager.loadState).toEqual(expectedLoadState);
+
+        expect(loadStateChangeListener.mock.calls.length).toBeGreaterThanOrEqual(3);
+
+        expect(loadBuildFilesListener).toHaveBeenCalledTimes(2);
+        expect(loadBuildFilesListener).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining([
+                convertResultData.severity,
+                convertResultData.detection,
+            ]),
+        );
+        expect(loadBuildFilesListener).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining([
+                convertResultData.severity,
+                convertResultData.detection,
+            ]),
+        );
+        expect(convertMock).toHaveBeenCalledTimes(2);
+        expect(convertMock).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({
+                solutionPath: testSolutionPath,
+                targetSet: 'B-U585I-IOT02A',
+                restartRpc: false,
+                updateRte: false,
+                lockAbort: true,
+            }),
+        );
+        expect(convertMock).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({
+                solutionPath: testSolutionPath,
+                targetSet: 'B-U585I-IOT02A',
+                restartRpc: false,
+                updateRte: true,
+                lockAbort: false,
+            }),
+        );
+    });
+
+    it('loads the new solution when the active solution is changed', async () => {
+        const newSolutionPath = testSolutionPath;
+        // path.join(tmpSolutionsDir, 'targetSet', 'TargetSets.csolution.yml');
+        mockActiveSolutionTracker.activeSolution = newSolutionPath;
+        changeActiveSolutionEmitter.fire();
+
+        await waitTimeout(100);
+
+        const expectedLoadingState: SolutionLoadState = {
+            solutionPath: newSolutionPath, loaded: true,
+        };
+        expect(loadStateChangeListener).toHaveBeenCalledWith(
+            expect.objectContaining({ newState: expectedLoadingState }),
+        );
+        expect(convertMock).toHaveBeenCalledTimes(1);
+        expect(convertMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+                solutionPath: newSolutionPath,
+            })
+        );
+        expect(loadBuildFilesListener).toHaveBeenCalled();
+        expect(loadBuildFilesListener).toHaveBeenCalledWith(
+            expect.objectContaining([
+                convertResultData.severity,
+                convertResultData.detection,
+            ]),
+        );
+    });
+});

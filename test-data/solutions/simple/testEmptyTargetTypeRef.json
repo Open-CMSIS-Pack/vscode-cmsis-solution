@@ -1,0 +1,38 @@
+{
+    "solutionName": "testEmptyTargetType",
+    "solutionPath": "TEST_PATH/simple/testEmptyTargetType.csolution.yml",
+    "targets": [
+        {
+            "name": "TEST_TARGET",
+            "targetSets": [
+                {
+                    "name": "",
+                    "images": []
+                }
+            ],
+            "selectedSet": ""
+        }
+    ],
+    "selectedTarget": {
+        "name": "TEST_TARGET",
+        "targetSets": [
+            {
+                "name": "",
+                "images": []
+            }
+        ],
+        "selectedSet": ""
+    },
+    "projects": [
+        {
+            "name": "project",
+            "path": "TEST_PATH/simple/project.cproject.yml",
+            "selected": false,
+            "selectedBuildType": "Debug",
+            "buildTypes": [
+                "Debug"
+            ]
+        }
+    ],
+    "images": []
+}

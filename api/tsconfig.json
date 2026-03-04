@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "target": "es6",
+        "module": "commonjs",
+        "noEmit": true,
+        "strict": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noImplicitReturns": true,
+        "types": [
+            "node",
+            "vscode"
+        ],
+        "lib": [
+            "dom"
+        ]
+    },
+    "include": [
+        "*.d.ts"
+    ]
+}

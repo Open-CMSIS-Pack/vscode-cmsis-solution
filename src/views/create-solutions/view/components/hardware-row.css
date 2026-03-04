@@ -1,0 +1,25 @@
+@import "../../../common/style/base.css";
+
+/*
+ * Copyright (c) 2024-2026 Arm Limited
+ */
+
+.searchtree-container {
+     display: flex;
+     flex-direction: row;
+     padding: 8px;
+ }
+
+.searchtreeview {
+     width: 330px;
+ }
+
+.form-row > .hardware-config-row {
+    grid-template-columns: 210px 210px 210px;
+}
+
+.hardware-config-row {
+    display: grid;
+    grid-column-gap: 10px;
+    grid-row-gap: 10px;
+}

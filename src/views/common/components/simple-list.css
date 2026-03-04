@@ -1,0 +1,12 @@
+.simple-list-namespace .ant-list .ant-list-item {
+    border-block-end: unset;
+    padding: 8px;
+}
+
+.simple-list-namespace .ant-list .ant-list-item:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.simple-list-namespace .ant-list .ant-list-item:active {
+    background: var(--vscode-list-activeSelectionBackground);
+}

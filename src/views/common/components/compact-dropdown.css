@@ -1,0 +1,103 @@
+/*
+ * Copyright (c) 2022-2026 Arm Limited
+ */
+
+:root {
+    --arm-compact-dropdown-border-width: 1px;
+    --arm-compact-dropdown-horizontal-padding: 5px;
+    --arm-compact-dropdown-vertical-padding: 1px;
+}
+
+.compact-dropdown-trigger {
+    cursor: pointer;
+    display: inline-block;
+}
+
+.compact-dropdown-trigger:not(:has(.compact-dropdown-caret)) {
+    cursor: unset;
+}
+
+.compact-dropdown-trigger.disabled {
+    color: var(--vscode-input-placeholderForeground);
+    background-color: var(--vscode-disabled-background);
+    cursor: not-allowed !important;
+    font-style: italic;
+}
+
+.compact-dropdown-caret {
+    margin-left: 4px;
+}
+
+.compact-dropdown-warn {
+    margin-left: auto;
+    color: var(--vscode-editorWarning-foreground);
+}
+
+.mbs-dropdown.compact-dropdown-popover {
+    width: 100%;
+    max-width: 100%;
+}
+
+.mbs-dropdown.compact-dropdown-popover .search-list-values {
+    padding: 0;
+    margin: 0;
+}
+
+.mbs-dropdown.compact-dropdown-popover .search-list-values li.compact-dropdown-selected,
+.mbs-dropdown.compact-dropdown-popover .search-list-values li.compact-dropdown-selected:hover {
+    background-color: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+}
+
+.compact-dropdown {
+    border: var(--arm-compact-dropdown-border-width) solid var(--vscode-panel-border);
+    padding: var(--arm-compact-dropdown-vertical-padding) var(--arm-compact-dropdown-horizontal-padding);
+    border-radius: var(--arm-button-radius);
+    margin-right: 1em;
+    width: fit-content;
+}
+
+.compact-dropdown-trigger {
+    align-items: center;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.compact-dropdown-one {
+    padding: 0 calc(var(--arm-compact-dropdown-border-width) + var(--arm-compact-dropdown-horizontal-padding));
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.compact-dropdown-inner {
+    display: flex;
+}
+
+.vscode-dark .compact-dropdown-addon-before,
+.vscode-dark .compact-dropdown-addon-after {
+    background: rgba(255, 255, 255, .04);
+}
+
+.vscode-light .compact-dropdown-addon-before,
+.vscode-light .compact-dropdown-addon-after {
+    background: rgba(0, 0, 0, .04);
+}
+
+.compact-dropdown-addon-before {
+    padding: 5px 10px;
+}
+
+.compact-dropdown-addon-after {
+    padding: 5px 10px;
+    margin-right: -30px;
+}
+
+.compact-dropdown:has(.compact-dropdown-addon-after):not(.compact-dropdown:has(.compact-dropdown-addon-before)) {
+    padding-right: 30px;
+}
+
+.compact-dropdown:has(.compact-dropdown-addon-after):has(.compact-dropdown-addon-before) {
+    padding-right: 30px;
+}

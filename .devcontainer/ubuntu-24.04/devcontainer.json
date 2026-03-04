@@ -1,0 +1,27 @@
+{
+    "name": "Ubuntu-24.04",
+    "build": {
+      "dockerfile": "Dockerfile",
+      "options": ["--platform", "linux/amd64"]
+    },
+
+    "containerEnv": {
+      "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}"
+    },
+
+    "customizations": {
+      "vscode": {
+        "settings": {
+          "terminal.integrated.defaultProfile.linux": "zsh",
+          "terminal.integrated.profiles.linux": { "zsh": { "path": "/bin/zsh" } }
+        },
+        "extensions": [
+			    "dbaeumer.vscode-eslint",
+          "orta.vscode-jest",
+          "christian-kohler.npm-intellisense",
+          "medfive.typescript-static-analysis",
+          "arm.environment-manager"
+        ]
+      }
+    }
+  }

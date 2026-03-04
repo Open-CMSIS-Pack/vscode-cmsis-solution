@@ -1,0 +1,5 @@
+loadboard B-U585I-IOT02A allmodes
+project name STM32CubeMX
+project toolchain "MDK-ARM V5"
+project path "C:\Test\USBD\HID\STM32CubeMX\Debug+B-U585I-IOT02A"
+SetCopyLibrary "copy only"

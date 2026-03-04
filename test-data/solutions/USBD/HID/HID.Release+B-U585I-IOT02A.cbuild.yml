@@ -1,0 +1,628 @@
+build:
+  generated-by: csolution version 2.6.0
+  solution: ../USB_Device.csolution.yml
+  project: HID.cproject.yml
+  context: HID.Release+B-U585I-IOT02A
+  compiler: AC6
+  board: STMicroelectronics::B-U585I-IOT02A
+  board-pack: Keil::B-U585I-IOT02A_BSP@2.0.0
+  device: STM32U585AIIx
+  device-pack: Keil::STM32U5xx_DFP@3.0.0-dev
+  processor:
+    dsp: on
+    endian: little
+    fpu: sp
+    trustzone: off
+    core: Cortex-M33
+  packs:
+    - pack: ARM::CMSIS-Compiler@2.1.0
+      path: ${CMSIS_PACK_ROOT}/ARM/CMSIS-Compiler/2.1.0
+    - pack: ARM::CMSIS-Driver_STM32@1.0.0-dev0
+      path: ../../../MyLocalPath/CMSIS-Driver_STM32
+    - pack: ARM::CMSIS-RTX@5.9.0
+      path: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0
+    - pack: ARM::CMSIS@6.1.0
+      path: ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0
+    - pack: Keil::B-U585I-IOT02A_BSP@2.0.0
+      path: ../../../MyLocalPath/ST_B-U585I-IOT02A_BSP
+    - pack: Keil::MDK-Middleware@8.0.0-dev
+      path: ../../../MyLocalPath/MDK-Middleware
+    - pack: Keil::STM32U5xx_DFP@3.0.0-dev
+      path: ../../../MyLocalPath/STM32U5xx_DFP
+  optimize: balanced
+  debug: off
+  misc:
+    ASM:
+      - -masm=auto
+    C:
+      - -std=gnu11
+      - -Wno-macro-redefined
+      - -Wno-pragma-pack
+      - -Wno-parentheses-equality
+      - -Wno-license-management
+    CPP:
+      - -Wno-macro-redefined
+      - -Wno-pragma-pack
+      - -Wno-parentheses-equality
+      - -Wno-license-management
+    Link:
+      - --entry=Reset_Handler
+      - --map
+      - --info summarysizes
+      - --summary_stderr
+      - --diag_suppress=L6314W
+  define:
+    - USE_FULL_LL_DRIVER
+    - USE_HAL_DRIVER
+    - STM32U585xx
+    - STM32U585xx
+    - _RTE_
+  define-asm:
+    - STM32U585xx
+    - _RTE_
+  add-path:
+    - ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Inc
+    - ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Inc/Legacy
+    - ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/CMSIS/Device/ST/STM32U5xx/Include
+    - ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Inc
+    - ../Board/B-U585I-IOT02A/CubeMX/MX_Device/Board
+    - RTE/CMSIS
+    - RTE/USB
+    - RTE/_Release_B-U585I-IOT02A
+    - ${CMSIS_PACK_ROOT}/ARM/CMSIS-Compiler/2.1.0/include
+    - ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Include
+    - ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Core/Include
+    - ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Driver/Include
+    - ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Driver/VIO/Include
+    - ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/RTOS2/Include
+    - ../../../MyLocalPath/CMSIS-Driver_STM32/Drivers
+    - ../../../MyLocalPath/MDK-Middleware/Components/USB/Include
+  add-path-asm:
+    - RTE/CMSIS
+    - RTE/USB
+    - RTE/_Release_B-U585I-IOT02A
+    - ${CMSIS_PACK_ROOT}/ARM/CMSIS-Compiler/2.1.0/include
+    - ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Include
+    - ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Core/Include
+    - ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Driver/Include
+    - ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Driver/VIO/Include
+    - ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/RTOS2/Include
+    - ../../../MyLocalPath/CMSIS-Driver_STM32/Drivers
+    - ../../../MyLocalPath/MDK-Middleware/Components/USB/Include
+  output-dirs:
+    intdir: ../tmp
+    outdir: ../out/HID/B-U585I-IOT02A/Release
+    rtedir: RTE
+  output:
+    - type: elf
+      file: HID.axf
+  components:
+    - component: ARM::CMSIS-Compiler:CORE@1.1.0
+      condition: ARMCC CortexDevice
+      from-pack: ARM::CMSIS-Compiler@2.1.0
+      selected-by: ARM::CMSIS-Compiler:CORE
+      files:
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-Compiler/2.1.0/source/armcc/retarget_io.c
+          category: sourceC
+          version: 1.1.0
+    - component: ARM::CMSIS-Compiler:STDERR:Custom@1.1.0
+      condition: CORE
+      from-pack: ARM::CMSIS-Compiler@2.1.0
+      selected-by: ARM::CMSIS-Compiler:STDERR:Custom
+      implements: CMSIS-Compiler:STDERR@1.1.0
+      files:
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-Compiler/2.1.0/template/stdio/stderr_user.c
+          category: sourceC
+          attr: template
+          version: 1.1.0
+          select: STDERR User Template
+    - component: ARM::CMSIS-Compiler:STDIN:Custom@1.1.0
+      condition: CORE
+      from-pack: ARM::CMSIS-Compiler@2.1.0
+      selected-by: ARM::CMSIS-Compiler:STDIN:Custom
+      implements: CMSIS-Compiler:STDIN@1.1.0
+      files:
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-Compiler/2.1.0/template/stdio/stdin_user.c
+          category: sourceC
+          attr: template
+          version: 1.1.0
+          select: STDIN User Template
+    - component: ARM::CMSIS-Compiler:STDOUT:Custom@1.1.0
+      condition: CORE
+      from-pack: ARM::CMSIS-Compiler@2.1.0
+      selected-by: ARM::CMSIS-Compiler:STDOUT:Custom
+      implements: CMSIS-Compiler:STDOUT@1.1.0
+      files:
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-Compiler/2.1.0/template/stdio/stdout_user.c
+          category: sourceC
+          attr: template
+          version: 1.1.0
+          select: STDOUT User Template
+    - component: ARM::CMSIS:CORE@6.1.0
+      condition: ARMv6_7_8-M Device
+      from-pack: ARM::CMSIS@6.1.0
+      selected-by: ARM::CMSIS:CORE
+      files:
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Core/Include
+          category: include
+          version: 6.1.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Core/Include/tz_context.h
+          category: header
+          version: 6.1.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Documentation/html/Core/index.html
+          category: doc
+          version: 6.1.0
+    - component: ARM::CMSIS:OS Tick:SysTick@1.0.5
+      condition: OS Tick SysTick
+      from-pack: ARM::CMSIS@6.1.0
+      selected-by: ARM::CMSIS:OS Tick:SysTick
+      implements: CMSIS:OS Tick@1.0.1
+      files:
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/RTOS2/Source/os_systick.c
+          category: sourceC
+          version: 1.0.5
+    - component: ARM::CMSIS:RTOS2:Keil RTX5&Source@5.9.0
+      condition: RTX5
+      from-pack: ARM::CMSIS-RTX@5.9.0
+      selected-by: ARM::CMSIS:RTOS2:Keil RTX5&Source
+      implements: CMSIS:RTOS2@2.3.0
+      files:
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Documentation/index.html
+          category: doc
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Include/rtx_os.h
+          category: header
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/RTX5.scvd
+          category: other
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Source/GCC/irq_armv8mml.S
+          category: source
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Source/rtx_delay.c
+          category: source
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Source/rtx_evflags.c
+          category: source
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Source/rtx_evr.c
+          category: source
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Source/rtx_kernel.c
+          category: source
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Source/rtx_lib.c
+          category: source
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Source/rtx_memory.c
+          category: source
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Source/rtx_mempool.c
+          category: source
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Source/rtx_msgqueue.c
+          category: source
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Source/rtx_mutex.c
+          category: source
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Source/rtx_semaphore.c
+          category: source
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Source/rtx_system.c
+          category: source
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Source/rtx_thread.c
+          category: source
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Source/rtx_timer.c
+          category: source
+          version: 5.9.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Template/Events.c
+          category: source
+          attr: template
+          version: 2.0.0
+          select: RTX Events
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Template/MemPool.c
+          category: source
+          attr: template
+          version: 2.0.0
+          select: RTX Memory Pool
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Template/MsgQueue.c
+          category: source
+          attr: template
+          version: 2.0.0
+          select: RTX Message Queue
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Template/Mutex.c
+          category: source
+          attr: template
+          version: 2.0.0
+          select: RTX Mutex
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Template/Semaphore.c
+          category: source
+          attr: template
+          version: 2.0.0
+          select: RTX Semaphore
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Template/Thread.c
+          category: source
+          attr: template
+          version: 2.0.0
+          select: RTX Thread
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Template/Timer.c
+          category: source
+          attr: template
+          version: 2.0.1
+          select: RTX Timer
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Template/main.c
+          category: source
+          attr: template
+          version: 2.1.0
+          select: RTX 'main' function
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Template/svc_user.c
+          category: source
+          attr: template
+          version: 1.0.0
+          select: RTX SVC User Table
+        - file: RTE/CMSIS/RTX_Config.c
+          category: source
+          attr: config
+          version: 5.2.0
+        - file: RTE/CMSIS/RTX_Config.h
+          category: header
+          attr: config
+          version: 5.6.0
+    - component: Keil::CMSIS Driver:USART@3.0.0
+      condition: CMSIS Driver requirements
+      from-pack: ARM::CMSIS-Driver_STM32@1.0.0-dev0
+      selected-by: Keil::CMSIS Driver:USART
+      implements: CMSIS Driver:USART@2.4.0
+      files:
+        - file: ../../../MyLocalPath/CMSIS-Driver_STM32/Documentation/html/usart_stm32.html
+          category: doc
+          version: 3.0.0
+        - file: ../../../MyLocalPath/CMSIS-Driver_STM32/Drivers/USART_STM32.c
+          category: source
+          version: 3.0.0
+        - file: ../../../MyLocalPath/CMSIS-Driver_STM32/Drivers/USART_STM32.h
+          category: header
+          version: 3.0.0
+    - component: Keil::CMSIS Driver:USB Device@3.0.0
+      condition: CMSIS Driver requirements
+      from-pack: ARM::CMSIS-Driver_STM32@1.0.0-dev0
+      selected-by: Keil::CMSIS Driver:USB Device
+      implements: CMSIS Driver:USB Device@2.3.0
+      files:
+        - file: ../../../MyLocalPath/CMSIS-Driver_STM32/Documentation/html/usbd_stm32.html
+          category: doc
+          version: 3.0.0
+        - file: ../../../MyLocalPath/CMSIS-Driver_STM32/Drivers/USBD_STM32.c
+          category: source
+          version: 3.0.0
+        - file: ../../../MyLocalPath/CMSIS-Driver_STM32/Drivers/USBD_STM32.h
+          category: header
+          version: 3.0.0
+    - component: Keil::CMSIS Driver:VIO:Board&B-U585I-IOT02A@2.0.1
+      condition: B-U585I-IOT02A CubeMX
+      from-pack: Keil::B-U585I-IOT02A_BSP@2.0.0
+      selected-by: Keil::CMSIS Driver:VIO:Board&B-U585I-IOT02A
+      implements: CMSIS Driver:VIO@1.0.0
+      files:
+        - file: ../../../MyLocalPath/ST_B-U585I-IOT02A_BSP/CMSIS/Driver/vio_B-U585I-IOT02A.c
+          category: source
+          version: 2.0.1
+    - component: Keil::Device:CubeMX@1.0.0
+      condition: STM32U5 CMSIS
+      from-pack: Keil::STM32U5xx_DFP@3.0.0-dev
+      selected-by: Keil::Device:CubeMX
+      generator:
+        id: CubeMX
+        path: ../Board/B-U585I-IOT02A/CubeMX/Board.cgen.yml
+    - component: Keil::USB&MDK:CORE@8.0.0
+      condition: CMSIS Core with RTOS
+      from-pack: Keil::MDK-Middleware@8.0.0-dev
+      selected-by: Keil::USB&MDK:CORE
+      files:
+        - file: ../../../MyLocalPath/MDK-Middleware/Components/USB/Include/rl_usb.h
+          category: header
+          version: 8.0.0
+        - file: ../../../MyLocalPath/MDK-Middleware/Components/USB/Source/usb_lib_ver.c
+          category: source
+          version: 8.0.0
+        - file: ../../../MyLocalPath/MDK-Middleware/Components/USB/USB.scvd
+          category: other
+          version: 8.0.0
+        - file: RTE/USB/USB_Debug.h
+          category: header
+          attr: config
+          version: 8.0.0
+    - component: Keil::USB&MDK:Device:HID@8.0.0
+      condition: USB Core and Device Instance and Device Driver
+      from-pack: Keil::MDK-Middleware@8.0.0-dev
+      selected-by: Keil::USB&MDK:Device:HID
+      instances: 2
+      maxInstances: 2
+      files:
+        - file: ../../../MyLocalPath/MDK-Middleware/Components/USB/Source/usbd_lib_core_hid.c
+          category: source
+          version: 8.0.0
+        - file: ../../../MyLocalPath/MDK-Middleware/Components/USB/Source/usbd_lib_hid.c
+          category: source
+          version: 8.0.0
+        - file: ../../../MyLocalPath/USBD_User_HID.c
+          category: source
+          attr: template
+          version: 8.0.0
+          select: USB Device HID (Human Interface Device)
+        - file: ../../../MyLocalPath/USBD_User_HID_Mouse.h
+          category: header
+          attr: template
+          version: 8.0.0
+          select: USB Device HID Mouse
+        - file: ../../../MyLocalPath/USBD_User_HID_Mouse.c
+          category: source
+          attr: template
+          version: 8.0.0
+          select: USB Device HID Mouse
+        - file: ../../../MyLocalPath/MDK-Middleware/Documentation/html/USB/USB_Classes.html#HID
+          category: doc
+          version: 8.0.0
+        - file: RTE/USB/USBD_Config_HID_0.h
+          category: header
+          attr: config
+          version: 5.1.1
+    - component: Keil::USB&MDK:Device@8.0.0
+      condition: USB Core and Device Driver and Class Instance
+      from-pack: Keil::MDK-Middleware@8.0.0-dev
+      selected-by: Keil::USB&MDK:Device
+      files:
+        - file: ../../../MyLocalPath/MDK-Middleware/Components/USB/Source/usbd_config.c
+          category: source
+          version: 8.0.0
+        - file: ../../../MyLocalPath/MDK-Middleware/Components/USB/Source/usbd_debug.c
+          category: source
+          version: 8.0.0
+        - file: ../../../MyLocalPath/MDK-Middleware/Components/USB/Source/usbd_lib_core.c
+          category: source
+          version: 8.0.0
+        - file: ../../../MyLocalPath/MDK-Middleware/Components/USB/Source/usbd_lib_core_device.c
+          category: source
+          version: 8.0.0
+        - file: ../../../MyLocalPath/MDK-Middleware/Components/USB/Source/usbd_lib_drv.c
+          category: source
+          version: 8.0.0
+        - file: ../../../MyLocalPath/MDK-Middleware/Components/USB/Template/USBD_User_Device.c
+          category: source
+          attr: template
+          version: 8.0.0
+          select: USB Device
+        - file: ../../../MyLocalPath/MDK-Middleware/Components/USB/Template/USBD_User_Device_SerNum.c
+          category: source
+          attr: template
+          version: 8.0.0
+          select: USB Device Serial Number
+        - file: ../../../MyLocalPath/MDK-Middleware/Documentation/html/USB/USB_Device.html
+          category: doc
+          version: 8.0.0
+        - file: RTE/USB/USBD_Config_0.h
+          category: header
+          attr: config
+          version: 8.0.0
+  apis:
+    - api: CMSIS-Compiler:STDERR@1.1.0
+      condition: CortexDevice
+      from-pack: ARM::CMSIS-Compiler@2.1.0
+      implemented-by: ARM::CMSIS-Compiler:STDERR:Custom@1.1.0
+      files:
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-Compiler/2.1.0/include/retarget_stderr.h
+          category: header
+          version: 1.1.0
+    - api: CMSIS-Compiler:STDOUT@1.1.0
+      condition: CortexDevice
+      from-pack: ARM::CMSIS-Compiler@2.1.0
+      implemented-by: ARM::CMSIS-Compiler:STDOUT:Custom@1.1.0
+      files:
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-Compiler/2.1.0/include/retarget_stdout.h
+          category: header
+          version: 1.1.0
+    - api: CMSIS-Compiler:STDIN@1.1.0
+      condition: CortexDevice
+      from-pack: ARM::CMSIS-Compiler@2.1.0
+      implemented-by: ARM::CMSIS-Compiler:STDIN:Custom@1.1.0
+      files:
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS-Compiler/2.1.0/include/retarget_stdin.h
+          category: header
+          version: 1.1.0
+    - api: CMSIS Driver:USART@2.4.0
+      from-pack: ARM::CMSIS@6.1.0
+      implemented-by: Keil::CMSIS Driver:USART@3.0.0
+      files:
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Documentation/html/Driver/group__usart__interface__gr.html
+          category: doc
+          version: 2.4.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Driver/Include/Driver_USART.h
+          category: header
+          version: 2.4.0
+    - api: CMSIS:OS Tick@1.0.1
+      from-pack: ARM::CMSIS@6.1.0
+      implemented-by: ARM::CMSIS:OS Tick:SysTick@1.0.5
+      files:
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/RTOS2/Include/os_tick.h
+          category: header
+          version: 1.0.1
+    - api: CMSIS:RTOS2@2.3.0
+      from-pack: ARM::CMSIS@6.1.0
+      implemented-by: ARM::CMSIS:RTOS2:Keil RTX5&Source@5.9.0
+      files:
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Documentation/html/RTOS2/index.html
+          category: doc
+          version: 2.3.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/RTOS2/Include/cmsis_os2.h
+          category: header
+          version: 2.3.0
+    - api: CMSIS Driver:VIO@1.0.0
+      from-pack: ARM::CMSIS@6.1.0
+      implemented-by: Keil::CMSIS Driver:VIO:Board&B-U585I-IOT02A@2.0.1
+      files:
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Documentation/html/Driver/group__vio__interface__gr.html
+          category: doc
+          version: 1.0.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Driver/VIO/Include/cmsis_vio.h
+          category: header
+          version: 1.0.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Driver/VIO/cmsis_vio.scvd
+          category: other
+          version: 1.0.0
+    - api: CMSIS Driver:USB Device@2.3.0
+      from-pack: ARM::CMSIS@6.1.0
+      implemented-by: Keil::CMSIS Driver:USB Device@3.0.0
+      files:
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Documentation/html/Driver/group__usbd__interface__gr.html
+          category: doc
+          version: 2.3.0
+        - file: ${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Driver/Include/Driver_USBD.h
+          category: header
+          version: 2.3.0
+  linker:
+    script: ../Board/B-U585I-IOT02A/RTE/Device/STM32U585AIIx/ac6_linker_script.sct.src
+    regions: ../Board/B-U585I-IOT02A/RTE/Device/STM32U585AIIx/regions_B-U585I-IOT02A.h
+  groups:
+    - group: Documentation
+      files:
+        - file: README.md
+          category: doc
+    - group: USB
+      files:
+        - file: HID.c
+          category: sourceC
+        - file: USBD_User_HID_0.c
+          category: sourceC
+    - group: CubeMX
+      files:
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Src/main.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Src/stm32u5xx_it.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Src/stm32u5xx_hal_msp.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Src/stm32u5xx_hal_timebase_tim.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/MDK-ARM/startup_stm32u585xx.s
+          category: sourceAsm
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Src/system_stm32u5xx.c
+          category: sourceC
+    - group: STM32 HAL Driver
+      files:
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_ll_utils.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_ll_exti.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_mdf.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_dma.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_dma_ex.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_i2c.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_i2c_ex.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_rcc.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_rcc_ex.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_cortex.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_flash.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_flash_ex.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_gpio.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_exti.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_pwr.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_pwr_ex.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_gtzc.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_icache.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_ospi.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_ll_dlyb.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_spi.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_spi_ex.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_tim_ex.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_uart.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_uart_ex.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_ll_ucpd.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_ll_gpio.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_ll_lpgpio.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_ll_dma.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_pcd.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_pcd_ex.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/CubeMX/STM32CubeMX/Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_ll_usb.c
+          category: sourceC
+    - group: Board
+      files:
+        - file: ../Board/B-U585I-IOT02A/retarget_stdio.c
+          category: sourceC
+        - file: ../Board/B-U585I-IOT02A/README.md
+          category: doc
+  constructed-files:
+    - file: RTE/_Release_B-U585I-IOT02A/RTE_Components.h
+      category: header
+  licenses:
+    - license: <proprietary> END USER LICENSE AGREEMENT FOR ARM SOFTWARE DEVELOPMENT TOOLS
+      license-agreement: ${CMSIS_PACK_ROOT}/Keil/MDK-Middleware/8.0.0-dev/license_terms/license_agreement.txt
+      packs:
+        - pack: Keil::MDK-Middleware@8.0.0-dev
+      components:
+        - component: Keil::USB&MDK:CORE@8.0.0
+        - component: Keil::USB&MDK:Device:HID@8.0.0
+        - component: Keil::USB&MDK:Device@8.0.0
+    - license: Apache-2.0
+      packs:
+        - pack: ARM::CMSIS-Compiler@2.1.0
+        - pack: ARM::CMSIS-Driver_STM32@1.0.0-dev0
+        - pack: ARM::CMSIS-RTX@5.9.0
+        - pack: ARM::CMSIS@6.1.0
+        - pack: Keil::B-U585I-IOT02A_BSP@2.0.0
+        - pack: Keil::STM32U5xx_DFP@3.0.0-dev
+      components:
+        - component: ::CMSIS Driver:USART(API)
+        - component: ::CMSIS Driver:USB Device(API)
+        - component: ::CMSIS Driver:VIO(API)
+        - component: ::CMSIS-Compiler:STDERR(API)
+        - component: ::CMSIS-Compiler:STDIN(API)
+        - component: ::CMSIS-Compiler:STDOUT(API)
+        - component: ::CMSIS:OS Tick(API)
+        - component: ::CMSIS:RTOS2(API)
+        - component: ARM::CMSIS-Compiler:CORE@1.1.0
+        - component: ARM::CMSIS-Compiler:STDERR:Custom@1.1.0
+        - component: ARM::CMSIS-Compiler:STDIN:Custom@1.1.0
+        - component: ARM::CMSIS-Compiler:STDOUT:Custom@1.1.0
+        - component: ARM::CMSIS:CORE@6.1.0
+        - component: ARM::CMSIS:OS Tick:SysTick@1.0.5
+        - component: ARM::CMSIS:RTOS2:Keil RTX5&Source@5.9.0
+        - component: Keil::CMSIS Driver:USART@3.0.0
+        - component: Keil::CMSIS Driver:USB Device@3.0.0
+        - component: Keil::CMSIS Driver:VIO:Board&B-U585I-IOT02A@2.0.1
+        - component: Keil::Device:CubeMX@1.0.0

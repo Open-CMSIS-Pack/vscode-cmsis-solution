@@ -1,0 +1,292 @@
+/*
+* Copyright (c) 2024-2026 Arm Limited
+*/
+
+@import "../../../common/style/base.css";
+
+.manage-solution-frame {
+    padding: 0px 16px 16px 16px;
+}
+
+.stickyHeader {
+    position: sticky;
+    top: 0px;
+    z-index: 1;
+    background-color: var(--vscode-editor-background);
+    padding: 16px 0px;
+}
+
+.manage-solution-frame td {
+    vertical-align: middle;
+}
+
+h4 {
+    margin-block-start: 0;
+}
+
+.manage-solution-frame .targets-section,
+.manage-solution-frame .projects-section,
+.manage-solution-frame .debug-adapter {
+    width: 50rem;
+}
+
+.manage-solution-frame table {
+    margin: 0.5rem 0;
+    /* width: 100%; */
+    border-spacing: 0;
+}
+
+.manage-solution-frame table th,
+.manage-solution-frame table td {
+    padding: 5px 10px;
+}
+
+.manage-solution-frame table th {
+    text-align: left;
+}
+
+.manage-solution-frame table thead tr,
+.manage-solution-frame table tr:nth-child(even) {
+    /* This matches the styling for table elements in VS Code's settings UI */
+    background-color: hsla(0, 0%, 51%, .04);
+}
+
+.manage-solution-frame a {
+    text-decoration: underline;
+    text-decoration-color: var(--vscode-textLink-foreground);
+}
+
+.manage-solution-frame a:hover {
+    cursor: pointer;
+}
+
+.manage-solution-frame .projects-section .project .name.disabled {
+    color: var(--vscode-disabledForeground);
+}
+
+.manage-solution-frame .compact-dropdown {
+    margin: 0px;
+    padding: 0px;
+    border-radius: 2px;
+    background-color: var(--vscode-input-background);
+    border: 1px solid var(--vscode-dropdown-border);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
+}
+
+.manage-solution-frame .compact-dropdown .compact-dropdown-trigger {
+    padding: 5px 8px;
+    width: 100%;
+}
+
+.manage-solution-frame .compact-dropdown .compact-dropdown-popover li {
+    border-radius: 0px;
+}
+
+.manage-solution-frame .add-button {
+    border: none;
+    background: transparent;
+    color: var(--ant-primary-color);
+    width: 20px;
+}
+
+.manage-solution-frame .add-button:hover {
+    background: transparent !important;
+}
+
+.run-and-debug-table {
+    table-layout: fixed;
+}
+
+.description {
+    color: var(--vscode-descriptionForeground);
+    font-size: 0.9em;
+}
+
+.run-and-debug-table tbody tr:nth-child(n+2) td:first-child {
+    padding-left: 30px;
+    position: relative;
+}
+
+.run-and-debug-table tbody tr:nth-child(n+2) td:first-child:after {
+    content: '';
+    display: block;
+    height: 100%;
+    width: 1px;
+    background: var(--expansion-indicator-color);
+    position: absolute;
+    top: 0;
+    left: 10px;
+}
+
+.run-and-debug-table tbody tr:nth-child(n+2) td:first-child:before {
+    content: '';
+    display: block;
+    height: 100%;
+    width: 20px;
+    background: var(--vscode-editor-background);
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* --------------  Active Target -----------------*/
+.active-target-table {
+    table-layout: fixed;
+}
+
+/* -----------------------------------------*/
+
+/* --------------  Active Projects-----------------*/
+.active-projects-table {
+    table-layout: fixed;
+}
+
+/* -----------------------------------------*/
+
+.config-dropdown .add-config {
+    border-top: 1px solid var(--arm-input-border)
+}
+
+.config-dropdown .empty-value {
+    color: var(--vscode-input-placeholderForeground);
+}
+
+.config-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    white-space: nowrap;
+    gap: 5px;
+}
+
+.config-entry.add-config {
+    justify-content: flex-start;
+    gap: 5px;
+}
+
+.config-entry .edit-config {
+    visibility: hidden;
+    padding: 2px;
+    margin-top: -2px;
+    margin-bottom: -2px;
+}
+
+.config-entry:hover .edit-config {
+    visibility: visible;
+}
+
+.config-entry:hover .edit-config:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+}
+
+.manage-solution-header {
+    display: inline-flex;
+    gap: 8px;
+    align-items: baseline;
+}
+
+.manage-solution-header>.codicon-link-external {
+    color: var(--keil-studio-blue);
+}
+
+.codicon-fix-size-sub {
+    font-size: .9em !important;
+}
+
+.debug-adapter .dropdown-select-input {
+    margin-top: 0.5rem;
+}
+
+.debug-adapter-selection div {
+    width: 100%;
+    border-spacing: 0;
+}
+
+.ant-tabs-content-holder .compact-dropdown {
+    background-color: var(--vscode-editor-background);
+}
+
+.capability-control {
+    margin-bottom: 2em;
+}
+
+.section-control {
+    padding: 5px;
+}
+
+.section-checkbox {
+    width: 1.5rem;
+    display: inline-block;
+    text-align: left;
+}
+
+.section-label {
+    width: fit-content;
+}
+
+thead th:nth-child(1) {
+    width: 2rem;
+}
+
+thead th:nth-child(2) {
+    width: 15rem;
+}
+
+thead th:nth-child(3) {
+    width: 10rem;
+}
+
+thead th:nth-child(4) {
+    width: 10rem;
+}
+
+thead th:nth-child(5) {
+    width: 10rem;
+}
+
+thead .ant-btn {
+    height: 24px;
+}
+
+.ant-input-group-addon:has(.file-button) {
+    padding: 0;
+    width: 5rem;
+    min-width: unset;
+    max-width: 5rem;
+}
+
+.file-button {
+    height: 26px;
+    float: right;
+    border-radius: 0 var(--arm-input-border-radius) var(--arm-input-border-radius) 0;
+    width: 5rem;
+}
+
+th,
+td {
+    height: 29px;
+}
+
+.warning {
+    color: var(--vscode-debugConsole-warningForeground);
+    margin: 1rem;
+}
+
+*[class*='addon'] {
+    min-width: 120px;
+    margin: 0px 0px 0px 0px !important;
+    text-align: left !important;
+    display: table-cell !important;
+    box-sizing: border-box !important;
+}
+
+*[class*='addon-before'] {
+    border-right: 1px solid var(--vscode-dropdown-border);
+}
+
+*[class*='addon-after'] {
+    border-left: 1px solid var(--vscode-dropdown-border);
+}

@@ -1,0 +1,232 @@
+{
+    "solutionName": "TargetSets",
+    "solutionPath": "TEST_PATH/targetSet/TargetSets.csolution.yml",
+    "targets": [
+        {
+            "name": "FRDM-K32L3A6",
+            "board": "FRDM-K32L3A6",
+            "device": "K32L3A60VPJ1A",
+            "targetSets": [
+                {
+                    "name": "CMSIS-DAP",
+                    "images": [
+                        {
+                            "name": "HelloWorld_cm0plus.axf",
+                            "path": "out/HelloWorld_cm0plus/FRDM-K32L3A6/Debug/HelloWorld_cm0plus.axf",
+                            "selected": true,
+                            "load": "image+symbols"
+                        },
+                        {
+                            "name": "HelloWorld_cm0plus.axf",
+                            "path": "out/HelloWorld_cm0plus/FRDM-K32L3A6/Debug/HelloWorld_cm0plus.axf",
+                            "selected": true,
+                            "load": "image+symbols",
+                            "device": "cm0plus"
+                        }
+                    ],
+                    "debugger": {
+                        "name": "CMSIS-DAP@pyOCD",
+                        "port": 3333,
+                        "protocol": "swd",
+                        "clock": 10000000,
+                        "start-pname": "cm4"
+                    }
+                },
+                {
+                    "name": "FRDM-ST-Link",
+                    "images": [
+                        {
+                            "name": "HelloWorld_cm0plus.axf",
+                            "path": "out/HelloWorld_cm0plus/FRDM-K32L3A6/Debug/HelloWorld_cm0plus.axf",
+                            "selected": true,
+                            "load": "image+symbols"
+                        }
+                    ],
+                    "debugger": {
+                        "name": "ST-Link@pyOCD",
+                        "port": 3333,
+                        "protocol": "swd",
+                        "clock": 10000000,
+                        "start-pname": "cm0plus",
+                        "reset-method": {
+                            "auto | hardware | sysreset | vecreset": {}
+                        },
+                        "stop-on-launch": {
+                            "reset | main": {}
+                        },
+                        "trace": {
+                            "trace-clock": "125.2MHz",
+                            "trace-port": "SWO-UART"
+                        },
+                        "telnet": [
+                            {
+                                "mode": "semihosting",
+                                "pname": "cm0plus",
+                                "serial-monitor": "off"
+                            },
+                            {
+                                "mode": "UART",
+                                "pname": "cm0plus",
+                                "serial-monitor": "off"
+                            }
+                        ]
+                    }
+                }
+            ],
+            "selectedSet": "CMSIS-DAP"
+        },
+        {
+            "name": "A_FRDM-K32L3A6",
+            "board": "FRDM-K32L3A6",
+            "device": "K32L3A60VPJ1A",
+            "targetSets": [
+                {
+                    "name": "",
+                    "images": [],
+                    "debugger": {
+                        "name": "MCU-Link@pyOCD",
+                        "port": 3333,
+                        "protocol": "swd",
+                        "clock": 10000000,
+                        "start-pname": "cm0plus"
+                    }
+                },
+                {
+                    "name": "ST-Link_Debugging",
+                    "images": [],
+                    "debugger": {
+                        "name": "ST-Link@pyOCD",
+                        "port": 3333,
+                        "protocol": "swd",
+                        "clock": 10000000,
+                        "start-pname": "cm4"
+                    }
+                }
+            ],
+            "selectedSet": ""
+        }
+    ],
+    "selectedTarget": {
+        "name": "FRDM-K32L3A6",
+        "board": "FRDM-K32L3A6",
+        "device": "K32L3A60VPJ1A",
+        "targetSets": [
+            {
+                "name": "CMSIS-DAP",
+                "images": [
+                    {
+                        "name": "HelloWorld_cm0plus.axf",
+                        "path": "out/HelloWorld_cm0plus/FRDM-K32L3A6/Debug/HelloWorld_cm0plus.axf",
+                        "selected": true,
+                        "load": "image+symbols"
+                    },
+                    {
+                        "name": "HelloWorld_cm0plus.axf",
+                        "path": "out/HelloWorld_cm0plus/FRDM-K32L3A6/Debug/HelloWorld_cm0plus.axf",
+                        "selected": true,
+                        "load": "image+symbols",
+                        "device": "cm0plus"
+                    }
+                ],
+                "debugger": {
+                    "name": "CMSIS-DAP@pyOCD",
+                    "port": 3333,
+                    "protocol": "swd",
+                    "clock": 10000000,
+                    "start-pname": "cm4"
+                }
+            },
+            {
+                "name": "FRDM-ST-Link",
+                "images": [
+                    {
+                        "name": "HelloWorld_cm0plus.axf",
+                        "path": "out/HelloWorld_cm0plus/FRDM-K32L3A6/Debug/HelloWorld_cm0plus.axf",
+                        "selected": true,
+                        "load": "image+symbols"
+                    }
+                ],
+                "debugger": {
+                    "name": "ST-Link@pyOCD",
+                    "port": 3333,
+                    "protocol": "swd",
+                    "clock": 10000000,
+                    "start-pname": "cm0plus",
+                    "reset-method": {
+                        "auto | hardware | sysreset | vecreset": {}
+                    },
+                    "stop-on-launch": {
+                        "reset | main": {}
+                    },
+                    "trace": {
+                        "trace-clock": "125.2MHz",
+                        "trace-port": "SWO-UART"
+                    },
+                    "telnet": [
+                        {
+                            "mode": "semihosting",
+                            "pname": "cm0plus",
+                            "serial-monitor": "off"
+                        },
+                        {
+                            "mode": "UART",
+                            "pname": "cm0plus",
+                            "serial-monitor": "off"
+                        }
+                    ]
+                }
+            }
+        ],
+        "selectedSet": "CMSIS-DAP"
+    },
+    "projects": [
+        {
+            "name": "project",
+            "path": "TEST_PATH/targetSet/p1/project.cproject.yml",
+            "selected": true,
+            "load": "image+symbols",
+            "selectedBuildType": "Debug",
+            "buildTypes": [
+                "Debug",
+                "Release"
+            ],
+            "device": "cm0plus"
+        },
+        {
+            "name": "project2",
+            "path": "TEST_PATH/targetSet/p2/project2.cproject.yml",
+            "selected": false,
+            "selectedBuildType": "Debug",
+            "buildTypes": [
+                "Debug",
+                "Release"
+            ],
+            "device": "cm3"
+        },
+        {
+            "name": "not-selected-project",
+            "path": "TEST_PATH/targetSet/prj/not-selected-project.cproject.yml",
+            "selected": false,
+            "selectedBuildType": "Debug",
+            "buildTypes": [
+                "Debug",
+                "Release"
+            ]
+        }
+    ],
+    "images": [
+        {
+            "name": "HelloWorld_cm0plus.axf",
+            "path": "out/HelloWorld_cm0plus/FRDM-K32L3A6/Debug/HelloWorld_cm0plus.axf",
+            "selected": true,
+            "load": "image+symbols"
+        },
+        {
+            "name": "HelloWorld_cm0plus.axf",
+            "path": "out/HelloWorld_cm0plus/FRDM-K32L3A6/Debug/HelloWorld_cm0plus.axf",
+            "selected": true,
+            "load": "image+symbols",
+            "device": "cm0plus"
+        }
+    ]
+}

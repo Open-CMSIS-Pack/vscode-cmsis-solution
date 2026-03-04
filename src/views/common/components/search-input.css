@@ -1,0 +1,24 @@
+/**
+ * Copyright (C) 2024-2026 Arm Limited
+ */
+
+.search-input-wrapper {
+    display: inline-block;
+    position: relative;
+    width: 100%;
+}
+
+.search-input-wrapper > input {
+    padding-left: 26px;
+}
+
+.search-input-wrapper:before {
+    display: block;
+    color: var(--vscode-input-foreground);
+    content: "\ea6d";
+    font-family: codicon;
+    position: absolute;
+    top: 50%;
+    left: 8px;
+    transform: translateY(-50%);
+}

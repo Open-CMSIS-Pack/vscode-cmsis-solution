@@ -1,0 +1,42 @@
+/**
+ * Copyright (C) 2026 Arm Limited
+ */
+
+.resolve-packs-button {
+    min-width: 100px;
+}
+
+.search-packs-input {
+    width: 100%;
+}
+
+.pack-name-cell {
+    width: 180px;
+    white-space: nowrap;
+}
+
+.pack-name-cell>span {
+    margin-left: 0px;
+    overflow: clip;
+    text-overflow: ellipsis;
+}
+
+.packs-edit-cell {
+    text-align: end;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    margin-left: 8px;
+}
+
+.packs-select-checkbox {
+    pointer-events: none;
+    padding-right: 4px;
+}
+
+.packs-description-cell {
+    font-size: 16px;
+    color: var(--vscode-foreground);
+    vertical-align: text-bottom;
+}

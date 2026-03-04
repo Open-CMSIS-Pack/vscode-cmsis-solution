@@ -1,0 +1,38 @@
+ /*
+  * Copyright (c) 2024-2026 Arm Limited
+  */
+
+.layer-errors {
+    width:auto;
+    min-width:50px;
+    max-width:650px;
+}
+
+.layer-errors .project {
+  width:auto;
+}
+
+.layer-errors .header {
+  width:auto;
+}
+
+.layer-errors .entry {
+  display: flex;
+}
+
+.layer-errors .messages {
+  margin-bottom: 0.4em;
+}
+
+.layer-errors .message {
+  width:auto;
+}
+
+.layer-errors .col1 {
+  width: 2em;
+}
+
+.layer-errors .col2 {
+  width: (100%-2em);
+}
+

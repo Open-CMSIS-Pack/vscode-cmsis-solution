@@ -1,0 +1,47 @@
+h1 {
+    margin: 0 0 0.5rem 0;
+}
+
+h2 {
+    margin: 0;
+}
+
+button {
+    color: var(--vscode-button-foreground);
+}
+
+input {
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: var(--arm-border-width) solid var(--vscode-input-border, var(--vscode-dropdown-border));
+}
+
+input[type="text"],
+input:not([type]) {
+    border-radius: var(--arm-input-border-radius);
+    box-sizing: border-box;
+    outline: none;
+    padding: var(--arm-input-padding);
+    height: var(--arm-input-height);
+    width: 100%;
+}
+
+input[type="text"]:focus,
+input:not([type]):focus {
+    border-color: var(--vscode-focusBorder);
+}
+
+input[type="checkbox"] {
+    background-color: var(--vscode-checkbox-background);
+    color: var(--vscode-checkbox-foreground);
+    cursor: pointer;
+}
+
+input[type="search"] {
+    border-radius: var(--arm-input-border-radius);
+    box-sizing: border-box;
+    outline: none;
+    padding: var(--arm-input-padding);
+    height: var(--arm-input-height);
+    width: 100%;
+}

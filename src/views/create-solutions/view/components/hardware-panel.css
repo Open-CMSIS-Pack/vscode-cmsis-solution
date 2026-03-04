@@ -1,0 +1,116 @@
+.hardware-panel-container {
+    flex-direction: column;
+    margin-left: 10px;
+    display: flex;
+    border: 1px solid var(--vscode-settings-dropdownBorder);
+    border-radius: 4px;
+    background-color: var(--vscode-settings-dropdownBackground);
+    height: 334px;
+    width: 300px;
+}
+
+.hardware-panel-container .select-button > vscode-button{
+    width: 263px;
+    height: 32px;
+}
+
+.hardware-panel-header {
+    display: flex;
+    flex-direction: row;
+    border-bottom: var(--arm-panel-border-width) solid rgb(75, 79, 84);
+    padding-top: 0.5em;
+    padding-bottom: 0.5rem;
+    min-height: 100px;
+    max-height: 120px;
+    max-width: 300px;
+    margin: 0 1.5em 0;
+}
+
+.hardware-panel-header > img {
+    width: 120px;
+    height: 90px;
+    object-fit: scale-down;
+    padding-left: 5px;
+    margin-top: 0.5em;
+    margin-left: auto;
+}
+
+#board-device {
+    font-size: 15px;
+    font-weight:700;
+    margin-top: 10px;
+    margin-bottom: 0;
+    width: 150px;
+    max-height: 70px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-wrap: break-word;
+}
+
+#vendor {
+    font-size: 14px;
+    font-weight: 400;
+    margin-bottom: 0;
+}
+
+.details-header-item > a {
+    text-decoration: none;
+    color: var(--keil-studio-blue);
+}
+
+.details-header-item > a > i.codicon.codicon-link-external {
+    padding-left: 0.4rem;
+}
+
+.select-button {
+    bottom: 20px;
+    position: absolute;
+    display: flex;
+    justify-content: space-around;
+    width: 300px;
+}
+
+.hardware-panel-placeholder {
+    display: flex;
+    height: 80%;
+    justify-content: center;
+    align-items: center;
+}
+
+.details-grid {
+    padding-top: 10px;
+    display: grid;
+    grid-template-columns: auto auto;
+    overflow: auto;
+    grid-auto-flow: column;
+    column-gap: 10px;
+    max-height: 160px;
+    margin-bottom: 49px;
+    row-gap: 8px;
+}
+
+.hardware-panel-container .title {
+    color: var(--vscode-foreground);
+    padding-left: 1.5em;
+    font-weight: 700;
+    size: 14px;
+    grid-column: 1;
+    margin-top: 0;
+}
+
+i.codicon-link-external:before {
+    font-size: 11px;
+}
+
+.hardware-grid-info {
+    grid-column: 2;
+    margin: 0px;
+    padding: 0px;
+    list-style-type: none;
+}
+
+.loading-spinner {
+    margin: auto;
+}

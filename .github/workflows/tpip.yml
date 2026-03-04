@@ -1,0 +1,81 @@
+name: TPIP
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/tpip.yml
+      - docs/third-party-licenses.json
+      - docs/tpip-header.md
+      - scripts/tpip-reporter.ts
+      - package-lock.json
+      - docs/*
+      - scripts/update-tpip.ts
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  update-tpip:
+    name: Update TPIP Report
+    permissions:
+      contents: write
+      packages: read
+      actions: read
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          node-version-file: package.json
+          registry-url: https://npm.pkg.github.com
+          check-latest: false
+          package-manager-cache: false
+
+      - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+        run: npm ci
+
+      - name: Update TPIP excerpt
+        id: excerpt
+        run: |
+          npm run tpip:update
+          if git diff --exit-code docs/third-party-licenses.json > /dev/null; then
+            echo "update=0" >> $GITHUB_OUTPUT
+          else
+            echo "update=1" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update TPIP report
+        if: ${{ steps.excerpt.outputs.update == 1 }}
+        run: npm run tpip
+
+      - name: Commit Changes
+        if: ${{ steps.excerpt.outputs.update == 1 }}
+        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5
+        with:
+          author_name: monty-bot
+          author_email: monty-bot@arm.com
+          message: "Update TPIP report [skip ci]"
+          add: |
+            docs/third-party-licenses.*

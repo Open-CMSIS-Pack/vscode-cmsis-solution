@@ -1,0 +1,22 @@
+/**
+ * Copyright (C) 2022-2026 Arm Limited
+ */
+
+.mbs-dropdown-anchor {
+    position: relative;
+    height: 0;
+    min-width: inherit;
+}
+
+.mbs-dropdown {
+    box-shadow: 2px 2px 4px rgb(0 0 0 / 30%);
+    box-sizing: border-box;
+    position: absolute;
+    top: 0;
+    z-index: 2;
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-focusBorder);
+    border-radius: 2px;
+    min-width: max-content;
+    width: 100%;
+}

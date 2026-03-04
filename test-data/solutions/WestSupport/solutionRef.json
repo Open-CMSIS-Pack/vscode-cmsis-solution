@@ -1,0 +1,55 @@
+{
+    "solutionName": "solution",
+    "solutionPath": "TEST_PATH/WestSupport/solution.csolution.yml",
+    "targets": [
+        {
+            "name": "CM0",
+            "board": "RteTest Dummy board",
+            "targetSets": [
+                {
+                    "name": "",
+                    "images": []
+                }
+            ],
+            "selectedSet": ""
+        }
+    ],
+    "selectedTarget": {
+        "name": "CM0",
+        "board": "RteTest Dummy board",
+        "targetSets": [
+            {
+                "name": "",
+                "images": []
+            }
+        ],
+        "selectedSet": ""
+    },
+    "projects": [
+        {
+            "name": "core0",
+            "path": "TEST_PATH/WestSupport/west/core0/core0.cproject-west.yml",
+            "selected": true,
+            "load": "image+symbols",
+            "selectedBuildType": "Debug",
+            "buildTypes": [
+                "Debug"
+            ],
+            "device": "cm0_core0",
+            "projectType": "West"
+        },
+        {
+            "name": "core1",
+            "path": "TEST_PATH/WestSupport/west/core1/core1.cproject-west.yml",
+            "selected": true,
+            "load": "image+symbols",
+            "selectedBuildType": "Debug",
+            "buildTypes": [
+                "Debug"
+            ],
+            "device": "cm0_core1",
+            "projectType": "West"
+        }
+    ],
+    "images": []
+}

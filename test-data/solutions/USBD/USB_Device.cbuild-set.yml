@@ -1,0 +1,5 @@
+cbuild-set:
+  generated-by: csolution version 2.6.0
+  contexts:
+    - context: HID.Release+B-U585I-IOT02A
+    - context: MassStorage.Debug+B-U585I-IOT02A

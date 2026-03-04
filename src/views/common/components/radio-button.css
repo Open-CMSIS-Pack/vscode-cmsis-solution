@@ -1,0 +1,39 @@
+ /*
+  * Copyright (c) 2023-2026 Arm Limited
+  */
+
+.radio-button input[type="radio"] {
+    display: none;
+}
+
+.radio-button label input {
+    cursor: pointer;
+}
+
+.custom-radio {
+    margin-top: 0.5em;
+    cursor: pointer;
+    width: 0.6em;
+    height: 0.6em;
+    border: 2px solid var(--vscode-disabledForeground);
+    border-radius: 50%;
+    display: inline-block;
+    position: relative;
+    vertical-align: inherit;
+    margin-right: 0.5em;
+}
+
+/* style for the inner filled circle */
+.selected > .custom-radio::after {
+  content: '';
+  width: 0.3em;
+  height: 0.3em;
+  background-color: var(--keil-studio-blue);
+  position: absolute;
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 1;
+  transition: opacity 0.2s;
+}

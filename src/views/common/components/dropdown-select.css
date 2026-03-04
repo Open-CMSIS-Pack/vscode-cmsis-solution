@@ -1,0 +1,100 @@
+/*
+ * Copyright (c) 2022-2026 Arm Limited
+ */
+
+.dropdown-select-label {
+    display: flex;
+    margin-bottom: 4px;
+    gap: 8px;
+}
+
+.dropdown-select-input-text {
+    flex: auto;
+}
+
+.dropdown-select-input-text,
+.dropdown-select-label-text {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    padding-bottom: 4px;
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.dropdown-select-input {
+    box-sizing: border-box;
+    height: var(--arm-input-height);
+    padding: var(--arm-input-padding);
+    display: flex;
+    flex: auto;
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border-radius: 2px;
+    border: 1px solid var(--vscode-dropdown-border);
+    line-height: 18px;
+    cursor: pointer;
+}
+
+.dropdown-select-input[aria-disabled="true"] {
+    font-style: italic;
+    color: var(--vscode-input-placeholderForeground);
+    cursor: not-allowed !important;
+}
+
+.dropdown-select.compact .dropdown-select-input {
+    height: 20px;
+    padding: 0 6px;
+}
+
+.dropdown-select.expanded .dropdown-select-input {
+    border: 1px solid var(--vscode-focusBorder);
+}
+
+.dropdown-select-input-icon {
+    line-height: inherit;
+}
+
+.dropdown-select-content>ul {
+    margin: 0;
+    padding-inline-start: 0px;
+    list-style-type: none;
+}
+
+.dropdown-select-content>ul>li {
+    padding: 5px 8px;
+}
+
+.dropdown-select.compact .dropdown-select-content>ul>li {
+    padding: 2px 6px;
+}
+
+.dropdown-select-content>ul>li:hover {
+    cursor: pointer;
+    background-color: var(--vscode-list-activeSelectionBackground);
+}
+
+.dropdown-select-content>ul>li p {
+    margin: 0;
+}
+
+.dropdown-select-content>ul>li>section>header {
+    font-weight: bold;
+    margin-bottom: 4px;
+    min-width: max-content;
+}
+
+.dropdown-select-content input[type="radio"] {
+    display: none;
+}
+
+.dropdown-select-content label {
+    cursor: pointer;
+    display: block;
+    width: 100%;
+}
+
+.clear-select-button {
+    margin-inline: 4px;
+}

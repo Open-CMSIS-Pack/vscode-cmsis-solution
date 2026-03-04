@@ -1,0 +1,13 @@
+{
+    "name": "@arm-software/vscode-cmsis-csolution",
+    "version": "1.60.0",
+    "description": "API for the Arm.cmsis-csolution VS Code extension",
+    "types": "csolution.d.ts",
+    "repository": "https://github.com/arm-software/vscode-cmsis-csolution",
+    "files": [
+        "*.d.ts"
+    ],
+    "dependencies": {
+        "@types/vscode": "^1.63.0"
+    }
+}

@@ -1,0 +1,81 @@
+solution
+  board
+    hardwareName=Keil::RteTest Dummy board:1.2.3
+    label=Board: Keil::RteTest Dummy board:1.2.3
+    expandable=1
+    iconPath=circuit-board
+    tooltip=- board: `Keil::RteTest Dummy board:1.2.3`
+- from pack: `ARM::RteTest_DFP@0.2.0`
+  device
+    hardwareName=ARM::RteTest_ARMCM0_Dual:cm0_core0
+    label=Device: ARM::RteTest_ARMCM0_Dual:cm0_core0
+    expandable=1
+    iconPath=chip
+    tooltip=- device: `ARM::RteTest_ARMCM0_Dual:cm0_core0`
+- from pack: `ARM::RteTest_DFP@0.2.0`
+    file
+      label=solution+CM0.dbgconf
+      expandable=0
+      resourcePath=TEST_DIR/solutions/WestSupport/.cmsis/solution+CM0.dbgconf
+      tooltip=`TEST_DIR/solutions/WestSupport/.cmsis/solution+CM0.dbgconf`
+      features=file
+    book
+      label=Cortex-M0 Device Generic Users Guide
+      expandable=0
+      resourcePath=http://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
+      docPath=http://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
+      tooltip=http://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
+      features=docFile
+      command=cmsis-csolution.openDocFile
+  project
+    label=core0.Debug+CM0
+    expandable=2
+    type=projectFile
+    iconPath=file-submodule
+    features=projectFile:TEST_DIR/solutions/WestSupport/west/core0/core0.cproject-west.yml
+    resourcePath=TEST_DIR/solutions/WestSupport/west/core0/core0.cproject-west.yml
+    projectUri=TEST_DIR/solutions/WestSupport/west/core0/core0.cproject-west.yml
+    description=(West)
+    tooltip=- Project type: ` West `
+    group
+      label=MyFiles
+      iconPath=csolution-files
+      expandable=1
+      file
+        label=foo.c
+        expandable=0
+        resourcePath=TEST_DIR/solutions/WestSupport/MyFiles/src/foo.c
+        fileUri=../MyFiles/src/foo.c
+        projectUri=TEST_DIR/solutions/WestSupport/core0/core0.Debug+CM0.cbuild.yml
+    group
+      label=sources
+      iconPath=csolution-files
+      expandable=1
+      file
+        label=cbprintf_packaged.c
+        expandable=0
+        resourcePath=TEST_DIR/solutions/WestSupport/Zephyr-Workspace/zephyr/lib/os/cbprintf_packaged.c
+        fileUri=../Zephyr-Workspace/zephyr/lib/os/cbprintf_packaged.c
+        projectUri=TEST_DIR/solutions/WestSupport/core0/core0.Debug+CM0.cbuild.yml
+      file
+        label=for_rtss_hp_mhu0.c
+        expandable=0
+        resourcePath=TEST_DIR/solutions/WestSupport/rtss_he/src/for_rtss_hp_mhu0.c
+        fileUri=../rtss_he/src/for_rtss_hp_mhu0.c
+        projectUri=TEST_DIR/solutions/WestSupport/core0/core0.Debug+CM0.cbuild.yml
+      file
+        label=heap.c
+        expandable=0
+        resourcePath=TEST_DIR/solutions/WestSupport/Zephyr-Workspace/zephyr/lib/heap/heap.c
+        fileUri=../Zephyr-Workspace/zephyr/lib/heap/heap.c
+        projectUri=TEST_DIR/solutions/WestSupport/core0/core0.Debug+CM0.cbuild.yml
+  project
+    label=core1.Debug+CM0
+    expandable=2
+    type=projectFile
+    iconPath=file-submodule
+    features=projectFile:TEST_DIR/solutions/WestSupport/west/core1/core1.cproject-west.yml
+    resourcePath=TEST_DIR/solutions/WestSupport/west/core1/core1.cproject-west.yml
+    projectUri=TEST_DIR/solutions/WestSupport/west/core1/core1.cproject-west.yml
+    description=(West)
+    tooltip=- Project type: ` West `

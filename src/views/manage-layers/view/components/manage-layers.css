@@ -1,0 +1,150 @@
+@import "../../../common/style/base.css";
+
+/*
+ * Copyright (c) 2024-2026 Arm Limited
+ */
+
+ .manage-layers-frame {
+    padding: 16px;
+}
+
+.manage-layers-header {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+}
+
+.select-compilers-header {
+    margin-top: 20px;
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+}
+
+#manage-layers-form {
+    max-width: 650px;
+    --section-border: var(--arm-panel-border-width) solid var(--arm-input-border);
+}
+
+.manage-layers-section-end {
+    margin-top: 10px;
+    border-bottom: var(--section-border);
+}
+
+#manage-layers-form fieldset {
+    margin: 0;
+    padding: 20px 0;
+    border: 0;
+    border-bottom: var(--section-border);
+}
+
+#manage-layers-form fieldset:first-child {
+    border-top: var(--section-border);
+}
+
+/* Placeholder text color for dropdowns */
+.form-row.dropdown-select-placeholder .dropdown-select-input-text
+{
+    color: var(--vscode-disabledForeground);
+}
+
+.form-row > .project-config-row {
+    grid-template-columns: 200px 200px 200px 20px;
+}
+
+.manage-layers-footer {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    justify-content: flex-end;
+    padding: 20px 0 14px;
+    background: linear-gradient(0deg, var(--vscode-editor-background) 90%, rgba(0,0,0,0) 100%);
+}
+
+.select-layer-col1 {
+    width: 30%;
+    min-width: 120px;
+}
+  
+.select-layer-col2 {
+    width: 60%;
+}
+  
+.select-layer-button-strip {
+    display: flex;
+    margin-top: 20px;
+}
+
+.select-layer-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.select-layer-display-element {
+    display: flex;
+    margin-top: 20px;
+}
+
+.select-layer-edit-path {
+    display: flex;
+    gap: 10px;
+}
+
+.select-layer-display-element-description {
+    color: gray;
+}
+
+.select-layer-display-element-settings {
+    margin-top: 10px;
+}
+
+.select-layer-option-text {
+    font-size: 130%;
+}
+
+.select-layer-option-description {
+    margin-top: 20px;
+    font-size: 100%;
+}
+
+.select-layer-edit-field {
+    width: 100%;
+}
+
+.manage-layers-button-strip {
+    display: flex;
+    gap: 10px;
+}
+
+.manage-layers-header > .codicon-link-external {
+    color: var(--keil-studio-blue);
+}
+
+.noLayersAvailable {
+    display: flex;
+    margin-top: 20px;
+    font-size: 130%;
+}
+
+.section-description-text {
+    width:auto;
+    min-width:50px;
+    max-width:650px;
+    padding:10px;
+}
+
+#manage-layer-compiler-selector {
+    display: flex;
+    flex-direction: column;
+}
+
+.manage-layers-layer-errors {
+    display: flex;
+    margin-top: 20px;
+}
+
+.nothing-to-configure {
+    margin-top: 20px;
+    font-size: 110%;
+}

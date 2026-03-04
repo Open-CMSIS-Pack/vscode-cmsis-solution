@@ -1,0 +1,21 @@
+{
+    "repositories": [
+        "https://github.com/Arm-Examples/Hello_NUCLEO-G474RE",
+        "https://github.com/Arm-Examples/Hello_LPCXpresso55S69"
+    ],
+    "cloneDirectory": "./src/e2e-tests/data",
+    "examples": [
+        {
+            "name": "Hello_LPCXpresso55S69",
+            "contexts": ["hello.Debug+LPCXpresso55S69"],
+            "skipTest": false,
+            "selectCompiler": false
+        },
+        {
+            "name": "Hello_NUCLEO-G474RE",
+            "contexts": ["hello.Debug+NUCLEO-G474RE"],
+            "skipTest": false,
+            "selectCompiler": false
+        }
+     ]
+}
