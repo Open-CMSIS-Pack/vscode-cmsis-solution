@@ -159,42 +159,42 @@ jobs:
         run: npm run package -- --target darwin-arm64
 
       - name: Upload win32-x64 VSIX package
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: vsix-package-win32-x64
           path: ./*win32-x64*.vsix
           retention-days: 1
 
       - name: Upload win32-arm64 VSIX package
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: vsix-package-win32-arm64
           path: ./*win32-arm64*.vsix
           retention-days: 1
 
       - name: Upload linux-x64 VSIX package
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: vsix-package-linux-x64
           path: ./*linux-x64*.vsix
           retention-days: 1
 
       - name: Upload linux-arm64 VSIX package
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: vsix-package-linux-arm64
           path: ./*linux-arm64*.vsix
           retention-days: 1
 
       - name: Upload darwin-x64 VSIX package
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: vsix-package-darwin-x64
           path: ./*darwin-x64*.vsix
           retention-days: 1
 
       - name: Upload darwin-arm64 VSIX package
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: vsix-package-darwin-arm64
           path: ./*darwin-arm64*.vsix
@@ -252,7 +252,7 @@ jobs:
       - name: Run Test
         run: npm run test
 
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: ${{ matrix.target == 'linux-x64' }}
         with:
           name: test-coverage
