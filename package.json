@@ -41,7 +41,7 @@
   },
   "scripts": {
     "preprepare": "npm run download:rpc-interface",
-    "prepare": "concurrently npm:download:uv2csolution npm:download:guide npm:download:debug-adapters npm:download:toolbox",
+    "prepare": "npm run download:uv2csolution && npm run download:guide && npm run download:debug-adapters && npm run download:toolbox",
     "clean": "git clean -f -x ./dist ./out ./tools",
     "prebuild": "npm run font",
     "build": "webpack --mode production",
