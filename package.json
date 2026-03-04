@@ -36,7 +36,7 @@
   ],
   "csolution": {
     "uv2csolutionVersion": "1.6.0",
-    "toolboxVersion": "nightly",
+    "toolboxVersion": "2.13.0",
     "rpcVersion": "0.0.9"
   },
   "scripts": {
