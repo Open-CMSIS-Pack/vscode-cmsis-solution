@@ -63,7 +63,7 @@ jobs:
 
       - name: Install dependencies
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           NODE_OPTIONS: --max-old-space-size=8192
         run: npm ci
 
@@ -200,6 +200,16 @@ jobs:
           path: ./*darwin-arm64*.vsix
           retention-days: 1
 
+      - name: Create version bump patch
+        run: git diff > new-version.patch
+
+      - name: Store version bump patch
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: new-version-patch
+          path: ./new-version.patch
+          if-no-files-found: error
+
   test:
     name: 'Test (${{ matrix.target }})'
     runs-on: ${{ matrix.platform }}
@@ -245,7 +255,7 @@ jobs:
 
       - name: Install dependencies
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           NODE_OPTIONS: --max-old-space-size=8192
         run: npm ci
 
@@ -255,7 +265,7 @@ jobs:
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: ${{ matrix.target == 'linux-x64' }}
         with:
-          name: test-coverage
+          name: unit-test-coverage
           path: ./coverage
 
       - name: Publish coverage report to QLTY
@@ -286,7 +296,7 @@ jobs:
       - name: Download coverage report
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          pattern: test-coverage
+          pattern: unit-test-coverage
           path: test-coverage
 
       - name: Download test report

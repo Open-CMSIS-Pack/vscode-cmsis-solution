@@ -21,6 +21,10 @@ jobs:
   lint:
     name: Lint Markdown Files
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+      actions: read
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
@@ -50,7 +54,7 @@ jobs:
 
       - name: Install dependencies
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           NODE_OPTIONS: --max-old-space-size=8192
         run: npm ci
 

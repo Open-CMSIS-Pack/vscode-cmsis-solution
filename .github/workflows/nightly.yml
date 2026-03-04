@@ -23,6 +23,10 @@ defaults:
 jobs:
   build:
     if: github.repository == 'Open-CMSIS-Pack/vscode-cmsis-solution'
+    permissions:
+      contents: write
+      packages: read
+      actions: read
     runs-on: [ubuntu-latest]
     name: 'Build'
 
@@ -49,7 +53,7 @@ jobs:
 
       - name: Install dependencies
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           NODE_OPTIONS: --max-old-space-size=8192
         run: npm ci
 
@@ -196,7 +200,10 @@ jobs:
     name: 'Test (windows-latest)'
     runs-on: windows-latest
     needs: build
-
+    permissions:
+      contents: write
+      packages: read
+      actions: read
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
@@ -220,7 +227,7 @@ jobs:
 
       - name: Install dependencies
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           NODE_OPTIONS: --max-old-space-size=8192
         run: npm ci
 
