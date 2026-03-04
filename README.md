@@ -1,3 +1,13 @@
+[![License Apache-2.0 AND GPL-3.0-or-later](https://img.shields.io/badge/License-Apache--2.0%20AND%20GPL--3.0--or--later-green?label=LICENSE)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/blob/main/LICENSE)
+[![Maintainability](https://qlty.sh/badges/b5c6c01e-12d2-4093-8f01-3d511c17bdd5/maintainability.png)](https://qlty.sh/gh/Open-CMSIS-Pack/projects/vscode-cmsis-solution)
+[![Code Coverage](https://qlty.sh/badges/b5c6c01e-12d2-4093-8f01-3d511c17bdd5/coverage.png)](https://qlty.sh/gh/Open-CMSIS-Pack/projects/vscode-cmsis-solution)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Open-CMSIS-Pack/vscode-cmsis-solution/badge)](https://securityscorecards.dev/viewer/?uri=github.com/Open-CMSIS-Pack/vscode-cmsis-solution)
+[![CI Build and Test](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/ci.yml?logo=arm&logoColor=0091bd&label=CI%20Build%20and%20Test)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/tree/main/.github/workflows/ci.yml)
+[![Nightly Build and Test](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/nightly.yml?logo=arm&logoColor=0091bd&label=Nightly%20Build%20and%20Test)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/tree/main/.github/workflows/nightly.yml)
+[![Markdown Lint](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/markdown.yml?logo=arm&logoColor=0091bd&label=Markdown%20Lint)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/tree/main/.github/workflows/markdown.yml)
+[![CodeQL Analysis](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/codeql.yml?logo=arm&logoColor=0091bd&label=CodeQL%20Analysis)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/tree/main/.github/workflows/codeql.yml)
+[![Dependency Review](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/dependency-review.yml?logo=arm&logoColor=0091bd&label=Dependency%20Review)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/tree/main/.github/workflows/dependency-review.yml)
+
 # Arm CMSIS Solution
 
 The Arm® CMSIS Solution extension is a graphical user interface for csolution projects that use the [CMSIS-Toolbox](https://open-cmsis-pack.github.io/cmsis-toolbox/). The extension supports microcontroller devices that incorporate Arm Cortex®-M processors and Arm Ethos®-U Neural Processing Units (NPUs), and works with various C/C++ compilers and debuggers.
