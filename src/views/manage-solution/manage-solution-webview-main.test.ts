@@ -563,7 +563,7 @@ describe('ContextSelectionWebviewMain', () => {
             expect(webviewManager.sendMessage).toHaveBeenCalledWith(
                 expect.objectContaining({
                     type: 'FILE_SELECTED',
-                    data: expect.arrayContaining([expect.stringMatching(/root[/\\]images[/\\]app\.axf$/)]),
+                    data: ['images/app.axf'],
                     for: 'image-path'
                 })
             );
