@@ -213,7 +213,8 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                 input?.setAttribute('id', id);
             }
             const title = input?.getAttribute('title') || 'Select File';
-            const optionPathType = input?.getAttribute('data-option-path-type') as (PathType | undefined) ?? 'relative';
+            const dataOptionPathType = input?.getAttribute('data-option-path-type');
+            const optionPathType: PathType = dataOptionPathType === 'absolute' ? 'absolute' : 'relative';
             const currentValue = input?.value || '';
             props.messageHandler.push({
                 type: 'SELECT_FILE',
