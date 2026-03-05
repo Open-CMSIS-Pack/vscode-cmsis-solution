@@ -13,7 +13,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
-permissions: read-all
+permissions:
+  contents: read
 
 env:
   image_tag: devcontainer:${{ github.head_ref || github.run_id }}
@@ -22,6 +23,11 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+      actions: read
+
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
@@ -44,6 +50,8 @@ jobs:
           docker buildx build .devcontainer/ubuntu-24.04/ --tag "${{ env.image_tag }}" --label "runnumber=${{ github.run_id }}" --load
 
       - uses: addnab/docker-run-action@4f65fabd2431ebc8d299f8e5a018d79a769ae185 # v3
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         with:
           image: ${{ env.image_tag }}
           options: -v ${{ github.workspace }}:/workspace -e GITHUB_TOKEN

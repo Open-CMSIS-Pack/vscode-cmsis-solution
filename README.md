@@ -1,4 +1,4 @@
-[![License Apache-2.0 AND GPL-3.0-or-later](https://img.shields.io/badge/License-Apache--2.0%20AND%20GPL--3.0--or--later-green?label=LICENSE)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/blob/main/LICENSE)
+[![License Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-green?label=LICENSE)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/blob/main/LICENSE)
 [![Maintainability](https://qlty.sh/badges/b5c6c01e-12d2-4093-8f01-3d511c17bdd5/maintainability.png)](https://qlty.sh/gh/Open-CMSIS-Pack/projects/vscode-cmsis-solution)
 [![Code Coverage](https://qlty.sh/badges/b5c6c01e-12d2-4093-8f01-3d511c17bdd5/coverage.png)](https://qlty.sh/gh/Open-CMSIS-Pack/projects/vscode-cmsis-solution)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Open-CMSIS-Pack/vscode-cmsis-solution/badge)](https://securityscorecards.dev/viewer/?uri=github.com/Open-CMSIS-Pack/vscode-cmsis-solution)
