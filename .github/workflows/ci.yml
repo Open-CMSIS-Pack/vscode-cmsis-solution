@@ -78,8 +78,19 @@ jobs:
 
       - name: Update current version
         run: |
-          # Get current version from package.json
-          VERSION=$(node -p "require('./package.json').version")
+          # Increment patch version by 1 (e.g. 1.64.1 -> 1.64.2)
+          BASE_VERSION=$(node -p "require('./package.json').version.split('-')[0]")
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+          if [ -z "$MAJOR" ] || [ -z "$MINOR" ] || [ -z "$PATCH" ]; then
+            echo "Invalid semver: $BASE_VERSION"
+            exit 1
+          fi
+          if ! [[ "$MAJOR" =~ ^[0-9]+$ && "$MINOR" =~ ^[0-9]+$ && "$PATCH" =~ ^[0-9]+$ ]]; then
+            echo "Invalid semver components (non-numeric): $BASE_VERSION (MAJOR=$MAJOR, MINOR=$MINOR, PATCH=$PATCH)"
+            exit 1
+          fi
+          NEXT_PATCH_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+
           # Get commit count: since last tag if exists, otherwise total commits
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -n "$LAST_TAG" ]; then
@@ -87,13 +98,16 @@ jobs:
           else
             COMMIT_COUNT=$(git rev-list --count HEAD)
           fi
+
           # Get short commit SHA
           SHORT_SHA=$(git rev-parse --short HEAD)
-          # Create final version e.g.: 1.64.1-12-abc1234
-          FINAL_VERSION="${VERSION}-${COMMIT_COUNT}-${SHORT_SHA}"
-          echo "Setting version to ${FINAL_VERSION}"
+
+          # Create nightly version: 1.64.2-12-abc1234
+          NIGHTLY_VERSION="${NEXT_PATCH_VERSION}-${COMMIT_COUNT}-${SHORT_SHA}"
+          echo "Setting version to ${NIGHTLY_VERSION}"
+
           # Update package.json
-          npm version ${FINAL_VERSION} --no-git-tag-version
+          npm version "${NIGHTLY_VERSION}" --no-git-tag-version
 
       - name: Remove badges
         run: |
