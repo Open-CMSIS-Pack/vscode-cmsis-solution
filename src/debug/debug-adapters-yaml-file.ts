@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { PathType } from '../views/manage-solution/messages';
 import { createInterfaceFactory } from '../generic/interface-factory';
 import { ETextFileResult } from '../generic/text-file';
 import { ITreeItem, CTreeItem } from '../generic/tree-item';
@@ -27,7 +28,8 @@ export type UIOption<T extends string, V> = {
     description?: string;                           //Hover over text.
     'yml-node': string;                             //Name of the node in the csolution file under debugger: section.
     type: T;                                        //Type of the option [number, enum, string, file]
-    pname?: string;                                //If present, the option is pname based. Then the same property will be created for each pname instance.
+    pname?: string;                                 //If present, the option is pname based. Then the same property will be created for each pname instance.
+    'path-type'?: PathType;                         //If the type is file, indicates if the path is absolute or relative to the solution file directory. Default is relative.
 } & V;
 
 export type UIEnumValue = {

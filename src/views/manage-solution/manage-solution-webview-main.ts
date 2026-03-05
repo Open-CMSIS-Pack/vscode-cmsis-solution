@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2026 Arm Limited
+ * Copyright (C) 2024-2026 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -440,7 +440,10 @@ export class ManageSolutionWebviewMain {
 
         if (fileUri && fileUri[0]) {
             const paths = fileUri.map(u =>
-                backToForwardSlashes(path.relative(solutionDir, u.fsPath))
+                backToForwardSlashes(options?.pathType === 'absolute'
+                    ? u.fsPath
+                    : path.relative(solutionDir, u.fsPath)
+                )
             );
 
             await this.webviewManager.sendMessage({ type: 'FILE_SELECTED', data: paths, for: targetElementId });
