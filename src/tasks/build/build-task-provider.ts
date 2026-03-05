@@ -15,6 +15,7 @@
  */
 
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { TerminalTaskRunner } from '../../vscode-api/runner/terminal-task-runner';
 import { Runner } from '../../vscode-api/runner/runner';
 import { PACKAGE_NAME } from '../../manifest';
@@ -118,11 +119,31 @@ export class BuildTaskProviderImpl implements BuildTaskProvider, vscode.TaskProv
 
     private getTaskLabel(definition: BuildTaskDefinition): string {
         const rawArgs = cbuildArgsFromTaskDefinition(definition);
+        const displaySolution = this.getDisplaySolutionLabel(definition.solution);
 
-        const args = rawArgs.map(arg =>
+        const displayArgs = rawArgs.map(arg => {
+            if (displaySolution && arg === definition.solution) {
+                return displaySolution;
+            }
+            return arg;
+        });
+
+        const args = displayArgs.map(arg =>
             (!arg || arg.trim().length === 0) ? '""' : arg
         );
         const label = ['cbuild', ...args].join(' ');
         return label.length > 0 ? label : this.taskName;
+    }
+
+    private getDisplaySolutionLabel(solutionPath?: string): string | undefined {
+        if (!solutionPath) {
+            return solutionPath;
+        }
+
+        if (solutionPath.endsWith('.csolution.yml') || solutionPath.endsWith('.csolution.yaml')) {
+            return path.basename(solutionPath);
+        }
+
+        return solutionPath;
     }
 }
