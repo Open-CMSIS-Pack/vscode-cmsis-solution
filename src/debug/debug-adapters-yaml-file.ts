@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { PathType } from '../views/manage-solution/messages';
 import { createInterfaceFactory } from '../generic/interface-factory';
 import { ETextFileResult } from '../generic/text-file';
 import { ITreeItem, CTreeItem } from '../generic/tree-item';
 import { CTreeItemYamlFile, ITreeItemFile } from '../generic/tree-item-file';
 import { Optional } from '../generic/type-helper';
 import { DEBUG_ADAPTERS_YAML_FILE_PATH } from '../manifest';
+import { PathType } from '../views/manage-solution/types';
 
 
 export type UIOption<T extends string, V> = {

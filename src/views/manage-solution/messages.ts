@@ -15,18 +15,8 @@
  */
 
 import { DebugAdapter } from '../../debug/debug-adapters-yaml-file';
+import { FileSelectorOptionsType } from './types';
 import { ActiveTargetSet, SolutionData } from './view/state/manage-solution-state';
-
-export type PathType = 'absolute' | 'relative';
-
-export type FileSelectorOptionsType = {
-    canSelectMany?: boolean,
-    defaultUri?: string,
-    openLabel?: string,
-    title?: string,
-    pathType?: PathType,
-    filters?: { [key: string]: string[] }
-};
 
 /**
  * Messages that the context selection view can pass to the extension.
