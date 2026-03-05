@@ -34,7 +34,7 @@ export class FileItem {
                 this.createFileNode(cgroupItem, f, isApi, addContextMenu);
             }
         }
-        cgroupItem.sortChildrenByLabel();
+        cgroupItem.sortChildrenByGroupThenLabel();
     }
 
     private createFileNode(cgroupItem: COutlineItem, f: ITreeItem<CTreeItem>, isApi?: boolean, addContextMenu?: boolean) {
