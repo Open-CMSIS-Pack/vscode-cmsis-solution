@@ -26,6 +26,7 @@ import { ExtensionApiProvider } from '../vscode-api/extension-api-provider';
 import { EnvironmentManagerApiV1 } from '@arm-software/vscode-environment-manager';
 import { ETextFileResult } from '../generic/text-file';
 import { debounce } from 'lodash';
+import { SolutionRpcData } from './solution-rpc-data';
 
 
 export interface SolutionLoadState {
@@ -81,10 +82,12 @@ export class SolutionManagerImpl implements SolutionManager {
     private readonly debouncedHandleEnvironmentChange = debounce(this.handleEnvironmentChange.bind(this), 500);
     private _loadState: Readonly<SolutionLoadState> = { solutionPath: undefined };
     private csolution?: CSolution;
+    private loadingSolution = false;
 
     constructor(
         private readonly activeSolutionTracker: ActiveSolutionTracker,
         private readonly eventHub: SolutionEventHub,
+        private readonly rpcData: SolutionRpcData,
         private readonly commandsProvider: CommandsProvider,
         private readonly environmentManagerApiProvider: ExtensionApiProvider<Pick<EnvironmentManagerApiV1, 'onDidActivate' | 'getActiveTools'>>,
 
@@ -183,13 +186,14 @@ export class SolutionManagerImpl implements SolutionManager {
     }
 
     private async loadSolution(): Promise<void> {
-        if (!this.loadState.solutionPath) {
+        if (this.loadingSolution || !this.loadState.solutionPath) {
             return;
         }
-
         try {
+            this.loadingSolution = true;
             this.csolution = new CSolution();
             await this.csolution.load(this.loadState.solutionPath);
+            await this.rpcData.update(this.csolution);
 
             // Create new state object with loaded flag
             const newState: SolutionLoadState = {
@@ -199,6 +203,8 @@ export class SolutionManagerImpl implements SolutionManager {
             this.setLoadState(newState, true);
         } catch (error) {
             console.error(`Failed to load ${this.loadState.solutionPath}`, error);
+        } finally {
+            this.loadingSolution = false;
         }
     }
 

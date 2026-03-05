@@ -26,6 +26,9 @@ import { SolutionEventHub, ConvertResultData } from './solution-event-hub';
 import { extensionApiProviderFactory } from '../vscode-api/extension-api-provider.factories';
 import { EnvironmentManagerApiV1, VcpkgResults } from '@arm-software/vscode-environment-manager';
 import { TestDataHandler } from '../__test__/test-data';
+import { Board, Device } from '../json-rpc/csolution-rpc-client';
+import { csolutionServiceFactory } from '../json-rpc/csolution-rpc-client.factory';
+import { SolutionRpcData } from './solution-rpc-data';
 
 
 const convertResultData: ConvertResultData = { severity: 'success', detection: false };
@@ -52,6 +55,8 @@ describe('SolutionManager', () => {
     let loadBuildFilesListener: jest.Mock;
     let tmpSolutionsDir: string;
     let testSolutionPath: string;
+    let csolutionService: jest.Mocked<ReturnType<typeof csolutionServiceFactory>>;
+    let rpcData: SolutionRpcData;
 
     const testDataHandler = new TestDataHandler();
 
@@ -106,10 +111,18 @@ describe('SolutionManager', () => {
         };
 
         commandsProvider = commandsProviderFactory();
+        csolutionService = csolutionServiceFactory();
+        const device: Device = { id: 'device-id' };
+        const board: Board = { id: 'board-id' };
+        csolutionService.getDeviceInfo.mockResolvedValue({ success: false, device });
+        csolutionService.getBoardInfo.mockResolvedValue({ success: false, board });
+        csolutionService.loadSolution.mockResolvedValue({ success: true });
+        rpcData = new SolutionRpcData(csolutionService);
 
         solutionManager = new SolutionManagerImpl(
             mockActiveSolutionTracker as unknown as ActiveSolutionTracker,
             eventHub,
+            rpcData,
             commandsProvider,
             extensionApiProviderFactory(environmentManagerApi),
         );
