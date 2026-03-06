@@ -32,10 +32,8 @@ Arm CMSIS Solution works as a standalone tool and can also interact with other V
 - [clangd](https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-clangd): Adds smart features to the VS Code editor, including code completion, compile errors, and go-to-definition.
 
 ## Feature overview
-
 ![CMSIS Solution Quick Tutorial](https://mdk-packs.github.io/vscode-cmsis-solution-docs/videos/MDK6_Productivity.gif)
-
-For detailed information refer to [User Interface](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html) in the CMSIS Solution documentation.
+For detailed information, refer to [User Interface](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html) in the CMSIS Solution documentation.
 
 ## CMSIS view
 
