@@ -15,20 +15,9 @@
  */
 
 import { beforeEach, describe, expect, it } from '@jest/globals';
-import { ContextInfo } from '../json-rpc/csolution-rpc-client';
 import { csolutionServiceFactory } from '../json-rpc/csolution-rpc-client.factory';
 import { csolutionFactory, CSolutionMock } from './csolution.factory';
 import { SolutionRpcData } from './solution-rpc-data';
-
-const makeContextInfo = (variables: Record<string, string>): ContextInfo => ({
-    success: true,
-    components: [],
-    packs: [],
-    device: {} as ContextInfo['device'],
-    pname: 'pname',
-    variables,
-    attributes: {} as ContextInfo['attributes'],
-});
 
 describe('SolutionRpcData', () => {
     let csolutionService: jest.Mocked<ReturnType<typeof csolutionServiceFactory>>;
@@ -45,9 +34,9 @@ describe('SolutionRpcData', () => {
         rpcData = new SolutionRpcData(csolutionService);
     });
 
-    it('loads context data when loadSolution fails', async () => {
-        csolutionService.loadSolution.mockResolvedValue({ success: false });
-        csolutionService.getContextInfo.mockResolvedValue(makeContextInfo({ FOO: 'bar' }));
+    it('loads context data when loadSolution succeeds', async () => {
+        csolutionService.loadSolution.mockResolvedValue({ success: true });
+        csolutionService.getVariables.mockResolvedValue({ success: true, variables: { FOO: 'bar' } });
 
         await rpcData.update(solution);
 
@@ -55,23 +44,23 @@ describe('SolutionRpcData', () => {
             solution: solution.solutionPath,
             activeTarget: 'ActiveTarget',
         });
-        expect(csolutionService.getContextInfo).toHaveBeenCalledWith({ context: 'ctx' });
-        expect(rpcData.resolveVariable('ctx', 'FOO')).toBe('bar');
-        expect(rpcData.resolveVariable('ctx', 'MISSING')).toBeUndefined();
+        expect(csolutionService.getVariables).toHaveBeenCalledWith({ context: 'ctx' });
+        expect(rpcData.resolveVariable('ctx', '$FOO$')).toBe('bar');
+        expect(rpcData.resolveVariable('ctx', '$MISSING$')).toBeUndefined();
     });
 
-    it('does not fetch context data when loadSolution succeeds', async () => {
-        csolutionService.loadSolution.mockResolvedValue({ success: true });
+    it('does not fetch context data when loadSolution fails', async () => {
+        csolutionService.loadSolution.mockResolvedValue({ success: false });
 
         await rpcData.update(solution);
 
-        expect(csolutionService.getContextInfo).not.toHaveBeenCalled();
+        expect(csolutionService.getVariables).not.toHaveBeenCalled();
         expect(rpcData.resolveVariable('ctx', 'FOO')).toBeUndefined();
     });
 
     it('expands $VAR$ placeholders for a context', async () => {
-        csolutionService.loadSolution.mockResolvedValue({ success: false });
-        csolutionService.getContextInfo.mockResolvedValue(makeContextInfo({ FOO: 'bar', HELLO: 'world' }));
+        csolutionService.loadSolution.mockResolvedValue({ success: true });
+        csolutionService.getVariables.mockResolvedValue({ success: true, variables: { FOO: 'bar', HELLO: 'world' } });
 
         await rpcData.update(solution);
 

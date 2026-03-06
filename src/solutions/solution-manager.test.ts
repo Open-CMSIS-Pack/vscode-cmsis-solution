@@ -114,9 +114,10 @@ describe('SolutionManager', () => {
         csolutionService = csolutionServiceFactory();
         const device: Device = { id: 'device-id' };
         const board: Board = { id: 'board-id' };
-        csolutionService.getDeviceInfo.mockResolvedValue({ success: false, device });
-        csolutionService.getBoardInfo.mockResolvedValue({ success: false, board });
+        csolutionService.getDeviceInfo.mockResolvedValue({ success: true, device });
+        csolutionService.getBoardInfo.mockResolvedValue({ success: true, board });
         csolutionService.loadSolution.mockResolvedValue({ success: true });
+        csolutionService.getVariables.mockResolvedValue({ success: true, variables: {} });
         rpcData = new SolutionRpcData(csolutionService);
 
         solutionManager = new SolutionManagerImpl(
@@ -158,7 +159,7 @@ describe('SolutionManager', () => {
         await waitTimeout(100);
 
         const expectedLoadState: SolutionLoadState = {
-            solutionPath: testSolutionPath, loaded: true, converted: true,
+            solutionPath: testSolutionPath, loaded: true, converted: true, activated: true,
         };
 
         expect(solutionManager.loadState).toEqual(expectedLoadState);
@@ -202,7 +203,7 @@ describe('SolutionManager', () => {
         await waitTimeout(100);
 
         const expectedLoadState: SolutionLoadState = {
-            solutionPath: testSolutionPath, loaded: true, converted: true,
+            solutionPath: testSolutionPath, loaded: true, converted: true, activated: true,
         };
         expect(solutionManager.loadState).toEqual(expectedLoadState);
 

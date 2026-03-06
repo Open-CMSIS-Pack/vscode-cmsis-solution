@@ -10,7 +10,7 @@ import { MockMessageHandler } from '../../../../__test__/mock-message-handler';
 import { ComponentRowDataType } from '../../../data/component-tools';
 import { IncomingMessage, OutgoingMessage } from '../../../messages';
 import { renderValidation } from './render-validation-row';
-import { MessageHandler } from 'src/views/message-handler';
+import { MessageHandler } from '../../../../message-handler';
 
 describe('renderValidation', () => {
     const makeDependencyNode = (): ComponentRowDataType => ({

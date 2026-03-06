@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import { constructor } from '../generic/constructor';
-import { Board, ContextInfo, CsolutionService, Device } from '../json-rpc/csolution-rpc-client';
+import { Board, CsolutionService, Device, VariablesResult } from '../json-rpc/csolution-rpc-client';
 import { CSolution } from './csolution';
 
 
@@ -53,7 +53,6 @@ export interface SolutionRpcData {
 }
 
 class SolutionRpcDataImpl implements SolutionRpcData {
-    private readonly contextData: Map<string, ContextInfo> = new Map();
     private readonly contextVariables = new Map<string, Map<string, string>>();
     private _board?: Board = undefined;
     private _device?: Device = undefined;
@@ -63,7 +62,6 @@ class SolutionRpcDataImpl implements SolutionRpcData {
     ) {
     }
     clear() {
-        this.contextData.clear();
         this.contextVariables.clear();
         this._board = undefined;
         this._device = undefined;
@@ -107,15 +105,14 @@ class SolutionRpcDataImpl implements SolutionRpcData {
         }
         const contexts = solution.getContextNames();
         for (const context of contexts) {
-            const data = await this.csolutionService.getContextInfo({ context: context });
+            const data = await this.csolutionService.getVariables({ context: context });
             if (data.success) {
-                this.contextData.set(context, data);
-                this.contextVariables.set(context, this.variablesFromContextData(data));
+                this.contextVariables.set(context, this.variablesFromRpcData(data));
             }
         }
     }
 
-    private variablesFromContextData(data: ContextInfo) {
+    private variablesFromRpcData(data: VariablesResult) {
         const vars = new Map<string, string>();
         for (const [key, value] of Object.entries(data.variables)) {
             vars.set('$' + key + '$', value);
@@ -125,9 +122,9 @@ class SolutionRpcDataImpl implements SolutionRpcData {
 
     public resolveVariable(context: string, variable?: string): string | undefined {
         if (variable) {
-            const variables = this.contextData.get(context)?.variables;
+            const variables = this.contextVariables.get(context);
             if (variables) {
-                return variables[variable];
+                return variables.get(variable);
             }
         }
         return undefined;
