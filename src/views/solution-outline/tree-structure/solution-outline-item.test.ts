@@ -60,25 +60,19 @@ describe('COutlineItem', () => {
     });
 
     it('sorts groups before files and keeps labels alphabetical', () => {
-        const folderZ = rootItem.createChild('folderZ');
-        folderZ.setTag('group');
-        folderZ.setAttribute('label', 'Z_subfolder3');
+        rootItem.createChild('group').setAttribute('label', 'Z_subfolder3');
 
         const fileA = rootItem.createChild('fileA');
         fileA.setTag('file');
         fileA.setAttribute('label', 'A_file1');
 
-        const folderX = rootItem.createChild('folderX');
-        folderX.setTag('group');
-        folderX.setAttribute('label', 'X_subfolder1');
+        rootItem.createChild('group').setAttribute('label', 'X_subfolder1');
 
         const fileC = rootItem.createChild('fileC');
         fileC.setTag('file');
         fileC.setAttribute('label', 'C_file3');
 
-        const folderY = rootItem.createChild('folderY');
-        folderY.setTag('group');
-        folderY.setAttribute('label', 'Y_subfolder2');
+        rootItem.createChild('group').setAttribute('label', 'Y_subfolder2');
 
         const fileB = rootItem.createChild('fileB');
         fileB.setTag('file');
