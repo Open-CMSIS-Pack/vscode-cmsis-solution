@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import * as fs from 'fs';
 import * as path from 'path';
 import * as manifest from '../manifest';
 import * as vscode from 'vscode';
@@ -214,12 +213,13 @@ export class ClangdManager {
 
         // Modify the .clangd file AddFlags for each context guarded on toolchain
         if (clangdFilePath) {
-            if (compileCommandsFileDirectory && fs.existsSync(this.compileMacrosFileURI(compileCommandsFileDirectory).fsPath)) {
+            const compileMacrosFile = compileCommandsFileDirectory ? this.compileMacrosFileURI(compileCommandsFileDirectory) : undefined;
+            if (compileMacrosFile && await this.workspaceFsProvider.exists(compileMacrosFile.fsPath)) {
                 // use compile_macros.h if it is available
                 updatePromises.push(
                     this.generateContextAddCompileMacros(
                         URI.file(clangdFilePath),
-                        this.compileMacrosFileURI(compileCommandsFileDirectory),
+                        compileMacrosFile,
                     )
                 );
             } else if (compileCommandsFileDirectory && (compilerInContext === 'AC6')) {
@@ -257,11 +257,11 @@ export class ClangdManager {
     }
 
     /**
-        * Generate and set Add flags for a context's .clangd file to pre-include compile_macros.h.
-        *
-        * @param clangdFile URI of the context .clangd file to update.
-        * @param compileMacrosFile URI of compile_macros.h to include.
-        * @returns the flags written to CompileFlags.Add.
+     * Generate and set Add flags for a context's .clangd file to pre-include compile_macros.h.
+     *
+     * @param clangdFile URI of the context .clangd file to update.
+     * @param compileMacrosFile URI of compile_macros.h to include.
+     * @returns the flags written to CompileFlags.Add.
      */
     private async generateContextAddCompileMacros(clangdFile: URI, compileMacrosFile: URI): Promise<string[]> {
         // Update clangd AddFlags flags for intellisense uplift
