@@ -96,6 +96,12 @@ jobs:
           # Update package.json
           npm version "${NIGHTLY_VERSION}" --no-git-tag-version
 
+      - name: Remove badges
+        run: |
+          sed -i "/https:\/\/qlty\.sh\/gh/d" README.md
+          sed -i "/https:\/\/securityscorecards\.dev\/viewer/d" README.md
+          sed -i "/https:\/\/img.shields.io\//d" README.md
+
       - name: Ensure download-tools.sh is executable
         working-directory: .github/workflows
         run: chmod +x ./download-tools.sh
