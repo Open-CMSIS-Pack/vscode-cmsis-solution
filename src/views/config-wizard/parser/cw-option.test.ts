@@ -300,6 +300,36 @@ describe('CwOption', () => {
             expect(matched).toBeDefined();
             expect(matched?.description.getText()).toBe('PushPull');
         });
+
+        it('should match mixed alphanumeric identifier options correctly', () => {
+            const option = new CwOption();
+            option.addProperty(
+                tokenizer.tokenizeCmd('o MACRO2', 1),
+                tokenizer.tokenizeDescr('Role level', 1),
+                1
+            );
+
+            const opt1 = new CwOptionAssign(option);
+            opt1.addProperty(
+                tokenizer.tokenizeCmd('LEVEL_UNKNOWN=', 2),
+                tokenizer.tokenizeDescr('LEVEL_UNKNOWN', 2),
+                2
+            );
+            option.addOption(opt1);
+
+            const opt2 = new CwOptionAssign(option);
+            opt2.addProperty(
+                tokenizer.tokenizeCmd('LEVEL_3P1=', 3),
+                tokenizer.tokenizeDescr('LEVEL_3P1', 3),
+                3
+            );
+            option.addOption(opt2);
+
+            const textValue = new TextType('LEVEL_3P1');
+            const matched = option.getOption(textValue);
+            expect(matched).toBeDefined();
+            expect(matched?.description.getText()).toBe('LEVEL_3P1');
+        });
     });
 
     describe('Edge cases', () => {

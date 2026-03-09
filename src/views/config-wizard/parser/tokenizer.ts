@@ -90,6 +90,8 @@ export class Tokenizer {
             return token;
         }
 
+        const isAssignmentToken = text.includes('=');
+
         let canBeNegative = false;
         if (text.indexOf('..') != -1) {
             canBeNegative = true;
@@ -177,7 +179,7 @@ export class Tokenizer {
                 let str = '';
                 do {
                     ch = text[pos++];
-                    if (!ch.match(/[a-z_]/i)) {
+                    if (!ch.match(isAssignmentToken ? /[a-z\d_]/i : /[a-z_]/i)) {
                         pos--;
                         break;
                     }
