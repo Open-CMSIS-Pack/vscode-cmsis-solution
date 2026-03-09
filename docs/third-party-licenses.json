@@ -243,5 +243,12 @@
         "spdx": "MIT",
         "url": "https://github.com/ljharb/shell-quote",
         "license": "https://github.com/ljharb/shell-quote/blob/main/LICENSE"
+    },
+    {
+        "name": "tmp",
+        "version": "0.2.5",
+        "spdx": "MIT",
+        "url": "https://github.com/raszi/node-tmp",
+        "license": "https://github.com/raszi/node-tmp/blob/master/LICENSE"
     }
 ]

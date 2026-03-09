@@ -19,5 +19,5 @@
  *  encapsulates call to node_modules/open
  */
 export interface IOpenFileExternal {
-    openFile(path: string) : void;
+    openFile(path: string) : string;
 }
