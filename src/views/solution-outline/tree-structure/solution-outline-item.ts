@@ -117,8 +117,28 @@ export class COutlineItem extends CTreeItem {
         COutlineItem.sortTreeNodesByLabel(this.getChildren() as COutlineItem[]);
     }
 
+    sortChildrenByGroupThenLabel(): void {
+        COutlineItem.sortTreeNodesByGroupThenLabel(this.getChildren() as COutlineItem[]);
+    }
+
     static sortTreeNodesByLabel(input?: COutlineItem[]): void {
         input?.sort((a, b) =>
             (a.getAttribute('label') || '').localeCompare(b.getAttribute('label') || ''));
+    }
+
+    static sortTreeNodesByGroupThenLabel(input?: COutlineItem[]): void {
+        input?.sort((a, b) => {
+            const tagA = a.getTag();
+            const tagB = b.getTag();
+
+            if (tagA === 'group' && tagB !== 'group') {
+                return -1;
+            }
+            if (tagB === 'group' && tagA !== 'group') {
+                return 1;
+            }
+
+            return (a.getAttribute('label') || '').localeCompare(b.getAttribute('label') || '');
+        });
     }
 }
