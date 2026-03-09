@@ -93,14 +93,33 @@ export class ManageSolutionWebviewMain {
 
         this.setBusyState(true);
 
+        let csolutionChanged = false;
         if (newPath !== prevPath) {
             if (newPath) {
-                await this.sendContextData();
+                csolutionChanged = true;
             } else if (prevPath) {
                 await this.clearContext();
                 this.webviewManager.disposePanel();
+                this.setBusyState(false);
+                return;
             }
         } else if (newLoaded !== prevLoaded) {
+            csolutionChanged = true;
+        }
+
+        const externalFilesChanged = csolutionChanged ? false : this.controller.hasExternalFileChanges();
+
+        if (csolutionChanged || externalFilesChanged) {
+            const result = await this.loadSolution();
+            if (result === ETextFileResult.Error || result === ETextFileResult.NotExists) {
+                this.setBusyState(false);
+                return;
+            }
+        }
+
+        const activeTargetTypeUpdated = await this.controller.ensureActiveTargetTypeName();
+
+        if (csolutionChanged || externalFilesChanged || activeTargetTypeUpdated) {
             await this.sendContextData();
         }
 

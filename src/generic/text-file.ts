@@ -15,6 +15,7 @@
  */
 
 import path from 'node:path';
+import * as fs from 'node:fs';
 import * as fsUtils from '../utils/fs-utils';
 import * as vscodeUtils from '../utils/vscode-utils';
 import { ITextParser } from './text-parser';
@@ -39,6 +40,12 @@ export enum ETextFileResult {
     /** The file does not exist. */
     NotExists = 3
 }
+
+type ExternalFileStamp = {
+    path: string;
+    mtimeMs: number;
+    size: number;
+};
 
 /**
  * Represents a text file with parsing, rendering, and error handling capabilities.
@@ -170,6 +177,16 @@ export interface ITextFile extends IErrorList {
     /** Clears file content and errors */
     clear(): void;
 
+    /**
+     * Refreshes the stored external file stamp baseline.
+     */
+    refreshExternalFileStamp(): void;
+
+    /**
+     * Checks whether the file changed externally since the last stamp refresh/check.
+     */
+    hasExternalFileChanged(): boolean;
+
     /** Copy text and parse it to the object, does not change filename
      * @param src source file
      */
@@ -194,6 +211,7 @@ export class TextFile extends ErrorList implements ITextFile {
     protected textRenderer?: ITextRenderer;
 
     private _readOnly = false;
+    private externalFileStamp?: ExternalFileStamp;
 
     /**
      * Constructs a TextFile instance
@@ -243,6 +261,7 @@ export class TextFile extends ErrorList implements ITextFile {
         this._dirty = false;
         this.contentString = '';
         this.contentObject = undefined;
+        this.externalFileStamp = undefined;
         this.clearErrors();
     }
 
@@ -285,6 +304,7 @@ export class TextFile extends ErrorList implements ITextFile {
         if (value !== this._fileName) {
             this._fileName = value;
             this._fileDir = path.dirname(value);
+            this.externalFileStamp = undefined;
         }
     }
 
@@ -360,6 +380,7 @@ export class TextFile extends ErrorList implements ITextFile {
             this.fileName = fileName;
         }
         const result = this.doLoad();
+        this.refreshExternalFileStamp();
         this.showErrorMessage(result);
         return result;
     }
@@ -402,8 +423,45 @@ export class TextFile extends ErrorList implements ITextFile {
             this._dirty = true; // force saving
         }
         const result = this.doSave();
+        this.refreshExternalFileStamp();
         this.showErrorMessage(result);
         return result;
+    }
+
+    private getCurrentFileStamp(): ExternalFileStamp | undefined {
+        if (!this.fileName || !fsUtils.fileExists(this.fileName)) {
+            return undefined;
+        }
+        try {
+            const stat = fs.statSync(this.fileName);
+            return {
+                path: this.fileName,
+                mtimeMs: stat.mtimeMs,
+                size: stat.size,
+            };
+        } catch {
+            return undefined;
+        }
+    }
+
+    public refreshExternalFileStamp(): void {
+        this.externalFileStamp = this.getCurrentFileStamp();
+    }
+
+    public hasExternalFileChanged(): boolean {
+        const currentStamp = this.getCurrentFileStamp();
+        if (!this.externalFileStamp) {
+            this.externalFileStamp = currentStamp;
+            return false;
+        }
+
+        const changed = !currentStamp
+            || currentStamp.path !== this.externalFileStamp.path
+            || currentStamp.mtimeMs !== this.externalFileStamp.mtimeMs
+            || currentStamp.size !== this.externalFileStamp.size;
+
+        this.externalFileStamp = currentStamp;
+        return changed;
     }
 
     /**

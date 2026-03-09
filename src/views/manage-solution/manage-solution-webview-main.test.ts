@@ -245,6 +245,48 @@ describe('ContextSelectionWebviewMain', () => {
     });
 
     describe('onDidChangeLoadState callback', () => {
+        it('reloads solution before active target validation when external files changed', async () => {
+            const solutionManager = solutionManagerFactory();
+            const main = manageSolutionWebviewMainFactory({
+                solutionManager,
+                webviewManager
+            });
+
+            (main as any).webviewManager.isPanelActive = true;
+
+            const callOrder: string[] = [];
+            const loadSolutionSpy = jest.spyOn(main as any, 'loadSolution').mockImplementation(async () => {
+                callOrder.push('loadSolution');
+                return ETextFileResult.Success;
+            });
+            const sendContextDataSpy = jest.spyOn(main as any, 'sendContextData').mockResolvedValue(undefined);
+
+            const hasExternalFileChangesSpy = jest.spyOn(main.controller, 'hasExternalFileChanges').mockImplementation(() => {
+                callOrder.push('hasExternalFileChanges');
+                return true;
+            });
+
+            const ensureActiveTargetTypeNameSpy = jest.spyOn(main.controller, 'ensureActiveTargetTypeName').mockImplementation(async () => {
+                callOrder.push('ensureActiveTargetTypeName');
+                return false;
+            });
+
+            await (main as any).handleSolutionLoadChange({
+                previousState: { solutionPath: '/path/to/solution.csolution.yml', converted: true, loaded: true },
+                newState: { solutionPath: '/path/to/solution.csolution.yml', converted: true, loaded: true }
+            });
+
+            expect(hasExternalFileChangesSpy).toHaveBeenCalledTimes(1);
+            expect(loadSolutionSpy).toHaveBeenCalledTimes(1);
+            expect(ensureActiveTargetTypeNameSpy).toHaveBeenCalledTimes(1);
+            expect(callOrder).toEqual([
+                'hasExternalFileChanges',
+                'loadSolution',
+                'ensureActiveTargetTypeName',
+            ]);
+            expect(sendContextDataSpy).toHaveBeenCalledTimes(1);
+        });
+
         it('calls sendContextData when transitioning to active state', async () => {
             const solutionManager = solutionManagerFactory();
             const main = manageSolutionWebviewMainFactory({
@@ -262,6 +304,8 @@ describe('ContextSelectionWebviewMain', () => {
                 { converted: true, loaded: true, solutionPath: '/path/to/solution.csolution.yml' },
                 { converted: true, loaded: false, solutionPath: '/path/to/solution.csolution.yml' }
             );
+
+            await waitTimeout();
 
             expect(sendContextDataSpy).toHaveBeenCalled();
             expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'IS_BUSY', data: true });
@@ -286,6 +330,8 @@ describe('ContextSelectionWebviewMain', () => {
             };
 
             solutionManager.onDidChangeLoadStateEmitter!.fire(event);
+
+            await waitTimeout();
 
             expect(sendContextDataSpy).toHaveBeenCalled();
         });

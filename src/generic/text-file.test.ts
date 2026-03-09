@@ -370,4 +370,27 @@ describe('TextFile', () => {
 
         testDataHandler.rmDir(unicodeDir);
     });
+
+    it('primes external stamp on first change check', async () => {
+        const tf = new TextFile(TEST_FILE);
+        tf.text = initialContent;
+        const saveResult = await tf.save();
+        expect(saveResult).toBe(ETextFileResult.Success);
+
+        expect(tf.hasExternalFileChanged()).toBe(false);
+    });
+
+    it('detects external on-disk updates and then re-baselines', async () => {
+        const tf = new TextFile(TEST_FILE);
+        tf.text = initialContent;
+        const saveResult = await tf.save();
+        expect(saveResult).toBe(ETextFileResult.Success);
+
+        tf.refreshExternalFileStamp();
+        expect(tf.hasExternalFileChanged()).toBe(false);
+
+        fsUtils.writeTextFile(TEST_FILE, changedContent);
+        expect(tf.hasExternalFileChanged()).toBe(true);
+        expect(tf.hasExternalFileChanged()).toBe(false);
+    });
 });
