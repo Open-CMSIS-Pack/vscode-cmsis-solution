@@ -106,7 +106,7 @@ describe('ActiveSolutionTracker', () => {
     });
 
     it('uses the configured glob pattern for searches', async () => {
-        const testGlobPattern = faker.word.words();
+        const testGlobPattern = `**/${faker.system.commonFileName()}`;
         configurationProvider.getConfigVariable.mockImplementation((name: string) => name === manifest.CONFIG_EXCLUDE ? testGlobPattern : undefined);
 
         await activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
@@ -125,7 +125,7 @@ describe('ActiveSolutionTracker', () => {
         expect(configurationProvider.onChangeConfiguration).toHaveBeenCalledTimes(1);
         expect(configurationProvider.onChangeConfiguration).toHaveBeenCalledWith(expect.any(Function), manifest.CONFIG_EXCLUDE);
 
-        const testGlobPattern = faker.word.words();
+        const testGlobPattern = `**/${faker.system.commonFileName()}`;
         configurationProvider.getConfigVariable.mockImplementation((name: string) => name === manifest.CONFIG_EXCLUDE ? testGlobPattern : undefined);
         configurationProvider.onChangeConfiguration.mock.calls[0][0]();
         await waitTimeout();
