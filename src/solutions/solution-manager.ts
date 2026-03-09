@@ -31,7 +31,7 @@ import { SolutionRpcData } from './solution-rpc-data';
 
 export interface SolutionLoadState {
     solutionPath?: string;
-    activated?: boolean;  // solution is activated (loaded and converted at leas once)
+    activated?: boolean;  // solution is activated (loaded and converted at least once)
     loaded?: boolean;     // solution.yml + project.yml files loaded
     converted?: boolean;  // conversion executed and cbuild*.yml files are loaded.
 };
