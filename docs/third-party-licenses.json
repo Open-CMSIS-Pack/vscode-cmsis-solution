@@ -236,5 +236,12 @@
         "spdx": "BlueOak-1.0.0",
         "url": "https://github.com/isaacs/node-glob",
         "license": "https://github.com/isaacs/node-glob/blob/main/LICENSE.md"
+    },
+    {
+        "name": "shell-quote",
+        "version": "1.8.3",
+        "spdx": "MIT",
+        "url": "https://github.com/ljharb/shell-quote",
+        "license": "https://github.com/ljharb/shell-quote/blob/main/LICENSE"
     }
 ]
