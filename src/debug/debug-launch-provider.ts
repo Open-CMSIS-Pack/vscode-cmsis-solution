@@ -146,7 +146,10 @@ export class DebugLaunchProviderImpl implements DebugLaunchProvider {
             [workspaceFolder, solutionFolder],
             '.vscode/tasks.json.d/*.json',
             TasksJsonFile,
-            (extraTasksJson) => extraTasksJson.tasks.forEach(t => tasksJson.addTask(t))
+            (extraTasksJson) => {
+                extraTasksJson.inputs.forEach(i => tasksJson.addInput(i));
+                extraTasksJson.tasks.forEach(t => tasksJson.addTask(t));
+            }
         );
 
         if (this.configurationProvider.getConfigVariableOrDefault<boolean>(CONFIG_AUTO_DEBUG_LAUNCH, true)) {
