@@ -130,6 +130,7 @@ export class Tokenizer {
             // search for number
             if (ch.match(/[\d]/)) {
                 let str = '';
+                let numTokenPattern = /[\d]/i;
                 if (isNegative) {
                     str += '-';
                 }
@@ -140,9 +141,11 @@ export class Tokenizer {
                         if (chTmp == 'x' || chTmp == 'X') {
                             str += '0x';
                             pos += 2;
+                            numTokenPattern = /[\da-f]/i;
                         } else if (chTmp == 'b' || chTmp == 'B') {
                             str += '0b';
                             pos += 2;
+                            numTokenPattern = /[01]/i;
                         }
                         if (pos >= length) {
                             pos = length - 1;
@@ -152,7 +155,7 @@ export class Tokenizer {
 
                 do {
                     ch = text[pos];
-                    if (!ch.match(/[\da-f]/i)) {
+                    if (!ch.match(numTokenPattern)) {
                         break;
                     }
                     str += ch;

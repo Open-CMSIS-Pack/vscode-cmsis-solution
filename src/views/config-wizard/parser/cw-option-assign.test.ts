@@ -49,6 +49,7 @@ describe('CwOptionAssign', () => {
     });
 
     it('test error assignment', () => {
+        ClearErrors();
         const item = new CwOptionAssign(parent);
         const lineNo = 1;
         const cmdStr = '=';
@@ -62,6 +63,34 @@ describe('CwOptionAssign', () => {
         const errors = GetErrors();
         const numErr = errors.length;
         expect(numErr).toBe(1);
+    });
+
+    it('rejects symbol assignment starting with digit and underscore', () => {
+        ClearErrors();
+        const item = new CwOptionAssign(parent);
+        const lineNo = 1;
+        const cmdStr = '1_FOO=';
+        const textStr = 'foo';
+        const cmd = tokenizer.tokenizeCmd(cmdStr, lineNo);
+        const text = tokenizer.tokenizeDescr(textStr, lineNo);
+        item.addProperty(cmd, text, lineNo);
+
+        const errors = GetErrors();
+        expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it('rejects symbol assignment starting with digit and letters', () => {
+        ClearErrors();
+        const item = new CwOptionAssign(parent);
+        const lineNo = 1;
+        const cmdStr = '2BAR=';
+        const textStr = 'bar';
+        const cmd = tokenizer.tokenizeCmd(cmdStr, lineNo);
+        const text = tokenizer.tokenizeDescr(textStr, lineNo);
+        item.addProperty(cmd, text, lineNo);
+
+        const errors = GetErrors();
+        expect(errors.length).toBeGreaterThan(0);
     });
 
 });
