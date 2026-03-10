@@ -91,6 +91,7 @@ export class Tokenizer {
         }
 
         const isAssignmentToken = text.includes('=');
+        const identifierCharRegex = isAssignmentToken ? /[a-z\d_]/i : /[a-z_]/i;
 
         let canBeNegative = false;
         if (text.indexOf('..') != -1) {
@@ -182,7 +183,7 @@ export class Tokenizer {
                 let str = '';
                 do {
                     ch = text[pos++];
-                    if (!ch.match(isAssignmentToken ? /[a-z\d_]/i : /[a-z_]/i)) {
+                    if (!ch.match(identifierCharRegex)) {
                         pos--;
                         break;
                     }
