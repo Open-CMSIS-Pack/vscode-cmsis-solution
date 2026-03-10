@@ -84,8 +84,8 @@ export class ManageSolutionWebviewMain {
     }
 
     private async handleSolutionLoadChange(e: SolutionLoadStateChangeEvent): Promise<void> {
-        const { solutionPath: newPath, converted: newConverted, loaded: newLoaded } = e.newState;
-        const { solutionPath: prevPath, converted: prevConverted, loaded: prevLoaded } = e.previousState;
+        const { solutionPath: newPath, converted: newConverted, loaded: newLoaded, activated: newActivated } = e.newState;
+        const { solutionPath: prevPath, converted: prevConverted, loaded: prevLoaded, activated: prevActivated } = e.previousState;
 
         if (!this.webviewManager.isPanelActive || (newPath === prevPath && newConverted !== prevConverted)) {
             return;
@@ -103,6 +103,8 @@ export class ManageSolutionWebviewMain {
                 this.setBusyState(false);
                 return;
             }
+        } else if (newActivated !== prevActivated) {
+            csolutionChanged = true;
         } else if (newLoaded !== prevLoaded) {
             csolutionChanged = true;
         }
@@ -167,10 +169,6 @@ export class ManageSolutionWebviewMain {
 
     private getSolutionDir(): string {
         return dirname(this.controller?.solutionPath ?? '');
-    }
-
-    private getSolutionBasename(): string {
-        return path.basename(this.controller?.solutionPath ?? '') || 'the solution';
     }
 
     public attachToPanel(panel: vscode.WebviewPanel): void {
@@ -323,8 +321,8 @@ export class ManageSolutionWebviewMain {
         await this.updateDebuggerParameter('', 'start-pname', name);
     }
 
-    public async saveChanges(): Promise<void> {
-        if (!this.isDirty) {
+    public async saveChanges(force: boolean = false): Promise<void> {
+        if (!this.isDirty && !force) {
             return;
         }
         await this.setBusyState(true);
@@ -347,23 +345,6 @@ export class ManageSolutionWebviewMain {
         });
     }
 
-    protected async querySaveModified(): Promise<void> {
-        if (!this.isDirty) {
-            return;
-        }
-        // for now only yes/no answers are supported, cancel can be only triggered externally when changing solution
-        // todo: query all modifications from this and component views
-        const result = await vscode.window.showWarningMessage(
-            `Manage Solution: You have unsaved changes in ${this.getSolutionBasename()}. Do you want to save them?`,
-            { modal: true },
-            'Yes',
-            'No'
-        );
-        if (result === 'Yes') {
-            await this.saveChanges();
-        }
-    }
-
     /**
      * Loads csolution.ym file for editing
      * @returns true if solution file is successfully loaded
@@ -371,7 +352,6 @@ export class ManageSolutionWebviewMain {
     protected async loadSolution(): Promise<ETextFileResult> {
         const globalSolution = this.solutionManager.getCsolution(); // get global csolution
         if (this.controller.solutionPath !== globalSolution?.solutionPath) {
-            // await this.querySaveModified();
             this._controller = this.createController(); // todo: use clear instead
         }
         if (!globalSolution) { // no solution is loaded in workspace
