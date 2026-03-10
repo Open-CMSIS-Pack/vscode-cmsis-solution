@@ -222,7 +222,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         context,
         solutionManager,
         commandsProvider,
-        externalFileOpener,
         configurationProvider,
         csolutionService,
     );

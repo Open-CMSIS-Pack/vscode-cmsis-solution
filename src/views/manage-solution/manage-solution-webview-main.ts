@@ -20,7 +20,6 @@ import { ExtensionContext } from 'vscode';
 import { URI } from 'vscode-uri';
 import { ETextFileResult } from '../../generic/text-file';
 import * as manifest from '../../manifest';
-import { IOpenFileExternal } from '../../open-file-external-if';
 import { SolutionLoadStateChangeEvent, SolutionManager } from '../../solutions/solution-manager';
 import { backToForwardSlashes } from '../../utils/path-utils';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
@@ -60,7 +59,6 @@ export class ManageSolutionWebviewMain {
         context: ExtensionContext,
         protected readonly solutionManager: SolutionManager, // solutionManager is only used for didChange events. Other calls to csolution must be done using the csolution getter/setter
         private readonly commandsProvider: CommandsProvider,
-        private readonly openFileExternal: IOpenFileExternal,
         private readonly configurationProvider: ConfigurationProvider,
         private readonly csolutionService: CsolutionService,
         onEdit?: (label: string, before: SolutionData, after: SolutionData) => void,
@@ -195,21 +193,13 @@ export class ManageSolutionWebviewMain {
         ]);
     }
 
-    private async openFile(path: string, openExternal?: boolean): Promise<void> {
-        if (openExternal) {
-            this.openFileExternal.openFile(path);
-        } else {
-            await this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(path));
-        }
-    }
-
     private async handleMessage(message: OutgoingMessage): Promise<void> {
         switch (message.type) {
             case 'GET_CONTEXT_SELECTION_DATA':
                 await this.sendContextData();
                 break;
             case 'OPEN_FILE':
-                await this.openFile(message.path, false);
+                await this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(message.path));
                 break;
             case 'SET_SELECTED_CONTEXTS':
                 await this.setSelectedContexts(message.data);

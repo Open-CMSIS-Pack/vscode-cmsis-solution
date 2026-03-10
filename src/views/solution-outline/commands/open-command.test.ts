@@ -25,10 +25,10 @@ import { extensionContextFactory } from '../../../vscode-api/extension-context.f
 import { commandsProviderFactory, MockCommandsProvider } from '../../../vscode-api/commands-provider.factories';
 import { activeSolutionLoadStateFactory, solutionManagerFactory } from '../../../solutions/solution-manager.factories';
 import { Uri } from 'vscode';
-import { CopyHeaderCommand } from './copy-header-command';
 import * as vscode from 'vscode';
 import type { CTreeItem } from '../../../generic/tree-item';
 import type { CSolution } from '../../../solutions/csolution';
+import { README_FILE_PATH } from '../../../manifest';
 
 describe('OpenCommand', () => {
     let commandsProvider: MockCommandsProvider;
@@ -145,49 +145,37 @@ describe('OpenCommand', () => {
         fileItem.setAttribute('docPath', testFile);
         fileItem.addFeature('docFile');
 
-        jest.spyOn(mockOpenFileExternal, 'openFile').mockReturnValue(await Promise.resolve());
+        jest.spyOn(mockOpenFileExternal, 'openFile');
         await commandsProvider.mockRunRegistered(OpenCommand.openDocCommandId, fileItem);
 
         expect(mockOpenFileExternal.openFile).toHaveBeenCalledWith(testFile);
     });
 
-    it('opens the help file when the help command is invoked', async () => {
+    it('opens the readme file when the help command is invoked', async () => {
         const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
         await openCommand.activate(extensionContextFactory());
 
-        await commandsProvider.mockRunRegistered(OpenCommand.openHelpCommandId);
-
-        jest.spyOn(mockOpenFileExternal, 'openFile').mockReturnValue(await Promise.resolve());
+        jest.spyOn(mockOpenFileExternal, 'openFile');
 
         await commandsProvider.mockRunRegistered(OpenCommand.openHelpCommandId);
 
-        expect(mockOpenFileExternal.openFile).toHaveBeenCalledWith(OpenCommand.HELP_URL);
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(README_FILE_PATH));
+        expect(mockOpenFileExternal.openFile).not.toHaveBeenCalledWith(README_FILE_PATH);
     });
 
-    it('open documentation when copy header icon exists', async () => {
-        // copy header
-        await new CopyHeaderCommand(commandsProvider).activate(extensionContextFactory());
+    it('opens the Keil Studio guide when the help command is invoked', async () => {
+        jest.spyOn(vscode.extensions, 'getExtension').mockReturnValue({
+            extensionPath: '/path/to/keil-pack-extension',
+        } as unknown as vscode.Extension<void>);
 
-        const fileItem = new COutlineItem('file');
-        fileItem.setAttribute('label', 'header.h');
-        fileItem.addFeature('header');
-        fileItem.setAttribute('type', 'headerFile');
-        fileItem.setAttribute('resourcePath', '/path/to/header.h');
-
-        await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, fileItem);
-        expect(vscode.env.clipboard.writeText).toHaveBeenCalledWith('#include "header.h"\n');
-
-        // open command
         const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
         await openCommand.activate(extensionContextFactory());
 
-        await commandsProvider.mockRunRegistered(OpenCommand.openHelpCommandId);
-
-        jest.spyOn(mockOpenFileExternal, 'openFile').mockReturnValue(await Promise.resolve());
+        jest.spyOn(mockOpenFileExternal, 'openFile');
 
         await commandsProvider.mockRunRegistered(OpenCommand.openHelpCommandId);
 
-        expect(mockOpenFileExternal.openFile).toHaveBeenCalledWith(OpenCommand.HELP_URL);
+        expect(mockOpenFileExternal.openFile).toHaveBeenCalledWith('/path/to/keil-pack-extension/guide/index.html');
     });
 
     it('opens zephyr terminal for matching context', async () => {

@@ -22,8 +22,6 @@ import { tmpNameSync } from 'tmp';
 
 import { backToForwardSlashes } from './utils/path-utils';
 
-export const CMSIS_VSCODE_REDIRECTION_FILE_HTML = 'cmsis_vscode_redirectionFile.html';
-
 /**
  *  Class to call node_modules/open
  */

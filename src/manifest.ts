@@ -57,3 +57,5 @@ export const DEBUG_TEMPLATES_FOLDER = path.join(TEMPLATES_FOLDER, 'debug');
 export const UV2CSOLUTION_FOLDER = path.join(__dirname, '..', 'tools', 'uv2csolution');
 export const DEBUG_ADAPTERS_YAML_FILE_PATH = path.resolve(DEBUG_TEMPLATES_FOLDER, 'debug-adapters.yml');
 export const CMSIS_TOOLBOX_FOLDER = path.join(__dirname, '..', 'tools', 'cmsis-toolbox');
+
+export const README_FILE_PATH = path.join(__dirname, '..', 'README.md');

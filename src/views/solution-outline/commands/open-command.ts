@@ -17,7 +17,7 @@
 import * as vscode from 'vscode';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
-import { PACKAGE_NAME } from '../../../manifest';
+import { PACKAGE_NAME, README_FILE_PATH } from '../../../manifest';
 import path from 'path';
 import { SolutionManager } from '../../../solutions/solution-manager';
 import { IOpenFileExternal } from '../../../open-file-external-if';
@@ -42,7 +42,7 @@ export class OpenCommand {
 
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>) {
         const keilPack = vscode.extensions.getExtension<void>('arm.keil-studio-pack');
-        let helpFilePath = 'https://mdk-packs.github.io/vscode-cmsis-solution-docs';
+        let helpFilePath : string | undefined = undefined;
         if (keilPack?.extensionPath) {
             helpFilePath = path.join(keilPack.extensionPath, 'guide');
         }
@@ -69,7 +69,11 @@ export class OpenCommand {
                 this.openTerminal(node);
             }, this),
             this.commandsProvider.registerCommand(OpenCommand.openHelpCommandId, (section: string = 'index.html') => {
-                this.openFile(`${helpFilePath}/${section}`, true);
+                if (helpFilePath) {
+                    this.openFile(`${helpFilePath}/${section}`, true);
+                } else {
+                    this.openFile(README_FILE_PATH, false);
+                }
             }, this),
         );
     }

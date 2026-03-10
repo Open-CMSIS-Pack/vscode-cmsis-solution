@@ -33,6 +33,7 @@ import { SolutionLoadStateChangeEvent } from '../../solutions/solution-manager';
 import { ETextFileResult } from '../../generic/text-file';
 import { configurationProviderFactory } from '../../vscode-api/configuration-provider.factories';
 import { csolutionFactory } from '../../solutions/csolution.factory';
+import { OpenCommand } from '../solution-outline/commands/open-command';
 
 
 // Helper for firing a message and waiting (now inside describe, uses local webviewManager)
@@ -395,7 +396,6 @@ describe('ContextSelectionWebviewMain', () => {
             const main = manageSolutionWebviewMainFactory({
                 webviewManager,
                 commandsProvider,
-                openFileExternal
             });
             await main.activate(context as unknown as vscode.ExtensionContext);
 
@@ -409,19 +409,16 @@ describe('ContextSelectionWebviewMain', () => {
 
         it('calls external opener on OPEN_HELP and not vscode.open', async () => {
             const commandsProvider = commandsProviderFactory();
-            const openFileExternal = { openFile: jest.fn() };
             const main = manageSolutionWebviewMainFactory({
                 webviewManager,
                 commandsProvider,
-                openFileExternal
             });
             await main.activate(context as unknown as vscode.ExtensionContext);
 
             webviewManager.didReceiveMessageEmitter.fire({ type: 'OPEN_HELP' as any });
             await waitTimeout();
 
-            expect(openFileExternal.openFile).toHaveBeenCalledWith(expect.stringContaining('manage_settings.html'));
-            expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith(OpenCommand.openHelpCommandId, 'manage_settings.html#active-target');
         });
     });
 
