@@ -98,6 +98,8 @@ export class OpenCommand {
     private openFile(path: string, openExternal?: boolean): void {
         if (openExternal) {
             this.openFileExternal.openFile(path);
+        } else if (path.toLocaleLowerCase().endsWith('.md')) {
+            this.commandsProvider.executeCommand('markdown.showPreview', vscode.Uri.file(path));
         } else {
             this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(path));
         }

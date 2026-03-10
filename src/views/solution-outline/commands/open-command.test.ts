@@ -159,7 +159,7 @@ describe('OpenCommand', () => {
 
         await commandsProvider.mockRunRegistered(OpenCommand.openHelpCommandId);
 
-        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(README_FILE_PATH));
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('markdown.showPreview', Uri.file(README_FILE_PATH));
         expect(mockOpenFileExternal.openFile).not.toHaveBeenCalledWith(README_FILE_PATH);
     });
 
