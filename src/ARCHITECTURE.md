@@ -1,6 +1,7 @@
 # CMSIS Solution Extension Architecture Documentation
 
-> **Hint:** This documentation uses [Mermaid](https://mermaid.js.org/intro/syntax-reference.html) diagrams. For Visual Studio code consider installing [Markdown Preview Mermaid Support](https://marketplace.visualstudio.com/items?itemName=bierner.markdown-mermaid).
+> **Hint:** This documentation uses [Mermaid](https://mermaid.js.org/intro/syntax-reference.html) diagrams. For Visual Studio Code consider installing [Markdown Preview Mermaid Support](https://marketplace.visualstudio.com/items?itemName=bierner.markdown-mermaid).
+> Manually crafted diagrams are created with [Draw.io](https://www.drawio.com/). For Visual Studio Code consider installing [Draw.io Integration](https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio).
 
 The overall architecture of a Visual Studio Code Extension is given in the following diagram:
 
@@ -55,7 +56,3 @@ The Data Manager abstracts access.
 ### Solar Search Client
 
 [TO BE DOCUMENTED](solar-search)
-
-### Core Tools Service
-
-[TO BE DOCUMENTED](core-tools)

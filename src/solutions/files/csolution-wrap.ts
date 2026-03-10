@@ -281,6 +281,17 @@ export class TargetTypeWrap extends TypedWrap {
         }
         return this.getTargetSet(this.targetSetNames.at(idx));
     }
+
+    getContexts(targetSetName?: string) : string[] {
+        const contexts : string[] = [];
+        const targetSet = this.getTargetSet(targetSetName);
+        if (targetSet) {
+            for (const projectContext of targetSet.projectContexts) {
+                contexts.push(projectContext.name + '+' + this.name);
+            }
+        }
+        return contexts;
+    }
 }
 
 /**
