@@ -43,7 +43,6 @@ import { PROJECT_SUFFIX } from '../../solutions/constants';
 import { dataManagerFactory, MockDataManager } from '../../data-manager/data-manager.factories';
 import { CreateSolutionFromDataManager } from '../../solutions/create-solution-from-data-manager';
 import { pathsEqual } from '../../utils/path-utils';
-import { MockOpenFileExternal } from '../../open-file-external.factories';
 
 jest.mock('fs', () => ({
     existsSync: jest.fn(),
@@ -97,7 +96,6 @@ describe('CreateSolutionWebviewMain', () => {
     let commandsProvider: MockCommandsProvider;
     let mockReconcileSolutionFiles: jest.Mock;
     let mockSolutionInitialiser: MockSolutionInitialiser;
-    let mockExternalFileOpener: MockOpenFileExternal;
     let mockCreateSolutionFromDataManager: jest.MockedFunction<CreateSolutionFromDataManager>;
     let mockOpenDialog: jest.Mock;
     let mockSolutionCreator: SolutionCreator;
@@ -123,12 +121,11 @@ describe('CreateSolutionWebviewMain', () => {
         mockReconcileSolutionFiles = jest.fn();
         mockCreateSolutionFromDataManager = jest.fn();
         mockSolutionInitialiser = SolutionInitialiserFactory();
-        mockExternalFileOpener = new MockOpenFileExternal();
         mockOpenDialog = vscode.window.showOpenDialog as jest.Mock;
 
         mockSolutionCreator = new SolutionCreatorImp(mockCreateSolutionFromDataManager, mockSolutionInitialiser, workspaceFsProvider, mockReconcileSolutionFiles);
 
-        webviewMain = new CreateSolutionWebviewMain(mockSolutionCreator, { extensionUri: EXTENSION_URI } as unknown as ExtensionContext, messageProvider, commandsProvider, workspaceFoldersProvider, dataManager, mockExternalFileOpener, webviewManager as unknown as WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>);
+        webviewMain = new CreateSolutionWebviewMain(mockSolutionCreator, { extensionUri: EXTENSION_URI } as unknown as ExtensionContext, messageProvider, commandsProvider, workspaceFoldersProvider, dataManager, webviewManager as unknown as WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>);
 
         await webviewMain.activate({ subscriptions: [] } as unknown as ExtensionContext);
 

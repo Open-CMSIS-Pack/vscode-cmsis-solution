@@ -33,6 +33,7 @@ import { initialState } from './view/state/reducer';
 import debounce from 'lodash.debounce';
 import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
 import { isDeepStrictEqual } from 'util';
+import { OpenCommand } from '../solution-outline/commands/open-command';
 
 export const MANAGE_SOLUTION_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> = {
     title: 'Manage Solution',
@@ -48,7 +49,6 @@ export const MANAGE_SOLUTION_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> = 
 
 
 export class ManageSolutionWebviewMain {
-    private readonly HELP_URL = path.join(manifest.GUIDE_FOLDER, 'manage_settings.html#active-target');
     private readonly webviewManager: WebviewManager<IncomingMessage, OutgoingMessage>;
 
     private readonly onEdit?: (label: string, before: SolutionData, after: SolutionData) => void;
@@ -242,7 +242,7 @@ export class ManageSolutionWebviewMain {
                 await this.commandsProvider.executeCommand('workbench.action.files.save');
                 break;
             case 'OPEN_HELP':
-                await this.openFile(this.HELP_URL, true);
+                this.commandsProvider.executeCommand(OpenCommand.openHelpCommandId, 'manage_settings.html#active-target');
                 break;
             case 'SET_DEBUG_ADAPTER_PROPERTY':
                 await this.updateDebuggerParameter(message.service, message.key, message.value, message.pname);

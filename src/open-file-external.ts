@@ -28,17 +28,18 @@ export const CMSIS_VSCODE_REDIRECTION_FILE_HTML = 'cmsis_vscode_redirectionFile.
  *  Class to call node_modules/open
  */
 export class OpenFileExternal implements IOpenFileExternal {
+
     public openFile(filePath: string) {
         const adjustedFilePath = this.adjustFilePath(filePath);
-        const child = this.doOpenFile(this.getCommand(adjustedFilePath));
+        this.doOpenFile(this.getCommand(adjustedFilePath));
         if (adjustedFilePath !== filePath) {
-            child.on('exit', () => {
+            setTimeout(() => {
                 try {
                     fs.unlinkSync(adjustedFilePath);
                 } catch (error) {
                     console.error(`Error deleting redirection file ${adjustedFilePath}:`, error);
                 }
-            });
+            }, 60000);
         }
         return adjustedFilePath;
     }

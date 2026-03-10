@@ -17,7 +17,7 @@
 import * as vscode from 'vscode';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
-import { GUIDE_FOLDER, PACKAGE_NAME } from '../../../manifest';
+import { PACKAGE_NAME } from '../../../manifest';
 import path from 'path';
 import { SolutionManager } from '../../../solutions/solution-manager';
 import { IOpenFileExternal } from '../../../open-file-external-if';
@@ -33,16 +33,20 @@ export class OpenCommand {
     public static readonly openDocCommandId = `${PACKAGE_NAME}.openDocFile`;
     public static readonly openHelpCommandId = `${PACKAGE_NAME}.openHelp`;
     public static readonly openZephyrTerminalCommandId = `${PACKAGE_NAME}.openZephyrTerminal`;
-    public static readonly HELP_URL = path.join(GUIDE_FOLDER, 'index.html');
 
     constructor(
         private readonly solutionManager: SolutionManager,
         private readonly commandsProvider: CommandsProvider,
         private readonly openFileExternal: IOpenFileExternal,
-
     ) { }
 
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>) {
+        const keilPack = vscode.extensions.getExtension<void>('arm.keil-studio-pack');
+        let helpFilePath = 'https://mdk-packs.github.io/vscode-cmsis-solution-docs';
+        if (keilPack?.extensionPath) {
+            helpFilePath = path.join(keilPack.extensionPath, 'guide');
+        }
+
         context.subscriptions.push(
             this.commandsProvider.registerCommand(OpenCommand.openSolutionCommandId, () =>
                 (this.solutionManager.loadState.solutionPath) ? this.openFile(this.solutionManager.loadState.solutionPath) : undefined, this),
@@ -64,8 +68,8 @@ export class OpenCommand {
             this.commandsProvider.registerCommand(OpenCommand.openZephyrTerminalCommandId, (node: COutlineItem) => {
                 this.openTerminal(node);
             }, this),
-            this.commandsProvider.registerCommand(OpenCommand.openHelpCommandId, () => {
-                this.openFile(OpenCommand.HELP_URL, true);
+            this.commandsProvider.registerCommand(OpenCommand.openHelpCommandId, (section: string = 'index.html') => {
+                this.openFile(`${helpFilePath}/${section}`, true);
             }, this),
         );
     }
