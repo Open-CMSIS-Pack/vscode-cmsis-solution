@@ -229,6 +229,7 @@ describe('ClangdManager', () => {
     it('loads clangd context from workspace state', async () => {
         mockConfigurationProvider.getConfigVariable.mockReturnValue(true);
         mockConfigurationProvider.setConfigVariable.mockReturnValue(Promise.resolve());
+        mockFs.exists.mockResolvedValue(false);
 
         const solutionPath = mockSolutionManager!.getCsolution()!.solutionPath;
         stubWorkspaceState.update(clangDActiveContextKey, {
@@ -250,6 +251,18 @@ describe('ClangdManager', () => {
         expect(state).toBeDefined();
         expect(solutionPath in state!).toBeTruthy();
         expect(state![solutionPath]).toEqual(activeContexts[1].projectPath);
+
+        const diagnosticsSuppress = 'Diagnostics:\n  Suppress: [\'*\']';
+        const expectedOutDir1 = mockSolutionManager.getCsolution()?.cbuildIdxFile?.cbuildFiles?.get(activeContexts[0].projectName)?.outDir;
+        const expectedOutDir2 = mockSolutionManager.getCsolution()?.cbuildIdxFile?.cbuildFiles?.get(activeContexts[1].projectName)?.outDir;
+        expect(mockFs.writeUtf8File).toHaveBeenCalledWith(
+            expect.lowercaseEquals(path.join(expectedOutDir1!, '.clangd')),
+            diagnosticsSuppress,
+        );
+        expect(mockFs.writeUtf8File).toHaveBeenCalledWith(
+            expect.lowercaseEquals(path.join(expectedOutDir2!, '.clangd')),
+            diagnosticsSuppress,
+        );
     });
 
     it('set default clangd context if context in workspace state is invalid', async () => {

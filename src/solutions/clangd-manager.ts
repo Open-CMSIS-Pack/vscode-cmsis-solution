@@ -171,7 +171,7 @@ export class ClangdManager {
         const state = this.workspaceState;
         if (solutionPath in state) {
             const context = state[solutionPath];
-            csolution?.getContextDescriptors()?.forEach(c => this.setClangdConfigDiagnosticsSuppress(c));
+            csolution?.getContextDescriptors()?.forEach(async c => await this.setClangdConfigDiagnosticsSuppress(c));
             if (csolution?.getContextDescriptors()?.some(c => c.projectPath === context)) {
                 this.globalContext = context;
                 return;
