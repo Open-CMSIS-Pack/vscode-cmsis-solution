@@ -315,4 +315,20 @@ describe('ClangdManager', () => {
         expect(writtenContent).toContain('-include');
         expect(writtenContent.toLowerCase()).toContain(compileMacrosFile.toLowerCase());
     });
+
+    it('writes diagnostics suppress .clangd in outDir when missing', async () => {
+        const csolution = mockSolutionManager.getCsolution();
+        const context = activeContexts[0];
+        const outDir = csolution?.cbuildIdxFile?.cbuildFiles?.get(context.projectName)?.outDir;
+        const expectedClangdPath = path.join(outDir!, '.clangd');
+
+        mockFs.exists.mockResolvedValue(false);
+
+        await (clangdManager as unknown as {
+            setClangdConfigDiagnosticsSuppress: (contextDescriptor: ContextDescriptor) => Promise<void>;
+        }).setClangdConfigDiagnosticsSuppress(context);
+
+        expect(mockFs.exists).toHaveBeenCalledWith(expect.lowercaseEquals(expectedClangdPath));
+        expect(mockFs.writeUtf8File).toHaveBeenCalledWith(expect.lowercaseEquals(expectedClangdPath), 'Diagnostics:\n  Suppress: [\'*\']');
+    });
 });
