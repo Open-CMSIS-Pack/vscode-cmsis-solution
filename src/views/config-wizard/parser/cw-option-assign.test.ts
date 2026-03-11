@@ -31,66 +31,71 @@ const tokenizer = new Tokenizer();
 describe('CwOptionAssign', () => {
     const parent = new CwOption;
 
-    it('test assignment', () => {
+    function runAssignment(cmdStr: string, textStr = 'foo') {
         ClearErrors();
+
         const item = new CwOptionAssign(parent);
         const lineNo = 1;
-        const cmdStr = '1=';
-        const textStr = 'foo';
         const cmd = tokenizer.tokenizeCmd(cmdStr, lineNo);
         const text = tokenizer.tokenizeDescr(textStr, lineNo);
         item.addProperty(cmd, text, lineNo);
+
+        return {
+            item,
+            errors: GetErrors()
+        };
+    }
+
+    it('test assignment', () => {
+        const { item, errors } = runAssignment('1=');
         const itemText = item.getItemText();
         expect(itemText).not.toBe('');
-
-        const errors = GetErrors();
-        const numErr = errors.length;
-        expect(numErr).toBe(0);
+        expect(errors.length).toBe(0);
     });
 
     it('test error assignment', () => {
-        ClearErrors();
-        const item = new CwOptionAssign(parent);
-        const lineNo = 1;
-        const cmdStr = '=';
-        const textStr = 'foo';
-        const cmd = tokenizer.tokenizeCmd(cmdStr, lineNo);
-        const text = tokenizer.tokenizeDescr(textStr, lineNo);
-        item.addProperty(cmd, text, lineNo); // will throw error
+        const { item, errors } = runAssignment('='); // will throw error
         const itemText = item.getItemText();
         expect(itemText).not.toBe('');
-
-        const errors = GetErrors();
-        const numErr = errors.length;
-        expect(numErr).toBe(1);
+        expect(errors.length).toBe(1);
     });
 
     it('rejects symbol assignment starting with digit and underscore', () => {
-        ClearErrors();
-        const item = new CwOptionAssign(parent);
-        const lineNo = 1;
-        const cmdStr = '1_FOO=';
-        const textStr = 'foo';
-        const cmd = tokenizer.tokenizeCmd(cmdStr, lineNo);
-        const text = tokenizer.tokenizeDescr(textStr, lineNo);
-        item.addProperty(cmd, text, lineNo);
-
-        const errors = GetErrors();
+        const { errors } = runAssignment('1_FOO=');
         expect(errors.length).toBeGreaterThan(0);
     });
 
     it('rejects symbol assignment starting with digit and letters', () => {
-        ClearErrors();
-        const item = new CwOptionAssign(parent);
-        const lineNo = 1;
-        const cmdStr = '2BAR=';
-        const textStr = 'bar';
-        const cmd = tokenizer.tokenizeCmd(cmdStr, lineNo);
-        const text = tokenizer.tokenizeDescr(textStr, lineNo);
-        item.addProperty(cmd, text, lineNo);
-
-        const errors = GetErrors();
+        const { errors } = runAssignment('2BAR=', 'bar');
         expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it('accepts hexadecimal assignment values', () => {
+        const { item, errors } = runAssignment('0x2A=');
+
+        expect(item.value?.getGuiString()).toBe('0x2A');
+        expect(errors.length).toBe(0);
+    });
+
+    it('accepts octal assignment values', () => {
+        const { item, errors } = runAssignment('077=');
+
+        expect(item.value?.getGuiString()).toBe('077');
+        expect(errors.length).toBe(0);
+    });
+
+    it('accepts binary assignment values', () => {
+        const { item, errors } = runAssignment('0b1010=');
+
+        expect(item.value?.getGuiString()).toBe('0b1010');
+        expect(errors.length).toBe(0);
+    });
+
+    it('accepts valid identifier assignment values', () => {
+        const { item, errors } = runAssignment('FOO_BAR2=');
+
+        expect(item.value?.getGuiString()).toBe('FOO_BAR2');
+        expect(errors.length).toBe(0);
     });
 
 });
