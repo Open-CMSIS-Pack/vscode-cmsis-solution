@@ -36,7 +36,7 @@ export type OutgoingMessage
     | { type: 'SAVE_CONTEXT_SELECTION' }
     | { type: 'OPEN_HELP' }
     | { type: 'SET_DEBUG_ADAPTER_PROPERTY', service: string | undefined, key: string, value: string | number, pname?: string }
-    | { type: 'SELECT_FILE', targetElementId: string, options?: FileSelectorOptionsType }
+    | { type: 'SELECT_FILE', requestId: string, options?: FileSelectorOptionsType }
     | { type: 'SET_AUTO_UPDATE', value: boolean }
     | { type: 'TOGGLE_DEBUGGER', value: boolean }
     | { type: 'TOGGLE_DEBUG_ADAPTER_SECTION', section: string }
@@ -52,6 +52,6 @@ export type IncomingMessage
     | { type: 'ACTIVE_TARGET_SET', data: ActiveTargetSet }
     | { type: 'IS_DIRTY', data: boolean }
     | { type: 'IS_BUSY', data: boolean }
-    | { type: 'FILE_SELECTED', data: string[], for: string }
+    | { type: 'FILE_SELECTED', data: string[], requestId: string }
     | { type: 'AUTO_UPDATE', data: boolean }
     ;

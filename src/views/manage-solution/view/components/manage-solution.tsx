@@ -18,7 +18,6 @@ import './manage-solution.css';
 import '../../../common/style/antd-overrides.css';
 import { LoadingOutlined } from '@ant-design/icons';
 import { Button, Checkbox, CheckboxChangeEvent, Col, ConfigProvider, Flex, Input, InputNumber, Row, Spin, Tabs, theme } from 'antd';
-import { debounce } from 'lodash';
 import * as React from 'react';
 import { UISection, UISectionChildren } from '../../../../debug/debug-adapters-yaml-file';
 import { CompactDropdown } from '../../../common/components/compact-dropdown';
@@ -35,10 +34,26 @@ export interface ManageSolutionProps {
     messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>;
 }
 
+type PendingFileSelection = {
+    service: string | undefined;
+    key: string;
+    localValueKey: string;
+};
+
+type SelectFileContext = {
+    service: string | undefined;
+    key: string;
+    localValueKey: string;
+    title?: string;
+    defaultUri?: string;
+    pathType?: PathType;
+};
+
 export const ManageSolution = (props: ManageSolutionProps) => {
     const [state, dispatch] = React.useReducer(manageSolutionReducer, initialState);
     // Eager local editable values snapshot (display-layer values). Numbers are stored scaled for user editing.
     const [localValues, setLocalValues] = React.useState<Record<string, string | number>>({});
+    const pendingFileSelections = React.useRef<Map<string, PendingFileSelection>>(new Map());
 
     const adapter = React.useMemo(
         () => state.debugAdapters.find(adapter => adapter.name === state.debugger),
@@ -74,14 +89,28 @@ export const ManageSolution = (props: ManageSolutionProps) => {
 
     React.useEffect(() => {
         const handleFileSelected = (message: IncomingMessage) => {
-            if (message.type === 'FILE_SELECTED' && message.data && message.data.length > 0) {
-                const element = document.getElementById(message.for || '');
-                if (element) {
-                    const ymlNode = element.getAttribute('data-yml-node') || 'config';
-                    props.messageHandler.push({ type: 'SET_DEBUG_ADAPTER_PROPERTY', service: undefined, key: ymlNode, value: message.data[0] });
-                    (element as HTMLInputElement).value = message.data[0];
-                }
+            if (message.type !== 'FILE_SELECTED') {
+                return;
             }
+
+            const pendingSelection = pendingFileSelections.current.get(message.requestId);
+            if (!pendingSelection) {
+                return;
+            }
+            pendingFileSelections.current.delete(message.requestId);
+
+            if (!message.data || message.data.length === 0) {
+                return;
+            }
+
+            const selectedPath = message.data[0];
+            setLocalValues(prev => ({ ...prev, [pendingSelection.localValueKey]: selectedPath }));
+            props.messageHandler.push({
+                type: 'SET_DEBUG_ADAPTER_PROPERTY',
+                service: pendingSelection.service,
+                key: pendingSelection.key,
+                value: selectedPath
+            });
         };
 
         const unsubscribe = props.messageHandler.subscribe(handleFileSelected);
@@ -203,34 +232,26 @@ export const ManageSolution = (props: ManageSolutionProps) => {
 
     const hasDebugger = !!state.debugger;
 
-    const selectFile = React.useMemo(() => {
-        const handleSelectFile = (e: React.MouseEvent<HTMLElement>) => {
-            const input = (e.target as HTMLElement)?.parentElement?.parentNode?.parentNode?.querySelector('input');
-            let id = input?.getAttribute('id');
-            if (id === null || id === undefined) {
-                // eslint-disable-next-line react-hooks/purity
-                id = Math.random().toString(36).substring(2, 15);
-                input?.setAttribute('id', id);
-            }
-            const title = input?.getAttribute('title') || 'Select File';
-            const dataOptionPathType = input?.getAttribute('data-option-path-type');
-            const optionPathType: PathType = dataOptionPathType === 'absolute' ? 'absolute' : 'relative';
-            const currentValue = input?.value || '';
-            props.messageHandler.push({
-                type: 'SELECT_FILE',
-                targetElementId: id,
-                options: {
-                    canSelectMany: false,
-                    defaultUri: currentValue,
-                    openLabel: 'Select File', // title of the dialog button to choose the file
-                    title: title, // dialog title
-                    filters: { 'All Files': ['*'] },
-                    pathType: optionPathType
-                }
-            });
-        };
+    const selectFile = React.useCallback((context: SelectFileContext) => {
+        const requestId = `manage-solution-file-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        pendingFileSelections.current.set(requestId, {
+            service: context.service,
+            key: context.key,
+            localValueKey: context.localValueKey,
+        });
 
-        return debounce(handleSelectFile, 300);
+        props.messageHandler.push({
+            type: 'SELECT_FILE',
+            requestId,
+            options: {
+                canSelectMany: false,
+                defaultUri: context.defaultUri,
+                openLabel: 'Select File',
+                title: context.title || 'Select File',
+                filters: { 'All Files': ['*'] },
+                pathType: context.pathType ?? 'relative'
+            }
+        });
     }, [props.messageHandler]);
 
     // Eager initialization/reset of localValues whenever adapter context changes.
@@ -434,7 +455,22 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                             return (
                                                                 <Input
                                                                     addonBefore={o.name}
-                                                                    addonAfter={<Button type="primary" className='file-button' onClick={selectFile}> Browse</Button>}
+                                                                    addonAfter={
+                                                                        <Button
+                                                                            type="primary"
+                                                                            className='file-button'
+                                                                            onClick={() => selectFile({
+                                                                                service: section['yml-node'],
+                                                                                key: o['yml-node'],
+                                                                                localValueKey: k,
+                                                                                title: o.description || 'Select File',
+                                                                                defaultUri: (localValues[k] as string) ?? '',
+                                                                                pathType: o['path-type'],
+                                                                            })}
+                                                                        >
+                                                                            Browse
+                                                                        </Button>
+                                                                    }
                                                                     value={(localValues[k] as string) ?? ''}
                                                                     data-yml-node={o['yml-node']}
                                                                     data-option-path-type={o['path-type']}

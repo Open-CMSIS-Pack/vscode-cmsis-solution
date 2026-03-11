@@ -125,7 +125,7 @@ describe('contextSelectionReducer', () => {
                 type: 'INCOMING_MESSAGE', message: {
                     type: 'FILE_SELECTED',
                     data: ['C:/path/to/my/file.txt'],
-                    for: 'some-id',
+                    requestId: 'some-id',
                 }
             });
 

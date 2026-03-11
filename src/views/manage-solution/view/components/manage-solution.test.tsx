@@ -584,37 +584,34 @@ describe('ContextSelection', () => {
 
         describe('selectFile', () => {
 
-            it('does not update input value if FILE_SELECTED message has no data', () => {
+            it('ignores FILE_SELECTED message with empty data', () => {
                 createContextSelectionComponent();
-
-                const mockInput = document.createElement('input');
-                mockInput.setAttribute('id', 'test-input');
-                container.appendChild(mockInput);
+                listener.mockClear();
 
                 React.act(() => {
                     messageHandler.postWindowMessage({
                         type: 'FILE_SELECTED',
-                        for: 'test-input',
+                        requestId: 'test-input',
                         data: []
                     });
                 });
 
-                expect(mockInput.value).toBe('');
+                expect(listener).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'SET_DEBUG_ADAPTER_PROPERTY' }));
             });
 
-            it('does not update input value if FILE_SELECTED message is for a non-existent element', () => {
+            it('ignores FILE_SELECTED message for unknown request id', () => {
                 createContextSelectionComponent();
+                listener.mockClear();
 
                 React.act(() => {
                     messageHandler.postWindowMessage({
                         type: 'FILE_SELECTED',
-                        for: 'non-existent-input',
+                        requestId: 'non-existent-input',
                         data: ['/path/to/selected/file.exe']
                     });
                 });
 
-                const nonExistentInput = container.querySelector('#non-existent-input');
-                expect(nonExistentInput).toBeNull();
+                expect(listener).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'SET_DEBUG_ADAPTER_PROPERTY' }));
             });
         });
     });

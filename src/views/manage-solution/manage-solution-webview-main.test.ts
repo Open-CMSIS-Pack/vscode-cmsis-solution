@@ -551,7 +551,7 @@ describe('ContextSelectionWebviewMain', () => {
             ]);
 
             await fireAndWait('SELECT_FILE', {
-                targetElementId: 'image-path',
+                requestId: 'image-path',
                 options: {
                     defaultUri: defaultPath,
                     canSelectMany: false,
@@ -566,7 +566,7 @@ describe('ContextSelectionWebviewMain', () => {
                 expect.objectContaining({
                     type: 'FILE_SELECTED',
                     data: ['images/app.axf'],
-                    for: 'image-path'
+                    requestId: 'image-path'
                 })
             );
         });
