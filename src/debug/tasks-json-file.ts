@@ -18,15 +18,24 @@ import { arrayOf, object, Schema, unionOf, string, InferType, optional, assurePr
 import { CTreeItem } from '../generic/tree-item';
 import { CTreeItemJsonFile } from '../generic/tree-item-file';
 
+export const InputSchema = new Schema({
+    id: string,
+    type: string,
+    description: optional(string),
+});
+
 export const TaskSchema = new Schema({
     label: string,
     type: optional(string),
 });
+
 export const TasksJsonSchema = new Schema({
     version: string,
+    inputs: optional(arrayOf(unionOf(InputSchema, object))),
     tasks: arrayOf(unionOf(TaskSchema, object)),
 });
 
+export type Input = InferType<typeof InputSchema>;
 export type Task = InferType<typeof TaskSchema>;
 export type TasksJson = InferType<typeof TasksJsonSchema>;
 
@@ -39,9 +48,14 @@ export class TasksJsonFile extends CTreeItemJsonFile {
         return TasksJsonSchema.parse(obj);
     }
 
+    public get inputs(): Input[] {
+        const content = this.getContent();
+        return content.inputs?.filter(i => InputSchema.validate(i)) ?? [];
+    }
+
     public get tasks(): Task[] {
         const content = this.getContent();
-        return content.tasks.filter((task: unknown) => TaskSchema.validate(task));
+        return content.tasks.filter(t => TaskSchema.validate(t));
     }
 
     public set tasks(tasks: Task[]) {
@@ -80,6 +94,19 @@ export class TasksJsonFile extends CTreeItemJsonFile {
             return existingTask.fromObject(newTask);
         }
         return this.ensureTasks().createChild('-').fromObject(newTask);
+    }
+
+    public getInputItem(id: string) {
+        const inputs = this.rootItem?.getChild('inputs');
+        return inputs?.getChildByValue('id', id);
+    }
+
+    public addInput(newInput: Input) {
+        const existingInput = this.getInputItem(newInput.id);
+        if (existingInput) {
+            return existingInput.fromObject(newInput);
+        }
+        return this.ensureRootItem().createChild('inputs', true, 1).createChild('-').fromObject(newInput);
     }
 
 

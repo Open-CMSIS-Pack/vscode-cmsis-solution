@@ -2,11 +2,11 @@
 [![Maintainability](https://qlty.sh/badges/b5c6c01e-12d2-4093-8f01-3d511c17bdd5/maintainability.png)](https://qlty.sh/gh/Open-CMSIS-Pack/projects/vscode-cmsis-solution)
 [![Code Coverage](https://qlty.sh/badges/b5c6c01e-12d2-4093-8f01-3d511c17bdd5/coverage.png)](https://qlty.sh/gh/Open-CMSIS-Pack/projects/vscode-cmsis-solution)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Open-CMSIS-Pack/vscode-cmsis-solution/badge)](https://securityscorecards.dev/viewer/?uri=github.com/Open-CMSIS-Pack/vscode-cmsis-solution)
-[![CI Build and Test](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/ci.yml?logo=arm&logoColor=0091bd&label=CI%20Build%20and%20Test)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/tree/main/.github/workflows/ci.yml)
-[![Nightly Build and Test](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/nightly.yml?logo=arm&logoColor=0091bd&label=Nightly%20Build%20and%20Test)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/tree/main/.github/workflows/nightly.yml)
-[![Markdown Lint](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/markdown.yml?logo=arm&logoColor=0091bd&label=Markdown%20Lint)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/tree/main/.github/workflows/markdown.yml)
-[![CodeQL Analysis](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/codeql.yml?logo=arm&logoColor=0091bd&label=CodeQL%20Analysis)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/tree/main/.github/workflows/codeql.yml)
-[![Dependency Review](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/dependency-review.yml?logo=arm&logoColor=0091bd&label=Dependency%20Review)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/tree/main/.github/workflows/dependency-review.yml)
+[![CI Build and Test](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/ci.yml?logo=arm&logoColor=0091bd&label=CI%20Build%20and%20Test)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/actions/workflows/ci.yml?query=branch:main)
+[![Nightly Build and Test](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/nightly.yml?logo=arm&logoColor=0091bd&label=Nightly%20Build%20and%20Test)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/actions/workflows/nightly.yml?query=branch:main)
+[![Markdown Lint](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/markdown.yml?logo=arm&logoColor=0091bd&label=Markdown%20Lint)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/actions/workflows/markdown.yml?query=branch:main)
+[![CodeQL Analysis](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/codeql.yml?logo=arm&logoColor=0091bd&label=CodeQL%20Analysis)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/actions/workflows/codeql.yml?query=branch:main)
+[![Dependency Review](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/dependency-review.yml?logo=arm&logoColor=0091bd&label=Dependency%20Review)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/actions/workflows/dependency-review.yml?query=branch:main)
 
 # Arm CMSIS Solution
 
@@ -32,10 +32,8 @@ Arm CMSIS Solution works as a standalone tool and can also interact with other V
 - [clangd](https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-clangd): Adds smart features to the VS Code editor, including code completion, compile errors, and go-to-definition.
 
 ## Feature overview
-
 ![CMSIS Solution Quick Tutorial](https://mdk-packs.github.io/vscode-cmsis-solution-docs/videos/MDK6_Productivity.gif)
-
-For detailed information refer to [User Interface](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html) in the CMSIS Solution documentation.
+For detailed information, refer to [User Interface](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html) in the CMSIS Solution documentation.
 
 ## CMSIS view
 

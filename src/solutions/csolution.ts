@@ -224,13 +224,24 @@ export class CSolution {
         return this.cmsisJsonFile.activeTargetTypeName ?? this.csolutionYml.getTargetType()?.name;
     }
 
+    public getActiveTargetTypeWrap() {
+        const activeTarget = this.getActiveTargetType() ?? '';
+        return this.csolutionYml.getTargetType(activeTarget);
+    }
+    public getActiveTargetSetWrap() {
+        const activeTargetWrap = this.getActiveTargetTypeWrap();
+        if (activeTargetWrap) {
+            const activeTargetSetIdx = this.cmsisJsonFile.getSelectedSet(activeTargetWrap.name);
+            return activeTargetWrap.getTargetSetFromIndex(activeTargetSetIdx);
+        }
+        return undefined;
+    }
+
     public getActiveTargetSet(): [TargetType['type'], Optional<ArrayElement<TargetType['target-set']>>] {
         const activeTarget = this.getActiveTargetType() ?? '';
-        const activeTargetSetIdx = this.cmsisJsonFile.getSelectedSet(activeTarget);
-        const activeTargetWrap = this.csolutionYml.getTargetType(activeTarget);
-
+        const activeTargetWrap = this.getActiveTargetTypeWrap();
         const activeTargetObject = activeTargetWrap?.object;
-        const activeTargetSetWrap = activeTargetWrap?.getTargetSetFromIndex(activeTargetSetIdx);
+        const activeTargetSetWrap = this.getActiveTargetSetWrap();
         const activeTargetSetObject = activeTargetSetWrap?.object;
         return [
             activeTarget,
@@ -396,6 +407,14 @@ export class CSolution {
     private async loadCbuildPackYml(solutionPath: string): Promise<void> {
         const cbuildPackPath = stripTwoExtensions(solutionPath) + '.cbuild-pack.yml';
         await this.cbuildPackFile.load(cbuildPackPath);
+    }
+
+    public getContextNames() {
+        const targetSet = this.getActiveTargetTypeWrap();
+        if (targetSet) {
+            return targetSet.getContexts();
+        }
+        return [];
     }
 
     public getContextDescriptors(): ContextDescriptor[] {

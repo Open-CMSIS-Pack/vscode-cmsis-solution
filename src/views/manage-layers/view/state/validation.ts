@@ -17,7 +17,7 @@
 import { ConfigurationVariable, LayerPathError, ManageLayersState } from './reducer';
 
 
-const pathValidationRegex = /^(\/?([a-zA-Z0-9-_])+)+$/;
+const pathValidationRegex = /^\/?[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/;
 
 export type LayerValidation = {
     path: string;

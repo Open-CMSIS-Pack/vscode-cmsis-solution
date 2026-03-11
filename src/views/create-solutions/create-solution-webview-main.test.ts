@@ -51,6 +51,13 @@ jest.mock('fs', () => ({
     copyFile: jest.fn(),
     openSync: jest.fn(),
     closeSync: jest.fn(),
+    rmdirSync: jest.fn(),
+    unlinkSync: jest.fn(),
+    constants: {
+        O_CREAT: 0,
+        O_EXCL: 0,
+        O_RDWR: 0,
+    },
 }));
 
 const WORKSPACE_ROOT_URI = URI.file(path.join(__dirname, 'local'));

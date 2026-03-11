@@ -31,13 +31,6 @@ solution
       groupPath=Documentation
       projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
       expandable=1
-      file
-        label=README.md
-        expandable=0
-        resourcePath=TEST_DIR/solutions/USBD/HID/README.md
-        features=file
-        fileUri=README.md
-        projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
       group
         label=subDoc
         iconPath=csolution-files
@@ -54,6 +47,13 @@ solution
           features=file
           fileUri=subDocFile
           projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
+      file
+        label=README.md
+        expandable=0
+        resourcePath=TEST_DIR/solutions/USBD/HID/README.md
+        features=file
+        fileUri=README.md
+        projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
     group
       label=USB
       iconPath=csolution-files

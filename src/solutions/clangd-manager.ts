@@ -189,6 +189,10 @@ export class ClangdManager {
         return URI.file(`${path}/compile_commands.json`);
     }
 
+    private compileMacrosFileURI(path: string) {
+        return URI.file(`${path}/compile_macros.h`);
+    }
+
     private async updateClangdConfigForContext(context: ContextDescriptor) {
         const csolution = this.solutionManager.getCsolution();
         const updatePromises: Promise<unknown>[] = [];
@@ -209,7 +213,17 @@ export class ClangdManager {
 
         // Modify the .clangd file AddFlags for each context guarded on toolchain
         if (clangdFilePath) {
-            if (compileCommandsFileDirectory && (compilerInContext === 'AC6')) {
+            const compileMacrosFile = compileCommandsFileDirectory ? this.compileMacrosFileURI(compileCommandsFileDirectory) : undefined;
+            if (compileMacrosFile && await this.workspaceFsProvider.exists(compileMacrosFile.fsPath)) {
+                // use compile_macros.h if it is available
+                updatePromises.push(
+                    this.generateContextAddCompileMacros(
+                        URI.file(clangdFilePath),
+                        compileMacrosFile,
+                    )
+                );
+            } else if (compileCommandsFileDirectory && (compilerInContext === 'AC6')) {
+                // fallback to AC6 flags generation
                 updatePromises.push(
                     this.generateContextAddFlags(
                         URI.file(clangdFilePath),
@@ -240,6 +254,26 @@ export class ClangdManager {
                 csolution?.getContextDescriptors()?.map(context => this.updateClangdConfigForContext(context))
             );
         }
+    }
+
+    /**
+     * Generate and set Add flags for a context's .clangd file to pre-include compile_macros.h.
+     *
+     * @param clangdFile URI of the context .clangd file to update.
+     * @param compileMacrosFile URI of compile_macros.h to include.
+     * @returns the flags written to CompileFlags.Add.
+     */
+    private async generateContextAddCompileMacros(clangdFile: URI, compileMacrosFile: URI): Promise<string[]> {
+        // Update clangd AddFlags flags for intellisense uplift
+        // We make an assumption that project .clangd files only have one fragment
+        const fragments = await this.getConfigFragments(clangdFile);
+        if (fragments.length < 1) {
+            fragments[0] = DEFAULT_CLANGD_CONFIG;
+        }
+        const flags = ['-include', `${compileMacrosFile.fsPath}`];
+        fragments[0].CompileFlags.Add = flags;
+        await this.writeConfigFragments([fragments[0]], clangdFile);
+        return flags;
     }
 
     /**

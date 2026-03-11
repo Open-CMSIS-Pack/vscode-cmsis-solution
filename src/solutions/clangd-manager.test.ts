@@ -297,4 +297,22 @@ describe('ClangdManager', () => {
         expect(mockSetContext).toHaveBeenCalledTimes(0);
     });
 
+    it('generates a clangd file when compile_macros.h is available', async () => {
+        mockConfigurationProvider.getConfigVariable.mockReturnValue(true);
+        mockConfigurationProvider.setConfigVariable.mockReturnValue(Promise.resolve());
+        const csolution = mockSolutionManager.getCsolution();
+        csolution!.getContextDescriptors = jest.fn().mockReturnValue([activeContexts[0]]);
+        mockFs.exists.mockResolvedValue(true);
+
+        const compileMacrosFile = path.join(path.dirname(activeContexts[0].projectPath!), 'out', 'compile_macros.h');
+
+        mockSolutionManager.onUpdatedCompileCommandsEmitter.fire();
+        await waitTimeout();
+
+        expect(mockFs.writeUtf8File).toHaveBeenCalledTimes(1);
+        const [writtenPath, writtenContent] = mockFs.writeUtf8File.mock.calls[0];
+        expect(writtenPath).toEqual(expect.lowercaseEquals(path.join(path.dirname(activeContexts[0].projectPath!), '.clangd')));
+        expect(writtenContent).toContain('-include');
+        expect(writtenContent.toLowerCase()).toContain(compileMacrosFile.toLowerCase());
+    });
 });

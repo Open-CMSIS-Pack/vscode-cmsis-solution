@@ -78,7 +78,7 @@ export function manageSolutionWebviewMainFactory(options?: ManageSolutionWebview
         { subscriptions: [] } as unknown as vscode.ExtensionContext,
         options?.solutionManager ?? solutionManagerFactory(),
         options?.commandsProvider ?? commandsProviderFactory(),
-        options?.openFileExternal ?? jest.mocked<IOpenFileExternal>({ openFile: function (path: string): void { throw new Error(`Function not implemented. ${path}`); } }),
+        options?.openFileExternal ?? jest.mocked<IOpenFileExternal>({ openFile: function (path: string) { throw new Error(`Function not implemented. ${path}`); } }),
         options?.configurationProvider ?? configurationProviderFactory(),
         options?.csolutionService ?? jest.mocked<CsolutionService>({
             getDeviceList: async function (_args: GetDeviceListParams): Promise<DeviceList> { throw new Error('Function not implemented.'); },

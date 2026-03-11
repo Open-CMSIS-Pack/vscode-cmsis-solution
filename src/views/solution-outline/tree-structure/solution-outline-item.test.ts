@@ -58,4 +58,30 @@ describe('COutlineItem', () => {
     it('returns undefined if features attribute is not set', () => {
         expect(childItem.getFeatures()).toEqual('');
     });
+
+    it('sorts groups before files and keeps labels alphabetical', () => {
+        rootItem.createChild('group').setAttribute('label', 'Z_subfolder3');
+
+        rootItem.createChild('file').setAttribute('label', 'A_file1');
+
+        rootItem.createChild('group').setAttribute('label', 'X_subfolder1');
+
+        rootItem.createChild('file').setAttribute('label', 'C_file3');
+
+        rootItem.createChild('group').setAttribute('label', 'Y_subfolder2');
+
+        rootItem.createChild('file').setAttribute('label', 'B_file2');
+
+        rootItem.sortChildrenByGroupThenLabel();
+
+        const labels = rootItem.getChildren().map((item) => item.getAttribute('label'));
+        expect(labels).toEqual([
+            'X_subfolder1',
+            'Y_subfolder2',
+            'Z_subfolder3',
+            'A_file1',
+            'B_file2',
+            'C_file3',
+        ]);
+    });
 });
