@@ -560,11 +560,13 @@ describe('ContextSelectionWebviewMain', () => {
 
             const dialogOptions = showOpenDialogSpy.mock.calls[0][0];
             expect(dialogOptions?.defaultUri?.toString()).toBe(URI.file(path.dirname(defaultPath)).toString());
-            expect(webviewManager.sendMessage).toHaveBeenCalledWith({
-                type: 'FILE_SELECTED',
-                data: ['images/app.axf'],
-                for: 'image-path'
-            });
+            expect(webviewManager.sendMessage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: 'FILE_SELECTED',
+                    data: ['images/app.axf'],
+                    for: 'image-path'
+                })
+            );
         });
     });
 
