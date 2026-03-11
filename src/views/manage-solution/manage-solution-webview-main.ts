@@ -27,12 +27,13 @@ import { CommandsProvider } from '../../vscode-api/commands-provider';
 import { ConfigurationProvider } from '../../vscode-api/configuration-provider';
 import { WebviewManager, WebviewManagerOptions } from '../webview-manager';
 import { ManageSolutionController } from './manage-solution-controller';
-import { FileSelectorOptionsType, IncomingMessage, OutgoingMessage } from './messages';
+import { IncomingMessage, OutgoingMessage } from './messages';
 import { SolutionData } from './view/state/manage-solution-state';
 import { initialState } from './view/state/reducer';
 import debounce from 'lodash.debounce';
 import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
 import { isDeepStrictEqual } from 'util';
+import { FileSelectorOptionsType } from './types';
 
 export const MANAGE_SOLUTION_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> = {
     title: 'Manage Solution',

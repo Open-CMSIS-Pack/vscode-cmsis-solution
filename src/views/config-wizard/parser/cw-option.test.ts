@@ -54,7 +54,6 @@ describe('CwOption', () => {
                 tokenizer.tokenizeDescr('Pin PE3', 2),
                 2
             );
-            option.addOption(pinPE3);
 
             const pinPC1 = new CwOptionAssign(option);
             pinPC1.addProperty(
@@ -62,7 +61,6 @@ describe('CwOption', () => {
                 tokenizer.tokenizeDescr('Pin PC1', 3),
                 3
             );
-            option.addOption(pinPC1);
         });
 
         it('should match value with 8-digit hex (0x00040003) to option with 8-digit hex', () => {
@@ -134,7 +132,6 @@ describe('CwOption', () => {
                 tokenizer.tokenizeDescr('Pin PE3', 2),
                 2
             );
-            traced0.addOption(pe3);
 
             const pc1 = new CwOptionAssign(traced0);
             pc1.addProperty(
@@ -142,7 +139,6 @@ describe('CwOption', () => {
                 tokenizer.tokenizeDescr('Pin PC1', 3),
                 3
             );
-            traced0.addOption(pc1);
 
             // TRACED1 options
             traced1 = new CwOption();
@@ -158,7 +154,6 @@ describe('CwOption', () => {
                 tokenizer.tokenizeDescr('Pin PE4', 5),
                 5
             );
-            traced1.addOption(pe4);
 
             const pc10 = new CwOptionAssign(traced1);
             pc10.addProperty(
@@ -166,7 +161,6 @@ describe('CwOption', () => {
                 tokenizer.tokenizeDescr('Pin PC10', 6),
                 6
             );
-            traced1.addOption(pc10);
 
             // TRACED2 options
             traced2 = new CwOption();
@@ -182,7 +176,6 @@ describe('CwOption', () => {
                 tokenizer.tokenizeDescr('Pin PE5', 8),
                 8
             );
-            traced2.addOption(pe5);
 
             const pd2 = new CwOptionAssign(traced2);
             pd2.addProperty(
@@ -190,7 +183,6 @@ describe('CwOption', () => {
                 tokenizer.tokenizeDescr('Pin PD2', 9),
                 9
             );
-            traced2.addOption(pd2);
 
             // TRACED3 options
             traced3 = new CwOption();
@@ -206,7 +198,6 @@ describe('CwOption', () => {
                 tokenizer.tokenizeDescr('Pin PE6', 11),
                 11
             );
-            traced3.addOption(pe6);
 
             const pc12 = new CwOptionAssign(traced3);
             pc12.addProperty(
@@ -214,7 +205,6 @@ describe('CwOption', () => {
                 tokenizer.tokenizeDescr('Pin PC12', 12),
                 12
             );
-            traced3.addOption(pc12);
         });
 
         it('should correctly match all TRACED0 pin values from dbgconf', () => {
@@ -285,7 +275,6 @@ describe('CwOption', () => {
                 tokenizer.tokenizeDescr('PushPull', 2),
                 2
             );
-            option.addOption(opt1);
 
             const opt2 = new CwOptionAssign(option);
             opt2.addProperty(
@@ -293,12 +282,39 @@ describe('CwOption', () => {
                 tokenizer.tokenizeDescr('OpenDrain', 3),
                 3
             );
-            option.addOption(opt2);
 
             const textValue = new TextType('OutPushPull_GPIO');
             const matched = option.getOption(textValue);
             expect(matched).toBeDefined();
             expect(matched?.description.getText()).toBe('PushPull');
+        });
+
+        it('should match mixed alphanumeric identifier options correctly', () => {
+            const option = new CwOption();
+            option.addProperty(
+                tokenizer.tokenizeCmd('o MACRO2', 1),
+                tokenizer.tokenizeDescr('Role level', 1),
+                1
+            );
+
+            const opt1 = new CwOptionAssign(option);
+            opt1.addProperty(
+                tokenizer.tokenizeCmd('LEVEL_UNKNOWN=', 2),
+                tokenizer.tokenizeDescr('LEVEL_UNKNOWN', 2),
+                2
+            );
+
+            const opt2 = new CwOptionAssign(option);
+            opt2.addProperty(
+                tokenizer.tokenizeCmd('LEVEL_3P1=', 3),
+                tokenizer.tokenizeDescr('LEVEL_3P1', 3),
+                3
+            );
+
+            const textValue = new TextType('LEVEL_3P1');
+            const matched = option.getOption(textValue);
+            expect(matched).toBeDefined();
+            expect(matched?.description.getText()).toBe('LEVEL_3P1');
         });
     });
 
@@ -330,7 +346,6 @@ describe('CwOption', () => {
                 tokenizer.tokenizeDescr('Zero option', 2),
                 2
             );
-            option.addOption(opt0);
 
             const value = new NumberType('0x0');
             const matched = option.getOption(value);
@@ -353,7 +368,6 @@ describe('CwOption', () => {
                 tokenizer.tokenizeDescr('Max 32-bit value', 2),
                 2
             );
-            option.addOption(optLarge);
 
             const value = new NumberType('0xFFFFFFFF');
             const matched = option.getOption(value);
@@ -385,7 +399,6 @@ describe('CwOption', () => {
                     tokenizer.tokenizeDescr(`${count} entries`, lineNo),
                     lineNo
                 );
-                option.addOption(opt);
                 lineNo++;
             }
         });
@@ -522,7 +535,6 @@ describe('CwOption', () => {
                     tokenizer.tokenizeDescr(`${count} entries`, lineNo),
                     lineNo
                 );
-                option.addOption(opt);
                 lineNo++;
             }
         });
@@ -644,7 +656,6 @@ describe('CwOption', () => {
                     tokenizer.tokenizeDescr(`${count} entries`, lineNo),
                     lineNo
                 );
-                option.addOption(opt);
                 lineNo++;
             }
         });

@@ -21,6 +21,7 @@ import { ITreeItem, CTreeItem } from '../generic/tree-item';
 import { CTreeItemYamlFile, ITreeItemFile } from '../generic/tree-item-file';
 import { Optional } from '../generic/type-helper';
 import { DEBUG_ADAPTERS_YAML_FILE_PATH } from '../manifest';
+import type { PathType } from '../views/manage-solution/types';
 
 
 export type UIOption<T extends string, V> = {
