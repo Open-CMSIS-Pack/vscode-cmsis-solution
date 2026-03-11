@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { PathType } from '../views/manage-solution/messages';
 import { createInterfaceFactory } from '../generic/interface-factory';
 import { ETextFileResult } from '../generic/text-file';
 import { ITreeItem, CTreeItem } from '../generic/tree-item';
