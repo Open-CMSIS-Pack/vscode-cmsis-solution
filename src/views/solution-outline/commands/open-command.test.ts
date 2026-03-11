@@ -29,6 +29,7 @@ import * as vscode from 'vscode';
 import type { CTreeItem } from '../../../generic/tree-item';
 import type { CSolution } from '../../../solutions/csolution';
 import { README_FILE_PATH } from '../../../manifest';
+import { faker } from '@faker-js/faker/.';
 
 describe('OpenCommand', () => {
     let commandsProvider: MockCommandsProvider;
@@ -164,9 +165,8 @@ describe('OpenCommand', () => {
     });
 
     it('opens the Keil Studio guide when the help command is invoked', async () => {
-        jest.spyOn(vscode.extensions, 'getExtension').mockReturnValue({
-            extensionPath: '/path/to/keil-pack-extension',
-        } as unknown as vscode.Extension<void>);
+        const extensionPath = faker.system.directoryPath();
+        jest.spyOn(vscode.extensions, 'getExtension').mockReturnValue({ extensionPath } as unknown as vscode.Extension<void>);
 
         const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
         await openCommand.activate(extensionContextFactory());
@@ -175,7 +175,7 @@ describe('OpenCommand', () => {
 
         await commandsProvider.mockRunRegistered(OpenCommand.openHelpCommandId);
 
-        expect(mockOpenFileExternal.openFile).toHaveBeenCalledWith('/path/to/keil-pack-extension/guide/index.html');
+        expect(mockOpenFileExternal.openFile).toHaveBeenCalledWith(path.join(extensionPath, 'guide', 'index.html'));
     });
 
     it('opens zephyr terminal for matching context', async () => {

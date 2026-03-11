@@ -70,7 +70,7 @@ export class OpenCommand {
             }, this),
             this.commandsProvider.registerCommand(OpenCommand.openHelpCommandId, (section: string = 'index.html') => {
                 if (helpFilePath) {
-                    this.openFile(`${helpFilePath}/${section}`, true);
+                    this.openFile(path.join(helpFilePath, section), true);
                 } else {
                     this.openFile(README_FILE_PATH, false);
                 }
