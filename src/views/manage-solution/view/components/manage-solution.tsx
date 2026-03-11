@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
+import './manage-solution.css';
+import '../../../common/style/antd-overrides.css';
 import { LoadingOutlined } from '@ant-design/icons';
 import { Button, Checkbox, CheckboxChangeEvent, Col, ConfigProvider, Flex, Input, InputNumber, Row, Spin, Tabs, theme } from 'antd';
 import { debounce } from 'lodash';
 import * as React from 'react';
 import { UISection, UISectionChildren } from '../../../../debug/debug-adapters-yaml-file';
 import { CompactDropdown } from '../../../common/components/compact-dropdown';
-import '../../../common/style/antd-overrides.css';
 import { useVSCodeTheme } from '../../../hooks/use-vscode-theme';
 import { MessageHandler } from '../../../message-handler';
 import { IncomingMessage, OutgoingMessage } from '../../messages';
 import { GenericPropertyList } from '../state/manage-solution-state';
 import { SolutionUpdateAction, contextUpdateReducer, initialState, manageSolutionReducer } from '../state/reducer';
-import './manage-solution.css';
 import { ProjectsTable } from './projects-table';
 import { TargetsTable } from './targets-table';
 import { PathType } from '../../types';
