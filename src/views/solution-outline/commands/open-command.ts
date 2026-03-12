@@ -22,6 +22,7 @@ import path from 'path';
 import { SolutionManager } from '../../../solutions/solution-manager';
 import { IOpenFileExternal } from '../../../open-file-external-if';
 import { contextDescriptorFromString } from '../../../solutions/descriptors/descriptors';
+import { existsSync } from 'fs';
 
 
 export class OpenCommand {
@@ -69,7 +70,8 @@ export class OpenCommand {
                 this.openTerminal(node);
             }, this),
             this.commandsProvider.registerCommand(OpenCommand.openHelpCommandId, (section: string = 'index.html') => {
-                if (helpFilePath) {
+                const nonSiblingPath = path.isAbsolute(section) || (path.normalize(section).startsWith('..'));
+                if (helpFilePath && existsSync(path.join(helpFilePath)) && !nonSiblingPath) {
                     this.openFile(path.join(helpFilePath, section), true);
                 } else {
                     this.openFile(README_FILE_PATH, false);
@@ -98,7 +100,7 @@ export class OpenCommand {
     private openFile(path: string, openExternal?: boolean): void {
         if (openExternal) {
             this.openFileExternal.openFile(path);
-        } else if (path.toLocaleLowerCase().endsWith('.md')) {
+        } else if (path.toLowerCase().endsWith('.md')) {
             this.commandsProvider.executeCommand('markdown.showPreview', vscode.Uri.file(path));
         } else {
             this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(path));

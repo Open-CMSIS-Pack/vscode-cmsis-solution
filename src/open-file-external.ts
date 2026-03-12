@@ -37,7 +37,7 @@ export class OpenFileExternal implements IOpenFileExternal {
                 } catch (error) {
                     console.error(`Error deleting redirection file ${adjustedFilePath}:`, error);
                 }
-            }, 60000);
+            }, 10000);
         }
         return adjustedFilePath;
     }

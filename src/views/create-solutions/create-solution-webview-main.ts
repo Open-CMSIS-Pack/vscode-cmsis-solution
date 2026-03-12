@@ -160,7 +160,7 @@ export class CreateSolutionWebviewMain {
                     await this.getDraftProjectInfo(message.id);
                     break;
                 case 'HELP_OPEN':
-                    this.commandsProvider.executeCommand(OpenCommand.openHelpCommandId, 'create_app.html');
+                    await this.commandsProvider.executeCommand(OpenCommand.openHelpCommandId, 'create_app.html');
                     break;
             }
             this.webviewManager.sendMessage({

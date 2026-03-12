@@ -407,7 +407,7 @@ describe('ContextSelectionWebviewMain', () => {
             expect(openFileExternal.openFile).not.toHaveBeenCalled();
         });
 
-        it('calls external opener on OPEN_HELP and not vscode.open', async () => {
+        it('calls openHelp command for manager settings', async () => {
             const commandsProvider = commandsProviderFactory();
             const main = manageSolutionWebviewMainFactory({
                 webviewManager,

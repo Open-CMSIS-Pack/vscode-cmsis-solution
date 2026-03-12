@@ -29,7 +29,7 @@ import * as vscode from 'vscode';
 import type { CTreeItem } from '../../../generic/tree-item';
 import type { CSolution } from '../../../solutions/csolution';
 import { README_FILE_PATH } from '../../../manifest';
-import { faker } from '@faker-js/faker/.';
+import { faker } from '@faker-js/faker';
 
 describe('OpenCommand', () => {
     let commandsProvider: MockCommandsProvider;
@@ -161,7 +161,7 @@ describe('OpenCommand', () => {
         await commandsProvider.mockRunRegistered(OpenCommand.openHelpCommandId);
 
         expect(commandsProvider.executeCommand).toHaveBeenCalledWith('markdown.showPreview', Uri.file(README_FILE_PATH));
-        expect(mockOpenFileExternal.openFile).not.toHaveBeenCalledWith(README_FILE_PATH);
+        expect(mockOpenFileExternal.openFile).not.toHaveBeenCalled();
     });
 
     it('opens the Keil Studio guide when the help command is invoked', async () => {

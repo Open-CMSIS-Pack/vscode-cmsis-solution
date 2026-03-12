@@ -232,7 +232,7 @@ export class ManageSolutionWebviewMain {
                 await this.commandsProvider.executeCommand('workbench.action.files.save');
                 break;
             case 'OPEN_HELP':
-                this.commandsProvider.executeCommand(OpenCommand.openHelpCommandId, 'manage_settings.html#active-target');
+                await this.commandsProvider.executeCommand(OpenCommand.openHelpCommandId, 'manage_settings.html#active-target');
                 break;
             case 'SET_DEBUG_ADAPTER_PROPERTY':
                 await this.updateDebuggerParameter(message.service, message.key, message.value, message.pname);
