@@ -584,6 +584,50 @@ describe('ContextSelection', () => {
 
         describe('selectFile', () => {
 
+            it('emits SELECT_FILE on Browse and resolves FILE_SELECTED into adapter update', () => {
+                createContextSelectionComponent();
+                postGenericDataContext();
+                listener.mockClear();
+
+                const filePathInput = container.querySelector('input[data-yml-node="telnet-prop_d"]') as HTMLInputElement;
+                expect(filePathInput).toBeDefined();
+                expect(filePathInput.value).toBe('');
+
+                const browseButton = container.querySelector('.file-button');
+                expect(browseButton).toBeDefined();
+
+                React.act(() => {
+                    fireEvent.click(browseButton as Element);
+                });
+
+                const selectFileMessage = listener.mock.calls
+                    .map(([message]) => message)
+                    .find(message => message.type === 'SELECT_FILE');
+
+                expect(selectFileMessage).toBeDefined();
+                expect(selectFileMessage).toEqual(expect.objectContaining({
+                    type: 'SELECT_FILE',
+                    requestId: expect.stringMatching(/^manage-solution-file-/),
+                }));
+
+                const selectedPath = '/path/to/selected/file.axf';
+                React.act(() => {
+                    messageHandler.postWindowMessage({
+                        type: 'FILE_SELECTED',
+                        requestId: selectFileMessage!.requestId,
+                        data: [selectedPath]
+                    });
+                });
+
+                expect(listener).toHaveBeenCalledWith({
+                    type: 'SET_DEBUG_ADAPTER_PROPERTY',
+                    service: undefined,
+                    key: 'telnet-prop_d',
+                    value: selectedPath,
+                });
+                expect(filePathInput.value).toBe(selectedPath);
+            });
+
             it('ignores FILE_SELECTED message with empty data', () => {
                 createContextSelectionComponent();
                 listener.mockClear();

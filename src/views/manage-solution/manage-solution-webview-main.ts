@@ -448,6 +448,8 @@ export class ManageSolutionWebviewMain {
             );
 
             await this.webviewManager.sendMessage({ type: 'FILE_SELECTED', data: paths, requestId });
+        } else {
+            await this.webviewManager.sendMessage({ type: 'FILE_SELECTED', data: [], requestId });
         }
     }
 
