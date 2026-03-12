@@ -71,7 +71,7 @@ export class OpenCommand {
             }, this),
             this.commandsProvider.registerCommand(OpenCommand.openHelpCommandId, (section: string = 'index.html') => {
                 const nonSiblingPath = path.isAbsolute(section) || (path.normalize(section).startsWith('..'));
-                if (helpFilePath && existsSync(path.join(helpFilePath)) && !nonSiblingPath) {
+                if (helpFilePath && existsSync(helpFilePath) && !nonSiblingPath) {
                     this.openFile(path.join(helpFilePath, section), true);
                 } else {
                     this.openFile(README_FILE_PATH, false);

@@ -152,21 +152,62 @@ describe('OpenCommand', () => {
         expect(mockOpenFileExternal.openFile).toHaveBeenCalledWith(testFile);
     });
 
-    it('opens the readme file when the help command is invoked', async () => {
-        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
-        await openCommand.activate(extensionContextFactory());
+    describe('opens the readme file when the help command is invoked', () => {
 
-        jest.spyOn(mockOpenFileExternal, 'openFile');
+        it('because Keil Studio Pack is not installed', async () => {
+            const existsSyncSpy = jest.spyOn(fs, 'existsSync').mockReturnValue(false);
 
-        await commandsProvider.mockRunRegistered(OpenCommand.openHelpCommandId);
+            const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
+            await openCommand.activate(extensionContextFactory());
 
-        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('markdown.showPreview', Uri.file(README_FILE_PATH));
-        expect(mockOpenFileExternal.openFile).not.toHaveBeenCalled();
+            jest.spyOn(mockOpenFileExternal, 'openFile');
+
+            await commandsProvider.mockRunRegistered(OpenCommand.openHelpCommandId);
+
+            expect(existsSyncSpy).not.toHaveBeenCalled();
+            expect(mockOpenFileExternal.openFile).not.toHaveBeenCalled();
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith('markdown.showPreview', Uri.file(README_FILE_PATH));
+        });
+
+        it('because the help file is missing', async () => {
+            const extensionPath = faker.system.directoryPath();
+            jest.spyOn(vscode.extensions, 'getExtension').mockReturnValue({ extensionPath } as unknown as vscode.Extension<void>);
+            const existsSyncSpy = jest.spyOn(fs, 'existsSync').mockReturnValue(false);
+
+            const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
+            await openCommand.activate(extensionContextFactory());
+
+            jest.spyOn(mockOpenFileExternal, 'openFile');
+
+            await commandsProvider.mockRunRegistered(OpenCommand.openHelpCommandId);
+
+            expect(existsSyncSpy).toHaveBeenCalledWith(path.join(extensionPath, 'guide'));
+            expect(mockOpenFileExternal.openFile).not.toHaveBeenCalled();
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith('markdown.showPreview', Uri.file(README_FILE_PATH));
+        });
+
+        it('because section includes non-sibling path', async () => {
+            const extensionPath = faker.system.directoryPath();
+            jest.spyOn(vscode.extensions, 'getExtension').mockReturnValue({ extensionPath } as unknown as vscode.Extension<void>);
+            jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+
+            const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
+            await openCommand.activate(extensionContextFactory());
+
+            jest.spyOn(mockOpenFileExternal, 'openFile');
+
+            await commandsProvider.mockRunRegistered(OpenCommand.openHelpCommandId, '../some/other/path');
+
+            expect(mockOpenFileExternal.openFile).not.toHaveBeenCalled();
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith('markdown.showPreview', Uri.file(README_FILE_PATH));
+        });
+
     });
 
     it('opens the Keil Studio guide when the help command is invoked', async () => {
         const extensionPath = faker.system.directoryPath();
         jest.spyOn(vscode.extensions, 'getExtension').mockReturnValue({ extensionPath } as unknown as vscode.Extension<void>);
+        jest.spyOn(fs, 'existsSync').mockReturnValue(true);
 
         const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
         await openCommand.activate(extensionContextFactory());
