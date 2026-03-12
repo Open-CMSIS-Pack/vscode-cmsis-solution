@@ -171,6 +171,7 @@ export class ClangdManager {
         const state = this.workspaceState;
         if (solutionPath in state) {
             const context = state[solutionPath];
+            csolution?.getContextDescriptors()?.forEach(async c => await this.setClangdConfigDiagnosticsSuppress(c));
             if (csolution?.getContextDescriptors()?.some(c => c.projectPath === context)) {
                 this.globalContext = context;
                 return;
@@ -398,5 +399,23 @@ export class ClangdManager {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Ensure a .clangd file exists in the context output directory
+     * with diagnostics suppressed for generated output content.
+     *
+     * @param context Context descriptor used to resolve the output directory.
+     */
+    private async setClangdConfigDiagnosticsSuppress(context: ContextDescriptor) {
+        const csolution = this.solutionManager.getCsolution();
+        const outDir = csolution?.cbuildIdxFile?.cbuildFiles?.get(context.projectName)?.outDir;
+        const clangdFilePath = outDir ? path.join(outDir, '.clangd') : undefined;
+        if (clangdFilePath) {
+            const exists = await this.workspaceFsProvider.exists(clangdFilePath);
+            if (!exists) {
+                await this.workspaceFsProvider.writeUtf8File(clangdFilePath, 'Diagnostics:\n  Suppress: [\'*\']');
+            }
+        }
     }
 }
