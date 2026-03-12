@@ -122,7 +122,7 @@ export class ManageSolutionWebviewMain {
         const activeTargetTypeUpdated = await this.controller.ensureActiveTargetTypeName();
 
         if (csolutionChanged || externalFilesChanged || activeTargetTypeUpdated) {
-            await this.sendContextData();
+            await this.sendContextDataFromControllerState();
         }
 
         this.setBusyState(false);
@@ -381,6 +381,10 @@ export class ManageSolutionWebviewMain {
             return;
         }
 
+        await this.sendContextDataFromControllerState();
+    }
+
+    private async sendContextDataFromControllerState(): Promise<void> {
         const controller = this.controller;
         await controller.getAvailableCoreNames();
         await Promise.all([
