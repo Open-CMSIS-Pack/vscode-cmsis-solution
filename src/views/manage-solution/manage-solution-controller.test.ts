@@ -161,7 +161,7 @@ describe('manage-solution-controller', () => {
         await controller.loadSolution('test-resources/solutions/solution-with-debuggers.csolution');
 
         controller.activeTargetTypeName = 'invalid-target';
-        const updated = await (controller as any).ensureActiveTargetTypeNameInKnownTargets([]);
+        const updated = await controller['ensureActiveTargetTypeNameInKnownTargets']([]);
 
         expect(updated).toBe(true);
         expect(controller.cmsisJsonFile.activeTargetTypeName).toBeUndefined();
