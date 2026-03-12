@@ -169,12 +169,23 @@ export class ManageSolutionController {
 
     private async ensureActiveTargetTypeNameInKnownTargets(knownTargetNames: string[]): Promise<boolean> {
         const configuredTargetTypeName = this.cmsisJsonFile.activeTargetTypeName;
-        if (configuredTargetTypeName && !knownTargetNames.includes(configuredTargetTypeName)) {
-            this.activeTargetTypeName = this.csolutionYml.getTargetType()?.name || '';
-            await this.cmsisJsonFile.save();
-            return true;
+        const hasConfiguredTargetType = configuredTargetTypeName !== undefined;
+        const configuredTargetInvalid = configuredTargetTypeName === ''
+            || (configuredTargetTypeName !== undefined && !knownTargetNames.includes(configuredTargetTypeName));
+
+        if (!hasConfiguredTargetType || !configuredTargetInvalid) {
+            return false;
         }
-        return false;
+
+        const fallbackTargetTypeName = knownTargetNames[0];
+        if (fallbackTargetTypeName) {
+            this.activeTargetTypeName = fallbackTargetTypeName;
+        } else {
+            this.cmsisJsonFile.delete(`targetSet.${this.cmsisJsonFile.solutionDisplayName}.activeTargetType`);
+        }
+
+        await this.cmsisJsonFile.save();
+        return true;
     }
 
     /**

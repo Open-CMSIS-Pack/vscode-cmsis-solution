@@ -371,13 +371,16 @@ describe('TextFile', () => {
         testDataHandler.rmDir(unicodeDir);
     });
 
-    it('primes external stamp on first change check', async () => {
+    it('primes external stamp when checked before load/save', async () => {
+        fsUtils.writeTextFile(TEST_FILE, initialContent);
         const tf = new TextFile(TEST_FILE);
-        tf.text = initialContent;
-        const saveResult = await tf.save();
-        expect(saveResult).toBe(ETextFileResult.Success);
 
         expect(tf.hasExternalFileChanged()).toBe(false);
+
+        fsUtils.writeTextFile(TEST_FILE, `${changedContent}!`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        expect(tf.hasExternalFileChanged()).toBe(true);
     });
 
     it('detects external on-disk updates and then re-baselines', async () => {
@@ -389,7 +392,7 @@ describe('TextFile', () => {
         tf.refreshExternalFileStamp();
         expect(tf.hasExternalFileChanged()).toBe(false);
 
-        fsUtils.writeTextFile(TEST_FILE, changedContent);
+        fsUtils.writeTextFile(TEST_FILE, `${changedContent}!`);
         await new Promise(resolve => setTimeout(resolve, 500));
 
         expect(tf.hasExternalFileChanged()).toBe(true);
