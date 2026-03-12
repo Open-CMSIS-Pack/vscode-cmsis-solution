@@ -390,6 +390,8 @@ describe('TextFile', () => {
         expect(tf.hasExternalFileChanged()).toBe(false);
 
         fsUtils.writeTextFile(TEST_FILE, changedContent);
+        await new Promise(resolve => setTimeout(resolve, 500));
+
         expect(tf.hasExternalFileChanged()).toBe(true);
         expect(tf.hasExternalFileChanged()).toBe(false);
     });
