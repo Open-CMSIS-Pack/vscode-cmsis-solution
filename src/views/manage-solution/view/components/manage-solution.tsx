@@ -15,7 +15,7 @@
  */
 
 import { LoadingOutlined } from '@ant-design/icons';
-import { Button, Checkbox, CheckboxChangeEvent, Col, ConfigProvider, Flex, Input, InputNumber, Row, Spin, Tabs, theme } from 'antd';
+import { Button, Checkbox, CheckboxChangeEvent, Col, ConfigProvider, Flex, Input, InputNumber, Row, Space, Spin, Tabs, theme } from 'antd';
 import { debounce } from 'lodash';
 import * as React from 'react';
 import { UISection, UISectionChildren } from '../../../../debug/debug-adapters-yaml-file';
@@ -30,6 +30,7 @@ import './manage-solution.css';
 import { ProjectsTable } from './projects-table';
 import { TargetsTable } from './targets-table';
 import { PathType } from '../../types';
+import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
 
 export interface ManageSolutionProps {
     messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>;
@@ -205,7 +206,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
 
     const selectFile = React.useMemo(() => {
         const handleSelectFile = (e: React.MouseEvent<HTMLElement>) => {
-            const input = (e.target as HTMLElement)?.parentElement?.parentNode?.parentNode?.querySelector('input');
+            const input = (e.target as HTMLElement)?.parentElement?.parentNode?.parentNode?.parentNode?.parentNode?.querySelector('input');
             let id = input?.getAttribute('id');
             if (id === null || id === undefined) {
                 // eslint-disable-next-line react-hooks/purity
@@ -433,8 +434,13 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                         case 'file':
                                                             return (
                                                                 <Input
-                                                                    addonBefore={o.name}
-                                                                    addonAfter={<Button type="primary" className='file-button' onClick={selectFile}> Browse</Button>}
+                                                                    addonBefore={<>{o.name}</>}
+                                                                    addonAfter={
+                                                                        <Space size={0}>
+                                                                            <Button icon={<CmsisCodicon name='go-to-file' title='Go to file' />} disabled={localValues[k] ? false : true} onClick={() => { openFile(localValues[k] as string) }} type='text' className='file-open-icon-button' />
+                                                                            <Button type='primary' className='file-button' onClick={selectFile}> Browse</Button>
+                                                                        </Space>
+                                                                    }
                                                                     value={(localValues[k] as string) ?? ''}
                                                                     data-yml-node={o['yml-node']}
                                                                     data-option-path-type={o['path-type']}

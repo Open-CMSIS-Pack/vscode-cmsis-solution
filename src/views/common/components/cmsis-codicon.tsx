@@ -24,29 +24,35 @@ const CMSIS_CODICON_CODEPOINTS = {
 
 export type CmsisCodiconName = keyof typeof CMSIS_CODICON_CODEPOINTS;
 
-type Props = {
-    name: CmsisCodiconName;
-    title?: string;
-    className?: string;
-    style?: React.CSSProperties;
+type Props = React.ComponentPropsWithoutRef<'span'> & {
+    name: CmsisCodiconName | string;
     fontFamily?: string; // default is your custom webview font
 };
 
 export const CmsisCodicon: React.FC<Props> = ({
     name,
-    title,
     className,
     style,
     fontFamily = 'cmsis-codicon',
+    ...spanProps
 }) => {
-    const codepoint = CMSIS_CODICON_CODEPOINTS[name];
+    const codepoint = CMSIS_CODICON_CODEPOINTS[name as CmsisCodiconName];
+    if (codepoint) {
+        return (
+            <span
+                {...spanProps}
+                className={className ?? ''}
+                style={{ fontFamily, display: 'inline-block', lineHeight: 1, ...style }}
+            >
+                {String.fromCodePoint(codepoint)}
+            </span>
+        );
+    }
     return (
         <span
-            title={title}
-            className={className}
-            style={{ fontFamily, display: 'inline-block', lineHeight: 1, ...style }}
-        >
-            {String.fromCodePoint(codepoint)}
-        </span>
+            {...spanProps}
+            className={`codicon codicon-${name}${className ? ` ${className}` : ''}`}
+            style={{ display: 'inline-block', lineHeight: 1, ...style }}
+        />
     );
 };

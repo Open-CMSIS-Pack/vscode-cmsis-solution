@@ -57,6 +57,9 @@ export class ManageSolutionWebviewMain {
     protected _controller?: ManageSolutionController;
     private wasDirty: boolean = false;
 
+    private readonly absolutePath = (inputPath: string, baseDir: string) =>
+        path.isAbsolute(inputPath) ? inputPath : path.resolve(baseDir, inputPath);
+
     constructor(
         context: ExtensionContext,
         protected readonly solutionManager: SolutionManager, // solutionManager is only used for didChange events. Other calls to csolution must be done using the csolution getter/setter
@@ -197,10 +200,11 @@ export class ManageSolutionWebviewMain {
     }
 
     private async openFile(path: string, openExternal?: boolean): Promise<void> {
+        const absolutePath = this.absolutePath(path, this.getSolutionDir());
         if (openExternal) {
-            this.openFileExternal.openFile(path);
+            this.openFileExternal.openFile(absolutePath);
         } else {
-            await this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(path));
+            await this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(absolutePath));
         }
     }
 
@@ -426,7 +430,7 @@ export class ManageSolutionWebviewMain {
     private async selectFileDialog(targetElementId: string, options?: FileSelectorOptionsType): Promise<void> {
         const solutionDir = this.getSolutionDir();
         if (options?.defaultUri) {
-            options.defaultUri = URI.file(dirname(options.defaultUri)).toString();
+            options.defaultUri = URI.file(this.absolutePath(options.defaultUri, solutionDir)).toString();
         }
 
         const localOptions: vscode.OpenDialogOptions = {
