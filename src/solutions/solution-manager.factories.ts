@@ -29,6 +29,7 @@ export const idleSolutionLoadStateFactory = makeFactory<SolutionLoadState>({
     activated: () => false,
     loaded: () => undefined,
     converted: () => undefined,
+    activated: () => undefined,
 });
 
 export const activeSolutionLoadStateFactory = makeFactory<SolutionLoadState>({
@@ -36,6 +37,7 @@ export const activeSolutionLoadStateFactory = makeFactory<SolutionLoadState>({
     activated: () => true,
     loaded: () => undefined,
     converted: () => undefined,
+    activated: () => true,
 });
 
 const fireOnDidChangeLoadState = (emitter: vscode.EventEmitter<SolutionLoadStateChangeEvent>) => {

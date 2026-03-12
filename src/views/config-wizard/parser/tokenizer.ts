@@ -90,6 +90,9 @@ export class Tokenizer {
             return token;
         }
 
+        const isAssignmentToken = text.includes('=');
+        const identifierCharRegex = isAssignmentToken ? /[a-z\d_]/i : /[a-z_]/i;
+
         let canBeNegative = false;
         if (text.indexOf('..') != -1) {
             canBeNegative = true;
@@ -128,6 +131,7 @@ export class Tokenizer {
             // search for number
             if (ch.match(/[\d]/)) {
                 let str = '';
+                let numTokenPattern = /[\d]/i;
                 if (isNegative) {
                     str += '-';
                 }
@@ -138,9 +142,11 @@ export class Tokenizer {
                         if (chTmp == 'x' || chTmp == 'X') {
                             str += '0x';
                             pos += 2;
+                            numTokenPattern = /[\da-f]/i;
                         } else if (chTmp == 'b' || chTmp == 'B') {
                             str += '0b';
                             pos += 2;
+                            numTokenPattern = /[01]/i;
                         }
                         if (pos >= length) {
                             pos = length - 1;
@@ -150,7 +156,7 @@ export class Tokenizer {
 
                 do {
                     ch = text[pos];
-                    if (!ch.match(/[\da-f]/i)) {
+                    if (!ch.match(numTokenPattern)) {
                         break;
                     }
                     str += ch;
@@ -177,7 +183,7 @@ export class Tokenizer {
                 let str = '';
                 do {
                     ch = text[pos++];
-                    if (!ch.match(/[a-z_]/i)) {
+                    if (!ch.match(identifierCharRegex)) {
                         pos--;
                         break;
                     }

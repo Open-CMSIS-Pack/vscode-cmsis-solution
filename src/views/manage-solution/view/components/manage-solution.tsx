@@ -29,6 +29,7 @@ import { SolutionUpdateAction, contextUpdateReducer, initialState, manageSolutio
 import './manage-solution.css';
 import { ProjectsTable } from './projects-table';
 import { TargetsTable } from './targets-table';
+import { PathType } from '../../types';
 
 export interface ManageSolutionProps {
     messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>;
@@ -212,6 +213,8 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                 input?.setAttribute('id', id);
             }
             const title = input?.getAttribute('title') || 'Select File';
+            const dataOptionPathType = input?.getAttribute('data-option-path-type');
+            const optionPathType: PathType = dataOptionPathType === 'absolute' ? 'absolute' : 'relative';
             const currentValue = input?.value || '';
             props.messageHandler.push({
                 type: 'SELECT_FILE',
@@ -221,7 +224,8 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                     defaultUri: currentValue,
                     openLabel: 'Select File', // title of the dialog button to choose the file
                     title: title, // dialog title
-                    filters: { 'All Files': ['*'] }
+                    filters: { 'All Files': ['*'] },
+                    pathType: optionPathType
                 }
             });
         };
@@ -433,6 +437,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                     addonAfter={<Button type="primary" className='file-button' onClick={selectFile}> Browse</Button>}
                                                                     value={(localValues[k] as string) ?? ''}
                                                                     data-yml-node={o['yml-node']}
+                                                                    data-option-path-type={o['path-type']}
                                                                     onPressEnter={blurOnEnter}
                                                                     onChange={(e) => {
                                                                         setLocalValues(prev => ({ ...prev, [k]: e.target.value }));
