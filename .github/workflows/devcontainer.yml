@@ -16,9 +16,6 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  image_tag: devcontainer:${{ github.head_ref || github.run_id }}
-
 jobs:
   build:
     name: Build
@@ -43,11 +40,23 @@ jobs:
           dockerfile: .devcontainer/ubuntu-24.04/Dockerfile
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Prepare image tag
+        shell: bash
+        run: |
+          RAW_TAG="${GITHUB_HEAD_REF:-$GITHUB_RUN_ID}"
+          SAFE_TAG=$(echo "$RAW_TAG" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_.-]/-/g')
+          if ! [[ "$SAFE_TAG" =~ ^[a-z0-9_] ]]; then SAFE_TAG="x-$SAFE_TAG"; fi
+          SAFE_TAG="${SAFE_TAG:0:128}"
+          echo "image_tag=devcontainer:${SAFE_TAG}" >> "$GITHUB_ENV"
 
       - name: Build Docker image
         run: |
-          docker buildx build .devcontainer/ubuntu-24.04/ --tag "${{ env.image_tag }}" --label "runnumber=${{ github.run_id }}" --load
+          docker buildx build .devcontainer/ubuntu-24.04/ \
+            --tag "${{ env.image_tag }}" \
+            --label "runnumber=${{ github.run_id }}" \
+            --load
 
       - uses: addnab/docker-run-action@4f65fabd2431ebc8d299f8e5a018d79a769ae185 # v3
         env:
