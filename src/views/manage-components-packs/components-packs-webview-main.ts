@@ -131,6 +131,12 @@ export class ComponentsPacksWebviewMain {
             return; // nothing to show
         }
 
+        const reload = this.projectFromPath(this.currentProject?.project.projectId) !== this.projectFromPath(cprojectPath);
+        const csolution = this.solutionManager.getCsolution();
+        if (csolution) {
+            this.currentProject = { solutionPath: csolution.solutionPath, project: createProject(cprojectPath) };
+        }
+
         if (clayerPath) {
             const selectedTarget = this.findTargetSetFromPath(clayerPath);
             if (selectedTarget) {
@@ -141,7 +147,6 @@ export class ComponentsPacksWebviewMain {
         }
         this.webviewManager.createOrShowPanel();
 
-        const reload = this.projectFromPath(this.currentProject?.project.projectId) !== this.projectFromPath(cprojectPath);
         await this.debounce_load(cprojectPath, reload);
         await this.sendDirtyState();
     }
@@ -658,13 +663,13 @@ export class ComponentsPacksWebviewMain {
         const activeContext = this.getActiveContext();
         const requestAll = this.scope === ComponentScope.All;
 
-        this.componentTree = this.manageComponentsActions.mapComponentsFromService(await this.csolutionService.getComponentsTree({ context: activeContext, all: requestAll }));
-        this.validations = await this.csolutionService.validateComponents({ context: activeContext });
-        const packsInfo = this.mapPacksFromService(await this.csolutionService.getPacksInfo({ context: activeContext, all: requestAll }));
-
         if (!this.availablePacksCache || Object.keys(this.availablePacksCache).length === 0) {
             this.availablePacksCache = await this.filterAvailablePacks(activeContext);
         }
+
+        this.componentTree = this.manageComponentsActions.mapComponentsFromService(await this.csolutionService.getComponentsTree({ context: activeContext, all: requestAll }));
+        this.validations = await this.csolutionService.validateComponents({ context: activeContext });
+        const packsInfo = this.mapPacksFromService(await this.csolutionService.getPacksInfo({ context: activeContext, all: requestAll }));
 
         componentTreeWalker(this.componentTree, (node, type) => {
             if (type === 'aggregate' && (node as CtAggregate).options?.layer) {
