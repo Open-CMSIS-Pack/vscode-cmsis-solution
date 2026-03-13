@@ -248,7 +248,49 @@ describe('ContextSelectionWebviewMain', () => {
     });
 
     describe('onDidChangeLoadState callback', () => {
-        it('calls sendContextData when transitioning to active state', async () => {
+        it('reloads solution before active target validation when external files changed', async () => {
+            const solutionManager = solutionManagerFactory();
+            const main = manageSolutionWebviewMainFactory({
+                solutionManager,
+                webviewManager
+            });
+
+            (main as any).webviewManager.isPanelActive = true;
+
+            const callOrder: string[] = [];
+            const loadSolutionSpy = jest.spyOn(main as any, 'loadSolution').mockImplementation(async () => {
+                callOrder.push('loadSolution');
+                return ETextFileResult.Success;
+            });
+            const sendContextDataFromControllerStateSpy = jest.spyOn(main as any, 'sendContextDataFromControllerState').mockResolvedValue(undefined);
+
+            const hasExternalFileChangesSpy = jest.spyOn(main.controller, 'hasExternalFileChanges').mockImplementation(() => {
+                callOrder.push('hasExternalFileChanges');
+                return true;
+            });
+
+            const ensureActiveTargetTypeNameSpy = jest.spyOn(main.controller, 'ensureActiveTargetTypeName').mockImplementation(async () => {
+                callOrder.push('ensureActiveTargetTypeName');
+                return false;
+            });
+
+            await (main as any).handleSolutionLoadChange({
+                previousState: { solutionPath: '/path/to/solution.csolution.yml', converted: true, loaded: true },
+                newState: { solutionPath: '/path/to/solution.csolution.yml', converted: true, loaded: true }
+            });
+
+            expect(hasExternalFileChangesSpy).toHaveBeenCalledTimes(1);
+            expect(loadSolutionSpy).toHaveBeenCalledTimes(1);
+            expect(ensureActiveTargetTypeNameSpy).toHaveBeenCalledTimes(1);
+            expect(callOrder).toEqual([
+                'hasExternalFileChanges',
+                'loadSolution',
+                'ensureActiveTargetTypeName',
+            ]);
+            expect(sendContextDataFromControllerStateSpy).toHaveBeenCalledTimes(1);
+        });
+
+        it('calls sendContextDataFromControllerState when transitioning to active state', async () => {
             const solutionManager = solutionManagerFactory();
             const main = manageSolutionWebviewMainFactory({
                 solutionManager,
@@ -256,8 +298,8 @@ describe('ContextSelectionWebviewMain', () => {
             });
             (main as any).webviewManager.isPanelActive = jest.fn().mockReturnValue(true); // Simulate active panel
 
-            // Spy on sendContextData to verify it gets called
-            const sendContextDataSpy = jest.spyOn(main as any, 'sendContextData').mockResolvedValue(undefined);
+            // Spy on broadcast helper to verify it gets called
+            const sendContextDataFromControllerStateSpy = jest.spyOn(main as any, 'sendContextDataFromControllerState').mockResolvedValue(undefined);
 
             await main.activate(context as vscode.ExtensionContext);
 
@@ -266,11 +308,13 @@ describe('ContextSelectionWebviewMain', () => {
                 { converted: true, loaded: false, solutionPath: '/path/to/solution.csolution.yml' }
             );
 
-            expect(sendContextDataSpy).toHaveBeenCalled();
+            await waitTimeout();
+
+            expect(sendContextDataFromControllerStateSpy).toHaveBeenCalled();
             expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'IS_BUSY', data: true });
         });
 
-        it('calls sendContextData when transitioning from idle to active', async () => {
+        it('calls sendContextDataFromControllerState when transitioning from idle to active', async () => {
             const solutionManager = solutionManagerFactory();
             const main = manageSolutionWebviewMainFactory({
                 solutionManager,
@@ -278,7 +322,7 @@ describe('ContextSelectionWebviewMain', () => {
             });
             (main as any).webviewManager.isPanelActive = jest.fn().mockReturnValue(true); // Simulate active panel
 
-            const sendContextDataSpy = jest.spyOn(main as any, 'sendContextData').mockResolvedValue(undefined);
+            const sendContextDataFromControllerStateSpy = jest.spyOn(main as any, 'sendContextDataFromControllerState').mockResolvedValue(undefined);
 
             await main.activate(context as vscode.ExtensionContext);
 
@@ -290,7 +334,9 @@ describe('ContextSelectionWebviewMain', () => {
 
             solutionManager.onDidChangeLoadStateEmitter!.fire(event);
 
-            expect(sendContextDataSpy).toHaveBeenCalled();
+            await waitTimeout();
+
+            expect(sendContextDataFromControllerStateSpy).toHaveBeenCalled();
         });
 
         it('does call sendContextData when transitioning from active to idle', async () => {
