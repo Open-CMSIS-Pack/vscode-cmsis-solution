@@ -21,7 +21,6 @@ import { TreeViewProvider } from './treeview-provider';
 import { CsolutionGlobalState, GlobalState } from '../../vscode-api/global-state';
 import { SolutionOutlineTree } from './tree-structure/solution-outline-tree';
 import { COutlineItem } from './tree-structure/solution-outline-item';
-import { CSolution } from '../../solutions/csolution';
 import { TreeViewFileDecorationProvider } from './treeview-decoration-provider';
 
 export class SolutionOutlineView {
@@ -34,7 +33,6 @@ export class SolutionOutlineView {
         private readonly treeViewProvider: TreeViewProvider<COutlineItem>,
         private readonly globalStateProvider: GlobalState<CsolutionGlobalState>,
         private readonly treeViewFileDecorationProvider: TreeViewFileDecorationProvider,
-        private readonly solutionOutlineTree = new SolutionOutlineTree()
     ) { }
 
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions' | 'globalState' | 'workspaceState'>): Promise<void> {
@@ -75,15 +73,16 @@ export class SolutionOutlineView {
             this.treeViewProvider.setDescription('');
             this.treeViewProvider.setTitle('');
         }
-        this.createTree(loadState, csolution, thisTreeUpdateNumber);
+        this.createTree(loadState, thisTreeUpdateNumber);
     }
 
-    private createTree(loadState: SolutionLoadState, csolution: CSolution | undefined, thisTreeUpdateNumber: number) {
+    private createTree(loadState: SolutionLoadState, thisTreeUpdateNumber: number) {
         if (loadState.solutionPath) {
             if (this.treeUpdateCount !== thisTreeUpdateNumber) {
                 return;
             }
-            const tree = this.solutionOutlineTree.createTree(csolution);
+            const solutionOutlineTree = new SolutionOutlineTree(this.solutionManager.getCsolution(), this.solutionManager.getRpcData());
+            const tree = solutionOutlineTree.createTree();
             this.treeViewProvider.updateTree(tree);
             this.treeViewFileDecorationProvider.setTreeRoot(tree);
         } else if (!loadState.solutionPath) {

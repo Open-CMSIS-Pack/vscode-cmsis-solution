@@ -21,10 +21,9 @@ import { COutlineItem } from './solution-outline-item';
 import { getStatusTooltip, setContextMenuAttributes, setHeaderContext, setMergeDescription, setMergeFileContext } from './solution-outline-utils';
 import { getCmsisPackRoot } from '../../../utils/path-utils';
 import { matchesContext } from '../../../utils/context-utils';
+import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 
-export class FileItem {
-    constructor(private readonly activeContext?: string) { }
-
+export class FileItemBuilder extends SolutionOutlineItemBuilder {
     public createFileNodes(cgroupItem: COutlineItem, files: ITreeItem<CTreeItem>[], docs?: ITreeItem<CTreeItem>[], isApi?: boolean, addContextMenu?: boolean) {
         for (const f of files) {
             const category = f.getValue('category');
@@ -53,7 +52,7 @@ export class FileItem {
         const cfileItem = this.createFileItem(cgroupItem, fileBaseName, resourcePath, description);
 
         // Check if file is excluded based on context restrictions
-        if (this.activeContext && !matchesContext(f, this.activeContext)) {
+        if (this.context && !matchesContext(f, this.context)) {
             cfileItem.setAttribute('excluded', '1');
         }
 

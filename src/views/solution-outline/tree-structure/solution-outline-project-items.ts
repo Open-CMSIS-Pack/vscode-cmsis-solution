@@ -17,29 +17,25 @@
 import path from 'path';
 import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
 import { buildDocFilePath } from '../../../util';
-import { FileItem } from './solution-outline-file-item';
+import { FileItemBuilder } from './solution-outline-file-item';
 import { COutlineItem } from './solution-outline-item';
 import * as manifest from '../../../manifest';
 import { CSolution } from '../../../solutions/csolution';
 import { getMapFilePath, getStatusTooltip, setDocContext, setHeaderContext, setLinkerContext, setMergeDescription, setMergeUpdate } from './solution-outline-utils';
 import { CProjectYamlFile } from '../../../solutions/files/cproject-yaml-file';
+import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 
-export class ProjectItemsBuilder {
+export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
     private _lastPrioritizedComponentList: COutlineItem[] = [];
 
     public get lastPrioritizedComponentList(): COutlineItem[] {
         return this._lastPrioritizedComponentList;
     }
-
-    csolution?: CSolution;
-    private activeContext?: string;
-    constructor() { }
-
     public addProjectChildren(csolution: CSolution | undefined, cprojectItem: COutlineItem, cprojectFile: CProjectYamlFile, cbuild?: CTreeItem): void {
         this.csolution = csolution;
         // Get context from cbuild (contains full context: PROJECT.BUILD-TYPE+TARGET-TYPE)
         // Falls back to actionContext if cbuild is not available
-        this.activeContext = cbuild?.getValueAsString('context') ?? csolution?.actionContext;
+        this.context = cbuild?.getValueAsString('context') ?? csolution?.actionContext;
         const cproject = cprojectFile.topItem;
         if (!cproject) {
             return;
@@ -136,7 +132,7 @@ export class ProjectItemsBuilder {
 
     private createGroupChildren(cgroupItem: COutlineItem, group: CTreeItem): void {
         const isRegularGroup = !group.getTag() || group.getTag() === '-';
-        const fileTreeItem = new FileItem(this.activeContext);
+        const fileTreeItem = new FileItemBuilder(this.csolution, this.rpcData, this.context);
 
         if (isRegularGroup) {
             this.createGroupTree(cgroupItem, group, cgroupItem.getAttribute('groupPath') ?? '');
@@ -360,7 +356,7 @@ export class ProjectItemsBuilder {
         const docs: ITreeItem<CTreeItem>[] = [];
         const apiFiles = apiChild.getGrandChildren('files');
 
-        const fileTreeItem = new FileItem(this.activeContext);
+        const fileTreeItem = new FileItemBuilder(this.csolution, this.rpcData, this.context);
         fileTreeItem.createFileNodes(node, apiFiles, docs, true);
 
         const fileNodes = node.getChildren();
@@ -372,7 +368,7 @@ export class ProjectItemsBuilder {
     private addComponentData(node: COutlineItem, component: ITreeItem<CTreeItem>, cbuild: CTreeItem) {
         // add files
         const docs: ITreeItem<CTreeItem>[] = [];
-        const fileTreeItem = new FileItem(this.activeContext);
+        const fileTreeItem = new FileItemBuilder(this.csolution, this.rpcData, this.context);
         const componentFiles = component.getGrandChildren('files');
         fileTreeItem.createFileNodes(node, componentFiles, docs);
 
