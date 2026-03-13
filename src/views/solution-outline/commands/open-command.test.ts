@@ -145,7 +145,7 @@ describe('OpenCommand', () => {
         fileItem.setAttribute('docPath', testFile);
         fileItem.addFeature('docFile');
 
-        jest.spyOn(mockOpenFileExternal, 'openFile').mockReturnValue(await Promise.resolve());
+        jest.spyOn(mockOpenFileExternal, 'openFile').mockReturnValue(testFile);
         await commandsProvider.mockRunRegistered(OpenCommand.openDocCommandId, fileItem);
 
         expect(mockOpenFileExternal.openFile).toHaveBeenCalledWith(testFile);
@@ -157,7 +157,7 @@ describe('OpenCommand', () => {
 
         await commandsProvider.mockRunRegistered(OpenCommand.openHelpCommandId);
 
-        jest.spyOn(mockOpenFileExternal, 'openFile').mockReturnValue(await Promise.resolve());
+        jest.spyOn(mockOpenFileExternal, 'openFile').mockReturnValue(OpenCommand.HELP_URL);
 
         await commandsProvider.mockRunRegistered(OpenCommand.openHelpCommandId);
 
@@ -183,7 +183,7 @@ describe('OpenCommand', () => {
 
         await commandsProvider.mockRunRegistered(OpenCommand.openHelpCommandId);
 
-        jest.spyOn(mockOpenFileExternal, 'openFile').mockReturnValue(await Promise.resolve());
+        jest.spyOn(mockOpenFileExternal, 'openFile').mockReturnValue(OpenCommand.HELP_URL);
 
         await commandsProvider.mockRunRegistered(OpenCommand.openHelpCommandId);
 
