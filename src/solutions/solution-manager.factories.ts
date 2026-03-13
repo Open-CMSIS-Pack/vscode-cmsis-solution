@@ -26,10 +26,9 @@ export type MockSolutionManager = jest.Mocked<StubEvents<SolutionManager>> & { f
 
 export const idleSolutionLoadStateFactory = makeFactory<SolutionLoadState>({
     solutionPath: () => undefined,
-    activated: () => false,
+    activated: () => undefined,
     loaded: () => undefined,
     converted: () => undefined,
-    activated: () => undefined,
 });
 
 export const activeSolutionLoadStateFactory = makeFactory<SolutionLoadState>({
@@ -37,7 +36,6 @@ export const activeSolutionLoadStateFactory = makeFactory<SolutionLoadState>({
     activated: () => true,
     loaded: () => undefined,
     converted: () => undefined,
-    activated: () => true,
 });
 
 const fireOnDidChangeLoadState = (emitter: vscode.EventEmitter<SolutionLoadStateChangeEvent>) => {
