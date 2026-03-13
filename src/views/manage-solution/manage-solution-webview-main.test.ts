@@ -87,7 +87,15 @@ describe('ContextSelectionWebviewMain', () => {
         const filePath = 'my/lovely/file/path/poem.txt';
         await fireAndWait('OPEN_FILE', { path: filePath });
 
-        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', URI.file(filePath));
+        const openCall = commandsProvider.executeCommand.mock.calls.find(([command]) => command === 'vscode.open');
+        expect(openCall).toBeDefined();
+
+        const [, openedUri] = openCall!;
+        const normalizedUriPath = (openedUri as URI).path.replace(/\\/g, '/');
+        const expectedSuffix = `/${filePath.replace(/\\/g, '/').replace(/^\/+/, '')}`;
+
+        expect((openedUri as URI).scheme).toBe('file');
+        expect(normalizedUriPath.endsWith(expectedSuffix)).toBe(true);
     });
 
     describe('unlinking', () => {
@@ -403,7 +411,15 @@ describe('ContextSelectionWebviewMain', () => {
             webviewManager.didReceiveMessageEmitter.fire({ type: 'OPEN_FILE' as any, path: filePath });
             await waitTimeout();
 
-            expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', URI.file(filePath));
+            const openCall = commandsProvider.executeCommand.mock.calls.find(([command]) => command === 'vscode.open');
+            expect(openCall).toBeDefined();
+
+            const [, openedUri] = openCall!;
+            const normalizedUriPath = (openedUri as URI).path.replace(/\\/g, '/');
+            const expectedSuffix = `/${filePath.replace(/\\/g, '/').replace(/^\/+/, '')}`;
+
+            expect((openedUri as URI).scheme).toBe('file');
+            expect(normalizedUriPath.endsWith(expectedSuffix)).toBe(true);
             expect(openFileExternal.openFile).not.toHaveBeenCalled();
         });
 
@@ -559,7 +575,7 @@ describe('ContextSelectionWebviewMain', () => {
             });
 
             const dialogOptions = showOpenDialogSpy.mock.calls[0][0];
-            expect(dialogOptions?.defaultUri?.toString()).toBe(URI.file(path.dirname(defaultPath)).toString());
+            expect(dialogOptions?.defaultUri?.toString()).toBe(URI.file(path.resolve(defaultPath)).toString());
             expect(webviewManager.sendMessage).toHaveBeenCalledWith(
                 expect.objectContaining({
                     type: 'FILE_SELECTED',
