@@ -29,7 +29,7 @@ import { WebviewManager, WebviewManagerOptions } from '../webview-manager';
 import { CreateSolutionData } from './create-solution-data';
 import * as Messages from './messages';
 import { NewSolutionMessage } from './messages';
-import { IOpenFileExternal } from '../../open-file-external-if';
+import { OpenCommand } from '../solution-outline/commands/open-command';
 
 export const CREATE_SOLUTION_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> =
   {
@@ -44,10 +44,6 @@ export const CREATE_SOLUTION_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> =
   };
 
 export class CreateSolutionWebviewMain {
-    public static readonly HELP_URL = path.join(
-        manifest.GUIDE_FOLDER,
-        'create_app.html',
-    );
     private readonly webviewManager: WebviewManager<
     Messages.IncomingMessage,
     Messages.OutgoingMessage
@@ -55,17 +51,16 @@ export class CreateSolutionWebviewMain {
     private readonly dataModel: CreateSolutionData;
 
     constructor(
-    private readonly solutionCreator: SolutionCreator,
-    private readonly context: vscode.ExtensionContext,
-    private readonly messageProvider: MessageProvider,
-    private readonly commandsProvider: CommandsProvider,
-    private readonly workspaceFoldersProvider: WorkspaceFoldersProvider,
-    private readonly dataManager: DataManager,
-    private readonly openFileExternal: IOpenFileExternal,
-    webviewManager?: WebviewManager<
-      Messages.IncomingMessage,
-      Messages.OutgoingMessage
-    >,
+        private readonly solutionCreator: SolutionCreator,
+        private readonly context: vscode.ExtensionContext,
+        private readonly messageProvider: MessageProvider,
+        private readonly commandsProvider: CommandsProvider,
+        private readonly workspaceFoldersProvider: WorkspaceFoldersProvider,
+        private readonly dataManager: DataManager,
+        webviewManager?: WebviewManager<
+            Messages.IncomingMessage,
+            Messages.OutgoingMessage
+        >,
     ) {
         this.webviewManager =
       webviewManager ||
@@ -88,17 +83,6 @@ export class CreateSolutionWebviewMain {
         );
         this.webviewManager.activate(context);
         this.webviewManager.onDidDispose(this.dataModel.reset.bind(this.dataModel));
-    }
-
-    private openFile(path: string, openExternal?: boolean): void {
-        if (openExternal) {
-            this.openFileExternal.openFile(path);
-        } else {
-            this.commandsProvider.executeCommand(
-                'vscode.open',
-                vscode.Uri.file(path),
-            );
-        }
     }
 
     private async handleMessage(
@@ -176,7 +160,7 @@ export class CreateSolutionWebviewMain {
                     await this.getDraftProjectInfo(message.id);
                     break;
                 case 'HELP_OPEN':
-                    this.openFile(CreateSolutionWebviewMain.HELP_URL, true);
+                    await this.commandsProvider.executeCommand(OpenCommand.openHelpCommandId, 'create_app.html');
                     break;
             }
             this.webviewManager.sendMessage({

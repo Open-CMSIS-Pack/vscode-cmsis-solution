@@ -198,7 +198,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         commandsProvider,
         workspaceFoldersProvider,
         dataManager,
-        externalFileOpener
     );
     const manageLayers = new ManageLayersWebviewMain(
         context,
@@ -223,7 +222,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         context,
         solutionManager,
         commandsProvider,
-        externalFileOpener,
         configurationProvider,
         csolutionService,
     );

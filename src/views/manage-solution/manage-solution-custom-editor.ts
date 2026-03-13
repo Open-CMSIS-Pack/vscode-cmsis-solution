@@ -22,7 +22,6 @@ import { MANAGE_SOLUTION_WEBVIEW_OPTIONS } from './manage-solution-webview-main'
 import { IncomingMessage, OutgoingMessage } from './messages';
 import { SolutionManager } from '../../solutions/solution-manager';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
-import { IOpenFileExternal } from '../../open-file-external-if';
 import { ConfigurationProvider } from '../../vscode-api/configuration-provider';
 import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
 import { SolutionData } from './view/state/manage-solution-state';
@@ -117,7 +116,6 @@ export class ManageSolutionCustomEditorProvider implements vscode.CustomEditorPr
         private readonly context: vscode.ExtensionContext,
         private readonly solutionManager: SolutionManager,
         private readonly commandsProvider: CommandsProvider,
-        private readonly openFileExternal: IOpenFileExternal,
         private readonly configurationProvider: ConfigurationProvider,
         private readonly csolutionService: CsolutionService,
     ) { }
@@ -136,7 +134,6 @@ export class ManageSolutionCustomEditorProvider implements vscode.CustomEditorPr
                 this.context,
                 this.solutionManager,
                 this.commandsProvider,
-                this.openFileExternal,
                 this.configurationProvider,
                 this.csolutionService,
                 (label, before, after) => this.activeDocument?.recordEdit(label, before, after),

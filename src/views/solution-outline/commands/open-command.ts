@@ -17,11 +17,12 @@
 import * as vscode from 'vscode';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
-import { GUIDE_FOLDER, PACKAGE_NAME } from '../../../manifest';
+import { PACKAGE_NAME, README_FILE_PATH } from '../../../manifest';
 import path from 'path';
 import { SolutionManager } from '../../../solutions/solution-manager';
 import { IOpenFileExternal } from '../../../open-file-external-if';
 import { contextDescriptorFromString } from '../../../solutions/descriptors/descriptors';
+import { existsSync } from 'fs';
 
 
 export class OpenCommand {
@@ -33,16 +34,20 @@ export class OpenCommand {
     public static readonly openDocCommandId = `${PACKAGE_NAME}.openDocFile`;
     public static readonly openHelpCommandId = `${PACKAGE_NAME}.openHelp`;
     public static readonly openZephyrTerminalCommandId = `${PACKAGE_NAME}.openZephyrTerminal`;
-    public static readonly HELP_URL = path.join(GUIDE_FOLDER, 'index.html');
 
     constructor(
         private readonly solutionManager: SolutionManager,
         private readonly commandsProvider: CommandsProvider,
         private readonly openFileExternal: IOpenFileExternal,
-
     ) { }
 
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>) {
+        const keilPack = vscode.extensions.getExtension<void>('arm.keil-studio-pack');
+        let helpFilePath : string | undefined = undefined;
+        if (keilPack?.extensionPath) {
+            helpFilePath = path.join(keilPack.extensionPath, 'guide');
+        }
+
         context.subscriptions.push(
             this.commandsProvider.registerCommand(OpenCommand.openSolutionCommandId, () =>
                 (this.solutionManager.loadState.solutionPath) ? this.openFile(this.solutionManager.loadState.solutionPath) : undefined, this),
@@ -64,8 +69,13 @@ export class OpenCommand {
             this.commandsProvider.registerCommand(OpenCommand.openZephyrTerminalCommandId, (node: COutlineItem) => {
                 this.openTerminal(node);
             }, this),
-            this.commandsProvider.registerCommand(OpenCommand.openHelpCommandId, () => {
-                this.openFile(OpenCommand.HELP_URL, true);
+            this.commandsProvider.registerCommand(OpenCommand.openHelpCommandId, (section: string = 'index.html') => {
+                const nonSiblingPath = path.isAbsolute(section) || (path.normalize(section).startsWith('..'));
+                if (helpFilePath && existsSync(helpFilePath) && !nonSiblingPath) {
+                    this.openFile(path.join(helpFilePath, section), true);
+                } else {
+                    this.openFile(README_FILE_PATH, false);
+                }
             }, this),
         );
     }
@@ -90,6 +100,8 @@ export class OpenCommand {
     private openFile(path: string, openExternal?: boolean): void {
         if (openExternal) {
             this.openFileExternal.openFile(path);
+        } else if (path.toLowerCase().endsWith('.md')) {
+            this.commandsProvider.executeCommand('markdown.showPreview', vscode.Uri.file(path));
         } else {
             this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(path));
         }
