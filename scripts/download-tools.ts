@@ -60,13 +60,6 @@ const uv2csolution : Downloadable = new Downloadable(
     },
 );
 
-const guide : Downloadable = new Downloadable(
-    'User Guide', ['..', 'guide'],
-    async () => {
-        return new GitHubRepoAsset('MDK-Packs', 'vscode-cmsis-solution-docs', { ref: 'heads/main', path: 'site', token: ghToken });
-    },
-);
-
 const debugAdapterRegistry = new Downloadable(
     'Debug Adapter Registry', ['..', 'templates', 'debug'],
     async () => {
@@ -153,7 +146,6 @@ const nodePty: Downloadable = new Downloadable(
 
 const downloader = new Downloader({
     'uv2csolution': uv2csolution,
-    'guide': guide,
     'debug-adapters': debugAdapterRegistry,
     'toolbox': toolbox,
     'rpc-interface': rpcInterface,

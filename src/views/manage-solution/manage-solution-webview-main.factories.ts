@@ -24,7 +24,6 @@ import { WebviewManager } from '../webview-manager';
 import { solutionManagerFactory } from '../../solutions/solution-manager.factories';
 import { DataManager } from '../../data-manager/data-manager';
 import { DebugAdaptersYamlFile } from '../../debug/debug-adapters-yaml-file';
-import { IOpenFileExternal } from '../../open-file-external-if';
 import { configurationProviderFactory } from '../../vscode-api/configuration-provider.factories';
 import { ETextFileResult } from '../../generic/text-file';
 import { SolutionData } from './view/state/manage-solution-state';
@@ -38,7 +37,6 @@ export type ManageSolutionWebviewMainFactoryOptions = {
     dataManager?: DataManager;
     debugAdaptersYmlFile?: DebugAdaptersYamlFile;
     configurationProvider?: ReturnType<typeof configurationProviderFactory>;
-    openFileExternal?: IOpenFileExternal,
     csolutionService?: CsolutionService,
     onEdit?: (label: string, before: SolutionData, after: SolutionData) => void,
 }
@@ -78,7 +76,6 @@ export function manageSolutionWebviewMainFactory(options?: ManageSolutionWebview
         { subscriptions: [] } as unknown as vscode.ExtensionContext,
         options?.solutionManager ?? solutionManagerFactory(),
         options?.commandsProvider ?? commandsProviderFactory(),
-        options?.openFileExternal ?? jest.mocked<IOpenFileExternal>({ openFile: function (path: string) { throw new Error(`Function not implemented. ${path}`); } }),
         options?.configurationProvider ?? configurationProviderFactory(),
         options?.csolutionService ?? jest.mocked<CsolutionService>({
             getDeviceList: async function (_args: GetDeviceListParams): Promise<DeviceList> { throw new Error('Function not implemented.'); },

@@ -41,7 +41,7 @@
   },
   "scripts": {
     "preprepare": "npm run download:rpc-interface",
-    "prepare": "concurrently npm:download:uv2csolution npm:download:guide npm:download:debug-adapters npm:download:toolbox",
+    "prepare": "concurrently npm:download:uv2csolution npm:download:debug-adapters npm:download:toolbox",
     "clean": "git clean -f -x ./dist ./out ./tools",
     "prebuild": "npm run font",
     "build": "webpack --mode production",
@@ -57,7 +57,6 @@
     "compile": "tsc -p .",
     "compile:watch": "tsc -p . -w",
     "download:uv2csolution": "tsx scripts/download-tools.ts uv2csolution",
-    "download:guide": "tsx scripts/download-tools.ts guide",
     "download:debug-adapters": "tsx scripts/download-tools.ts debug-adapters",
     "download:toolbox": "tsx scripts/download-tools.ts toolbox",
     "download:rpc-interface": "tsx scripts/download-tools.ts rpc-interface",
