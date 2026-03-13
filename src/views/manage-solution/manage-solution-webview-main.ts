@@ -256,7 +256,7 @@ export class ManageSolutionWebviewMain {
                 await this.updateDebuggerParameter(message.service, message.key, message.value, message.pname);
                 break;
             case 'SELECT_FILE':
-                await this.selectFileDialog(message.targetElementId, message.options);
+                await this.selectFileDialog(message.requestId, message.options);
                 break;
             case 'SET_AUTO_UPDATE':
                 await this.configurationProvider.setConfigVariable(manifest.CONFIG_AUTO_DEBUG_LAUNCH, message.value, undefined, true);
@@ -416,7 +416,7 @@ export class ManageSolutionWebviewMain {
         });
     }
 
-    private async selectFileDialog(targetElementId: string, options?: FileSelectorOptionsType): Promise<void> {
+    private async selectFileDialog(requestId: string, options?: FileSelectorOptionsType): Promise<void> {
         const solutionDir = this.getSolutionDir();
         if (options?.defaultUri) {
             options.defaultUri = URI.file(dirname(options.defaultUri)).toString();
@@ -440,7 +440,9 @@ export class ManageSolutionWebviewMain {
                 )
             );
 
-            await this.webviewManager.sendMessage({ type: 'FILE_SELECTED', data: paths, for: targetElementId });
+            await this.webviewManager.sendMessage({ type: 'FILE_SELECTED', data: paths, requestId });
+        } else {
+            await this.webviewManager.sendMessage({ type: 'FILE_SELECTED', data: [], requestId });
         }
     }
 

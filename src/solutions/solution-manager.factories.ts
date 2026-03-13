@@ -26,7 +26,7 @@ export type MockSolutionManager = jest.Mocked<StubEvents<SolutionManager>> & { f
 
 export const idleSolutionLoadStateFactory = makeFactory<SolutionLoadState>({
     solutionPath: () => undefined,
-    activated: () => false,
+    activated: () => undefined,
     loaded: () => undefined,
     converted: () => undefined,
 });

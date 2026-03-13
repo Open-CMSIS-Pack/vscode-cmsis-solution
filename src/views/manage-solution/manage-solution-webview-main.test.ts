@@ -64,8 +64,10 @@ describe('ContextSelectionWebviewMain', () => {
     });
 
     it('sends selected context data on GET_CONTEXT_SELECTION_DATA', async () => {
+        const configurationProvider = configurationProviderFactory();
         const main = manageSolutionWebviewMainFactory({
-            webviewManager
+            webviewManager,
+            configurationProvider
         });
         await main.activate(context as unknown as vscode.ExtensionContext);
 
@@ -592,7 +594,7 @@ describe('ContextSelectionWebviewMain', () => {
             ]);
 
             await fireAndWait('SELECT_FILE', {
-                targetElementId: 'image-path',
+                requestId: 'image-path',
                 options: {
                     defaultUri: defaultPath,
                     canSelectMany: false,
@@ -607,7 +609,7 @@ describe('ContextSelectionWebviewMain', () => {
                 expect.objectContaining({
                     type: 'FILE_SELECTED',
                     data: ['images/app.axf'],
-                    for: 'image-path'
+                    requestId: 'image-path'
                 })
             );
         });
