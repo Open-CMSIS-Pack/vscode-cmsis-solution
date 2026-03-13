@@ -437,7 +437,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                     addonBefore={<>{o.name}</>}
                                                                     addonAfter={
                                                                         <Space size={0}>
-                                                                            <Button icon={<CmsisCodicon name='go-to-file' title='Go to file' />} disabled={localValues[k] ? false : true} onClick={() => { openFile(localValues[k] as string) }} type='text' className='file-open-icon-button' />
+                                                                            <Button icon={<CmsisCodicon name='go-to-file' title='Go to file' />} disabled={localValues[k] ? false : true} onClick={() => { openFile(localValues[k] as string); }} type='text' className='file-open-icon-button' />
                                                                             <Button type='primary' className='file-button' onClick={selectFile}> Browse</Button>
                                                                         </Space>
                                                                     }
