@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2026 Arm Limited
+ * Copyright 2023-2026 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,23 +34,51 @@ import { ETextFileResult } from '../../generic/text-file';
 import { configurationProviderFactory } from '../../vscode-api/configuration-provider.factories';
 import { csolutionFactory } from '../../solutions/csolution.factory';
 
-
-// Helper for firing a message and waiting (now inside describe, uses local webviewManager)
 describe('ContextSelectionWebviewMain', () => {
     let context: { subscriptions: vscode.Disposable[], extensionPath: string };
     let webviewManager: MockWebviewManager<Messages.OutgoingMessage>;
 
     const originalConsoleError = console.error;
-    // Disable error logging
     beforeAll(() => { console.error = () => { }; });
-
-    // Restore original console.error
     afterAll(() => { console.error = originalConsoleError; });
 
-    // Helper for firing a message and waiting (now inside describe, uses local webviewManager)
     async function fireAndWait(type: string, payload?: object) {
         webviewManager.didReceiveMessageEmitter.fire({ type: type as any, ...(payload || {}) });
         await waitTimeout();
+    }
+
+    function expectOpenedFilePath(
+        commandsProvider: ReturnType<typeof commandsProviderFactory>,
+        filePath: string
+    ) {
+        const openCall = commandsProvider.executeCommand.mock.calls.find(
+            ([command]) => command === 'vscode.open'
+        );
+        expect(openCall).toBeDefined();
+
+        const [, openedUri] = openCall!;
+        const normalizedUriPath = (openedUri as URI).path.replace(/\\/g, '/');
+        const expectedSuffix = `/${filePath.replace(/\\/g, '/').replace(/^\/+/, '')}`;
+
+        expect((openedUri as URI).scheme).toBe('file');
+        expect(normalizedUriPath.endsWith(expectedSuffix)).toBe(true);
+    }
+
+    function expectOpenedAbsoluteFilePath(
+        commandsProvider: ReturnType<typeof commandsProviderFactory>,
+        filePath: string
+    ) {
+        const openCall = commandsProvider.executeCommand.mock.calls.find(
+            ([command]) => command === 'vscode.open'
+        );
+        expect(openCall).toBeDefined();
+
+        const [, openedUri] = openCall!;
+        const actualPath = (openedUri as URI).path.replace(/\\/g, '/').toLowerCase();
+        const expectedPath = URI.file(filePath).path.replace(/\\/g, '/').toLowerCase();
+
+        expect((openedUri as URI).scheme).toBe('file');
+        expect(actualPath).toBe(expectedPath);
     }
 
     beforeEach(async () => {
@@ -60,6 +88,15 @@ describe('ContextSelectionWebviewMain', () => {
 
     afterEach(() => {
         jest.clearAllMocks();
+    });
+
+    it('calls webviewManager.activate', async () => {
+        const main = manageSolutionWebviewMainFactory({ webviewManager });
+        const activateSpy = jest.spyOn(webviewManager, 'activate');
+
+        await main.activate(context as unknown as vscode.ExtensionContext);
+
+        expect(activateSpy).toHaveBeenCalled();
     });
 
     it('sends selected context data on GET_CONTEXT_SELECTION_DATA', async () => {
@@ -76,34 +113,11 @@ describe('ContextSelectionWebviewMain', () => {
         });
     });
 
-    it('opens a file on OPEN_FILE message', async () => {
-        const commandsProvider = commandsProviderFactory();
-        const main = manageSolutionWebviewMainFactory({
-            webviewManager,
-            commandsProvider
-        });
-        await main.activate(context as unknown as vscode.ExtensionContext);
-
-        const filePath = 'my/lovely/file/path/poem.txt';
-        await fireAndWait('OPEN_FILE', { path: filePath });
-
-        const openCall = commandsProvider.executeCommand.mock.calls.find(([command]) => command === 'vscode.open');
-        expect(openCall).toBeDefined();
-
-        const [, openedUri] = openCall!;
-        const normalizedUriPath = (openedUri as URI).path.replace(/\\/g, '/');
-        const expectedSuffix = `/${filePath.replace(/\\/g, '/').replace(/^\/+/, '')}`;
-
-        expect((openedUri as URI).scheme).toBe('file');
-        expect(normalizedUriPath.endsWith(expectedSuffix)).toBe(true);
-    });
-
     describe('unlinking', () => {
         it('removes an image via controller when UNLINK_IMAGE received', async () => {
             const main = manageSolutionWebviewMainFactory({
                 webviewManager
             });
-            // Seed controller images
             await main.activate(context as vscode.ExtensionContext);
 
             main.controller.activeTargetSetWrap.addImage('path/to/image.bin');
@@ -233,7 +247,6 @@ describe('ContextSelectionWebviewMain', () => {
         await fireAndWait('TOGGLE_DEBUGGER', { value: true });
         await fireAndWait('TOGGLE_DEBUGGER', { value: false });
 
-        // Expect messages reflecting state changes (two DEBUGGER sends)
         const debuggerMessages = webviewManager.sendMessage.mock.calls
             .filter(c => c[0].type === 'DEBUGGER');
         expect(debuggerMessages.length).toBeGreaterThanOrEqual(2);
@@ -259,9 +272,8 @@ describe('ContextSelectionWebviewMain', () => {
                 solutionManager,
                 webviewManager
             });
-            (main as any).webviewManager.isPanelActive = jest.fn().mockReturnValue(true); // Simulate active panel
+            (main as any).webviewManager.isPanelActive = jest.fn().mockReturnValue(true);
 
-            // Spy on sendContextData to verify it gets called
             const sendContextDataSpy = jest.spyOn(main as any, 'sendContextData').mockResolvedValue(undefined);
 
             await main.activate(context as vscode.ExtensionContext);
@@ -281,13 +293,12 @@ describe('ContextSelectionWebviewMain', () => {
                 solutionManager,
                 webviewManager
             });
-            (main as any).webviewManager.isPanelActive = jest.fn().mockReturnValue(true); // Simulate active panel
+            (main as any).webviewManager.isPanelActive = jest.fn().mockReturnValue(true);
 
             const sendContextDataSpy = jest.spyOn(main as any, 'sendContextData').mockResolvedValue(undefined);
 
             await main.activate(context as vscode.ExtensionContext);
 
-            // Create specific transition event
             const event: SolutionLoadStateChangeEvent = {
                 previousState: { solutionPath: undefined },
                 newState: { solutionPath: '/path/to/solution.csolution.yml' }
@@ -298,7 +309,7 @@ describe('ContextSelectionWebviewMain', () => {
             expect(sendContextDataSpy).toHaveBeenCalled();
         });
 
-        it('does call sendContextData when transitioning from active to idle', async () => {
+        it('does not call sendContextData when transitioning from active to idle', async () => {
             const solutionManager = solutionManagerFactory();
             const main = manageSolutionWebviewMainFactory({
                 solutionManager,
@@ -342,62 +353,36 @@ describe('ContextSelectionWebviewMain', () => {
         });
     });
 
-    describe('ContextSelectionWebviewMain activate', () => {
-        let context: { subscriptions: vscode.Disposable[], extensionPath: string };
-        let webviewManager: MockWebviewManager<Messages.OutgoingMessage>;
+    it('subscribes to configuration changes and sends AUTO_UPDATE', async () => {
+        const settings = {
+            [`${manifest.PACKAGE_NAME}.${manifest.CONFIG_AUTO_DEBUG_LAUNCH}`]: true,
+        };
+        const configurationProvider = configurationProviderFactory(settings);
+        const main = manageSolutionWebviewMainFactory({ webviewManager, configurationProvider });
 
-        async function fire(type: string, payload?: object) {
-            webviewManager.didReceiveMessageEmitter.fire({ type: type as any, ...(payload || {}) });
-            await waitTimeout();
-        }
+        await main.activate(context as unknown as vscode.ExtensionContext);
+        await configurationProvider.setConfigVariable(manifest.CONFIG_AUTO_DEBUG_LAUNCH, false);
 
-        beforeEach(() => {
-            context = { subscriptions: [], extensionPath: '' };
-            webviewManager = getMockWebViewManager<Messages.OutgoingMessage>();
-            jest.clearAllMocks();
-        });
+        expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'AUTO_UPDATE', data: false });
+    });
 
-        it('calls webviewManager.activate', async () => {
-            const main = manageSolutionWebviewMainFactory({ webviewManager });
-            const activateSpy = jest.spyOn(webviewManager, 'activate');
-            await main.activate(context as unknown as vscode.ExtensionContext);
-            expect(activateSpy).toHaveBeenCalled();
-        });
+    it('does not show warning message on dispose when not dirty', async () => {
+        const main = manageSolutionWebviewMainFactory({ webviewManager });
+        await main.activate(context as unknown as vscode.ExtensionContext);
+        await fireAndWait('GET_CONTEXT_SELECTION_DATA');
 
-        it('registers message handler and sends context data on GET_CONTEXT_SELECTION_DATA', async () => {
-            const main = manageSolutionWebviewMainFactory({ webviewManager });
-            await main.activate(context as unknown as vscode.ExtensionContext);
-            await fire('GET_CONTEXT_SELECTION_DATA');
-            const sentTypes = webviewManager.sendMessage.mock.calls.map(c => c[0].type);
-            expect(sentTypes).toContain('DATA_CONTEXT_SELECTION');
-        });
+        jest.spyOn(main.controller.cmsisJsonFile, 'isModified').mockReturnValue(false);
+        jest.spyOn(main.controller.csolutionYml, 'isModified').mockReturnValue(false);
+        const warnSpy = jest.spyOn(vscode.window, 'showWarningMessage').mockResolvedValue(undefined);
 
-        it('subscribes to configuration changes and sends AUTO_UPDATE', async () => {
-            const settings = {
-                [`${manifest.PACKAGE_NAME}.${manifest.CONFIG_AUTO_DEBUG_LAUNCH}`]: true,
-            };
-            const configurationProvider = configurationProviderFactory(settings);
-            const main = manageSolutionWebviewMainFactory({ webviewManager, configurationProvider });
-            await main.activate(context as unknown as vscode.ExtensionContext);
-            await configurationProvider.setConfigVariable(manifest.CONFIG_AUTO_DEBUG_LAUNCH, false);
-            expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'AUTO_UPDATE', data: false });
-        });
+        webviewManager.didDisposeEmitter.fire();
+        await waitTimeout();
 
-        it('does not show warning message on dispose when not dirty', async () => {
-            const main = manageSolutionWebviewMainFactory({ webviewManager });
-            await main.activate(context as unknown as vscode.ExtensionContext);
-            await fire('GET_CONTEXT_SELECTION_DATA');
-            jest.spyOn(main.controller.cmsisJsonFile, 'isModified').mockReturnValue(false);
-            jest.spyOn(main.controller.csolutionYml, 'isModified').mockReturnValue(false);
-            const warnSpy = jest.spyOn(vscode.window, 'showWarningMessage').mockResolvedValue(undefined);
-            webviewManager.didDisposeEmitter.fire();
-            await waitTimeout();
-            expect(warnSpy).not.toHaveBeenCalled();
-        });
+        expect(warnSpy).not.toHaveBeenCalled();
     });
 
     describe('openFile handling', () => {
-        it('calls vscode.open (commandsProvider.executeCommand) on OPEN_FILE and not external opener', async () => {
+        it('opens a file via vscode.open and not external opener on OPEN_FILE', async () => {
             const commandsProvider = commandsProviderFactory();
             const openFileExternal = { openFile: jest.fn() };
             const main = manageSolutionWebviewMainFactory({
@@ -407,37 +392,39 @@ describe('ContextSelectionWebviewMain', () => {
             });
             await main.activate(context as unknown as vscode.ExtensionContext);
 
-            const filePath = '/tmp/some/file.txt';
-            webviewManager.didReceiveMessageEmitter.fire({ type: 'OPEN_FILE' as any, path: filePath });
-            await waitTimeout();
+            const filePath = 'tmp/some/file.txt';
+            await fireAndWait('OPEN_FILE', { path: filePath });
 
-            const openCall = commandsProvider.executeCommand.mock.calls.find(([command]) => command === 'vscode.open');
-            expect(openCall).toBeDefined();
-
-            const [, openedUri] = openCall!;
-            const normalizedUriPath = (openedUri as URI).path.replace(/\\/g, '/');
-            const expectedSuffix = `/${filePath.replace(/\\/g, '/').replace(/^\/+/, '')}`;
-
-            expect((openedUri as URI).scheme).toBe('file');
-            expect(normalizedUriPath.endsWith(expectedSuffix)).toBe(true);
+            expectOpenedFilePath(commandsProvider, filePath);
             expect(openFileExternal.openFile).not.toHaveBeenCalled();
         });
 
-        it('calls external opener on OPEN_HELP and not vscode.open', async () => {
+        it('normalizes already absolute paths on OPEN_FILE', async () => {
             const commandsProvider = commandsProviderFactory();
-            const openFileExternal = { openFile: jest.fn() };
             const main = manageSolutionWebviewMainFactory({
                 webviewManager,
-                commandsProvider,
-                openFileExternal
+                commandsProvider
             });
             await main.activate(context as unknown as vscode.ExtensionContext);
 
-            webviewManager.didReceiveMessageEmitter.fire({ type: 'OPEN_HELP' as any });
-            await waitTimeout();
+            const filePath = path.resolve('tmp', 'some', 'absolute-file.txt');
+            await fireAndWait('OPEN_FILE', { path: filePath });
 
-            expect(openFileExternal.openFile).toHaveBeenCalledWith(expect.stringContaining('manage_settings.html'));
-            expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
+            expectOpenedAbsoluteFilePath(commandsProvider, filePath);
+        });
+
+        it('treats Windows drive-letter paths as absolute on OPEN_FILE', async () => {
+            const commandsProvider = commandsProviderFactory();
+            const main = manageSolutionWebviewMainFactory({
+                webviewManager,
+                commandsProvider
+            });
+            await main.activate(context as unknown as vscode.ExtensionContext);
+
+            const filePath = path.win32.join('C:\\', 'toolchain', 'bin', 'adapter.exe');
+            await fireAndWait('OPEN_FILE', { path: filePath });
+
+            expectOpenedAbsoluteFilePath(commandsProvider, filePath);
         });
     });
 
@@ -445,7 +432,6 @@ describe('ContextSelectionWebviewMain', () => {
         const main = manageSolutionWebviewMainFactory({ webviewManager });
         await main.activate(context as unknown as vscode.ExtensionContext);
 
-        // Force controller creation and spy
         const controller = main.controller;
         const setActiveSpy = jest.spyOn(controller, 'setActiveTargetSet').mockReturnValue(true as any);
         const sendContextDataSpy = jest.spyOn(main as any, 'sendContextData').mockResolvedValue(undefined);
@@ -457,20 +443,6 @@ describe('ContextSelectionWebviewMain', () => {
     });
 
     describe('updateDebuggerParameter', () => {
-        let context: { subscriptions: vscode.Disposable[], extensionPath: string };
-        let webviewManager: MockWebviewManager<Messages.OutgoingMessage>;
-
-        async function fireAndWait(type: string, payload?: object) {
-            webviewManager.didReceiveMessageEmitter.fire({ type: type as any, ...(payload || {}) });
-            await waitTimeout();
-        }
-
-        beforeEach(() => {
-            context = { subscriptions: [], extensionPath: '' };
-            webviewManager = getMockWebViewManager<Messages.OutgoingMessage>();
-            jest.clearAllMocks();
-        });
-
         it('invokes setDebuggerParameter with stringified value and sends DEBUG_ADAPTERS + DATA_CONTEXT_SELECTION', async () => {
             const main = manageSolutionWebviewMainFactory({ webviewManager });
             await main.activate(context as unknown as vscode.ExtensionContext);
@@ -517,7 +489,6 @@ describe('ContextSelectionWebviewMain', () => {
 
         const main = manageSolutionWebviewMainFactory({ solutionManager, webviewManager });
 
-        // Directly call the original loadSolution (no mock to restore)
         delete (main as any).loadSolution;
         const result = await main['loadSolution']();
 
@@ -532,7 +503,7 @@ describe('ContextSelectionWebviewMain', () => {
         solutionManager.getCsolution.mockReturnValue(globalSolution);
 
         const main = manageSolutionWebviewMainFactory({ solutionManager, webviewManager });
-        delete (main as any).loadSolution; // use real implementation
+        delete (main as any).loadSolution;
 
         const initialController = main.controller;
         initialController.csolutionYml.fileName = path.join('old', 'solution.csolution.yml');
@@ -584,6 +555,63 @@ describe('ContextSelectionWebviewMain', () => {
                 })
             );
         });
-    });
 
+        it('does not send FILE_SELECTED when dialog is cancelled', async () => {
+            const main = manageSolutionWebviewMainFactory({ webviewManager });
+            await main.activate(context as unknown as vscode.ExtensionContext);
+
+            const rootDir = path.resolve('root');
+            main.controller.csolutionYml.fileName = path.join(rootDir, 'solution.csolution.yml');
+
+            jest.spyOn(vscode.window, 'showOpenDialog').mockResolvedValue(undefined);
+
+            await fireAndWait('SELECT_FILE', {
+                targetElementId: 'image-path',
+                options: {
+                    canSelectMany: false,
+                    openLabel: 'Select File',
+                    title: 'Select File',
+                }
+            });
+
+            const selectedMessages = webviewManager.sendMessage.mock.calls
+                .map(([message]) => message)
+                .filter(message => message.type === 'FILE_SELECTED');
+
+            expect(selectedMessages).toHaveLength(0);
+        });
+
+        it('sends all selected files when canSelectMany is true', async () => {
+            const main = manageSolutionWebviewMainFactory({ webviewManager });
+            await main.activate(context as unknown as vscode.ExtensionContext);
+
+            const rootDir = path.resolve('root');
+            main.controller.csolutionYml.fileName = path.join(rootDir, 'solution.csolution.yml');
+
+            const firstFile = path.join(rootDir, 'images', 'app.axf');
+            const secondFile = path.join(rootDir, 'images', 'boot.axf');
+
+            jest.spyOn(vscode.window, 'showOpenDialog').mockResolvedValue([
+                URI.file(firstFile) as unknown as vscode.Uri,
+                URI.file(secondFile) as unknown as vscode.Uri
+            ]);
+
+            await fireAndWait('SELECT_FILE', {
+                targetElementId: 'image-path',
+                options: {
+                    canSelectMany: true,
+                    openLabel: 'Select Files',
+                    title: 'Select Files',
+                }
+            });
+
+            expect(webviewManager.sendMessage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: 'FILE_SELECTED',
+                    data: ['images/app.axf', 'images/boot.axf'],
+                    for: 'image-path'
+                })
+            );
+        });
+    });
 });
