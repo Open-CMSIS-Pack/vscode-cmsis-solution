@@ -18,11 +18,11 @@ import { COutlineItem } from './solution-outline-item';
 import { buildDocFilePath, isWebAddress } from '../../../util';
 import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
 import path from 'path';
-import { FileItem } from './solution-outline-file-item';
+import { FileItemBuilder } from './solution-outline-file-item';
 import { CSolution } from '../../../solutions/csolution';
+import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 
-export class HardwareItem {
-    constructor() { }
+export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
 
     public createHardwareNodes(csolution: CSolution, cbuild?: CTreeItem): Map<string, COutlineItem> {
         const hardwareTreeNodes = new Map<string, COutlineItem>();
@@ -173,7 +173,7 @@ export class HardwareItem {
         // overwrite tootltip
         dbgconfFileItem.setAttribute('tooltip', '');
 
-        const fileItem = new FileItem();
+        const fileItem = new FileItemBuilder();
         fileItem.addMergeFeature(file, dbgconfFileItem, { skipValidation: true, localPathOverride: filePath });
     }
 }

@@ -57,6 +57,8 @@ export interface SolutionManager {
 
     readonly getCsolution: () => CSolution | undefined;
 
+    readonly getRpcData: () => SolutionRpcData | undefined;
+
     readonly onDidChangeLoadState: vscode.Event<SolutionLoadStateChangeEvent>;
 
     readonly onLoadedBuildFiles: vscode.Event<[Severity, boolean]>;
@@ -118,6 +120,11 @@ export class SolutionManagerImpl implements SolutionManager {
     public getCsolution(): CSolution | undefined {
         return this.csolution;
     }
+
+    public getRpcData(): SolutionRpcData | undefined {
+        return this.rpcData;
+    }
+
 
     public get loadState(): SolutionLoadState {
         return this._loadState;

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { FileItem } from './solution-outline-file-item';
+import { FileItemBuilder } from './solution-outline-file-item';
 import { parseYamlToCTreeItem } from '../../../generic/tree-item-yaml-parser';
 import fs from 'fs';
 import os from 'os';
@@ -23,19 +23,19 @@ import { COutlineItem } from './solution-outline-item';
 
 
 describe('FileItem', () => {
-    let fileItem: FileItem;
+    let fileItem: FileItemBuilder;
     let projectDir: string;
     let cSolFile: string;
     let componentNode: COutlineItem;
 
     beforeEach(async () => {
-        fileItem = new FileItem();
+        fileItem = new FileItemBuilder();
 
         const tmpDir = os.tmpdir();
         projectDir = fs.mkdtempSync(path.join(tmpDir, 'myProject'));
         cSolFile = `${projectDir}/Blinky.csolution.yml`;
 
-        fileItem = new FileItem();
+        fileItem = new FileItemBuilder();
 
         componentNode = new COutlineItem('component');
         componentNode.setTag('component');

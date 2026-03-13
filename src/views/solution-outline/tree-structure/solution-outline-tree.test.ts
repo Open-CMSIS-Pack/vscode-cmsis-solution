@@ -93,8 +93,8 @@ describe('CSolution', () => {
         }
 
         // get results from tree
-        const solutionOutlineTree = new SolutionOutlineTree();
-        const tree = solutionOutlineTree.createTree(csolution);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution);
+        const tree = solutionOutlineTree.createTree();
         const got = new Map<string, string>();
 
         let count = 1;
@@ -108,7 +108,7 @@ describe('CSolution', () => {
 
     it('creates error node when csolution is undefined', () => {
         const solutionOutlineTree = new SolutionOutlineTree();
-        const tree = solutionOutlineTree.createTree(undefined);
+        const tree = solutionOutlineTree.createTree();
 
         const children = tree.getChildren() as COutlineItem[];
         expect(children).toHaveLength(1);
@@ -124,8 +124,8 @@ describe('CSolution', () => {
             ['dummy.cbuild.yml', new CTreeItem('cbuild')],
         ]);
 
-        const solutionOutlineTree = new SolutionOutlineTree();
-        const tree = solutionOutlineTree.createTree(csolution);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution);
+        const tree = solutionOutlineTree.createTree();
 
         const children = tree.getChildren() as COutlineItem[];
         expect(children).toHaveLength(1);
@@ -138,8 +138,8 @@ describe('CSolution', () => {
     it('creates error node when no projects can be loaded', () => {
         const csolution = new CSolution();
 
-        const solutionOutlineTree = new SolutionOutlineTree();
-        const tree = solutionOutlineTree.createTree(csolution);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution);
+        const tree = solutionOutlineTree.createTree();
 
         const children = tree.getChildren() as COutlineItem[];
         expect(children).toHaveLength(1);
@@ -161,8 +161,8 @@ describe('CSolution', () => {
         let loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
 
-        const solutionOutlineTree = new SolutionOutlineTree();
-        let tree = solutionOutlineTree.createTree(csolution);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution);
+        let tree = solutionOutlineTree.createTree();
 
         let topItems = tree.getChildren();
         expect(topItems.length).toBe(4); // device, board and two projects
@@ -201,14 +201,14 @@ describe('CSolution', () => {
         let res = await dumpOutline(tree, 'USBD', 'CmsisViewTreeDmp.txt','CmsisViewTreeRef.txt');
         expect(res.dump).toEqual(res.ref);
 
-        // emulate removing the project from target set b modifying cbuild-idx.yml
+        // emulate removing the project from target set by modifying cbuild-idx.yml
         const cbuilds = csolution.cbuildIdxFile.topItem?.getChild('cbuilds');
         const cbuildToRemove = cbuilds?.getChildByValue('project','HID');
         cbuilds?.removeChild(cbuildToRemove);
         csolution.cbuildIdxFile.save();
 
         loadResult = await csolution.loadBuildFiles();
-        tree = solutionOutlineTree.createTree(csolution);
+        tree = solutionOutlineTree.createTree();
         topItems = tree.getChildren();
         expect(topItems.length).toBe(3); // device, board, one project
         res = await dumpOutline(tree, 'USBD', 'CmsisViewTreeOneProjDmp.txt','CmsisViewTreeOneProjRef.txt');
@@ -223,8 +223,8 @@ describe('CSolution', () => {
         expect(loadResult).toEqual(ETextFileResult.Success);
 
         // get results from tree
-        const solutionOutlineTree = new SolutionOutlineTree();
-        const tree = solutionOutlineTree.createTree(csolution);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution);
+        const tree = solutionOutlineTree.createTree();
 
         const res = await dumpOutline(tree, 'WestSupport', 'CmsisViewTreeDmp.txt','CmsisViewTreeRef.txt');
         expect(res.dump).toEqual(res.ref);
@@ -237,8 +237,8 @@ describe('CSolution', () => {
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
 
-        const solutionOutlineTree = new SolutionOutlineTree();
-        const tree = solutionOutlineTree.createTree(csolution);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution);
+        const tree = solutionOutlineTree.createTree();
 
         // Find West project nodes
         const projectNodes = (tree.getChildren() as COutlineItem[]).filter(
@@ -261,8 +261,8 @@ describe('CSolution', () => {
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
 
-        const solutionOutlineTree = new SolutionOutlineTree();
-        const tree = solutionOutlineTree.createTree(csolution);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution);
+        const tree = solutionOutlineTree.createTree();
 
         // Find West project nodes
         const westProjects = (tree.getChildren() as COutlineItem[]).filter(
@@ -289,8 +289,8 @@ describe('CSolution', () => {
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
 
-        const solutionOutlineTree = new SolutionOutlineTree();
-        const tree = solutionOutlineTree.createTree(csolution);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution);
+        const tree = solutionOutlineTree.createTree();
 
         // Find all project nodes
         const projectNodes = (tree.getChildren() as COutlineItem[]).filter(
