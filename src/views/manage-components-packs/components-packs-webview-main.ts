@@ -209,37 +209,39 @@ export class ComponentsPacksWebviewMain {
         return undefined;
     }
 
-    private async isDirty(): Promise<boolean> {
+    private async isDirty(usedItems?: UsedItems): Promise<boolean> {
         const actx = this.getActiveContext();
 
         if (this.solutionManager.getCsolution()?.cbuildPackFile.isModified()) {
             return true;
         }
 
-        const usedItems = await this.csolutionService.getUsedItems({ context: actx });
-        if (this.usedItems?.packs.length !== usedItems.packs.length || this.usedItems?.components.length !== usedItems.components.length) {
+        const latestUsedItems = usedItems ?? await this.csolutionService.getUsedItems({ context: actx });
+        if (this.usedItems?.packs.length !== latestUsedItems.packs.length || this.usedItems?.components.length !== latestUsedItems.components.length) {
             return true;
         }
 
         const componentMapper = (c: ComponentInstance) => ({ id: c.id, variant: c.resolvedComponent?.pack });
         const packMapper = (p: PackReference) => ({ pack: p.pack, origin: normalizeForCompare(p.origin) });
         const localUsedItemsSorted = {
-            components: this.usedItems?.components.sort((a, b) => a.id.localeCompare(b.id)).map(componentMapper) ?? [],
-            packs: this.usedItems?.packs.sort((a, b) => a.pack.localeCompare(b.pack)).map(packMapper) ?? [],
+            components: [...(this.usedItems?.components ?? [])].sort((a, b) => a.id.localeCompare(b.id)).map(componentMapper),
+            packs: [...(this.usedItems?.packs ?? [])].sort((a, b) => a.pack.localeCompare(b.pack)).map(packMapper),
         };
         const usedItemsSorted = {
-            components: usedItems.components.sort((a, b) => a.id.localeCompare(b.id)).map(componentMapper),
-            packs: usedItems.packs.sort((a, b) => a.pack.localeCompare(b.pack)).map(packMapper),
+            components: [...latestUsedItems.components].sort((a, b) => a.id.localeCompare(b.id)).map(componentMapper),
+            packs: [...latestUsedItems.packs].sort((a, b) => a.pack.localeCompare(b.pack)).map(packMapper),
         };
         const usedItemsChanged = !isDeepStrictEqual(localUsedItemsSorted, usedItemsSorted);
         return usedItemsChanged;
     }
 
-    private async sendDirtyState(): Promise<void> {
+    private async sendDirtyState(options?: { skipApply?: boolean, usedItems?: UsedItems }): Promise<void> {
         const actx = this.getActiveContext();
-        await this.csolutionService.apply({ context: actx });
+        if (!options?.skipApply) {
+            await this.csolutionService.apply({ context: actx });
+        }
 
-        const isDirty = await this.isDirty();
+        const isDirty = await this.isDirty(options?.usedItems);
         await this.webviewManager.sendMessage({ type: 'IS_DIRTY', isDirty: isDirty });
     }
 
@@ -373,7 +375,7 @@ export class ComponentsPacksWebviewMain {
                         label: `Layer: ${layerLabel}`,
                         key: layer.absolutePath,
                         path: backToForwardSlashes(layer.absolutePath),
-                        relativePath: backToForwardSlashes(path.relative(dirname(this.currentProject?.solutionPath ?? ''), layer.absolutePath)),
+                        relativePath: this.getRelativePath(this.getSolutionDir(), layer.absolutePath),
                         type: 'layer' as const
                     };
 
@@ -431,7 +433,7 @@ export class ComponentsPacksWebviewMain {
         if (state.success === false) {
             this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: state.message ?? 'Unspecified error when writing solution information' });
         }
-        await this.sendDirtyState();
+        await this.sendDirtyState({ skipApply: true, usedItems: this.usedItems });
     }
 
     private async handleOpenFile(message: Messages.OutgoingMessage): Promise<void> {
@@ -452,9 +454,7 @@ export class ComponentsPacksWebviewMain {
                 );
 
                 await this.sendDirtyState();
-                const validations = await this.csolutionService.validateComponents({ context: activeContext });
-                this.componentTree = this.manageComponentsActions.mapComponentsFromService(await this.csolutionService.getComponentsTree({ context: activeContext, all: this.scope === ComponentScope.All }));
-                await this.webviewManager?.sendMessage({ type: 'SET_COMPONENT_TREE', tree: this.componentTree, validations: validations.validation });
+                await this.refreshComponentTree(activeContext);
             }
         }
     }
@@ -470,9 +470,7 @@ export class ComponentsPacksWebviewMain {
                     variant
                 );
                 await this.sendDirtyState();
-                this.componentTree = this.manageComponentsActions.mapComponentsFromService(await this.csolutionService.getComponentsTree({ context: activeContext, all: this.scope === ComponentScope.All }));
-                const validations = await this.csolutionService.validateComponents({ context: activeContext });
-                await this.webviewManager?.sendMessage({ type: 'SET_COMPONENT_TREE', tree: this.componentTree, validations: validations.validation });
+                await this.refreshComponentTree(activeContext);
             }
         }
     }
@@ -488,10 +486,7 @@ export class ComponentsPacksWebviewMain {
                     bundle
                 );
                 await this.sendDirtyState();
-                const requestAll = this.scope === ComponentScope.All;
-                this.componentTree = this.manageComponentsActions.mapComponentsFromService(await this.csolutionService.getComponentsTree({ context: activeContext, all: requestAll }));
-                this.validations = await this.csolutionService.validateComponents({ context: activeContext });
-                await this.webviewManager.sendMessage({ type: 'SET_COMPONENT_TREE', tree: this.componentTree, validations: this.validations.validation ?? [], scope: this.scope });
+                await this.refreshComponentTree(activeContext);
             }
         }
     }
@@ -601,37 +596,40 @@ export class ComponentsPacksWebviewMain {
         }
     };
 
+    private async handlePackageSelectionChange(
+        target: string,
+        packId: string,
+        stateMessage: string,
+        action: (actx: string, target: string, packId: string) => Promise<void>
+    ): Promise<void> {
+        try {
+            await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage });
+            const actx = this.getActiveContext();
+            await action(actx, target, packId);
+            const requestAll = this.scope === ComponentScope.All;
+            const packs = this.mapPacksFromService(await this.csolutionService.getPacksInfo({ context: actx, all: requestAll }));
+            await this.webviewManager.sendMessage({ type: 'SET_PACKS_INFO', packs: packs?.packs || [] });
+            await this.sendDirtyState();
+        } finally {
+            await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: undefined });
+        }
+    }
+
     private async selectPackage(message: Messages.OutgoingMessage): Promise<void> {
         if (isSelectPackageMessage(message)) {
-            try {
-                await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Selecting Pack' });
-
-                const actx = this.getActiveContext();
-                await this.manageComponentsActions.selectPackage(actx, message.target, message.packId);
-                const requestAll = this.scope === ComponentScope.All;
-                const packs = this.mapPacksFromService(await this.csolutionService?.getPacksInfo({ context: actx, all: requestAll }));
-                await this.webviewManager?.sendMessage({ type: 'SET_PACKS_INFO', packs: packs?.packs || [] });
-                await this.sendDirtyState();
-            } finally {
-                await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: undefined });
-            }
+            await this.handlePackageSelectionChange(
+                message.target, message.packId, 'Selecting Pack',
+                (actx, target, packId) => this.manageComponentsActions.selectPackage(actx, target, packId)
+            );
         }
     }
 
     private async unselectPackage(message: Messages.OutgoingMessage): Promise<void> {
         if (isUnselectPackageMessage(message)) {
-            try {
-                await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Unselecting Pack' });
-
-                const actx = this.getActiveContext();
-                await this.manageComponentsActions.unselectPackage(actx, message.target, message.packId);
-                const requestAll = this.scope === ComponentScope.All;
-                const packs = this.mapPacksFromService(await this.csolutionService?.getPacksInfo({ context: actx, all: requestAll }));
-                await this.webviewManager?.sendMessage({ type: 'SET_PACKS_INFO', packs: packs?.packs || [] });
-                await this.sendDirtyState();
-            } finally {
-                await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: undefined });
-            }
+            await this.handlePackageSelectionChange(
+                message.target, message.packId, 'Unselecting Pack',
+                (actx, target, packId) => this.manageComponentsActions.unselectPackage(actx, target, packId)
+            );
         }
     }
 
@@ -779,6 +777,19 @@ export class ComponentsPacksWebviewMain {
             project: createProject(cprojectPath),
         };
         await this.webviewManager.sendMessage(programMessage);
+    }
+
+    private async refreshComponentTree(activeContext: string): Promise<void> {
+        this.componentTree = this.manageComponentsActions.mapComponentsFromService(
+            await this.csolutionService.getComponentsTree({ context: activeContext, all: this.scope === ComponentScope.All })
+        );
+        this.validations = await this.csolutionService.validateComponents({ context: activeContext });
+        await this.webviewManager.sendMessage({
+            type: 'SET_COMPONENT_TREE',
+            tree: this.componentTree,
+            validations: this.validations.validation ?? [],
+            scope: this.scope
+        });
     }
 
     private async openFile(filePath: string, openExternal?: boolean, focusOn?: string): Promise<void> {
