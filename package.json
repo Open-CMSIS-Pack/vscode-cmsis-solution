@@ -434,19 +434,19 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.refresh",
-        "title": "Refresh (reload packs, update RTE)",
+        "title": "Refresh (Reload Packs, Update RTE)",
         "icon": "$(refresh)"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.reloadPacks",
-        "title": "Refresh (reload packs)",
+        "title": "Refresh (Reload Packs)",
         "icon": "$(refresh)"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.build",
-        "title": "Build solution",
+        "title": "Build Solution",
         "icon": "$(csolution-build)",
         "enablement": "cmsis-csolution.activeSolutionState == active && cmsis-csolution.buildState == idle"
       },
@@ -460,25 +460,25 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.rebuild",
-        "title": "Rebuild solution",
+        "title": "Rebuild Solution",
         "enablement": "cmsis-csolution.activeSolutionState == active"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.cmsisLoad",
-        "title": "Load application to target",
+        "title": "Load Application to Target",
         "enablement": "cmsis-csolution.executionState == idle && hasLoadTask"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.cmsisErase",
-        "title": "Erase device",
+        "title": "Erase Device",
         "enablement": "cmsis-csolution.executionState == idle && hasEraseTask"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.cmsisRun",
-        "title": "Run current application on target",
+        "title": "Run Current Application on Target",
         "enablement": "cmsis-csolution.executionState == idle && hasRunTask"
       },
       {
@@ -490,27 +490,27 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.clean",
-        "title": "Clean all out and tmp directories",
+        "title": "Clean All 'out' and 'tmp' Directories",
         "enablement": "cmsis-csolution.activeSolutionState == active"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.cmsisLoadAndRun",
-        "title": "Load & Run application",
+        "title": "Load & Run Application",
         "icon": "$(run)",
         "enablement": "hasLoadRunTask && canStartRun"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.cmsisStopRun",
-        "title": "Stop running",
+        "title": "Stop Running",
         "icon": "$(debug-stop)",
         "enablement": "canStopRun"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.cmsisLoadAndDebug",
-        "title": "Load & Debug application",
+        "title": "Load & Debug Application",
         "icon": "$(bug)",
         "enablement": "hasDebugConfig && canStartRun"
       },
@@ -537,7 +537,7 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.activateSolution",
-        "title": "Select as active solution",
+        "title": "Select as Active Solution",
         "icon": "$(folder-opened)"
       },
       {
@@ -548,7 +548,7 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.manageComponentsPacks",
-        "title": "Manage software components",
+        "title": "Manage Software Components",
         "enablement": "cmsis-csolution.activeSolutionState == active",
         "icon": "$(csolution-components)"
       },
@@ -576,14 +576,14 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.unsetClangdContext",
-        "title": "Clangd information active",
+        "title": "Clangd Information Active",
         "enablement": "cmsis-csolution.activeSolutionState == active",
         "icon": "$(info-full-circle)"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.setClangdContext",
-        "title": "Activate Clangd information",
+        "title": "Activate Clangd Information",
         "enablement": "cmsis-csolution.activeSolutionState == active",
         "icon": "$(info-circle)"
       },
@@ -608,13 +608,13 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.openProjectFile",
-        "title": "Open cproject.yml file",
+        "title": "Open cproject.yml File",
         "icon": "$(go-to-file)"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.openPrjConfFile",
-        "title": "Open prj.conf file",
+        "title": "Open prj.conf File",
         "icon": "$(go-to-file)"
       },
       {
@@ -626,13 +626,13 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.openLayerFile",
-        "title": "Open clayer.yml file",
+        "title": "Open clayer.yml File",
         "icon": "$(go-to-file)"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.openLinkerMapFile",
-        "title": "Open linker map file",
+        "title": "Open Linker Map File",
         "icon": "$(go-to-file)"
       },
       {
@@ -644,31 +644,31 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.copyHeaderFile",
-        "title": "Copy header file",
+        "title": "Copy Header File",
         "icon": "$(copy)"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.mergeFile",
-        "title": "Merge updated config file",
+        "title": "Merge Updated Config File",
         "icon": "$(git-merge)"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.openSolutionFile",
-        "title": "Open csolution.yml file",
+        "title": "Open csolution.yml File",
         "enablement": "cmsis-csolution.activeSolutionState == active",
         "icon": "$(go-to-file)"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.getSolutionFile",
-        "title": "Path and name to csolution.yml file of Active Solution"
+        "title": "Path and Name to csolution.yml File of Active Solution"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.getSolutionPath",
-        "title": "Deprecated: identical with getSolutionFile"
+        "title": "Deprecated: Identical with getSolutionFile"
       },
       {
         "category": "CMSIS",
@@ -678,32 +678,32 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.convertMicroVisionToCsolution",
-        "title": "Convert a μVision project to CMSIS solution…"
+        "title": "Convert a μVision Project to CMSIS Solution…"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.getBinaryFile",
-        "title": "Path and name of first ELF/DWARF file in Active Target"
+        "title": "Path and Name of First ELF/DWARF File in Active Target"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.getBinaryFiles",
-        "title": "Path and name of ELF/DWARF files (comma separated) in Active Target"
+        "title": "Path and Name of ELF/DWARF Files (Comma Separated) in Active Target"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.getProcessorName",
-        "title": "Processor name (pname) of active project; for multi-processor configurations start-pname"
+        "title": "Processor Name (pname) of Active Project; for Multi-Processor Configurations start-pname"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.getDeviceName",
-        "title": "Device name of Active Target as specified in csolution.yml"
+        "title": "Device Name of Active Target as Specified in csolution.yml"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.getBoardName",
-        "title": "Board name of Active Target as specified in csolution.yml"
+        "title": "Board Name of Active Target as Specified in csolution.yml"
       },
       {
         "category": "CMSIS",
@@ -713,12 +713,12 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.getTargetPack",
-        "title": "Deprecated: Use getDfpName instead"
+        "title": "Deprecated: Use getDfpName Instead"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.addToGroup",
-        "title": "Add Groups or Files (only for groups)",
+        "title": "Add Groups or Files (Only for Groups)",
         "icon": "$(plus)"
       },
       {
@@ -750,33 +750,33 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.getDfpName",
-        "title": "Device Family Pack (DFP) used in Active Target"
+        "title": "Device Family Pack (DFP) Used in Active Target"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.getBspName",
-        "title": "Board Support Pack (BSP) used in Active Target"
+        "title": "Board Support Pack (BSP) Used in Active Target"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.getDfpPath",
-        "title": "Path to content of DFP used in Active Target"
+        "title": "Path to Content of DFP Used in Active Target"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.getBspPath",
-        "title": "Path to content of BSP used in Active Target"
+        "title": "Path to Content of BSP Used in Active Target"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.getPackRootPath",
-        "title": "Path to CMSIS Pack Root Directory, i.e., CMSIS_PACK_ROOT environment variable or OS default",
+        "title": "Path to CMSIS Pack Root Directory, i.e., CMSIS_PACK_ROOT Environment Variable or OS Default",
         "shortTitle": "Path to CMSIS Pack Root"
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.getCbuildRunFile",
-        "title": "Path to cbuild-run.yml file of Active Target"
+        "title": "Path to cbuild-run.yml File of Active Target"
       },
       {
         "command": "cmsis-csolution.list.find",
@@ -792,7 +792,7 @@
       },
       {
         "command": "cmsis-csolution.getActiveTargetSet",
-        "title": "Get name of active run and debug configuration (format: target-type@set)"
+        "title": "Get Name of Active Run and Debug Configuration (Format: target-type@set)"
       }
     ],
     "menus": {

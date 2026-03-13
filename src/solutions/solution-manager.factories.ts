@@ -35,7 +35,7 @@ export const activeSolutionLoadStateFactory = makeFactory<SolutionLoadState>({
     solutionPath: () => path.join(faker.system.filePath(), `${faker.word.noun()}.csolution.yml`),
     loaded: () => undefined,
     converted: () => undefined,
-    activated: () => undefined,
+    activated: () => true,
 });
 
 const fireOnDidChangeLoadState = (emitter: vscode.EventEmitter<SolutionLoadStateChangeEvent>) => {
