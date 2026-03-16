@@ -568,7 +568,7 @@ describe('ContextSelectionWebviewMain', () => {
             jest.spyOn(vscode.window, 'showOpenDialog').mockResolvedValue(undefined);
 
             await fireAndWait('SELECT_FILE', {
-                targetElementId: 'image-path',
+                requestId: 'image-path',
                 options: {
                     canSelectMany: false,
                     openLabel: 'Select File',
@@ -580,7 +580,13 @@ describe('ContextSelectionWebviewMain', () => {
                 .map(([message]) => message)
                 .filter(message => message.type === 'FILE_SELECTED');
 
-            expect(selectedMessages).toHaveLength(0);
+            expect(selectedMessages).toEqual([
+                expect.objectContaining({
+                    type: 'FILE_SELECTED',
+                    data: [],
+                    requestId: 'image-path'
+                })
+            ]);
         });
 
         it('sends all selected files when canSelectMany is true', async () => {
@@ -599,7 +605,7 @@ describe('ContextSelectionWebviewMain', () => {
             ]);
 
             await fireAndWait('SELECT_FILE', {
-                targetElementId: 'image-path',
+                requestId: 'image-path',
                 options: {
                     canSelectMany: true,
                     openLabel: 'Select Files',
