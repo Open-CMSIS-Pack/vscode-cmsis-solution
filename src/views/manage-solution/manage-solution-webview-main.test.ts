@@ -387,7 +387,6 @@ describe('ContextSelectionWebviewMain', () => {
     describe('openFile handling', () => {
         it('opens a file via vscode.open and not external opener on OPEN_FILE', async () => {
             const commandsProvider = commandsProviderFactory();
-            const openFileExternal = { openFile: jest.fn() };
             const main = manageSolutionWebviewMainFactory({
                 webviewManager,
                 commandsProvider,
@@ -398,7 +397,6 @@ describe('ContextSelectionWebviewMain', () => {
             await fireAndWait('OPEN_FILE', { path: filePath });
 
             expectOpenedFilePath(commandsProvider, filePath);
-            expect(openFileExternal.openFile).not.toHaveBeenCalled();
         });
 
         it('normalizes already absolute paths on OPEN_FILE', async () => {
@@ -558,7 +556,7 @@ describe('ContextSelectionWebviewMain', () => {
             );
         });
 
-        it('does not send FILE_SELECTED when dialog is cancelled', async () => {
+        it('sends FILE_SELECTED with empty data when dialog is cancelled', async () => {
             const main = manageSolutionWebviewMainFactory({ webviewManager });
             await main.activate(context as unknown as vscode.ExtensionContext);
 

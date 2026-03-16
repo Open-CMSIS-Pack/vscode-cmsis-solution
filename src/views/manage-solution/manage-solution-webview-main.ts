@@ -199,11 +199,15 @@ export class ManageSolutionWebviewMain {
         ]);
     }
 
-    private async openFile(path: string, openExternal?: boolean): Promise<void> {
+    private async openFile(filePath: string, openExternal?: boolean): Promise<void> {
+        const solutionDir = this.getSolutionDir();
+        const resolvedPath = !path.isAbsolute(filePath) && solutionDir
+            ? path.join(solutionDir, filePath)
+            : filePath;
         if (openExternal) {
-            this.openFileExternal.openFile(path);
+            this.openFileExternal.openFile(resolvedPath);
         } else {
-            await this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(path));
+            await this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(resolvedPath));
         }
     }
 
@@ -213,7 +217,7 @@ export class ManageSolutionWebviewMain {
                 await this.sendContextData();
                 break;
             case 'OPEN_FILE':
-                await this.openFile(message.path, false);
+                await this.openFile(message.path);
                 break;
             case 'SET_SELECTED_CONTEXTS':
                 await this.setSelectedContexts(message.data);

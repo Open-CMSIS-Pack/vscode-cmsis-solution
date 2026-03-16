@@ -37,7 +37,7 @@ export const CmsisCodicon: React.FC<Props> = ({
     ...spanProps
 }) => {
     const codepoint = CMSIS_CODICON_CODEPOINTS[name as CmsisCodiconName];
-    if (codepoint) {
+    if (codepoint !== undefined) {
         return (
             <span
                 {...spanProps}
