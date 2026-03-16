@@ -297,4 +297,20 @@ describe('ClangdManager', () => {
         expect(mockSetContext).toHaveBeenCalledTimes(0);
     });
 
+    it('returns out directory for the active clangd context', async () => {
+        mockConfigurationProvider.getConfigVariable.mockReturnValue(true);
+        mockConfigurationProvider.setConfigVariable.mockReturnValue(Promise.resolve());
+
+        mockSolutionManager.onUpdatedCompileCommandsEmitter.fire();
+        await waitTimeout();
+
+        const infoPath = await mockCommandsProvider.mockRunRegistered<string>(ClangdManager.getInfoPathCommandId);
+        expect(path.normalize(infoPath)).toEqual(path.join(path.dirname(activeContexts[0].projectPath!), 'out'));
+    });
+
+    it('returns a user-friendly message when no active clangd context exists', async () => {
+        const infoPath = await mockCommandsProvider.mockRunRegistered<string>(ClangdManager.getInfoPathCommandId);
+        expect(infoPath).toEqual(ClangdManager.noActiveClangdInfoMessage);
+    });
+
 });

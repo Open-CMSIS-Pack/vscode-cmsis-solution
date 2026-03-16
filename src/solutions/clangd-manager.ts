@@ -70,6 +70,8 @@ export const clangDActiveContextKey = `${manifest.PACKAGE_NAME}.activeClangdCont
 export class ClangdManager {
     public static readonly setClangdContextCommandId = `${manifest.PACKAGE_NAME}.setClangdContext`;
     public static readonly unsetClangdContextCommandId = `${manifest.PACKAGE_NAME}.unsetClangdContext`;
+    public static readonly getInfoPathCommandId = `${manifest.PACKAGE_NAME}.getInfoPath`;
+    public static readonly noActiveClangdInfoMessage = 'No active clangd information. Activate clangd information for a project.';
 
     private readonly debouncedUpdateClangdConfig;
     private readonly restartClangd;
@@ -95,6 +97,7 @@ export class ClangdManager {
         this.configurationProvider.onChangeConfiguration(this.debouncedUpdateClangdConfig, CONFIG_CLANGD_GENERATE_SETUP);
         this.commandsProvider.registerCommand(ClangdManager.setClangdContextCommandId, this.setGlobalContext, this);
         this.commandsProvider.registerCommand(ClangdManager.unsetClangdContextCommandId, this.unsetGlobalContext, this);
+        this.commandsProvider.registerCommand(ClangdManager.getInfoPathCommandId, this.getInfoPath, this);
     }
 
     private get globalContext() {
@@ -126,6 +129,24 @@ export class ClangdManager {
 
     private unsetGlobalContext() {
         // Do nothing
+    }
+
+    private getInfoPath(): string {
+        return this.resolveInfoPath();
+    }
+
+    private resolveInfoPath(): string {
+        const csolution = this.solutionManager.getCsolution();
+        const globalContextProjectPath = this.globalContext;
+
+        if (!csolution || !globalContextProjectPath) {
+            return ClangdManager.noActiveClangdInfoMessage;
+        }
+
+        const context = csolution.getContextDescriptor(globalContextProjectPath);
+        const outDir = context ? csolution.cbuildIdxFile?.cbuildFiles?.get(context.projectName)?.outDir : undefined;
+
+        return outDir ?? ClangdManager.noActiveClangdInfoMessage;
     }
 
     private async updateWorkspaceClangdConfig(compileCommands: URI | undefined) {
