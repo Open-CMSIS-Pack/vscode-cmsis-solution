@@ -309,7 +309,7 @@ describe('ClangdManager', () => {
 
         expect(mockSetContext).toHaveBeenCalledTimes(0);
     });
-     
+
     it('generates a clangd file when compile_macros.h is available', async () => {
         mockConfigurationProvider.getConfigVariable.mockReturnValue(true);
         mockConfigurationProvider.setConfigVariable.mockReturnValue(Promise.resolve());
@@ -320,7 +320,7 @@ describe('ClangdManager', () => {
         const compileMacrosFile = path.join(path.dirname(activeContexts[0].projectPath!), 'out', 'compile_macros.h');
 
         mockSolutionManager.onUpdatedCompileCommandsEmitter.fire();
-        await waitTimeout();  
+        await waitTimeout();
 
         expect(mockFs.writeUtf8File).toHaveBeenCalledTimes(1);
         const [writtenPath, writtenContent] = mockFs.writeUtf8File.mock.calls[0];
@@ -344,7 +344,7 @@ describe('ClangdManager', () => {
         expect(mockFs.exists).toHaveBeenCalledWith(expect.lowercaseEquals(expectedClangdPath));
         expect(mockFs.writeUtf8File).toHaveBeenCalledWith(expect.lowercaseEquals(expectedClangdPath), 'Diagnostics:\n  Suppress: [\'*\']');
     });
-   
+
    it('returns out directory for the active clangd context', async () => {
         mockConfigurationProvider.getConfigVariable.mockReturnValue(true);
         mockConfigurationProvider.setConfigVariable.mockReturnValue(Promise.resolve());
@@ -355,10 +355,10 @@ describe('ClangdManager', () => {
         const infoPath = await mockCommandsProvider.mockRunRegistered<string>(ClangdManager.getInfoPathCommandId);
         expect(path.normalize(infoPath)).toEqual(path.join(path.dirname(activeContexts[0].projectPath!), 'out'));
     });
-  
+
    it('returns a user-friendly message when no active clangd context exists', async () => {
         const infoPath = await mockCommandsProvider.mockRunRegistered<string>(ClangdManager.getInfoPathCommandId);
         expect(infoPath).toEqual(ClangdManager.noActiveClangdInfoMessage);
-    });  
-  
+    });
+
 });
