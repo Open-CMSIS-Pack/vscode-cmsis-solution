@@ -33,6 +33,7 @@ import { SolutionLoadStateChangeEvent } from '../../solutions/solution-manager';
 import { ETextFileResult } from '../../generic/text-file';
 import { configurationProviderFactory } from '../../vscode-api/configuration-provider.factories';
 import { csolutionFactory } from '../../solutions/csolution.factory';
+import { OpenCommand } from '../solution-outline/commands/open-command';
 
 
 // Helper for firing a message and waiting (now inside describe, uses local webviewManager)
@@ -63,8 +64,10 @@ describe('ContextSelectionWebviewMain', () => {
     });
 
     it('sends selected context data on GET_CONTEXT_SELECTION_DATA', async () => {
+        const configurationProvider = configurationProviderFactory();
         const main = manageSolutionWebviewMainFactory({
-            webviewManager
+            webviewManager,
+            configurationProvider
         });
         await main.activate(context as unknown as vscode.ExtensionContext);
 
@@ -395,7 +398,6 @@ describe('ContextSelectionWebviewMain', () => {
             const main = manageSolutionWebviewMainFactory({
                 webviewManager,
                 commandsProvider,
-                openFileExternal
             });
             await main.activate(context as unknown as vscode.ExtensionContext);
 
@@ -407,21 +409,18 @@ describe('ContextSelectionWebviewMain', () => {
             expect(openFileExternal.openFile).not.toHaveBeenCalled();
         });
 
-        it('calls external opener on OPEN_HELP and not vscode.open', async () => {
+        it('calls openHelp command for manager settings', async () => {
             const commandsProvider = commandsProviderFactory();
-            const openFileExternal = { openFile: jest.fn() };
             const main = manageSolutionWebviewMainFactory({
                 webviewManager,
                 commandsProvider,
-                openFileExternal
             });
             await main.activate(context as unknown as vscode.ExtensionContext);
 
             webviewManager.didReceiveMessageEmitter.fire({ type: 'OPEN_HELP' as any });
             await waitTimeout();
 
-            expect(openFileExternal.openFile).toHaveBeenCalledWith(expect.stringContaining('manage_settings.html'));
-            expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith(OpenCommand.openHelpCommandId, 'manage_settings.html#active-target');
         });
     });
 
@@ -549,7 +548,7 @@ describe('ContextSelectionWebviewMain', () => {
             ]);
 
             await fireAndWait('SELECT_FILE', {
-                targetElementId: 'image-path',
+                requestId: 'image-path',
                 options: {
                     defaultUri: defaultPath,
                     canSelectMany: false,
@@ -560,11 +559,13 @@ describe('ContextSelectionWebviewMain', () => {
 
             const dialogOptions = showOpenDialogSpy.mock.calls[0][0];
             expect(dialogOptions?.defaultUri?.toString()).toBe(URI.file(path.dirname(defaultPath)).toString());
-            expect(webviewManager.sendMessage).toHaveBeenCalledWith({
-                type: 'FILE_SELECTED',
-                data: ['images/app.axf'],
-                for: 'image-path'
-            });
+            expect(webviewManager.sendMessage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: 'FILE_SELECTED',
+                    data: ['images/app.axf'],
+                    requestId: 'image-path'
+                })
+            );
         });
     });
 

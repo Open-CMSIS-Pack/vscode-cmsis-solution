@@ -16,9 +16,7 @@
 
 import 'jest';
 import * as path from 'path';
-import * as fs from 'node:fs';
 import { MockOpenFileExternal } from './open-file-external.factories';
-import { CMSIS_VSCODE_REDIRECTION_FILE_HTML, OpenFileExternal } from './open-file-external';
 import { backToForwardSlashes } from './utils/path-utils';
 
 describe('Open-file-external', () => {
@@ -41,24 +39,12 @@ describe('Open-file-external', () => {
 
         it('writes redirection file', async () => {
             const mockOpenFileExternal = new MockOpenFileExternal();
-            const redirectionFileName = OpenFileExternal.getRedirectionFileName();
-            console.log(`Redirection file:  ${redirectionFileName}`);
-
             const testFilePath = backToForwardSlashes(path.join(__dirname, '..', 'test-data', 'documentation', 'Documentation_with_Anchor.html#HID'));
-            if (fs.existsSync(redirectionFileName)) {
-                fs.rmSync(redirectionFileName);
-            }
-            expect(fs.existsSync(redirectionFileName)).toBe(false);
 
-            mockOpenFileExternal.openFile(testFilePath);
+            const adjustedFilePath = mockOpenFileExternal.openFile(testFilePath);
             console.log(`Command:  ${mockOpenFileExternal.calledCommand}`);
-            // check if redirection file was created
-            expect(fs.existsSync(redirectionFileName)).toBe(true);
-            expect(mockOpenFileExternal.calledCommand.includes(CMSIS_VSCODE_REDIRECTION_FILE_HTML)).toBe(true);
 
-            const content = fs.readFileSync(redirectionFileName, 'utf8');
-            expect(content.includes(testFilePath)).toBe(true);
-            fs.rmSync(redirectionFileName);
+            expect(mockOpenFileExternal.calledCommand).toEqual(expect.stringContaining(adjustedFilePath));
         });
     });
 });

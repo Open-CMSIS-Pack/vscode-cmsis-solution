@@ -13,7 +13,6 @@ function usage() {
 
 function download_tools() {
     npm run download:uv2csolution -- --target "$1"
-    npm run download:guide
     npm run download:toolbox -- --target "$1"
     npm run download:debug-adapters
     npm run download:node-pty -- --target "$1"

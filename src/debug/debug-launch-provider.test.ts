@@ -228,6 +228,9 @@ describe('DebugLaunchProvider', () => {
             const tasks = [
                 { label: 'Existing Task', type: 'shell', command: '' },
             ];
+            const extraInputs = [
+                { id: 'input1', type: 'string', description: 'Input 1' },
+            ];
             const extraTasks = [
                 { label: 'Custom Task', type: 'shell', command: '' },
             ];
@@ -235,13 +238,13 @@ describe('DebugLaunchProvider', () => {
                 { label: 'Solution Task', type: 'shell', command: '' },
             ];
 
-            fsUtils.writeTextFile(path.join(tasksJsonDir, 'extra.json'), JSON.stringify({ version: '2.0.0', tasks: extraTasks }, null, 4));
+            fsUtils.writeTextFile(path.join(tasksJsonDir, 'extra.json'), JSON.stringify({ version: '2.0.0', tasks: extraTasks, inputs: extraInputs }, null, 4));
             fsUtils.writeTextFile(path.join(solutionTasksJsonDir, 'solution.json'), JSON.stringify({ version: '2.0.0', tasks: solutionTasks }, null, 4));
 
             const mockContent = JSON.stringify({ version: '2.0.0', tasks }, null, 4);
             fsUtils.writeTextFile(tasksJsonFile, mockContent);
 
-            const mockChangedContent = JSON.stringify({ version: '2.0.0', tasks: [...tasks, ...extraTasks, ...solutionTasks] }, null, 4);
+            const mockChangedContent = JSON.stringify({ version: '2.0.0', inputs: [...extraInputs], tasks: [...tasks, ...extraTasks, ...solutionTasks] }, null, 4);
             await debugLaunchProvider.updateTasksJson(workspaceFolder, [], new Map<string, unknown>());
 
             const expectedContent = fs.readFileSync(tasksJsonFile, 'utf8');

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { ChildProcess } from 'child_process';
 import { OpenFileExternal } from './open-file-external';
 import { IOpenFileExternal } from './open-file-external-if';
 
@@ -22,8 +23,9 @@ import { IOpenFileExternal } from './open-file-external-if';
  */
 export class MockOpenFileExternal extends OpenFileExternal {
     calledCommand: string = '';
-    protected doOpenFile(command: string): void {
+    protected doOpenFile(command: string) {
         this.calledCommand = command;
+        return jest.mocked(new ChildProcess());
     }
 }
 

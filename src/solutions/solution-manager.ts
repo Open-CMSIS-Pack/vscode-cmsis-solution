@@ -26,10 +26,12 @@ import { ExtensionApiProvider } from '../vscode-api/extension-api-provider';
 import { EnvironmentManagerApiV1 } from '@arm-software/vscode-environment-manager';
 import { ETextFileResult } from '../generic/text-file';
 import { debounce } from 'lodash';
+import { SolutionRpcData } from './solution-rpc-data';
 
 
 export interface SolutionLoadState {
     solutionPath?: string;
+    activated?: boolean;  // solution is activated (loaded and converted at least once)
     loaded?: boolean;     // solution.yml + project.yml files loaded
     converted?: boolean;  // conversion executed and cbuild*.yml files are loaded.
 };
@@ -37,7 +39,8 @@ export interface SolutionLoadState {
 export const solutionLoadStatesEqual = (a: SolutionLoadState, b: SolutionLoadState): boolean => {
     return a.solutionPath === b.solutionPath
         && a.loaded === b.loaded
-        && a.converted === b.converted;
+        && a.converted === b.converted
+        && a.activated === b.activated;
 };
 
 export interface SolutionLoadStateChangeEvent {
@@ -81,10 +84,12 @@ export class SolutionManagerImpl implements SolutionManager {
     private readonly debouncedHandleEnvironmentChange = debounce(this.handleEnvironmentChange.bind(this), 500);
     private _loadState: Readonly<SolutionLoadState> = { solutionPath: undefined };
     private csolution?: CSolution;
+    private loadingSolution = false;
 
     constructor(
         private readonly activeSolutionTracker: ActiveSolutionTracker,
         private readonly eventHub: SolutionEventHub,
+        private readonly rpcData: SolutionRpcData,
         private readonly commandsProvider: CommandsProvider,
         private readonly environmentManagerApiProvider: ExtensionApiProvider<Pick<EnvironmentManagerApiV1, 'onDidActivate' | 'getActiveTools'>>,
 
@@ -97,7 +102,12 @@ export class SolutionManagerImpl implements SolutionManager {
             this.eventHub.onDidConvertCompleted(this.handleSolutionConvertCompleted, this),
             this.commandsProvider.registerCommand(SolutionManagerImpl.refreshCommandId, this.refresh, this),
             this.environmentManagerApiProvider.onActivate(environmentManagerApi => {
-                environmentManagerApi.onDidActivate(this.debouncedHandleEnvironmentChange, this, context.subscriptions);
+                environmentManagerApi.onDidActivate(() => {
+                    if (!this.isSolutionActivated()) {
+                        return;
+                    }
+                    this.debouncedHandleEnvironmentChange();
+                }, undefined, context.subscriptions);
             }),
             this.loadStateChangeEmitter,
             this.loadBuildFilesEmitter,
@@ -118,8 +128,12 @@ export class SolutionManagerImpl implements SolutionManager {
         return vscode.workspace.getWorkspaceFolder(vscode.Uri.file(solutionPath))?.uri;
     }
 
+    private isSolutionActivated(): boolean {
+        return !!this.loadState.solutionPath && this.loadState.activated === true;
+    }
+
     private async handleEnvironmentChange(): Promise<void> {
-        if (!this.loadState.solutionPath) {
+        if (!this.isSolutionActivated()) {
             return;
         }
         await this.loadSolution();
@@ -183,11 +197,11 @@ export class SolutionManagerImpl implements SolutionManager {
     }
 
     private async loadSolution(): Promise<void> {
-        if (!this.loadState.solutionPath) {
+        if (this.loadingSolution || !this.loadState.solutionPath) {
             return;
         }
-
         try {
+            this.loadingSolution = true;
             this.csolution = new CSolution();
             await this.csolution.load(this.loadState.solutionPath);
 
@@ -199,11 +213,18 @@ export class SolutionManagerImpl implements SolutionManager {
             this.setLoadState(newState, true);
         } catch (error) {
             console.error(`Failed to load ${this.loadState.solutionPath}`, error);
+        } finally {
+            this.loadingSolution = false;
         }
     }
 
     private async handleSolutionConvertCompleted(data: ConvertResultData) {
+        if (!this.csolution) {
+            return;
+        }
+        await this.rpcData.update(this.csolution);
         await this.loadSolutionBuildFiles();
+
         if (data.severity != 'error') {
             await this.commandsProvider.executeCommandIfRegistered(UPDATE_DEBUG_TASKS_COMMAND_ID);
         }
@@ -216,7 +237,8 @@ export class SolutionManagerImpl implements SolutionManager {
             const result = await this.csolution.loadBuildFiles();
             const newState: SolutionLoadState = {
                 ...this.loadState,
-                converted: true
+                activated: true,
+                converted: true,
             };
             this.setLoadState(newState, result !== ETextFileResult.Unchanged);
         }

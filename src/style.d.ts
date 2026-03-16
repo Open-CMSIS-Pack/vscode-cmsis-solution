@@ -1,5 +1,5 @@
 /**
- * Copyright 2024-2026 Arm Limited
+ * Copyright 2025-2026 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,4 @@
  * limitations under the License.
  */
 
-/**
- *  Interface to open file in an external standard OS editor/browser,
- *  encapsulates call to node_modules/open
- */
-export interface IOpenFileExternal {
-    openFile(path: string) : string;
-}
+declare module '*.css';

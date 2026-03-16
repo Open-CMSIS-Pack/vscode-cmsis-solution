@@ -18,29 +18,35 @@ import { exec } from 'child_process';
 import { IOpenFileExternal } from './open-file-external-if';
 import { isWebAddress } from './util';
 import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import { backToForwardSlashes } from './utils/path-utils';
+import { tmpNameSync } from 'tmp';
 
-export const CMSIS_VSCODE_REDIRECTION_FILE_HTML = 'cmsis_vscode_redirectionFile.html';
+import { backToForwardSlashes } from './utils/path-utils';
 
 /**
  *  Class to call node_modules/open
  */
 export class OpenFileExternal implements IOpenFileExternal {
-    public openFile(filePath: string): void {
-        this.doOpenFile(this.getCommand(this.adjustFilePath(filePath)));
+
+    public openFile(filePath: string) {
+        const adjustedFilePath = this.adjustFilePath(filePath);
+        this.doOpenFile(this.getCommand(adjustedFilePath));
+        if (adjustedFilePath !== filePath) {
+            setTimeout(() => {
+                try {
+                    fs.unlinkSync(adjustedFilePath);
+                } catch (error) {
+                    console.error(`Error deleting redirection file ${adjustedFilePath}:`, error);
+                }
+            }, 10000);
+        }
+        return adjustedFilePath;
     }
 
-    protected adjustFilePath(filePath: string): string {
+    protected adjustFilePath(filePath: string) {
         if (!isWebAddress(filePath) && filePath.indexOf('#') > 0) {
             return this.writeRedirectionFile(filePath);
         }
         return filePath;
-    }
-
-    public static getRedirectionFileName(): string {
-        return path.join(os.tmpdir(), CMSIS_VSCODE_REDIRECTION_FILE_HTML);
     }
 
     /**
@@ -48,11 +54,11 @@ export class OpenFileExternal implements IOpenFileExternal {
      * @param filePath path to redirect
      * @returns redirected absolute filename
      */
-    protected writeRedirectionFile(filePath: string): string {
+    protected writeRedirectionFile(filePath: string) {
         filePath = backToForwardSlashes(filePath);
         filePath = `file:///${filePath}`;
 
-        const redirectionFileName = OpenFileExternal.getRedirectionFileName();
+        const redirectionFileName = tmpNameSync({ postfix: 'redirect.html' });
         const content = `
         <html>
         <head>
@@ -67,9 +73,6 @@ export class OpenFileExternal implements IOpenFileExternal {
         `;
 
         try {
-            if (fs.existsSync(redirectionFileName)) {
-                fs.rmSync(redirectionFileName);
-            }
             fs.writeFileSync(redirectionFileName, content, 'utf8');
         } catch (error) {
             console.error(`Error writing file ${redirectionFileName}:`, error);
@@ -79,7 +82,7 @@ export class OpenFileExternal implements IOpenFileExternal {
         return redirectionFileName;
     }
 
-    protected getCommand(path: string): string {
+    protected getCommand(path: string) {
         switch (process.platform) {
             case 'darwin':
                 return `open "${path}"`;
@@ -89,8 +92,9 @@ export class OpenFileExternal implements IOpenFileExternal {
                 return `xdg-open "${path}"`;
         }
     }
-    protected doOpenFile(command: string): void {
-        exec(command, (error) => {
+
+    protected doOpenFile(command: string) {
+        return exec(command, (error) => {
             if (error) {
                 console.error(`Error executing command: ${command}`, error);
             }

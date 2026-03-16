@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
-/**
- *  Interface to open file in an external standard OS editor/browser,
- *  encapsulates call to node_modules/open
- */
-export interface IOpenFileExternal {
-    openFile(path: string) : string;
-}
+export type PathType = 'absolute' | 'relative';
+
+export type FileSelectorOptionsType = {
+    canSelectMany?: boolean,
+    defaultUri?: string,
+    openLabel?: string,
+    title?: string,
+    pathType?: PathType,
+    filters?: { [key: string]: string[] }
+};

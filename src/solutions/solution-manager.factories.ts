@@ -26,12 +26,14 @@ export type MockSolutionManager = jest.Mocked<StubEvents<SolutionManager>> & { f
 
 export const idleSolutionLoadStateFactory = makeFactory<SolutionLoadState>({
     solutionPath: () => undefined,
+    activated: () => undefined,
     loaded: () => undefined,
     converted: () => undefined,
 });
 
 export const activeSolutionLoadStateFactory = makeFactory<SolutionLoadState>({
     solutionPath: () => path.join(faker.system.filePath(), `${faker.word.noun()}.csolution.yml`),
+    activated: () => true,
     loaded: () => undefined,
     converted: () => undefined,
 });

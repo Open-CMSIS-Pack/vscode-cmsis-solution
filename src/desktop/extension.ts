@@ -85,6 +85,7 @@ import { EnvironmentManager } from './env-manager';
 import { ExtensionApiWrapper } from '../vscode-api/extension-api-wrapper';
 import { SerialMonitorApi, Version } from '@microsoft/vscode-serial-monitor-api';
 import { SolutionEventHub } from '../solutions/solution-event-hub';
+import { SolutionRpcData } from '../solutions/solution-rpc-data';
 import { ManageSolutionCustomEditorProvider, registerManageSolutionCommand } from '../views/manage-solution/manage-solution-custom-editor';
 
 let installDefaultToolsetProcess: Promise<void> | undefined;
@@ -130,9 +131,18 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     );
 
     const solutionRootsWatcher = new SolutionRootsWatcher(fileWatcherProvider, workspaceFoldersProvider, workspaceFsProvider, commandsProvider);
+
+    const csolutionService = new CsolutionService(
+        envManager,
+        commandsProvider,
+    );
+
+    const rpcData = new SolutionRpcData(csolutionService);
+
     const solutionManager = new SolutionManagerImpl(
         activeSolutionTracker,
         eventHub,
+        rpcData,
         commandsProvider,
         environmentManagerApiProvider);
 
@@ -145,10 +155,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         configureVcpkgForSolution,
         window,
         workspace
-    );
-    const csolutionService = new CsolutionService(
-        envManager,
-        commandsProvider,
     );
     const cmsisToolboxManager = new CmsisToolboxManagerImpl(
         processManager,
@@ -192,7 +198,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         commandsProvider,
         workspaceFoldersProvider,
         dataManager,
-        externalFileOpener
     );
     const manageLayers = new ManageLayersWebviewMain(
         context,
@@ -217,7 +222,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         context,
         solutionManager,
         commandsProvider,
-        externalFileOpener,
         configurationProvider,
         csolutionService,
     );
