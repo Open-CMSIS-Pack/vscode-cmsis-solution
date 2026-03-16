@@ -44,7 +44,7 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
 
         const hasCmsisPackRoot = fileValue.indexOf('${CMSIS_PACK_ROOT}') !== -1;
         const filePath = this.resolveFilePath(hasCmsisPackRoot, fileValue);
-        const fileBaseName = path.basename(filePath);
+        const fileBaseName = path.basename(fileValue);
         const resourcePath = hasCmsisPackRoot ? filePath : f.resolvePath(filePath);
         const description = isApi ? ' (API)' : undefined;
         const rootFileName = f.rootFileName;
@@ -73,12 +73,11 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
         if (hasCmsisPackRoot) {
             return fileValue.replace('${CMSIS_PACK_ROOT}', getCmsisPackRoot());
         }
-        return fileValue;
+        return this.expandAccessSequences(fileValue);
     }
 
     private createFileItem(cgroupItem: COutlineItem, fileBaseName: string, resourcePath: string, description?: string): COutlineItem {
-        const item = cgroupItem.createChild(fileBaseName);
-        item.setTag('file');
+        const item = cgroupItem.createChild('file');
         item.setAttribute('label', fileBaseName);
         item.setAttribute('expandable', '0');
         item.setAttribute('resourcePath', resourcePath);

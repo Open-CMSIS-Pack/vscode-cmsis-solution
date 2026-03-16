@@ -88,7 +88,7 @@ describe('DeleteCommand', () => {
         const groups = children?.[2];
         const groupItems = groups?.getChildren();
 
-        const want: string[] = ['README.md', 'HID.c'];
+        const want: string[] = ['README.md', 'HID.c', '$OutDir()$/testOutput.test'];
         const got: string[] = [];
         if (groupItems) {
             for (const gi of groupItems) {
@@ -194,7 +194,7 @@ describe('DeleteCommand', () => {
         const groups = children?.[2];
         const groupItems = groups?.getChildren();
 
-        const want: string[] = ['Documentation'];
+        const want: string[] = ['Documentation', 'AccessSequencesTest'];
         const got: string[] = [];
         if (groupItems) {
             for (const gi of groupItems) {

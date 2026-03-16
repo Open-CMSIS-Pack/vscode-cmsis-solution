@@ -98,8 +98,7 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
             return;
         }
 
-        const cbookItem = chardwareItem.createChild(title);
-        cbookItem.setTag('book');
+        const cbookItem = chardwareItem.createChild('book');
         cbookItem.setAttribute('label', title);
         cbookItem.setAttribute('expandable', '0');
         cbookItem.setAttribute('resourcePath', filePath);
@@ -137,8 +136,7 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         const filePath = file.resolvePath(fileName);
         const dbgConfFile = path.basename(fileName);
 
-        const dbgconfFileItem = chardwareItem.createChild('dbgConfFile');
-        dbgconfFileItem.setTag('file');
+        const dbgconfFileItem = chardwareItem.createChild('file');
         dbgconfFileItem.setAttribute('label', dbgConfFile);
         dbgconfFileItem.setAttribute('expandable', '0');
         dbgconfFileItem.setAttribute('resourcePath', filePath);

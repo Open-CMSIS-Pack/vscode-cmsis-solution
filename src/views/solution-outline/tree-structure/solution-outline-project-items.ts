@@ -108,9 +108,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
     }
 
     private createGroupItem(cprojectItem: COutlineItem, name: string, mutable: boolean): COutlineItem {
-        const cgroupItem = cprojectItem.createChild(name) as COutlineItem;
-
-        cgroupItem.setTag('group');
+        const cgroupItem = cprojectItem.createChild('group');
         cgroupItem.setAttribute('label', name);
         cgroupItem.setAttribute('iconPath', 'csolution-files');
         if (mutable) {
@@ -181,7 +179,6 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
 
         // create layer
         const clayerItem = node.createChild('layer');
-        clayerItem.setTag('layer');
         clayerItem.setAttribute('label', label);
         clayerItem.setAttribute('expandable', '1');
         clayerItem.addFeature(`${manifest.LAYER_CONTEXT}`);
@@ -208,7 +205,6 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         const size = children.length;
 
         const ccomponentsItem = cprojectItem.createChild('components');
-        ccomponentsItem.setTag('components');
 
         ccomponentsItem.setAttribute('label', 'Components' + ` (${size})`);
         ccomponentsItem.setAttribute('expandable', size > 0 ? '1' : '0');
@@ -316,7 +312,6 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
 
             // create child
             const ccomponentItem = ccomponentsItem.createChild('component');
-            ccomponentItem.setTag('component');
             ccomponentItem.setAttribute('label', refId);
             ccomponentItem.setAttribute('expandable', '0');
             ccomponentItem.setAttribute('iconPath', 'csolution-software-component');

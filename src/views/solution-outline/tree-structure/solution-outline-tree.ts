@@ -121,7 +121,7 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
 
         // add children
         if (cproject) {
-            const projectItems = new ProjectItemsBuilder(this.csolution);
+            const projectItems = new ProjectItemsBuilder(this.csolution, this.rpcData, context);
             projectItems.addProjectChildren(this.csolution, cprojectItem, cprojectFile, cbuild);
 
             // get prioritized component list and set merge description if available

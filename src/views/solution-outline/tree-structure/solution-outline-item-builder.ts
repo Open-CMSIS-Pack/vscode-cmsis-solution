@@ -24,7 +24,7 @@ export class SolutionOutlineItemBuilder {
         protected context?: string,
     ) { }
 
-    public expandAccessSequences(str: string | undefined) {
+    public expandAccessSequences(str: string) {
         if (!this.rpcData || !this.context || !str) {
             return str;
         }

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import { constructor } from '../generic/constructor';
-import { Board, CsolutionService, Device, VariablesResult } from '../json-rpc/csolution-rpc-client';
+import { Board, CsolutionService, Device, Variables } from '../json-rpc/csolution-rpc-client';
 import { CSolution } from './csolution';
 
 
@@ -34,9 +34,16 @@ export interface SolutionRpcData {
      */
     get device(): Device | undefined;
 
+    /**
+     * Returns variables for given context
+     * @param context resolving context
+     * @return ke-value map of variables, key is surrounded with '$'chars
+     */
+    getVariables(context: string): Map<string, string> | undefined;
+
     /** Resolves a single variable for a context
      * @param context resolving context
-     * @param variable name without surrounding '$' chars
+     * @param variable name with surrounding '$' chars
      * @return variable value if resolved, undefined otherwise
     */
     resolveVariable(context: string, variable?: string): string | undefined;
@@ -52,13 +59,13 @@ export interface SolutionRpcData {
     expandString(str: string, context: string): string
 }
 
-class SolutionRpcDataImpl implements SolutionRpcData {
-    private readonly contextVariables = new Map<string, Map<string, string>>();
-    private _board?: Board = undefined;
-    private _device?: Device = undefined;
+export class SolutionRpcDataImpl implements SolutionRpcData {
+    protected readonly contextVariables = new Map<string, Map<string, string>>();
+    protected _board?: Board = undefined;
+    protected _device?: Device = undefined;
 
     constructor(
-        private readonly csolutionService: CsolutionService,
+        protected readonly csolutionService: CsolutionService,
     ) {
     }
     clear() {
@@ -107,14 +114,18 @@ class SolutionRpcDataImpl implements SolutionRpcData {
         for (const context of contexts) {
             const data = await this.csolutionService.getVariables({ context: context });
             if (data.success) {
-                this.contextVariables.set(context, this.variablesFromRpcData(data));
+                this.contextVariables.set(context, this.variablesFromRpcData(data.variables));
             }
         }
     }
 
-    private variablesFromRpcData(data: VariablesResult) {
+    public getVariables(context: string): Map<string, string> | undefined {
+        return this.contextVariables.get(context);
+    }
+
+    protected variablesFromRpcData(variables: Variables) {
         const vars = new Map<string, string>();
-        for (const [key, value] of Object.entries(data.variables)) {
+        for (const [key, value] of Object.entries(variables)) {
             vars.set('$' + key + '$', value);
         }
         return vars;
@@ -122,7 +133,7 @@ class SolutionRpcDataImpl implements SolutionRpcData {
 
     public resolveVariable(context: string, variable?: string): string | undefined {
         if (variable) {
-            const variables = this.contextVariables.get(context);
+            const variables = this.getVariables(context);
             if (variables) {
                 return variables.get(variable);
             }

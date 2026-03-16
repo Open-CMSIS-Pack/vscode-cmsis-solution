@@ -15,14 +15,39 @@
  */
 
 import { csolutionServiceFactory } from '../json-rpc/csolution-rpc-client.factory';
-import { SolutionRpcData } from './solution-rpc-data';
+import { Board, Device, Variables } from '../json-rpc/csolution-rpc-client';
+import { SolutionRpcData, SolutionRpcDataImpl } from './solution-rpc-data';
 
-export type SolutionRpcDataMock = jest.MockedObject<SolutionRpcData>;
 
-export function solutionRpcDataFactory(options: Partial<SolutionRpcDataMock> = {}): SolutionRpcDataMock {
-    const solutionRpcDataMock = jest.mocked(new SolutionRpcData(csolutionServiceFactory()), { shallow: true });
+export class SolutionRpcDataMock extends SolutionRpcDataImpl {
+    constructor() {
+        super(csolutionServiceFactory());
+    }
+
+    public seedBoard(board?: Board): SolutionRpcDataMock {
+        this._board = board;
+        return this;
+    }
+
+    public seedDevice(device?: Device): SolutionRpcDataMock {
+        this._device = device;
+        return this;
+    }
+
+    public seedVariables(context: string, variables: Variables): SolutionRpcDataMock {
+        this.contextVariables.set(context, this.variablesFromRpcData(variables));
+        return this;
+    }
+}
+
+export function solutionRpcDataFactory(
+    options: Partial<SolutionRpcData> = {}
+): SolutionRpcDataMock {
+    const solutionRpcDataMock = new SolutionRpcDataMock();
 
     Object.assign(solutionRpcDataMock, options);
 
     return solutionRpcDataMock;
 }
+
+export type SolutionRpcDataLike = SolutionRpcData | SolutionRpcDataMock;
