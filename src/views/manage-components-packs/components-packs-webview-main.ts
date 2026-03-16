@@ -31,7 +31,7 @@ import { BuildContext, Project, TargetSetData } from './components-data';
 import { ComponentsPacksActions, CurrentProject, normalizeForCompare } from './components-packs-actions';
 import { ComponentRowDataType, ComponentScope } from './data/component-tools';
 import { componentTreeWalker } from './data/component-tree-walker';
-import { uniqWith } from 'lodash';
+import { uniqWith, cloneDeep } from 'lodash';
 import { parsePackId } from './data/pack-parse';
 import { lineOf, readTextFile } from '../../utils/fs-utils';
 import { stripTwoExtensions } from '../../utils/string-utils';
@@ -420,11 +420,12 @@ export class ComponentsPacksWebviewMain {
         const activeContext = this.getActiveContext();
         const state = await this.csolutionService.apply({ context: activeContext });
         this.usedItems = await this.csolutionService.getUsedItems({ context: activeContext });
+        const usedItemsForProjectFileUpdate = cloneDeep(this.usedItems);
         const projectFileName = this.currentProject?.project.projectId ?? '';
         const requestAll = this.scope === ComponentScope.All;
         this.componentTree = this.manageComponentsActions.mapComponentsFromService(await this.csolutionService.getComponentsTree({ context: activeContext, all: requestAll }));
         this.validations = await this.csolutionService.validateComponents({ context: activeContext });
-        await this.projectFileUpdater.updateUsedItems(activeContext, projectFileName, this.usedItems);
+        await this.projectFileUpdater.updateUsedItems(activeContext, projectFileName, usedItemsForProjectFileUpdate);
 
         await Promise.all([
             this.webviewManager.sendMessage({ type: 'SET_ERROR_MESSAGES', messages: [] }),
@@ -433,7 +434,7 @@ export class ComponentsPacksWebviewMain {
         if (state.success === false) {
             this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: state.message ?? 'Unspecified error when writing solution information' });
         }
-        await this.sendDirtyState({ skipApply: true, usedItems: this.usedItems });
+        await this.sendDirtyState({ skipApply: true, usedItems: usedItemsForProjectFileUpdate });
     }
 
     private async handleOpenFile(message: Messages.OutgoingMessage): Promise<void> {
