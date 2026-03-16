@@ -34,6 +34,7 @@ import { ETextFileResult } from '../../generic/text-file';
 import { configurationProviderFactory } from '../../vscode-api/configuration-provider.factories';
 import { csolutionFactory } from '../../solutions/csolution.factory';
 
+// Helper for firing a message and waiting (now inside describe, uses local webviewManager)
 describe('ContextSelectionWebviewMain', () => {
     let context: { subscriptions: vscode.Disposable[], extensionPath: string };
     let webviewManager: MockWebviewManager<Messages.OutgoingMessage>;
@@ -100,8 +101,10 @@ describe('ContextSelectionWebviewMain', () => {
     });
 
     it('sends selected context data on GET_CONTEXT_SELECTION_DATA', async () => {
+        const configurationProvider = configurationProviderFactory();
         const main = manageSolutionWebviewMainFactory({
-            webviewManager
+            webviewManager,
+            configurationProvider
         });
         await main.activate(context as unknown as vscode.ExtensionContext);
 
@@ -388,7 +391,6 @@ describe('ContextSelectionWebviewMain', () => {
             const main = manageSolutionWebviewMainFactory({
                 webviewManager,
                 commandsProvider,
-                openFileExternal
             });
             await main.activate(context as unknown as vscode.ExtensionContext);
 
@@ -536,7 +538,7 @@ describe('ContextSelectionWebviewMain', () => {
             ]);
 
             await fireAndWait('SELECT_FILE', {
-                targetElementId: 'image-path',
+                requestId: 'image-path',
                 options: {
                     defaultUri: defaultPath,
                     canSelectMany: false,
@@ -551,7 +553,7 @@ describe('ContextSelectionWebviewMain', () => {
                 expect.objectContaining({
                     type: 'FILE_SELECTED',
                     data: ['images/app.axf'],
-                    for: 'image-path'
+                    requestId: 'image-path'
                 })
             );
         });
@@ -609,7 +611,7 @@ describe('ContextSelectionWebviewMain', () => {
                 expect.objectContaining({
                     type: 'FILE_SELECTED',
                     data: ['images/app.axf', 'images/boot.axf'],
-                    for: 'image-path'
+                    requestId: 'image-path'
                 })
             );
         });

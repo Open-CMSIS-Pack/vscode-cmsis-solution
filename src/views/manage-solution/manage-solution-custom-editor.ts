@@ -22,11 +22,11 @@ import { MANAGE_SOLUTION_WEBVIEW_OPTIONS } from './manage-solution-webview-main'
 import { IncomingMessage, OutgoingMessage } from './messages';
 import { SolutionManager } from '../../solutions/solution-manager';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
-import { IOpenFileExternal } from '../../open-file-external-if';
 import { ConfigurationProvider } from '../../vscode-api/configuration-provider';
 import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
 import { SolutionData } from './view/state/manage-solution-state';
 import { COMMAND_OPEN_SOLUTION } from '../../solutions/active-solution-tracker';
+import { IOpenFileExternal } from '../../open-file-external-if';
 
 type EditEntry = {
     label: string;
@@ -117,9 +117,9 @@ export class ManageSolutionCustomEditorProvider implements vscode.CustomEditorPr
         private readonly context: vscode.ExtensionContext,
         private readonly solutionManager: SolutionManager,
         private readonly commandsProvider: CommandsProvider,
-        private readonly openFileExternal: IOpenFileExternal,
         private readonly configurationProvider: ConfigurationProvider,
         private readonly csolutionService: CsolutionService,
+        private readonly openFileExternal: IOpenFileExternal,
     ) { }
 
     private getOrCreateWebviewMain(): ManageSolutionWebviewMain {

@@ -20,7 +20,6 @@ import { ExtensionContext } from 'vscode';
 import { URI } from 'vscode-uri';
 import { ETextFileResult } from '../../generic/text-file';
 import * as manifest from '../../manifest';
-import { IOpenFileExternal } from '../../open-file-external-if';
 import { SolutionLoadStateChangeEvent, SolutionManager } from '../../solutions/solution-manager';
 import { backToForwardSlashes } from '../../utils/path-utils';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
@@ -33,7 +32,9 @@ import { initialState } from './view/state/reducer';
 import debounce from 'lodash.debounce';
 import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
 import { isDeepStrictEqual } from 'util';
+import { OpenCommand } from '../solution-outline/commands/open-command';
 import { FileSelectorOptionsType } from './types';
+import { IOpenFileExternal } from '../../open-file-external-if';
 
 export const MANAGE_SOLUTION_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> = {
     title: 'Manage Solution',
@@ -49,7 +50,6 @@ export const MANAGE_SOLUTION_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> = 
 
 
 export class ManageSolutionWebviewMain {
-    private readonly HELP_URL = path.join(manifest.GUIDE_FOLDER, 'manage_settings.html#active-target');
     private readonly webviewManager: WebviewManager<IncomingMessage, OutgoingMessage>;
 
     private readonly onEdit?: (label: string, before: SolutionData, after: SolutionData) => void;
@@ -200,11 +200,10 @@ export class ManageSolutionWebviewMain {
     }
 
     private async openFile(path: string, openExternal?: boolean): Promise<void> {
-        const absolutePath = this.absolutePath(path, this.getSolutionDir());
         if (openExternal) {
-            this.openFileExternal.openFile(absolutePath);
+            this.openFileExternal.openFile(path);
         } else {
-            await this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(absolutePath));
+            await this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(path));
         }
     }
 
@@ -247,13 +246,13 @@ export class ManageSolutionWebviewMain {
                 await this.commandsProvider.executeCommand('workbench.action.files.save');
                 break;
             case 'OPEN_HELP':
-                await this.openFile(this.HELP_URL, true);
+                await this.commandsProvider.executeCommand(OpenCommand.openHelpCommandId, 'manage_settings.html#active-target');
                 break;
             case 'SET_DEBUG_ADAPTER_PROPERTY':
                 await this.updateDebuggerParameter(message.service, message.key, message.value, message.pname);
                 break;
             case 'SELECT_FILE':
-                await this.selectFileDialog(message.targetElementId, message.options);
+                await this.selectFileDialog(message.requestId, message.options);
                 break;
             case 'SET_AUTO_UPDATE':
                 await this.configurationProvider.setConfigVariable(manifest.CONFIG_AUTO_DEBUG_LAUNCH, message.value, undefined, true);
@@ -427,7 +426,7 @@ export class ManageSolutionWebviewMain {
         });
     }
 
-    private async selectFileDialog(targetElementId: string, options?: FileSelectorOptionsType): Promise<void> {
+    private async selectFileDialog(requestId: string, options?: FileSelectorOptionsType): Promise<void> {
         const solutionDir = this.getSolutionDir();
         if (options?.defaultUri) {
             options.defaultUri = URI.file(this.absolutePath(options.defaultUri, solutionDir)).toString();
@@ -451,7 +450,9 @@ export class ManageSolutionWebviewMain {
                 )
             );
 
-            await this.webviewManager.sendMessage({ type: 'FILE_SELECTED', data: paths, for: targetElementId });
+            await this.webviewManager.sendMessage({ type: 'FILE_SELECTED', data: paths, requestId });
+        } else {
+            await this.webviewManager.sendMessage({ type: 'FILE_SELECTED', data: [], requestId });
         }
     }
 
