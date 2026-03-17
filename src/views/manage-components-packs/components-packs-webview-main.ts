@@ -117,13 +117,13 @@ export class ComponentsPacksWebviewMain {
         if (await this.isDirty()) {
             const buttonOptions = [
                 { title: 'Save' },
-                { title: 'Discard', isCloseAffordance: true },
-                { title: 'Reopen' },
+                { title: 'Don\'t Save', isCloseAffordance: true },
+                { title: 'Cancel' },
             ];
-            const messageOptions: vscode.MessageOptions = { modal: true, detail: 'Do you want to save changes before closing?' };
+            const messageOptions: vscode.MessageOptions = { modal: true, detail: 'Your changes will be lost if you don\'t save them.' };
 
             const pick = (await vscode.window.showWarningMessage(
-                'Unsaved changes will be lost.',
+                'Do you want to save the changes you made to the Solution?',
                 messageOptions,
                 ...buttonOptions,
             )) || { title: 'Cancel' };
@@ -133,10 +133,10 @@ export class ComponentsPacksWebviewMain {
                     await this.handleApplyComponentSet();
                     discardView();
                     break;
-                case 'Reopen':
+                case 'Cancel':
                     this.webviewManager.createOrShowPanel();
                     break;
-                case 'Discard':
+                case 'Don\'t Save':
                 default:
                     discardView();
                     break;
