@@ -34,6 +34,7 @@ import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
 import { isDeepStrictEqual } from 'util';
 import { OpenCommand } from '../solution-outline/commands/open-command';
 import { FileSelectorOptionsType } from './types';
+import { IOpenFileExternal } from '../../open-file-external-if';
 
 export const MANAGE_SOLUTION_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> = {
     title: 'Manage Solution',
@@ -56,10 +57,14 @@ export class ManageSolutionWebviewMain {
     protected _controller?: ManageSolutionController;
     private wasDirty: boolean = false;
 
+    private readonly absolutePath = (inputPath: string, baseDir: string) =>
+        path.isAbsolute(inputPath) ? inputPath : path.resolve(baseDir, inputPath);
+
     constructor(
         context: ExtensionContext,
         protected readonly solutionManager: SolutionManager, // solutionManager is only used for didChange events. Other calls to csolution must be done using the csolution getter/setter
         private readonly commandsProvider: CommandsProvider,
+        private readonly openFileExternal: IOpenFileExternal,
         private readonly configurationProvider: ConfigurationProvider,
         private readonly csolutionService: CsolutionService,
         onEdit?: (label: string, before: SolutionData, after: SolutionData) => void,
@@ -194,13 +199,25 @@ export class ManageSolutionWebviewMain {
         ]);
     }
 
+    private async openFile(filePath: string, openExternal?: boolean): Promise<void> {
+        const solutionDir = this.getSolutionDir();
+        const resolvedPath = !path.isAbsolute(filePath) && solutionDir
+            ? path.join(solutionDir, filePath)
+            : filePath;
+        if (openExternal) {
+            this.openFileExternal.openFile(resolvedPath);
+        } else {
+            await this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(resolvedPath));
+        }
+    }
+
     private async handleMessage(message: OutgoingMessage): Promise<void> {
         switch (message.type) {
             case 'GET_CONTEXT_SELECTION_DATA':
                 await this.sendContextData();
                 break;
             case 'OPEN_FILE':
-                await this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(message.path));
+                await this.openFile(message.path);
                 break;
             case 'SET_SELECTED_CONTEXTS':
                 await this.setSelectedContexts(message.data);
@@ -416,7 +433,7 @@ export class ManageSolutionWebviewMain {
     private async selectFileDialog(requestId: string, options?: FileSelectorOptionsType): Promise<void> {
         const solutionDir = this.getSolutionDir();
         if (options?.defaultUri) {
-            options.defaultUri = URI.file(dirname(options.defaultUri)).toString();
+            options.defaultUri = URI.file(this.absolutePath(options.defaultUri, solutionDir)).toString();
         }
 
         const localOptions: vscode.OpenDialogOptions = {

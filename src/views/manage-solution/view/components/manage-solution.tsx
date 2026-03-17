@@ -17,7 +17,7 @@
 import './manage-solution.css';
 import '../../../common/style/antd-overrides.css';
 import { LoadingOutlined } from '@ant-design/icons';
-import { Button, Checkbox, CheckboxChangeEvent, Col, ConfigProvider, Flex, Input, InputNumber, Row, Spin, Tabs, theme } from 'antd';
+import { Button, Checkbox, CheckboxChangeEvent, Col, ConfigProvider, Flex, Input, InputNumber, Row, Space, Spin, Tabs, theme } from 'antd';
 import * as React from 'react';
 import { UISection, UISectionChildren } from '../../../../debug/debug-adapters-yaml-file';
 import { CompactDropdown } from '../../../common/components/compact-dropdown';
@@ -29,6 +29,7 @@ import { SolutionUpdateAction, contextUpdateReducer, initialState, manageSolutio
 import { ProjectsTable } from './projects-table';
 import { TargetsTable } from './targets-table';
 import { PathType } from '../../types';
+import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
 
 export interface ManageSolutionProps {
     messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>;
@@ -454,22 +455,24 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                         case 'file':
                                                             return (
                                                                 <Input
-                                                                    addonBefore={o.name}
+                                                                    addonBefore={<>{o.name}</>}
                                                                     addonAfter={
-                                                                        <Button
-                                                                            type="primary"
-                                                                            className='file-button'
-                                                                            onClick={() => selectFile({
-                                                                                service: section['yml-node'],
-                                                                                key: o['yml-node'],
-                                                                                localValueKey: k,
-                                                                                title: o.description || 'Select File',
-                                                                                defaultUri: (localValues[k] as string) ?? '',
-                                                                                pathType: o['path-type'],
-                                                                            })}
-                                                                        >
-                                                                            Browse
-                                                                        </Button>
+                                                                        <Space size={0}>
+                                                                            <Button aria-label='Open File' icon={<CmsisCodicon name='go-to-file' title='Go to file' />} disabled={localValues[k] ? false : true} onClick={() => { openFile(localValues[k] as string); }} type='text' className='file-open-icon-button' />
+                                                                            <Button
+                                                                                type='primary'
+                                                                                className='file-button'
+                                                                                aria-label='Select File'
+                                                                                onClick={() => selectFile({
+                                                                                    service: section['yml-node'],
+                                                                                    key: o['yml-node'],
+                                                                                    localValueKey: k,
+                                                                                    title: o.description || 'Select File',
+                                                                                    defaultUri: (localValues[k] as string) ?? '',
+                                                                                    pathType: o['path-type'],
+                                                                                })}
+                                                                            >Browse</Button>
+                                                                        </Space>
                                                                     }
                                                                     value={(localValues[k] as string) ?? ''}
                                                                     data-yml-node={o['yml-node']}
