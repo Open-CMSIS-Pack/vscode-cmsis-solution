@@ -117,8 +117,8 @@ export class ComponentsPacksWebviewMain {
         if (await this.isDirty()) {
             const buttonOptions = [
                 { title: 'Save' },
-                { title: 'Don\'t Save', isCloseAffordance: true },
-                { title: 'Cancel' },
+                { title: 'Don\'t Save' },
+                { title: 'Cancel', isCloseAffordance: true },
             ];
             const messageOptions: vscode.MessageOptions = { modal: true, detail: 'Your changes will be lost if you don\'t save them.' };
 
