@@ -319,7 +319,8 @@ describe('ContextSelectionWebviewMain', () => {
             });
             (main as any).webviewManager.isPanelActive = jest.fn().mockReturnValue(true);
 
-            const sendContextDataSpy = jest.spyOn(main as any, 'sendContextData').mockResolvedValue(undefined);
+            // Spy on broadcast helper to verify it gets called
+            const sendContextDataFromControllerStateSpy = jest.spyOn(main as any, 'sendContextDataFromControllerState').mockResolvedValue(undefined);
 
             await main.activate(context as vscode.ExtensionContext);
 
@@ -330,7 +331,7 @@ describe('ContextSelectionWebviewMain', () => {
 
             await waitTimeout();
 
-            expect(sendContextDataSpy).toHaveBeenCalled();
+            expect(sendContextDataFromControllerStateSpy).toHaveBeenCalled();
             expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'IS_BUSY', data: true });
         });
 
