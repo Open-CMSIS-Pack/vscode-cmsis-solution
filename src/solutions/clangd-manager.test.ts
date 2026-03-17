@@ -345,7 +345,7 @@ describe('ClangdManager', () => {
         expect(mockFs.writeUtf8File).toHaveBeenCalledWith(expect.lowercaseEquals(expectedClangdPath), 'Diagnostics:\n  Suppress: [\'*\']');
     });
 
-   it('returns out directory for the active clangd context', async () => {
+    it('returns out directory for the active clangd context', async () => {
         mockConfigurationProvider.getConfigVariable.mockReturnValue(true);
         mockConfigurationProvider.setConfigVariable.mockReturnValue(Promise.resolve());
 
@@ -356,9 +356,9 @@ describe('ClangdManager', () => {
         expect(path.normalize(infoPath)).toEqual(path.join(path.dirname(activeContexts[0].projectPath!), 'out'));
     });
 
-   it('returns a user-friendly message when no active clangd context exists', async () => {
+    it('returns an empty string when no active clangd context exists', async () => {
         const infoPath = await mockCommandsProvider.mockRunRegistered<string>(ClangdManager.getInfoPathCommandId);
-        expect(infoPath).toEqual(ClangdManager.noActiveClangdInfoMessage);
+        expect(infoPath).toEqual('');
     });
 
 });

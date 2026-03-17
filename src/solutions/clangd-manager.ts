@@ -71,7 +71,6 @@ export class ClangdManager {
     public static readonly setClangdContextCommandId = `${manifest.PACKAGE_NAME}.setClangdContext`;
     public static readonly unsetClangdContextCommandId = `${manifest.PACKAGE_NAME}.unsetClangdContext`;
     public static readonly getInfoPathCommandId = `${manifest.PACKAGE_NAME}.getInfoPath`;
-    public static readonly noActiveClangdInfoMessage = 'No active clangd information. Activate clangd information for a project.';
 
     private readonly debouncedUpdateClangdConfig;
     private readonly restartClangd;
@@ -140,13 +139,13 @@ export class ClangdManager {
         const globalContextProjectPath = this.globalContext;
 
         if (!csolution || !globalContextProjectPath) {
-            return ClangdManager.noActiveClangdInfoMessage;
+            return '';
         }
 
         const context = csolution.getContextDescriptor(globalContextProjectPath);
         const outDir = context ? csolution.cbuildIdxFile?.cbuildFiles?.get(context.projectName)?.outDir : undefined;
 
-        return outDir ?? ClangdManager.noActiveClangdInfoMessage;
+        return outDir ?? '';
     }
 
     private async updateWorkspaceClangdConfig(compileCommands: URI | undefined) {
