@@ -224,6 +224,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         commandsProvider,
         configurationProvider,
         csolutionService,
+        externalFileOpener,
     );
     context.subscriptions.push(window.registerCustomEditorProvider(
         ManageSolutionCustomEditorProvider.viewType,

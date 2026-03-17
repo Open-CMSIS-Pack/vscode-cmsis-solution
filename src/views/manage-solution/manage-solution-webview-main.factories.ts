@@ -25,6 +25,8 @@ import { solutionManagerFactory } from '../../solutions/solution-manager.factori
 import { DataManager } from '../../data-manager/data-manager';
 import { DebugAdaptersYamlFile } from '../../debug/debug-adapters-yaml-file';
 import { configurationProviderFactory } from '../../vscode-api/configuration-provider.factories';
+import { IOpenFileExternal } from '../../open-file-external-if';
+import { openFileExternalFactory } from '../../open-file-external.factories';
 import { ETextFileResult } from '../../generic/text-file';
 import { SolutionData } from './view/state/manage-solution-state';
 import { ManageSolutionController } from './manage-solution-controller';
@@ -36,6 +38,7 @@ export type ManageSolutionWebviewMainFactoryOptions = {
     commandsProvider?: MockCommandsProvider;
     dataManager?: DataManager;
     debugAdaptersYmlFile?: DebugAdaptersYamlFile;
+    openFileExternal?: IOpenFileExternal;
     configurationProvider?: ReturnType<typeof configurationProviderFactory>;
     csolutionService?: CsolutionService,
     onEdit?: (label: string, before: SolutionData, after: SolutionData) => void,
@@ -76,6 +79,7 @@ export function manageSolutionWebviewMainFactory(options?: ManageSolutionWebview
         { subscriptions: [] } as unknown as vscode.ExtensionContext,
         options?.solutionManager ?? solutionManagerFactory(),
         options?.commandsProvider ?? commandsProviderFactory(),
+        options?.openFileExternal ?? openFileExternalFactory(),
         options?.configurationProvider ?? configurationProviderFactory(),
         options?.csolutionService ?? jest.mocked<CsolutionService>({
             getDeviceList: async function (_args: GetDeviceListParams): Promise<DeviceList> { throw new Error('Function not implemented.'); },
