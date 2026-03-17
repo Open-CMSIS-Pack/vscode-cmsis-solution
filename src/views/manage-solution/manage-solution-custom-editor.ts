@@ -26,6 +26,7 @@ import { ConfigurationProvider } from '../../vscode-api/configuration-provider';
 import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
 import { SolutionData } from './view/state/manage-solution-state';
 import { COMMAND_OPEN_SOLUTION } from '../../solutions/active-solution-tracker';
+import { IOpenFileExternal } from '../../open-file-external-if';
 
 type EditEntry = {
     label: string;
@@ -118,6 +119,7 @@ export class ManageSolutionCustomEditorProvider implements vscode.CustomEditorPr
         private readonly commandsProvider: CommandsProvider,
         private readonly configurationProvider: ConfigurationProvider,
         private readonly csolutionService: CsolutionService,
+        private readonly openFileExternal: IOpenFileExternal,
     ) { }
 
     private getOrCreateWebviewMain(): ManageSolutionWebviewMain {
@@ -134,6 +136,7 @@ export class ManageSolutionCustomEditorProvider implements vscode.CustomEditorPr
                 this.context,
                 this.solutionManager,
                 this.commandsProvider,
+                this.openFileExternal,
                 this.configurationProvider,
                 this.csolutionService,
                 (label, before, after) => this.activeDocument?.recordEdit(label, before, after),

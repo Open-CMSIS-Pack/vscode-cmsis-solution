@@ -255,7 +255,11 @@ thead .ant-btn {
     padding: 0;
     width: 5rem;
     min-width: unset;
-    max-width: 5rem;
+    max-width: 12rem;
+}
+
+.file-open-icon-button {
+    height: 26px;
 }
 
 .file-button {
