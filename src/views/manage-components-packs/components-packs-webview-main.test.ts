@@ -324,14 +324,15 @@ describe('ComponentsPacksWebviewMain', () => {
             jest.restoreAllMocks();
         });
 
-        it('calls debounce_load with project id and reload=true when a valid project exists', async () => {
+        it('calls debounce_load with project id and reload=false when selected project is unchanged', async () => {
             const debounceSpy = jest.spyOn(componentsPacksWebviewMain as any, 'debounce_load').mockResolvedValue(undefined);
             jest.spyOn(componentsPacksWebviewMain as any, 'getValidProjectId').mockReturnValue('projValid');
+            jest.spyOn(componentsPacksWebviewMain as any, 'projectFromPath').mockReturnValue('sameProject');
 
             await (componentsPacksWebviewMain as any).handleMessage({ type: 'REQUEST_INITIAL_DATA' });
 
             expect(debounceSpy).toHaveBeenCalledTimes(1);
-            expect(debounceSpy).toHaveBeenCalledWith('projValid', true);
+            expect(debounceSpy).toHaveBeenCalledWith('projValid', false);
         });
 
         it('does not call debounce_load when no valid project id exists', async () => {
@@ -572,7 +573,7 @@ describe('ComponentsPacksWebviewMain', () => {
                     'Connecting to rpc daemon',
                     'Loading Packs...',
                     'Loading Solution...',
-                    'Fetching Packs Info...'
+                    'Retrieving assigned items...'
                 ])
             );
             expect(stateMessages.indexOf('Connecting to rpc daemon')).toBeLessThan(stateMessages.indexOf('Loading Packs...'));
@@ -598,6 +599,7 @@ describe('ComponentsPacksWebviewMain', () => {
         it('skips heavy reload steps when reload=false', async () => {
             const svc = setupCsolutionServiceMocks();
 
+            (componentsPacksWebviewMain as any).usedItems = usedItemsReturn;
             await (componentsPacksWebviewMain as any).loadSolution('solPath', 'activeTs', 'activeCtx', false);
 
             // Heavy operations not called
@@ -613,8 +615,8 @@ describe('ComponentsPacksWebviewMain', () => {
             const compTreeMsg = webviewManager.sendMessage.mock.calls.map(c => c[0]).find(m => m.type === 'SOLUTION_LOADED');
             expect(compTreeMsg?.componentTree).toBe(componentTreeReturn);
 
-            // usedItems is set
-            expect((componentsPacksWebviewMain as any).usedItems).toBeDefined();
+            // usedItems is not refreshed in reload=false path
+            expect((componentsPacksWebviewMain as any).usedItems).toBe(usedItemsReturn);
         });
 
         it('handles errors and sends error messages', async () => {
@@ -892,16 +894,67 @@ describe('ComponentsPacksWebviewMain', () => {
             expect(spy).toHaveBeenCalledWith({ newState: { solutionPath: 'sol' }, previousState: { solutionPath: '' } });
         });
 
-        it('resets cached state when panel disposes', () => {
+        it('resets cached state when panel disposes without unsaved changes', async () => {
+            jest.spyOn(componentsPacksWebviewMain as any, 'isDirty').mockResolvedValue(false);
+            const warningSpy = jest.spyOn(vscode.window, 'showWarningMessage');
             (componentsPacksWebviewMain as any).currentProject = { solutionPath: 'sol', project: { projectId: 'proj', projectName: 'proj' } };
             (componentsPacksWebviewMain as any).componentTree = { success: true, classes: [{}] };
             (componentsPacksWebviewMain as any).validations = { success: true, result: 'OK', validation: [{ id: 'val' }] };
 
             webviewManager.didDisposeEmitter.fire();
+            await waitTimeout();
 
+            expect(warningSpy).not.toHaveBeenCalled();
             expect((componentsPacksWebviewMain as any).currentProject).toBeUndefined();
             expect((componentsPacksWebviewMain as any).componentTree).toEqual({ success: false, classes: [] });
             expect((componentsPacksWebviewMain as any).validations).toEqual({ success: false, result: 'UNDEFINED', validation: [] });
+        });
+
+        it('saves and then disposes when user picks Save on unsaved changes', async () => {
+            jest.spyOn(componentsPacksWebviewMain as any, 'isDirty').mockResolvedValue(true);
+            const applySpy = jest.spyOn(componentsPacksWebviewMain as any, 'handleApplyComponentSet').mockResolvedValue(undefined);
+            jest.spyOn(vscode.window, 'showWarningMessage').mockResolvedValue({ title: 'Save' } as any);
+
+            (componentsPacksWebviewMain as any).currentProject = { solutionPath: 'sol', project: { projectId: 'proj', projectName: 'proj' } };
+
+            webviewManager.didDisposeEmitter.fire();
+            await waitTimeout();
+
+            expect(applySpy).toHaveBeenCalledTimes(1);
+            expect((componentsPacksWebviewMain as any).currentProject).toBeUndefined();
+        });
+
+        it('disposes without saving when user picks Don\'t Save on unsaved changes', async () => {
+            jest.spyOn(componentsPacksWebviewMain as any, 'isDirty').mockResolvedValue(true);
+            const applySpy = jest.spyOn(componentsPacksWebviewMain as any, 'handleApplyComponentSet').mockResolvedValue(undefined);
+            jest.spyOn(vscode.window, 'showWarningMessage').mockResolvedValue({ title: "Don't Save" } as any);
+
+            (componentsPacksWebviewMain as any).currentProject = { solutionPath: 'sol', project: { projectId: 'proj', projectName: 'proj' } };
+
+            webviewManager.didDisposeEmitter.fire();
+            await waitTimeout();
+
+            expect(applySpy).not.toHaveBeenCalled();
+            expect((componentsPacksWebviewMain as any).currentProject).toBeUndefined();
+        });
+
+        it('reopens panel and keeps state when user picks Cancel on unsaved changes', async () => {
+            jest.spyOn(componentsPacksWebviewMain as any, 'isDirty').mockResolvedValue(true);
+            const applySpy = jest.spyOn(componentsPacksWebviewMain as any, 'handleApplyComponentSet').mockResolvedValue(undefined);
+            const reopenSpy = jest.spyOn((componentsPacksWebviewMain as any).webviewManager, 'createOrShowPanel');
+            jest.spyOn(vscode.window, 'showWarningMessage').mockResolvedValue({ title: 'Cancel' } as any);
+
+            (componentsPacksWebviewMain as any).currentProject = { solutionPath: 'sol', project: { projectId: 'proj', projectName: 'proj' } };
+
+            webviewManager.didDisposeEmitter.fire();
+            await waitTimeout();
+
+            expect(applySpy).not.toHaveBeenCalled();
+            expect(reopenSpy).toHaveBeenCalledTimes(1);
+            expect((componentsPacksWebviewMain as any).currentProject).toEqual({
+                solutionPath: 'sol',
+                project: { projectId: 'proj', projectName: 'proj' }
+            });
         });
     });
 
