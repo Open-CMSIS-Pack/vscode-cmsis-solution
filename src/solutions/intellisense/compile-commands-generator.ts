@@ -41,8 +41,7 @@ export class CompileCommandsGeneratorImpl implements CompileCommandsGenerator {
         const task = this.buildTaskProvider.createTask(definition);
         const revealKind = definition.west ? vscode.TaskRevealKind?.Always : vscode.TaskRevealKind?.Silent;
         task.presentationOptions = {
-            ...(revealKind !== undefined ? { reveal: revealKind } : {}),
-            showReuseMessage: false,
+            ...(revealKind !== undefined ? { reveal: revealKind } : {})
         };
         const execution = await vscode.tasks.executeTask(task);
 

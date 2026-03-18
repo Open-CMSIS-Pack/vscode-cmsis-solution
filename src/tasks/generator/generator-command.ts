@@ -52,10 +52,12 @@ export class GeneratorCommand {
             return;
         }
 
-        vscode.window.showInformationMessage(`Starting generator ${generator} for context ${context} ...`);
+        const msg = `Starting generator ${generator} for context ${context}...`;
+        vscode.window.showInformationMessage(msg);
 
         const executableArgs = ['run', solutionFilePath, '-g', generator, '-c', context];
         const outputChannel = this.outputChannelProvider.getOrCreate(CMSIS_SOLUTION_OUTPUT_CHANNEL);
+        outputChannel.appendLine(msg);
 
         const [result] = await this.cmsisToolboxManager.runCmsisTool('csolution', executableArgs, line => outputChannel.appendLine(line.trimEnd()), undefined,
             undefined, true);

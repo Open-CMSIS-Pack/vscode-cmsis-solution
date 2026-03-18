@@ -112,12 +112,11 @@ export class SolutionConverterImpl implements SolutionConverter {
 
         // restart rpc server to pick up new environment variables
         if (this.data?.restartRpc) {
-            outputChannel.appendLine('🔄 Environment changed: restarting RPC server...');
-            await this.cmsisToolboxManager.runCsolutionRpc('Shutdown', {},
-                line => outputChannel.appendLine(line));
-            await this.cmsisToolboxManager.runCsolutionRpc('LoadPacks', {},
-                line => outputChannel.appendLine(line));
-            outputChannel.appendLine('');
+            outputChannel.append('🔄 Environment changed: restarting RPC server... ');
+            await this.cmsisToolboxManager.runCsolutionRpc('Shutdown', {});
+            outputChannel.append('Loading packs... ');
+            await this.cmsisToolboxManager.runCsolutionRpc('LoadPacks', {});
+            outputChannel.append('\n\n');
         }
 
         if (signal.aborted) {
@@ -127,13 +126,13 @@ export class SolutionConverterImpl implements SolutionConverter {
         outputChannel.appendLine('⚙️ Converting solution...');
         if (this.isDownloadPacksEnabled()) {
             // rpc method: ListMissingPacks
+            outputChannel.append('Check for missing packs... ');
             const result = await this.cmsisToolboxManager.runCsolutionRpc(
                 'ListMissingPacks',
                 {
                     solution: activeSolution,
                     activeTarget: activeTarget,
-                },
-                line => outputChannel.appendLine(line)
+                }
             ) as rpc.ListMissingPacksResult;
             if (result.success && result.packs && result.packs.length > 0) {
                 // download missing packs if any
@@ -145,14 +144,14 @@ export class SolutionConverterImpl implements SolutionConverter {
         }
 
         // rpc method: ConvertSolution
+        outputChannel.append('Convert solution... ');
         const result = await this.cmsisToolboxManager.runCsolutionRpc(
             'ConvertSolution',
             {
                 solution: activeSolution,
                 activeTarget: activeTarget,
                 updateRte: this.data.updateRte ?? false,
-            },
-            line => outputChannel.appendLine(line)
+            }
         ) as rpc.ConvertSolutionResult;
 
         if (signal.aborted) {
@@ -168,13 +167,13 @@ export class SolutionConverterImpl implements SolutionConverter {
         if (!detection) {
             if (result.success) {
                 // check if compile commands need to be updated: call cbuild setup skipping csolution convert step
+                outputChannel.append('Setup database... ');
                 [result.success, cbuildOutput] = await this.compileCommandsGenerator.runCbuildSetup();
-                outputChannel.appendLine(`${result.success ?  '☑️' : '🟥'} cbuild setup database`);
             }
             // rpc method: GetLogMessages
+            outputChannel.append('Get log messages... ');
             logResult = await this.cmsisToolboxManager.runCsolutionRpc(
-                'GetLogMessages', {},
-                line => outputChannel.appendLine(line)
+                'GetLogMessages', {}
             ) as rpc.LogMessages;
             if (logResult?.errors || logResult?.warnings) {
                 this.printErrorsWarnings(logResult);
@@ -191,15 +190,15 @@ export class SolutionConverterImpl implements SolutionConverter {
         csolution?.setLogMessages(logResult);
 
         // print result to output channel
-        outputChannel.appendLine(detection ?
-            '⏳ Action needed: see Configure Solution dialog' :
-            severity == 'error' ?
-                '🟥 Convert solution failed' :
-                severity == 'warning' ?
-                    '🟨 Convert solution completed with warnings' :
-                    '✅ Convert solution completed'
-        );
-        outputChannel.appendLine('');
+        outputChannel.append('\n' + (
+            detection ?
+                '⏳ Action needed: see Configure Solution dialog' :
+                severity == 'error' ?
+                    '🟥 Convert solution failed' :
+                    severity == 'warning' ?
+                        '🟨 Convert solution completed with warnings' :
+                        '✅ Convert solution completed'
+        ) + '\n\n');
         // notify conversion result and detection status asynchronously!
         this.eventHub.fireConvertCompleted({ severity: severity, detection: detection });
     }
@@ -207,16 +206,17 @@ export class SolutionConverterImpl implements SolutionConverter {
     private async printErrorsWarnings(messages?: rpc.LogMessages): Promise<void> {
         const outputChannel = this.outputChannelProvider.getOrCreate(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
         for (const message of messages?.errors ?? []) {
-            outputChannel.appendLine(`csolution error: ${message}`);
+            outputChannel.append(`\ncsolution error: ${message}`);
         }
         for (const message of messages?.warnings ?? []) {
-            outputChannel.appendLine(`csolution warning: ${message}`);
+            outputChannel.append(`\ncsolution warning: ${message}`);
         }
     }
 
     private async downloadMissingPacks(packs: string[]): Promise<void> {
         // call cpackget to download missing packs
         const outputChannel = this.outputChannelProvider.getOrCreate(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
+        outputChannel.append('Downloading missing packs...\n');
         for (const pack of packs) {
             const args = ['add', pack, '--force-reinstall', '--agree-embedded-license', '--no-dependencies'];
             await this.cmsisToolboxManager.runCmsisTool('cpackget', args, line => outputChannel.appendLine(line.trimEnd()), undefined, undefined, true);
@@ -227,13 +227,13 @@ export class SolutionConverterImpl implements SolutionConverter {
         const outputChannel = this.outputChannelProvider.getOrCreate(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
         this.solutionManager.getCsolution()?.setVariablesConfigurations(undefined);
         // rpc method: DiscoverLayers
+        outputChannel.append('Discover Layers... ');
         const result = await this.cmsisToolboxManager.runCsolutionRpc(
             'DiscoverLayers',
             {
                 solution: this.data?.solutionPath ?? '',
                 activeTarget: this.data?.targetSet ?? '',
-            },
-            line => outputChannel.appendLine(line)
+            }
         ) as rpc.DiscoverLayersInfo;
         this.solutionManager.getCsolution()?.setVariablesConfigurations(result.configurations);
         return result.success;

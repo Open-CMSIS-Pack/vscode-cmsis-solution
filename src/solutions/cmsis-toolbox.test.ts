@@ -127,7 +127,7 @@ describe('CmsisToolbox', () => {
 
         await toolbox.runCmsisTool('cpackget', ['arg1', 'arg2'], outputSpy);
 
-        expect(outputSpy).toHaveBeenCalledWith('🔄 Execute: cpackget arg1 arg2\r\n');
+        expect(outputSpy).toHaveBeenCalledWith('cpackget arg1 arg2\r\n');
     });
 
     it('does not emit execute line when emitExecuteLine is false', async () => {
@@ -135,7 +135,7 @@ describe('CmsisToolbox', () => {
 
         await toolbox.runCmsisTool('cbuild', ['arg1', 'arg2'], outputSpy, undefined, undefined, undefined, false);
 
-        expect(outputSpy).not.toHaveBeenCalledWith('🔄 Execute: cbuild arg1 arg2\r\n');
+        expect(outputSpy).not.toHaveBeenCalledWith('cbuild arg1 arg2\r\n');
     });
 
     it('collect setup messages', () => {
