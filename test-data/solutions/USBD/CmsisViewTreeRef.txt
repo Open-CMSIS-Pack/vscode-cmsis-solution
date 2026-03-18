@@ -36,14 +36,14 @@ solution
         expandable=0
         resourcePath=TEST_DIR/solutions/USBD/HID/STM32U585AIIx.test
         features=file
-        fileUri=STM32U585AIIx.test
+        fileUri=$Dname$.test
         projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
       file
         label=testOutput.test
         expandable=0
         resourcePath=TEST_DIR/solutions/USBD/out/HID/B-U585I-IOT02A/Release/testOutput.test
         features=file
-        fileUri=TEST_DIR/solutions/USBD/out/HID/B-U585I-IOT02A/Release/testOutput.test
+        fileUri=$OutDir()$/testOutput.test
         projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
       file
         label=unknown.test
