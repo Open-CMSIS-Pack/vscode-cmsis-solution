@@ -168,7 +168,7 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         const statusFileName = status.getText();
         file.setAttribute('status', statusFileName);
 
-        // overwrite tootltip
+        // overwrite tooltip
         dbgconfFileItem.setAttribute('tooltip', '');
 
         const fileItem = new FileItemBuilder();
