@@ -44,6 +44,10 @@ export class ManageSolutionController {
     public customDebugAdapterDefaults: CustomDebugAdapterDefaults = {};
     private _csolutionService?: CsolutionService;
 
+    /**
+     * Gets the initialized csolution service instance.
+     * @throws Error when the service has not been assigned yet.
+     */
     public get csolutionService(): CsolutionService {
         if (!this._csolutionService) {
             throw new Error('CsolutionService has not been initialized on ManageSolutionController');
@@ -51,32 +55,56 @@ export class ManageSolutionController {
         return this._csolutionService;
     }
 
+    /**
+     * Sets the csolution service used for RPC queries.
+     */
     public set csolutionService(service: CsolutionService) {
         this._csolutionService = service;
     }
     constructor() {
     }
 
+    /**
+     * Gets the in-memory csolution YAML wrapper.
+     */
     public get csolutionYml() {
         return this._csolutionYml;
     }
 
+    /**
+     * Gets the in-memory cmsis.json wrapper.
+     */
     public get cmsisJsonFile() {
         return this._cmsisJsonFile;
     }
 
+    /**
+     * Gets the absolute path to the loaded solution file.
+     */
     public get solutionPath() {
         return this.csolutionYml.fileName;
     }
 
+    /**
+     * Gets the display name of the loaded solution without extension.
+     */
     public get solutionName() {
         return getFileNameNoExt(this.solutionPath);
     }
 
+    /**
+     * Gets the directory that contains the loaded solution file.
+     */
     public get solutionDir() {
         return this.csolutionYml.fileDir;
     }
 
+    /**
+     * Loads solution content and associated cmsis.json state.
+     * @param csolutionPath Optional explicit path to the solution file.
+     * @param defaultDebugAdapterName Optional default debugger adapter name.
+     * @returns Result of loading the csolution file.
+     */
     async loadSolution(csolutionPath?: string, defaultDebugAdapterName?: string) {
 
         this.defaultDebugAdapterName = defaultDebugAdapterName ?? '';
@@ -118,23 +146,70 @@ export class ManageSolutionController {
         }
     }
 
+    /**
+     * Gets the currently active target type wrapper.
+     */
     public get activeTargetTypeWrap(): TargetTypeWrap | undefined {
         return this.csolutionYml.getTargetType(this.activeTargetTypeName);
     }
 
+    /**
+     * Sets the active target type name in cmsis.json state.
+     */
     public set activeTargetTypeName(type: string) {
         this.cmsisJsonFile.activeTargetTypeName = type;
     }
 
+    /**
+     * Gets the active target type name from cmsis.json, or falls back to the first solution target.
+     */
     public get activeTargetTypeName(): string | undefined {
         return this.cmsisJsonFile.activeTargetTypeName ?? this.csolutionYml.getTargetType()?.name;
     }
 
+    private async ensureActiveTargetTypeNameInKnownTargets(knownTargetNames: string[]): Promise<boolean> {
+        const configuredTargetTypeName = this.cmsisJsonFile.activeTargetTypeName;
+        const hasConfiguredTargetType = configuredTargetTypeName !== undefined;
+        const configuredTargetInvalid = configuredTargetTypeName === ''
+            || (configuredTargetTypeName !== undefined && !knownTargetNames.includes(configuredTargetTypeName));
+
+        if (!hasConfiguredTargetType || !configuredTargetInvalid) {
+            return false;
+        }
+
+        const fallbackTargetTypeName = knownTargetNames[0];
+        if (fallbackTargetTypeName) {
+            this.activeTargetTypeName = fallbackTargetTypeName;
+        } else {
+            this.cmsisJsonFile.delete(`targetSet.${this.cmsisJsonFile.solutionDisplayName}.activeTargetType`);
+        }
+
+        await this.cmsisJsonFile.save();
+        return true;
+    }
+
+    /**
+     * Detects external on-disk changes for solution and cmsis.json files
+     * using file mtime and size stamps.
+     *
+     * This complements in-memory dirty checks and helps detect updates done
+     * outside the current controller instance.
+     */
+    public hasExternalFileChanges(): boolean {
+        return this.csolutionYml.hasExternalFileChanged() || this.cmsisJsonFile.hasExternalFileChanged();
+    }
+
+    /**
+     * Gets the active target set name for the current active target type.
+     */
     public get activeTargetSetName(): string | undefined {
         const targetSetIdx = this.cmsisJsonFile.getSelectedSet(this.activeTargetTypeName ?? '');
         return this.activeTargetTypeWrap?.getTargetSetFromIndex(targetSetIdx)?.name;
     };
 
+    /**
+     * Gets the active target set wrapper and ensures one exists.
+     */
     public get activeTargetSetWrap(): TargetSetWrap {
         let ts = this.getSelectedSetWrap(this.activeTargetTypeWrap);
 
@@ -144,7 +219,11 @@ export class ManageSolutionController {
         return ts;
     }
 
-    public getSelectedSetWrap(tt?: TargetTypeWrap): TargetSetWrap | undefined {
+    /**
+     * Gets the selected target set wrapper for the given target type.
+     * @param tt Target type wrapper.
+     */
+    private getSelectedSetWrap(tt?: TargetTypeWrap): TargetSetWrap | undefined {
         if (!tt) {
             return undefined;
         }
@@ -152,6 +231,12 @@ export class ManageSolutionController {
         return tt.getTargetSetFromIndex(targetSetIdx);
     }
 
+    /**
+     * Sets the active target type/set and updates persisted target set selection.
+     * @param targetType Target type name.
+     * @param targetSet Optional target set name.
+     * @returns True when active selection changed.
+     */
     public setActiveTargetSet(targetType: string, targetSet?: string) {
         this.csolutionYml.ensureTargetTypeAndSet(targetType, targetSet);
         const active = this.getActiveTypeAndSetNames();
@@ -169,6 +254,9 @@ export class ManageSolutionController {
         return true;
     }
 
+    /**
+     * Gets the currently active target type and target set names.
+     */
     public getActiveTypeAndSetNames(): { type: string, set: string } {
         const type = this.activeTargetTypeWrap;
         const set = this.getSelectedSetWrap(type);
@@ -179,10 +267,16 @@ export class ManageSolutionController {
     }
 
     // debugger support
+    /**
+     * Gets the active debugger wrapper.
+     */
     public get activeDebugger() {
         return this.activeTargetSetWrap.debugger;
     }
 
+    /**
+     * Gets the resolved active debugger adapter name.
+     */
     public get activeDebuggerName() {
         return this.resolvedDebuggerName(this.activeTargetSetWrap.debugger?.name);
     }
@@ -219,6 +313,11 @@ export class ManageSolutionController {
         return debuggerWrap;
     }
 
+    /**
+     * Enables or disables debugger configuration on the active target set.
+     * @param enable True to enable debugger, false to remove it.
+     * @param name Optional debugger adapter name.
+     */
     public enableDebugger(enable: boolean, name?: string) {
         if (enable) {
             this.setSelectedDebugger(name ?? this.defaultDebuggerName);
@@ -227,10 +326,18 @@ export class ManageSolutionController {
         }
     }
 
+    /**
+     * Checks whether a debugger UI section is enabled.
+     * @param section Section key in debugger configuration.
+     */
     public isDebuggerSectionEnabled(section: string): boolean {
         return this.activeTargetSetWrap.ensureDebugger().isSectionEnabled(section);
     }
 
+    /**
+     * Toggles a debugger section and applies computed defaults when enabling.
+     * @param section Section key in debugger configuration.
+     */
     public async toggleDebugAdapterSection(section: string) {
         const adapter = this.debugAdaptersYmlFile?.getAdapterByName(this.activeDebuggerName);
         this.customizeDebugAdapterDefaults(adapter);
@@ -240,11 +347,17 @@ export class ManageSolutionController {
         this.activeTargetSetWrap.ensureDebugger().toggleSection(section, defaults);
     }
 
-    public get defaultDebuggerName() {
+    /**
+     * Gets the default debugger adapter name.
+     */
+    private get defaultDebuggerName() {
         return this.defaultDebugAdapterName ||
             this.debugAdaptersYmlFile?.debugAdapters[0]?.name || '';
     }
 
+    /**
+     * Queries available processor core names for the active target device.
+     */
     public async getAvailableCoreNames(): Promise<string[]> {
         const availableCores = this.activeTargetTypeWrap?.device
             ? (await this.csolutionService.getDeviceInfo({ id: this.activeTargetTypeWrap?.device || '' })).device?.processors?.map((p: { name?: string; core: string }) => p.name || '') || []
@@ -253,10 +366,16 @@ export class ManageSolutionController {
         return availableCores;
     }
 
+    /**
+     * Gets cached available processor core names.
+     */
     public get availableCoreNames(): string[] {
         return this.availableCoreNamesCache;
     }
 
+    /**
+     * Gets debug adapters, loading and caching them if needed.
+     */
     public get debugAdapters(): Promise<DebugAdapter[]> {
         if (this.debugAdaptersCache.length === 0) {
             return this.refreshDebugAdapters();
@@ -264,6 +383,9 @@ export class ManageSolutionController {
         return Promise.resolve(this.debugAdaptersCache);
     }
 
+    /**
+     * Rebuilds debug adapter definitions using current defaults and available cores.
+     */
     public async refreshDebugAdapters(): Promise<DebugAdapter[]> {
         const adapters = this.debugAdaptersYmlFile?.debugAdapters ?? [];
         const availableCores = await this.getAvailableCoreNames();
@@ -279,6 +401,12 @@ export class ManageSolutionController {
         return adapters;
     }
 
+    /**
+     * Sets a debugger parameter on the active target set.
+     * @param section Optional debugger section.
+     * @param param Parameter key.
+     * @param value Parameter value.
+     */
     public setDebuggerParameter(section: string | undefined, param: string, value: string | number) {
         this.activeTargetSetWrap.ensureDebugger().setParameter(section, param, value.toString());
     }
@@ -329,6 +457,13 @@ export class ManageSolutionController {
         return defaults;
     }
 
+    /**
+     * Sets a debugger parameter for a specific processor core (`pname`).
+     * @param section Optional debugger section.
+     * @param pname Processor/core name.
+     * @param param Parameter key.
+     * @param value Parameter value.
+     */
     public async setDebuggerParameterWithPname(section: string | undefined, pname: string, param: string, value: string | number) {
         if ((await this.getAvailableCoreNames()).length === 0) {
             const sequence = this.activeTargetSetWrap.ensureDebugger().item
@@ -367,16 +502,49 @@ export class ManageSolutionController {
         };
     }
 
-    private collectTargets() {
+    /**
+     * Set data from SolutionData object to CSolutionYmlFile
+     */
+    public set solutionData(selectedContextState: SolutionData) {
+
+        this.setActiveTargetSet(selectedContextState.selectedTarget?.name ?? '', selectedContextState.selectedTarget?.selectedSet);
+        const activeTargetSetWrap = this.activeTargetSetWrap;
+        this.updateSelectedProjects(activeTargetSetWrap, selectedContextState.projects);
+        this.updateSelectedImages(activeTargetSetWrap, selectedContextState.images ?? []);
+        this.updateDebuggerFromSnapshot(selectedContextState);
+        this.activeTargetSetWrap.purgeImages();
+    }
+
+
+
+    /**
+     * Ensures active target type in cmsis.json exists in current solution targets.
+     * @returns True if active target type was corrected and saved.
+     */
+    public async ensureActiveTargetTypeName(): Promise<boolean> {
         const targets: TargetType[] = [];
-        let selectedTarget: TargetType | undefined = undefined;
-        const selectedTargetName = this.activeTargetTypeName;
         for (const tt of this.csolutionYml.targetTypes) {
             const ttm = this.targetTypeWrapToModel(tt);
             targets.push(ttm);
-            if (tt.name === selectedTargetName) {
-                selectedTarget = ttm;
-            }
+        }
+        return this.ensureActiveTargetTypeNameInKnownTargets(targets.map(t => t.name));
+    }
+
+    private collectTargets() {
+        const targets: TargetType[] = [];
+        let selectedTarget: TargetType | undefined = undefined;
+        for (const tt of this.csolutionYml.targetTypes) {
+            const ttm = this.targetTypeWrapToModel(tt);
+            targets.push(ttm);
+        }
+
+        const selectedTargetName = this.activeTargetTypeName;
+        if (selectedTargetName) {
+            selectedTarget = targets.find(target => target.name === selectedTargetName);
+        }
+
+        if (!selectedTarget) {
+            selectedTarget = targets[0];
         }
         return { targets, selectedTarget };
     }
@@ -460,19 +628,6 @@ export class ManageSolutionController {
         };
     }
 
-    /**
-     * Set data from SolutionData object to CSolutionYmlFile
-     */
-    public set solutionData(selectedContextState: SolutionData) {
-
-        this.setActiveTargetSet(selectedContextState.selectedTarget?.name ?? '', selectedContextState.selectedTarget?.selectedSet);
-        const activeTargetSetWrap = this.activeTargetSetWrap;
-        this.updateSelectedProjects(activeTargetSetWrap, selectedContextState.projects);
-        this.updateSelectedImages(activeTargetSetWrap, selectedContextState.images ?? []);
-        this.updateDebuggerFromSnapshot(selectedContextState);
-        this.activeTargetSetWrap.purgeImages();
-    }
-
     private updateDebuggerFromSnapshot(selectedContextState: SolutionData): void {
         const targetName = selectedContextState.selectedTarget?.name;
         const targetModel = selectedContextState.targets.find(t => t.name === targetName);
@@ -541,6 +696,10 @@ export class ManageSolutionController {
         return da;
     }
 
+    /**
+     * Sets selected debugger and initializes top-level debugger defaults.
+     * @param name Debugger adapter name or alias.
+     */
     public setSelectedDebugger(name: string) {
         const adapter = this.debugAdaptersYmlFile?.getAdapterByName(name);
         this.customizeDebugAdapterDefaults(adapter);
