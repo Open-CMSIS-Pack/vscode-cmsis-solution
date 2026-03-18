@@ -69,13 +69,11 @@ export interface CmsisToolboxManager {
     /** Run csolution RPC method
     * @param method name of RPC method to be executed
     * @param args list of arguments to be passed into the method request
-    * @param onOutput output messages reflecting method's result success or failure
     * @return method result according to each RPC method signature
     */
     runCsolutionRpc(
         method: RpcMethod,
         args: unknown,
-        onOutput: (line: string) => void,
     ): Promise<unknown>
 
     /** Collect Setup Messages
@@ -178,7 +176,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
         }
         // execute call
         if (emitExecuteLine) {
-            msg = `🔄 Execute: ${tool} ${args.join(' ')}\r\n`;
+            msg = `${tool} ${args.join(' ')}\r\n`;
             console.log(msg);
             onOutput(msg);
         }
@@ -195,7 +193,6 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
         // Print messages
         msg = `${returnCode === 0 ? '✅' : '🟥'} Completed: ${tool} ${cmdMsg}\r\n`;
         console.log(msg);
-        onOutput(msg);
         // release mutex
         release();
         this.runCmsisToolEmitter.fire([false]);
@@ -241,7 +238,6 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
     public async runCsolutionRpc(
         method: RpcMethod,
         args: unknown,
-        onOutput: (line: string) => void,
     ): Promise<unknown> {
         let msg: string;
         const argsArray = Object.entries(args as never).map(([k, v]) => `${k}: ${v}`);
@@ -265,7 +261,6 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
         msg = `${(result as rpc.SuccessResult).success ? '☑️' : '🟥'} RPC: ${method}` +
             `${argsArray.length > 0 ? ` { ${argsArray.join(', ')} }` : ''}`;
         console.log(msg);
-        onOutput(msg);
         if (method === 'Shutdown' && (result as rpc.SuccessResult).success) {
             // wait for csolution process to exit
             await this.csolutionService.waitForExit();
