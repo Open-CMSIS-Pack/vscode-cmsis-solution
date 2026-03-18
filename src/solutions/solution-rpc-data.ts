@@ -37,7 +37,7 @@ export interface SolutionRpcData {
     /**
      * Returns variables for given context
      * @param context resolving context
-     * @return ke-value map of variables, key is surrounded with '$'chars
+     * @return key-value map of variables, key is surrounded with '$' chars
      */
     getVariables(context: string): Map<string, string> | undefined;
 
