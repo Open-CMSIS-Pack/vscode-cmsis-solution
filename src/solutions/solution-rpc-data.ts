@@ -89,6 +89,15 @@ export class SolutionRpcDataImpl implements SolutionRpcData {
             return;
         }
         const activeTarget = activeTargetType.name;
+        const res = await this.csolutionService.loadSolution(
+            {
+                solution: solution.solutionPath,
+                activeTarget: activeTarget
+            });
+        if (!res.success) {
+            return;
+        }
+
         if (activeTargetType.device) {
             const deviceInfo = await this.csolutionService.getDeviceInfo({ id: activeTargetType.device });
             if (deviceInfo.success) {
@@ -102,14 +111,6 @@ export class SolutionRpcDataImpl implements SolutionRpcData {
             };
         }
 
-        const res = await this.csolutionService.loadSolution(
-            {
-                solution: solution.solutionPath,
-                activeTarget: activeTarget
-            });
-        if (!res.success) {
-            return;
-        }
         const contexts = solution.getContextNames();
         for (const context of contexts) {
             const data = await this.csolutionService.getVariables({ context: context });
