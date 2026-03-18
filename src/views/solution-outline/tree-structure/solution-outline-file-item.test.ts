@@ -29,8 +29,6 @@ describe('FileItem', () => {
     let componentNode: COutlineItem;
 
     beforeEach(async () => {
-        fileItem = new FileItemBuilder();
-
         const tmpDir = os.tmpdir();
         projectDir = fs.mkdtempSync(path.join(tmpDir, 'myProject'));
         cSolFile = `${projectDir}/Blinky.csolution.yml`;
