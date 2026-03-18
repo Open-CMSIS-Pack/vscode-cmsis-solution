@@ -43,9 +43,9 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
         }
 
         const hasCmsisPackRoot = fileValue.indexOf('${CMSIS_PACK_ROOT}') !== -1;
-        const filePath = this.resolveFilePath(hasCmsisPackRoot, fileValue);
+        const resolvedFilePath = this.resolveFilePath(hasCmsisPackRoot, fileValue);
         const fileBaseName = path.basename(fileValue);
-        const resourcePath = hasCmsisPackRoot ? filePath : f.resolvePath(filePath);
+        const resourcePath = hasCmsisPackRoot ? resolvedFilePath : f.resolvePath(resolvedFilePath);
         const description = isApi ? ' (API)' : undefined;
         const rootFileName = f.rootFileName;
 
@@ -57,7 +57,7 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
         }
 
         if (addContextMenu) {
-            setContextMenuAttributes(cfileItem, filePath, rootFileName);
+            setContextMenuAttributes(cfileItem, fileValue, rootFileName);
         }
 
         // add copy header button for header files
