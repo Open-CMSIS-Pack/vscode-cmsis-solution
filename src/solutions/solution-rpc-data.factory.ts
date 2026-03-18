@@ -1,5 +1,5 @@
 /**
- * Copyright 2026 Arm Limited
+ * Copyright (C) 2026 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,5 +49,3 @@ export function solutionRpcDataFactory(
 
     return solutionRpcDataMock;
 }
-
-export type SolutionRpcDataLike = SolutionRpcData | SolutionRpcDataMock;
