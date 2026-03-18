@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -52,10 +52,12 @@ export class GeneratorCommand {
             return;
         }
 
-        vscode.window.showInformationMessage(`Starting generator ${generator} for context ${context} ...`);
+        const msg = `Starting generator ${generator} for context ${context}...`;
+        vscode.window.showInformationMessage(msg);
 
         const executableArgs = ['run', solutionFilePath, '-g', generator, '-c', context];
         const outputChannel = this.outputChannelProvider.getOrCreate(CMSIS_SOLUTION_OUTPUT_CHANNEL);
+        outputChannel.appendLine(msg);
 
         const [result] = await this.cmsisToolboxManager.runCmsisTool('csolution', executableArgs, line => outputChannel.appendLine(line.trimEnd()), undefined,
             undefined, true);

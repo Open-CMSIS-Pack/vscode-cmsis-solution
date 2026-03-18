@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -127,7 +127,7 @@ describe('CmsisToolbox', () => {
 
         await toolbox.runCmsisTool('cpackget', ['arg1', 'arg2'], outputSpy);
 
-        expect(outputSpy).toHaveBeenCalledWith('🔄 Execute: cpackget arg1 arg2\r\n');
+        expect(outputSpy).toHaveBeenCalledWith('cpackget arg1 arg2\r\n');
     });
 
     it('does not emit execute line when emitExecuteLine is false', async () => {
@@ -135,7 +135,7 @@ describe('CmsisToolbox', () => {
 
         await toolbox.runCmsisTool('cbuild', ['arg1', 'arg2'], outputSpy, undefined, undefined, undefined, false);
 
-        expect(outputSpy).not.toHaveBeenCalledWith('🔄 Execute: cbuild arg1 arg2\r\n');
+        expect(outputSpy).not.toHaveBeenCalledWith('cbuild arg1 arg2\r\n');
     });
 
     it('collect setup messages', () => {
