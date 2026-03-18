@@ -145,6 +145,28 @@ describe('manage-solution-controller', () => {
         expect(controller.activeTargetTypeName).toBe(initialName);
     });
 
+    it('should recover from persisted empty active target type using first known target', async () => {
+        const controller = new ManageSolutionController();
+        await controller.loadSolution('test-resources/solutions/solution-with-debuggers.csolution');
+
+        controller.activeTargetTypeName = '';
+        const updated = await controller.ensureActiveTargetTypeName();
+
+        expect(updated).toBe(true);
+        expect(controller.activeTargetTypeName).toBe(controller.solutionData.targets[0].name);
+    });
+
+    it('should clear persisted invalid active target type when no target types are available', async () => {
+        const controller = new ManageSolutionController();
+        await controller.loadSolution('test-resources/solutions/solution-with-debuggers.csolution');
+
+        controller.activeTargetTypeName = 'invalid-target';
+        const updated = await controller['ensureActiveTargetTypeNameInKnownTargets']([]);
+
+        expect(updated).toBe(true);
+        expect(controller.cmsisJsonFile.activeTargetTypeName).toBeUndefined();
+    });
+
     it('should get active target set name', async () => {
         const controller = new ManageSolutionController();
         await controller.loadSolution('test-resources/solutions/solution-with-debuggers.csolution');

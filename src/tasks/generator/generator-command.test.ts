@@ -70,7 +70,7 @@ describe('GeneratorCommand', () => {
         await generatorCommand.handleRunGenerator('my-gen', 'debug');
 
         expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
-            'Starting generator my-gen for context debug ...'
+            'Starting generator my-gen for context debug...'
         );
 
         expect(cmsisToolboxManager.runCmsisTool).toHaveBeenCalledWith(

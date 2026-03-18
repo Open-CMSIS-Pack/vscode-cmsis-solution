@@ -175,7 +175,7 @@ describe('BuildRunner', () => {
 
             await desktopBuildRunner.run(buildTaskDefinition, onOutput, cancellationTokenFactory().token);
 
-            expect(onOutput.mock.calls[0][0]).toContain('Completed: cbuild');
+            expect(onOutput).toHaveBeenCalledTimes(0);
         });
 
         it('sets the process env, including CMSIS env vars', async () => {
