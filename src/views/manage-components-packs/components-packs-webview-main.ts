@@ -101,7 +101,14 @@ export class ComponentsPacksWebviewMain {
         await this.webviewManager.activate(context);
     }
 
-    private async dispose(): Promise<void> {
+    private dispose(): void {
+        this.disposeInternal().catch((error) => {
+            // Ensure any errors during dispose do not become unhandled promise rejections.
+            console.error('Error during ComponentsPacksWebviewMain.dispose:', error);
+        });
+    }
+
+    private async disposeInternal(): Promise<void> {
         const discardView = () => {
             this.currentProject = undefined;
             this.componentTree = { success: false, classes: [] };
@@ -114,7 +121,9 @@ export class ComponentsPacksWebviewMain {
             this.scope = ComponentScope.Solution;
         };
 
-        if (await this.isDirty()) {
+        const hasBaseline = this.usedItems !== undefined;
+
+        if (hasBaseline && await this.isDirty()) {
             const buttonOptions = [
                 { title: 'Save' },
                 { title: 'Don\'t Save' },
@@ -343,7 +352,11 @@ export class ComponentsPacksWebviewMain {
             }
             await this.webviewManager.sendMessage({ type: 'SET_UNLINKREQUESTS_STACK', unlinkRequests: Array.from(this.unlinkRequests) });
             await this.sendSolutionData();
-            await this.sendDirtyState();
+            if (reload) {
+                await this.sendDirtyState();
+            } else {
+                await this.sendDirtyState({ skipApply: true });
+            }
         } catch (error) {
             const messages = await this.csolutionService.getLogMessages();
 
