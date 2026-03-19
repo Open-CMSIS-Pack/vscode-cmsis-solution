@@ -315,4 +315,19 @@ describe('CSolution', () => {
         }
     });
 
+    it('test tree content for Image Only solution', async () => {
+        const fileName = path.join(tmpSolutionDir, 'ImageOnly', 'image-only-multicore.csolution.yml');
+        const csolution = new CSolution();
+
+        const loadResult = await csolution.load(fileName);
+        expect(loadResult).toEqual(ETextFileResult.Success);
+
+        // get results from tree
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const tree = solutionOutlineTree.createTree();
+
+        const res = await dumpOutline(tree, 'ImageOnly', 'CmsisViewTreeMulticoreDmp.txt','CmsisViewTreeMulticoreRef.txt');
+        expect(res.dump).toEqual(res.ref);
+    });
+
 });

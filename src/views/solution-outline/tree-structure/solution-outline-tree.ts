@@ -91,15 +91,14 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
                 // add project nodes
                 const projectTreeNode = this.createProjectNode(parent, cprojectYml, cbuild);
                 projectsTreeNode.push(projectTreeNode);
-
-                // add hardware nodes
-                const hardwareTreeItem = new HardwareItemBuilder(csolution, this.rpcData);
-                const hardware = hardwareTreeItem.createHardwareNodes(csolution, cbuild);
-
-                hardware.forEach((value, key) => {
-                    hardwareTreeNode.set(key, value);
-                });
             }
+            // add hardware nodes
+            const hardwareTreeItem = new HardwareItemBuilder(csolution, this.rpcData);
+            const hardware = hardwareTreeItem.createHardwareNodes(csolution, cbuild);
+
+            hardware.forEach((value, key) => {
+                hardwareTreeNode.set(key, value);
+            });
         }
         const hardwareTreeNodes = [...hardwareTreeNode.values()];
         COutlineItem.sortTreeNodesByLabel(projectsTreeNode);

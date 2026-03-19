@@ -1,0 +1,14 @@
+build-idx:
+  generated-by: csolution version 0.0.0+g5e83c845
+  csolution: image-only-multicore.csolution.yml
+  cbuild-run: out/image-only-multicore+CM0.cbuild-run.yml
+  tmpdir: tmp
+  image-only: true
+  cbuilds:
+    - cbuild: out/image-only-multicore/CM0/image-only-multicore+CM0.cbuild.yml
+      configuration: +CM0
+      messages:
+        info:
+          - image-only-multicore.cbuild-pack.yml - file generated successfully
+          - image-only-multicore+CM0.cbuild-run.yml - file generated successfully
+          - image-only-multicore+CM0.cbuild.yml - file generated successfully
