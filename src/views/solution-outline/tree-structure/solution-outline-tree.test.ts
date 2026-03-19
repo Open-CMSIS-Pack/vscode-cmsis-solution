@@ -315,7 +315,7 @@ describe('CSolution', () => {
         }
     });
 
-    it('test tree content for Image Only solution', async () => {
+    it('test tree content for Image Only multicore solution', async () => {
         const fileName = path.join(tmpSolutionDir, 'ImageOnly', 'image-only-multicore.csolution.yml');
         const csolution = new CSolution();
 
