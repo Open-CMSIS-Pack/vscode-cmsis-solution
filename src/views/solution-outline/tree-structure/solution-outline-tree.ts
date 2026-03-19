@@ -83,6 +83,7 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
         const hardwareTreeNode: Map<string, COutlineItem> = new Map();
         let treeNodes: COutlineItem[] = [];
         const projectsTreeNode: COutlineItem[] = [];
+        const hardwareTreeItem = new HardwareItemBuilder(csolution, this.rpcData);
 
         for (const cbuildYml of csolution.cbuildYmlRoot) {
             const cbuild = cbuildYml[1].getChildItem();
@@ -93,7 +94,6 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
                 projectsTreeNode.push(projectTreeNode);
             }
             // add hardware nodes
-            const hardwareTreeItem = new HardwareItemBuilder(csolution, this.rpcData);
             const hardware = hardwareTreeItem.createHardwareNodes(csolution, cbuild);
 
             hardware.forEach((value, key) => {
