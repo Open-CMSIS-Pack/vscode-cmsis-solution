@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,6 +21,7 @@ import { faker } from '@faker-js/faker';
 import path from 'path';
 import { csolutionFactory } from './csolution.factory';
 import { Severity } from './constants';
+import { solutionRpcDataFactory } from './solution-rpc-data.factory';
 
 export type MockSolutionManager = jest.Mocked<StubEvents<SolutionManager>> & { fireOnDidChangeLoadState: ReturnType<typeof fireOnDidChangeLoadState> };
 
@@ -50,6 +51,7 @@ const fireOnDidChangeLoadState = (emitter: vscode.EventEmitter<SolutionLoadState
 export const solutionManagerFactory = makeFactory<MockSolutionManager>({
     loadState: () => idleSolutionLoadStateFactory(),
     getCsolution: () => jest.fn().mockReturnValue(csolutionFactory()),
+    getRpcData: () => jest.fn().mockReturnValue(solutionRpcDataFactory()),
     onDidChangeLoadStateEmitter: () => new vscode.EventEmitter<SolutionLoadStateChangeEvent>(),
     onDidChangeLoadState: (r) => jest.fn(r.onDidChangeLoadStateEmitter!.event),
     onLoadedBuildFilesEmitter: () => new vscode.EventEmitter<[Severity, boolean]>(),

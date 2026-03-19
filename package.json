@@ -778,6 +778,11 @@
         "title": "Path to cbuild-run.yml File of Active Target"
       },
       {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getInfoPath",
+        "title": "Path to output directory of active clangd information"
+      },
+      {
         "command": "cmsis-csolution.list.find",
         "title": "Search"
       },
@@ -889,6 +894,10 @@
         },
         {
           "command": "cmsis-csolution.copyHeaderFile",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.getInfoPath",
           "when": "false"
         },
         {

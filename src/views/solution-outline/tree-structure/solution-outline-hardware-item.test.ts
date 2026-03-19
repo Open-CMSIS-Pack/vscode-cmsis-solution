@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,19 +18,17 @@ import { CTreeItem } from '../../../generic/tree-item';
 import { ETextFileResult } from '../../../generic/text-file';
 import { parseYamlToCTreeItem } from '../../../generic/tree-item-yaml-parser';
 import { CSolution } from '../../../solutions/csolution';
-import { HardwareItem } from './solution-outline-hardware-item';
+import { HardwareItemBuilder } from './solution-outline-hardware-item';
 import { TestDataHandler } from '../../../__test__/test-data';
 import path from 'node:path';
 
-describe('HardwareItem', () => {
-    let hwItem: HardwareItem;
+describe('HardwareItemBuilder', () => {
     let cSolFile: string;
     let tmpSolutionDir: string;
     const testDataHandler = new TestDataHandler();
 
     beforeAll(async () => {
         tmpSolutionDir = testDataHandler.copyTestDataToTmp('solutions');
-        hwItem = new HardwareItem();
         cSolFile = path.join(tmpSolutionDir, 'USBD', 'USB_Device.csolution.yml');
     });
 
@@ -54,7 +52,8 @@ describe('HardwareItem', () => {
         expect(loadResult).toEqual(ETextFileResult.Success);
 
         const want = 'Hello+CS300.dbgconf';
-        const hwNodes = hwItem.createHardwareNodes(csolution, topChild as CTreeItem);
+        const hwItemBuilder = new HardwareItemBuilder(csolution);
+        const hwNodes = hwItemBuilder.createHardwareNodes(csolution, topChild as CTreeItem);
         const node = hwNodes.get('STM32U585AIIx');
 
         let got: string = '';
@@ -84,7 +83,8 @@ describe('HardwareItem', () => {
         const loadResult = await csolution.load(cSolFile);
         expect(loadResult).toEqual(ETextFileResult.Success);
 
-        const hwNodes = hwItem.createHardwareNodes(csolution, topChild as CTreeItem);
+        const hwItemBuilder = new HardwareItemBuilder(csolution);
+        const hwNodes = hwItemBuilder.createHardwareNodes(csolution, topChild as CTreeItem);
         const node = hwNodes.get('STM32U585AIIx');
 
         // find dbgConfFile child node

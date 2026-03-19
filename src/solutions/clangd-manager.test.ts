@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -344,4 +344,21 @@ describe('ClangdManager', () => {
         expect(mockFs.exists).toHaveBeenCalledWith(expect.lowercaseEquals(expectedClangdPath));
         expect(mockFs.writeUtf8File).toHaveBeenCalledWith(expect.lowercaseEquals(expectedClangdPath), 'Diagnostics:\n  Suppress: [\'*\']');
     });
+
+    it('returns out directory for the active clangd context', async () => {
+        mockConfigurationProvider.getConfigVariable.mockReturnValue(true);
+        mockConfigurationProvider.setConfigVariable.mockReturnValue(Promise.resolve());
+
+        mockSolutionManager.onUpdatedCompileCommandsEmitter.fire();
+        await waitTimeout();
+
+        const infoPath = await mockCommandsProvider.mockRunRegistered<string>(ClangdManager.getInfoPathCommandId);
+        expect(path.normalize(infoPath)).toEqual(path.join(path.dirname(activeContexts[0].projectPath!), 'out'));
+    });
+
+    it('returns an empty string when no active clangd context exists', async () => {
+        const infoPath = await mockCommandsProvider.mockRunRegistered<string>(ClangdManager.getInfoPathCommandId);
+        expect(infoPath).toEqual('');
+    });
+
 });

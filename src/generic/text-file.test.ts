@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -369,5 +369,33 @@ describe('TextFile', () => {
         expect(tf3.text).toBe(updated);
 
         testDataHandler.rmDir(unicodeDir);
+    });
+
+    it('primes external stamp when checked before load/save', async () => {
+        fsUtils.writeTextFile(TEST_FILE, initialContent);
+        const tf = new TextFile(TEST_FILE);
+
+        expect(tf.hasExternalFileChanged()).toBe(false);
+
+        fsUtils.writeTextFile(TEST_FILE, `${changedContent}!`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        expect(tf.hasExternalFileChanged()).toBe(true);
+    });
+
+    it('detects external on-disk updates and then re-baselines', async () => {
+        const tf = new TextFile(TEST_FILE);
+        tf.text = initialContent;
+        const saveResult = await tf.save();
+        expect(saveResult).toBe(ETextFileResult.Success);
+
+        tf.refreshExternalFileStamp();
+        expect(tf.hasExternalFileChanged()).toBe(false);
+
+        fsUtils.writeTextFile(TEST_FILE, `${changedContent}!`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        expect(tf.hasExternalFileChanged()).toBe(true);
+        expect(tf.hasExternalFileChanged()).toBe(false);
     });
 });
