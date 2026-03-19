@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,10 +21,9 @@ import { COutlineItem } from './solution-outline-item';
 import { getStatusTooltip, setContextMenuAttributes, setHeaderContext, setMergeDescription, setMergeFileContext } from './solution-outline-utils';
 import { getCmsisPackRoot } from '../../../utils/path-utils';
 import { matchesContext } from '../../../utils/context-utils';
+import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 
-export class FileItem {
-    constructor(private readonly activeContext?: string) { }
-
+export class FileItemBuilder extends SolutionOutlineItemBuilder {
     public createFileNodes(cgroupItem: COutlineItem, files: ITreeItem<CTreeItem>[], docs?: ITreeItem<CTreeItem>[], isApi?: boolean, addContextMenu?: boolean) {
         for (const f of files) {
             const category = f.getValue('category');
@@ -44,21 +43,21 @@ export class FileItem {
         }
 
         const hasCmsisPackRoot = fileValue.indexOf('${CMSIS_PACK_ROOT}') !== -1;
-        const filePath = this.resolveFilePath(hasCmsisPackRoot, fileValue);
-        const fileBaseName = path.basename(filePath);
-        const resourcePath = hasCmsisPackRoot ? filePath : f.resolvePath(filePath);
+        const resolvedFilePath = this.resolveFilePath(hasCmsisPackRoot, fileValue);
+        const fileBaseName = path.basename(fileValue);
+        const resourcePath = hasCmsisPackRoot ? resolvedFilePath : f.resolvePath(resolvedFilePath);
         const description = isApi ? ' (API)' : undefined;
         const rootFileName = f.rootFileName;
 
         const cfileItem = this.createFileItem(cgroupItem, fileBaseName, resourcePath, description);
 
         // Check if file is excluded based on context restrictions
-        if (this.activeContext && !matchesContext(f, this.activeContext)) {
+        if (this.context && !matchesContext(f, this.context)) {
             cfileItem.setAttribute('excluded', '1');
         }
 
         if (addContextMenu) {
-            setContextMenuAttributes(cfileItem, filePath, rootFileName);
+            setContextMenuAttributes(cfileItem, fileValue, rootFileName);
         }
 
         // add copy header button for header files
@@ -74,12 +73,11 @@ export class FileItem {
         if (hasCmsisPackRoot) {
             return fileValue.replace('${CMSIS_PACK_ROOT}', getCmsisPackRoot());
         }
-        return fileValue;
+        return this.expandAccessSequences(fileValue);
     }
 
     private createFileItem(cgroupItem: COutlineItem, fileBaseName: string, resourcePath: string, description?: string): COutlineItem {
-        const item = cgroupItem.createChild(fileBaseName);
-        item.setTag('file');
+        const item = cgroupItem.createChild('file');
         item.setAttribute('label', fileBaseName);
         item.setAttribute('expandable', '0');
         item.setAttribute('resourcePath', resourcePath);

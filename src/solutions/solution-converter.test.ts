@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -211,14 +211,12 @@ describe('SolutionConverter', () => {
 
         expect(outputChannel!.mockAppendedStrings).toEqual([
             expect.stringContaining('⚙️ Converting solution...'),
-            expect.stringContaining('☑️ RPC: ListMissingPacks'),
-            expect.stringContaining('☑️ RPC: ConvertSolution'),
-            expect.stringContaining('☑️ cbuild setup database'),
-            expect.stringContaining('☑️ RPC: GetLogMessages'),
+            expect.stringContaining('Check for missing packs...'),
+            expect.stringContaining('Convert solution...'),
+            expect.stringContaining('Setup database...'),
+            expect.stringContaining('Get log messages...'),
             expect.stringContaining('✅ Convert solution completed'),
-            expect.stringContaining(''),
         ]);
-
         expect(completedListener).toHaveBeenCalledTimes(1);
     });
 
@@ -231,11 +229,10 @@ describe('SolutionConverter', () => {
 
         expect(outputChannel!.mockAppendedStrings).toEqual([
             expect.stringContaining('⚙️ Converting solution...'),
-            expect.stringContaining('🟥 RPC: ListMissingPacks'),
-            expect.stringContaining('🟥 RPC: ConvertSolution'),
-            expect.stringContaining('☑️ RPC: GetLogMessages'),
+            expect.stringContaining('Check for missing packs...'),
+            expect.stringContaining('Convert solution...'),
+            expect.stringContaining('Get log messages...'),
             expect.stringContaining('🟥 Convert solution failed'),
-            expect.stringContaining(''),
         ]);
 
         expect(completedListener).toHaveBeenCalledTimes(1);

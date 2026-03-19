@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,29 +20,26 @@ import path from 'path';
 import * as fsUtils from '../../../utils/fs-utils';
 import { CTreeItem } from '../../../generic/tree-item';
 import * as manifest from '../../../manifest';
-import { HardwareItem } from './solution-outline-hardware-item';
+import { HardwareItemBuilder } from './solution-outline-hardware-item';
 import { ProjectItemsBuilder } from './solution-outline-project-items';
 import { getFileNameNoExt } from '../../../utils/path-utils';
 import { setMergeDescription } from './solution-outline-utils';
 import { CProjectYamlFile } from '../../../solutions/files/cproject-yaml-file';
+import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 
+export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
 
-export class SolutionOutlineTree {
-    csolution?: CSolution;
-    constructor() { }
-
-    public createTree(csolution: CSolution | undefined): COutlineItem {
-        this.csolution = csolution;
+    public createTree(): COutlineItem {
         const rootItem = new COutlineItem('solution');
 
-        if (!csolution) {
+        if (!this.csolution) {
             this.addLoadError(rootItem);
             return rootItem;
         }
 
-        const treeNodeItems = csolution.cbuildYmlRoot.size > 0
-            ? this.processBuildFiles(rootItem, csolution)
-            : this.createProjectsFromCsolution(rootItem, csolution);
+        const treeNodeItems = this.csolution.cbuildYmlRoot.size > 0
+            ? this.processBuildFiles(rootItem, this.csolution)
+            : this.createProjectsFromCsolution(rootItem, this.csolution);
 
         if (treeNodeItems.length === 0) {
             this.addLoadError(rootItem);
@@ -96,7 +93,7 @@ export class SolutionOutlineTree {
                 projectsTreeNode.push(projectTreeNode);
 
                 // add hardware nodes
-                const hardwareTreeItem = new HardwareItem();
+                const hardwareTreeItem = new HardwareItemBuilder(csolution, this.rpcData);
                 const hardware = hardwareTreeItem.createHardwareNodes(csolution, cbuild);
 
                 hardware.forEach((value, key) => {
@@ -124,7 +121,7 @@ export class SolutionOutlineTree {
 
         // add children
         if (cproject) {
-            const projectItems = new ProjectItemsBuilder();
+            const projectItems = new ProjectItemsBuilder(this.csolution, this.rpcData, context);
             projectItems.addProjectChildren(this.csolution, cprojectItem, cprojectFile, cbuild);
 
             // get prioritized component list and set merge description if available
