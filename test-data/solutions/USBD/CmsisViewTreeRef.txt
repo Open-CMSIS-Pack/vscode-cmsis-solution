@@ -23,6 +23,36 @@ solution
     projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
     tooltip=- File: ` TEST_DIR/solutions/USBD/HID/HID.cproject.yml `
     group
+      label=AccessSequencesTest
+      iconPath=csolution-files
+      features=group
+      mutable=1
+      type=group
+      groupPath=AccessSequencesTest
+      projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
+      expandable=1
+      file
+        label=$Dname$.test
+        expandable=0
+        resourcePath=TEST_DIR/solutions/USBD/HID/STM32U585AIIx.test
+        features=file
+        fileUri=$Dname$.test
+        projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
+      file
+        label=testOutput.test
+        expandable=0
+        resourcePath=TEST_DIR/solutions/USBD/out/HID/B-U585I-IOT02A/Release/testOutput.test
+        features=file
+        fileUri=$OutDir()$/testOutput.test
+        projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
+      file
+        label=unknown.test
+        expandable=0
+        resourcePath=TEST_DIR/solutions/USBD/HID/$UnknownVar$/unknown.test
+        features=file
+        fileUri=$UnknownVar$/unknown.test
+        projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
+    group
       label=Documentation
       iconPath=csolution-files
       features=group

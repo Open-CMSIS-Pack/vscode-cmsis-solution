@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,11 +24,13 @@ import { getCmsisPackRoot } from '../../../utils/path-utils';
 import { toGenericString } from '../../../generic/tree-item-parser';
 import * as fsUtils from '../../../utils/fs-utils';
 import { CTreeItem } from '../../../generic/tree-item';
+import { solutionRpcDataFactory, SolutionRpcDataMock } from '../../../solutions/solution-rpc-data.factory';
 
 describe('CSolution', () => {
     const testDataHandler = new TestDataHandler();
     let tmpSolutionDir: string;
     let cmsisPackRoot: string;
+    let rpcData: SolutionRpcDataMock;
 
 
     beforeAll(async () => {
@@ -40,6 +42,11 @@ describe('CSolution', () => {
     afterAll(async () => {
         testDataHandler.dispose();
     });
+
+    beforeEach(() => {
+        rpcData = solutionRpcDataFactory();
+    });
+
     const normalize = (s: string) =>
         s.replace(/\r\n/g, '\n')      // unify CRLF -> LF
             .replace(/\r/g, '\n')        // stray CR -> LF
@@ -93,8 +100,8 @@ describe('CSolution', () => {
         }
 
         // get results from tree
-        const solutionOutlineTree = new SolutionOutlineTree();
-        const tree = solutionOutlineTree.createTree(csolution);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const tree = solutionOutlineTree.createTree();
         const got = new Map<string, string>();
 
         let count = 1;
@@ -107,8 +114,8 @@ describe('CSolution', () => {
     });
 
     it('creates error node when csolution is undefined', () => {
-        const solutionOutlineTree = new SolutionOutlineTree();
-        const tree = solutionOutlineTree.createTree(undefined);
+        const solutionOutlineTree = new SolutionOutlineTree(undefined, rpcData);
+        const tree = solutionOutlineTree.createTree();
 
         const children = tree.getChildren() as COutlineItem[];
         expect(children).toHaveLength(1);
@@ -124,8 +131,8 @@ describe('CSolution', () => {
             ['dummy.cbuild.yml', new CTreeItem('cbuild')],
         ]);
 
-        const solutionOutlineTree = new SolutionOutlineTree();
-        const tree = solutionOutlineTree.createTree(csolution);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const tree = solutionOutlineTree.createTree();
 
         const children = tree.getChildren() as COutlineItem[];
         expect(children).toHaveLength(1);
@@ -138,8 +145,8 @@ describe('CSolution', () => {
     it('creates error node when no projects can be loaded', () => {
         const csolution = new CSolution();
 
-        const solutionOutlineTree = new SolutionOutlineTree();
-        const tree = solutionOutlineTree.createTree(csolution);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const tree = solutionOutlineTree.createTree();
 
         const children = tree.getChildren() as COutlineItem[];
         expect(children).toHaveLength(1);
@@ -157,12 +164,14 @@ describe('CSolution', () => {
         // get results from tree
         const fileName = path.join(tmpSolutionDir, 'USBD', 'USB_Device.csolution.yml');
         const csolution = new CSolution();
+        const outDirHID = path.join(tmpSolutionDir, 'USBD', 'out', 'HID', 'B-U585I-IOT02A', 'Release');
 
         let loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
+        rpcData.seedVariables('HID.Release+B-U585I-IOT02A', { 'OutDir()': outDirHID, 'Dname': 'STM32U585AIIx' });
 
-        const solutionOutlineTree = new SolutionOutlineTree();
-        let tree = solutionOutlineTree.createTree(csolution);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        let tree = solutionOutlineTree.createTree();
 
         let topItems = tree.getChildren();
         expect(topItems.length).toBe(4); // device, board and two projects
@@ -201,14 +210,14 @@ describe('CSolution', () => {
         let res = await dumpOutline(tree, 'USBD', 'CmsisViewTreeDmp.txt','CmsisViewTreeRef.txt');
         expect(res.dump).toEqual(res.ref);
 
-        // emulate removing the project from target set b modifying cbuild-idx.yml
+        // emulate removing the project from target set by modifying cbuild-idx.yml
         const cbuilds = csolution.cbuildIdxFile.topItem?.getChild('cbuilds');
         const cbuildToRemove = cbuilds?.getChildByValue('project','HID');
         cbuilds?.removeChild(cbuildToRemove);
         csolution.cbuildIdxFile.save();
 
         loadResult = await csolution.loadBuildFiles();
-        tree = solutionOutlineTree.createTree(csolution);
+        tree = solutionOutlineTree.createTree();
         topItems = tree.getChildren();
         expect(topItems.length).toBe(3); // device, board, one project
         res = await dumpOutline(tree, 'USBD', 'CmsisViewTreeOneProjDmp.txt','CmsisViewTreeOneProjRef.txt');
@@ -223,8 +232,8 @@ describe('CSolution', () => {
         expect(loadResult).toEqual(ETextFileResult.Success);
 
         // get results from tree
-        const solutionOutlineTree = new SolutionOutlineTree();
-        const tree = solutionOutlineTree.createTree(csolution);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const tree = solutionOutlineTree.createTree();
 
         const res = await dumpOutline(tree, 'WestSupport', 'CmsisViewTreeDmp.txt','CmsisViewTreeRef.txt');
         expect(res.dump).toEqual(res.ref);
@@ -237,8 +246,8 @@ describe('CSolution', () => {
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
 
-        const solutionOutlineTree = new SolutionOutlineTree();
-        const tree = solutionOutlineTree.createTree(csolution);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const tree = solutionOutlineTree.createTree();
 
         // Find West project nodes
         const projectNodes = (tree.getChildren() as COutlineItem[]).filter(
@@ -261,8 +270,8 @@ describe('CSolution', () => {
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
 
-        const solutionOutlineTree = new SolutionOutlineTree();
-        const tree = solutionOutlineTree.createTree(csolution);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const tree = solutionOutlineTree.createTree();
 
         // Find West project nodes
         const westProjects = (tree.getChildren() as COutlineItem[]).filter(
@@ -289,8 +298,8 @@ describe('CSolution', () => {
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
 
-        const solutionOutlineTree = new SolutionOutlineTree();
-        const tree = solutionOutlineTree.createTree(csolution);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const tree = solutionOutlineTree.createTree();
 
         // Find all project nodes
         const projectNodes = (tree.getChildren() as COutlineItem[]).filter(

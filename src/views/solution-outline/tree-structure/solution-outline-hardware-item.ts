@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,11 +18,11 @@ import { COutlineItem } from './solution-outline-item';
 import { buildDocFilePath, isWebAddress } from '../../../util';
 import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
 import path from 'path';
-import { FileItem } from './solution-outline-file-item';
+import { FileItemBuilder } from './solution-outline-file-item';
 import { CSolution } from '../../../solutions/csolution';
+import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 
-export class HardwareItem {
-    constructor() { }
+export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
 
     public createHardwareNodes(csolution: CSolution, cbuild?: CTreeItem): Map<string, COutlineItem> {
         const hardwareTreeNodes = new Map<string, COutlineItem>();
@@ -98,8 +98,7 @@ export class HardwareItem {
             return;
         }
 
-        const cbookItem = chardwareItem.createChild(title);
-        cbookItem.setTag('book');
+        const cbookItem = chardwareItem.createChild('book');
         cbookItem.setAttribute('label', title);
         cbookItem.setAttribute('expandable', '0');
         cbookItem.setAttribute('resourcePath', filePath);
@@ -137,8 +136,7 @@ export class HardwareItem {
         const filePath = file.resolvePath(fileName);
         const dbgConfFile = path.basename(fileName);
 
-        const dbgconfFileItem = chardwareItem.createChild('dbgConfFile');
-        dbgconfFileItem.setTag('file');
+        const dbgconfFileItem = chardwareItem.createChild('file');
         dbgconfFileItem.setAttribute('label', dbgConfFile);
         dbgconfFileItem.setAttribute('expandable', '0');
         dbgconfFileItem.setAttribute('resourcePath', filePath);
@@ -170,10 +168,10 @@ export class HardwareItem {
         const statusFileName = status.getText();
         file.setAttribute('status', statusFileName);
 
-        // overwrite tootltip
+        // overwrite tooltip
         dbgconfFileItem.setAttribute('tooltip', '');
 
-        const fileItem = new FileItem();
+        const fileItem = new FileItemBuilder();
         fileItem.addMergeFeature(file, dbgconfFileItem, { skipValidation: true, localPathOverride: filePath });
     }
 }

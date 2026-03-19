@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -56,6 +56,8 @@ export interface SolutionManager {
     readonly loadState: SolutionLoadState;
 
     readonly getCsolution: () => CSolution | undefined;
+
+    readonly getRpcData: () => SolutionRpcData | undefined;
 
     readonly onDidChangeLoadState: vscode.Event<SolutionLoadStateChangeEvent>;
 
@@ -119,6 +121,11 @@ export class SolutionManagerImpl implements SolutionManager {
         return this.csolution;
     }
 
+    public getRpcData(): SolutionRpcData | undefined {
+        return this.rpcData;
+    }
+
+
     public get loadState(): SolutionLoadState {
         return this._loadState;
     }
@@ -136,8 +143,9 @@ export class SolutionManagerImpl implements SolutionManager {
         if (!this.isSolutionActivated()) {
             return;
         }
-        await this.loadSolution();
-        this.requestConvert(false, true, false);
+        if (await this.loadSolution()) {
+            this.requestConvert(false, true, false);
+        }
     }
 
 
@@ -151,9 +159,10 @@ export class SolutionManagerImpl implements SolutionManager {
 
         if (solutionPath) {
             this.setLoadState(newState, false);
-            await this.loadSolution();
-            // trigger solution convert without RTE update
-            this.requestConvert(false, false, true);
+            if (await this.loadSolution()) {
+                // trigger solution convert without RTE update
+                this.requestConvert(false, false, true);
+            }
         } else {
             this.setLoadState(newState, true);
         }
@@ -163,8 +172,9 @@ export class SolutionManagerImpl implements SolutionManager {
         if (!this.loadState.solutionPath) {
             return;
         }
-        await this.loadSolution();
-        this.requestConvert(true, false, false);
+        if (await this.loadSolution()) {
+            this.requestConvert(true, false, false);
+        }
     }
 
     public async refresh() {
@@ -196,9 +206,15 @@ export class SolutionManagerImpl implements SolutionManager {
         });
     }
 
-    private async loadSolution(): Promise<void> {
+    private async updateRpcData() {
+        if (this.csolution) {
+            await this.rpcData.update(this.csolution);
+        }
+    }
+
+    private async loadSolution(): Promise<boolean> {
         if (this.loadingSolution || !this.loadState.solutionPath) {
-            return;
+            return false;
         }
         try {
             this.loadingSolution = true;
@@ -210,19 +226,20 @@ export class SolutionManagerImpl implements SolutionManager {
                 ...this.loadState,
                 loaded: true
             };
+            await this.updateRpcData();
             this.setLoadState(newState, true);
         } catch (error) {
             console.error(`Failed to load ${this.loadState.solutionPath}`, error);
         } finally {
             this.loadingSolution = false;
         }
+        return true;
     }
 
     private async handleSolutionConvertCompleted(data: ConvertResultData) {
         if (!this.csolution) {
             return;
         }
-        await this.rpcData.update(this.csolution);
         await this.loadSolutionBuildFiles();
 
         if (data.severity != 'error') {

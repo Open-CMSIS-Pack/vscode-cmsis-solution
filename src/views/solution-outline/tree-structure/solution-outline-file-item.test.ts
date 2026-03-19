@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { FileItem } from './solution-outline-file-item';
+import { FileItemBuilder } from './solution-outline-file-item';
 import { parseYamlToCTreeItem } from '../../../generic/tree-item-yaml-parser';
 import fs from 'fs';
 import os from 'os';
@@ -23,19 +23,17 @@ import { COutlineItem } from './solution-outline-item';
 
 
 describe('FileItem', () => {
-    let fileItem: FileItem;
+    let fileItem: FileItemBuilder;
     let projectDir: string;
     let cSolFile: string;
     let componentNode: COutlineItem;
 
     beforeEach(async () => {
-        fileItem = new FileItem();
-
         const tmpDir = os.tmpdir();
         projectDir = fs.mkdtempSync(path.join(tmpDir, 'myProject'));
         cSolFile = `${projectDir}/Blinky.csolution.yml`;
 
-        fileItem = new FileItem();
+        fileItem = new FileItemBuilder();
 
         componentNode = new COutlineItem('component');
         componentNode.setTag('component');

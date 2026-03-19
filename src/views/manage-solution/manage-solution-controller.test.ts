@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -143,6 +143,28 @@ describe('manage-solution-controller', () => {
 
         controller.activeTargetTypeName = initialName!;
         expect(controller.activeTargetTypeName).toBe(initialName);
+    });
+
+    it('should recover from persisted empty active target type using first known target', async () => {
+        const controller = new ManageSolutionController();
+        await controller.loadSolution('test-resources/solutions/solution-with-debuggers.csolution');
+
+        controller.activeTargetTypeName = '';
+        const updated = await controller.ensureActiveTargetTypeName();
+
+        expect(updated).toBe(true);
+        expect(controller.activeTargetTypeName).toBe(controller.solutionData.targets[0].name);
+    });
+
+    it('should clear persisted invalid active target type when no target types are available', async () => {
+        const controller = new ManageSolutionController();
+        await controller.loadSolution('test-resources/solutions/solution-with-debuggers.csolution');
+
+        controller.activeTargetTypeName = 'invalid-target';
+        const updated = await controller['ensureActiveTargetTypeNameInKnownTargets']([]);
+
+        expect(updated).toBe(true);
+        expect(controller.cmsisJsonFile.activeTargetTypeName).toBeUndefined();
     });
 
     it('should get active target set name', async () => {
