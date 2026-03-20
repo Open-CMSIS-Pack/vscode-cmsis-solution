@@ -282,9 +282,11 @@ describe('ActiveSolutionTracker', () => {
             expect(changeActiveListener).not.toHaveBeenCalled();
         });
 
-        it('sets a new solution as active', () => {
+        it('sets a new solution as active', async () => {
             const solutionPath = SOLUTION_URI_FOO.fsPath;
+            const activeSolutionChanged = waitForEvent(activeSolutionTracker.onDidChangeActiveSolution);
             activeSolutionTracker.activeSolution = solutionPath;
+            await activeSolutionChanged;
 
             expect(activeSolutionTracker.activeSolution).toBe(solutionPath);
             expect(changeActiveListener).toHaveBeenCalled();
