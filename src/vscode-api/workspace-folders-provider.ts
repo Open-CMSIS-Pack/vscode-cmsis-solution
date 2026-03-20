@@ -24,6 +24,7 @@ export type WorkspaceFoldersProvider = {
     onDidChangeWorkspaceFolders: Event<unknown>;
     asRelativePath: (fsPath: string) => string;
     getWorkspaceFolder: (fsPath: string) => WorkspaceFolder | undefined;
+    findFiles: typeof vscode.workspace.findFiles;
     readonly workspaceFolders: readonly WorkspaceFolder[] | undefined
 }
 
@@ -31,6 +32,7 @@ export const workspaceFoldersProvider: WorkspaceFoldersProvider = {
     onDidChangeWorkspaceFolders: vscode.workspace.onDidChangeWorkspaceFolders,
     asRelativePath: vscode.workspace.asRelativePath,
     getWorkspaceFolder: (fsPath: string) => vscode.workspace.getWorkspaceFolder(Uri.file(fsPath)),
+    findFiles: vscode.workspace.findFiles,
 
     get workspaceFolders(): readonly WorkspaceFolder[] | undefined {
         return vscode.workspace.workspaceFolders;
