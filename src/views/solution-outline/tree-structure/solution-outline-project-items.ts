@@ -204,16 +204,16 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         const children = componentsContainer.getChildren();
         const size = children.length;
 
-        const ccomponentsItem = cprojectItem.createChild('components');
+        const componentsItem = cprojectItem.createChild('components');
 
-        ccomponentsItem.setAttribute('label', 'Components' + ` (${size})`);
-        ccomponentsItem.setAttribute('expandable', size > 0 ? '1' : '0');
-        ccomponentsItem.setAttribute('iconPath', 'csolution-components');
-        ccomponentsItem.setAttribute('type', 'components');
-        ccomponentsItem.addFeature('components');
+        componentsItem.setAttribute('label', 'Components' + ` (${size})`);
+        componentsItem.setAttribute('expandable', size > 0 ? '1' : '0');
+        componentsItem.setAttribute('iconPath', 'csolution-components');
+        componentsItem.setAttribute('type', 'components');
+        componentsItem.addFeature('components');
 
         // create components from project
-        const componentNodes = this.createComponentNodes(ccomponentsItem as COutlineItem, children);
+        const componentNodes = this.createComponentNodes(componentsItem as COutlineItem, children);
 
         if (cbuild) {
             this.addComponentDataFromCbuild(componentNodes, cbuild);
@@ -226,7 +226,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         const fileStatus = this.getMergeDescriptionAtParentComponentLevel(components);
         if (fileStatus) {
             // assign description
-            setMergeDescription(ccomponentsItem, fileStatus);
+            setMergeDescription(componentsItem, fileStatus);
 
             // assign tooltip with component ids
             const prioritizedList = this._lastPrioritizedComponentList;
@@ -239,7 +239,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
                     newTooltip += `\n- ${update} ${compId}: ${compStatus}`;
                 }
             }
-            ccomponentsItem.setAttribute('tooltip', newTooltip);
+            componentsItem.setAttribute('tooltip', newTooltip);
         }
         return true; // do have components to edit
     }
@@ -302,7 +302,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         return undefined;
     }
 
-    private createComponentNodes(ccomponentsItem: COutlineItem, projectComponents: ITreeItem<CTreeItem>[]): Map<string, COutlineItem> {
+    private createComponentNodes(componentsItem: COutlineItem, projectComponents: ITreeItem<CTreeItem>[]): Map<string, COutlineItem> {
         const componentNodes = new Map<string, COutlineItem>();
         for (const component of projectComponents) {
             const refId = component.getValue();
@@ -311,12 +311,12 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
             }
 
             // create child
-            const ccomponentItem = ccomponentsItem.createChild('component');
-            ccomponentItem.setAttribute('label', refId);
-            ccomponentItem.setAttribute('expandable', '0');
-            ccomponentItem.setAttribute('iconPath', 'csolution-software-component');
+            const componentItem = componentsItem.createChild('component');
+            componentItem.setAttribute('label', refId);
+            componentItem.setAttribute('expandable', '0');
+            componentItem.setAttribute('iconPath', 'csolution-software-component');
 
-            componentNodes.set(refId, ccomponentItem as COutlineItem);
+            componentNodes.set(refId, componentItem as COutlineItem);
         }
         return componentNodes;
     }
