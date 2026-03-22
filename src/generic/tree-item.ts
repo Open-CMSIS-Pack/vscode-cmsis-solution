@@ -413,11 +413,11 @@ export class GenericTreeItem<T extends GenericTreeItem<T>> extends CAttributedIt
     }
 
     get range(): SourceRange | undefined {
-        return this.data.range as SourceRange | undefined;
+        return this.getProperty('range') as SourceRange | undefined;
     }
 
     set range(range: SourceRange | undefined) {
-        this.data.range = range;
+        this.setProperty('range', range);
     }
 
     getKind(): ETreeItemKind {
