@@ -32,7 +32,7 @@ export class ReferenceLinkProvider implements DocumentLinkProvider<DocumentLink>
         try {
             const topItem = parseYamlToCTreeItem(textDocument.getText(), textDocument.fileName);
 
-            return (topItem?.filterItems(item => this.isReferenceFileItem(item)) as CTreeItem[] | undefined)?.flatMap((item): DocumentLink[] => {
+            return (topItem?.filterItems(item => this.isReferenceFileItem(item)) ?? [])?.flatMap((item): DocumentLink[] => {
                 const documentLink = this.treeItemToDocumentLink(item, textDocument);
                 return documentLink ? [documentLink] : [];
             }) ?? [];
@@ -55,7 +55,7 @@ export class ReferenceLinkProvider implements DocumentLinkProvider<DocumentLink>
         return ['file', 'layer', 'project', 'script', 'regions'];
     }
 
-    private treeItemToDocumentLink(item: CTreeItem | undefined, textDocument: TextDocument) : DocumentLink | undefined {
+    private treeItemToDocumentLink(item: ITreeItem<CTreeItem> | undefined, textDocument: TextDocument) : DocumentLink | undefined {
         const uri = this.getUriFromItem(item);
         if (!uri) {
             return undefined;
@@ -68,7 +68,7 @@ export class ReferenceLinkProvider implements DocumentLinkProvider<DocumentLink>
     }
 
 
-    private getUriFromItem(item?: CTreeItem): Uri | undefined {
+    private getUriFromItem(item?: ITreeItem<CTreeItem>): Uri | undefined {
         if (!item || item.getKind() !== ETreeItemKind.Scalar) {
             return undefined;
         }
@@ -86,14 +86,14 @@ export class ReferenceLinkProvider implements DocumentLinkProvider<DocumentLink>
         return resolvedPath ? Uri.file(resolvedPath) : undefined;
     }
 
-    private rangeFromItem(item: CTreeItem | undefined, textDocument: TextDocument): Range {
+    private rangeFromItem(item: ITreeItem<CTreeItem> | undefined, textDocument: TextDocument): Range {
         return new Range(
             textDocument.positionAt(item?.range?.[0] ?? 0),
             textDocument.positionAt(item?.range?.[1] ?? 0),
         );
     }
 
-    private getItemContext(item: CTreeItem): string | undefined {
+    private getItemContext(item: ITreeItem<CTreeItem>): string | undefined {
         const csolution = this.solutionManager.getCsolution();
         if (!csolution) {
             return undefined;
