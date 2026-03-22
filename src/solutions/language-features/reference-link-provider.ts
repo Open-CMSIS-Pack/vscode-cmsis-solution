@@ -78,7 +78,7 @@ export class ReferenceLinkProvider implements DocumentLinkProvider<DocumentLink>
         }
         const rpcData = this.solutionManager.getRpcData();
         const context = this.getItemContext(item);
-        if (rpcData && context !== undefined && context !== null) {
+        if (rpcData && context) {
             text = rpcData.expandString(text, context);
         }
 
