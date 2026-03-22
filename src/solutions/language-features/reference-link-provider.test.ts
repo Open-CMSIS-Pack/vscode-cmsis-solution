@@ -20,6 +20,7 @@ import { ReferenceLinkProvider } from './reference-link-provider';
 import { URI as Uri, Utils as UriUtils } from 'vscode-uri';
 import * as path from 'path';
 import { solutionManagerFactory } from '../solution-manager.factories';
+import { SolutionRpcDataMock } from '../solution-rpc-data.factory';
 
 describe('ReferenceLinkProvider', () => {
     it('returns no links if the document cannot be parsed', () => {
@@ -48,7 +49,7 @@ describe('ReferenceLinkProvider', () => {
                 linker:
                     - script: ./my.sct
                 layers:
-                    - layer: ./mylayer.clayer.yml
+                    - layer: ./$Board-layer$
         `;
 
         const documentFileName = path.join(__dirname, 'my.cproject.yml');
@@ -56,7 +57,13 @@ describe('ReferenceLinkProvider', () => {
         const textDocument = textDocumentFactory({ uri: documentUri, fileName: documentFileName });
         textDocument.getText.mockReturnValue(parsableDoc);
 
-        const provider = new ReferenceLinkProvider(solutionManagerFactory());
+        const solutionManager = solutionManagerFactory();
+        const csolution = solutionManager.getCsolution();
+        jest.spyOn(csolution!, 'actionContext', 'get').mockReturnValue('my.Build+Target');
+        const rpcData = solutionManager.getRpcData() as SolutionRpcDataMock;
+        rpcData.seedVariables('my.Build+Target', { 'Board-layer': 'mylayer.clayer.yml' });
+
+        const provider = new ReferenceLinkProvider(solutionManager);
         const output = provider.provideDocumentLinks(textDocument, { isCancellationRequested: false, onCancellationRequested: jest.fn() });
 
         expect(output).toEqual([
