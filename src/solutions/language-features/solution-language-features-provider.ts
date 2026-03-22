@@ -35,7 +35,6 @@ export class SolutionLanguageFeaturesProvider {
     ) {}
 
     public async activate(context: Pick<ExtensionContext, 'subscriptions'>) {
-        void this.solutionManager;
         context.subscriptions.push(
             this.languages.registerDocumentLinkProvider(solutionSelectors, new ReferenceLinkProvider(this.solutionManager)),
         );
