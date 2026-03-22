@@ -19,7 +19,7 @@ import * as vscode from 'vscode';
 import { ReferenceLinkProvider } from './reference-link-provider';
 import type { SolutionManager } from '../solution-manager';
 
-export const solutionSelectors: Readonly<DocumentSelector> = [
+export const solutionFilesSelectors: Readonly<DocumentSelector> = [
     { pattern: '**/*.csolution.yml' },
     { pattern: '**/*.csolution.yaml' },
     { pattern: '**/*.cproject.yml' },
@@ -36,7 +36,7 @@ export class SolutionLanguageFeaturesProvider {
 
     public async activate(context: Pick<ExtensionContext, 'subscriptions'>) {
         context.subscriptions.push(
-            this.languages.registerDocumentLinkProvider(solutionSelectors, new ReferenceLinkProvider(this.solutionManager)),
+            this.languages.registerDocumentLinkProvider(solutionFilesSelectors, new ReferenceLinkProvider(this.solutionManager)),
         );
     }
 }

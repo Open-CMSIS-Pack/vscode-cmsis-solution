@@ -15,7 +15,7 @@
  */
 
 import 'jest';
-import { SolutionLanguageFeaturesProvider, solutionSelectors } from './solution-language-features-provider';
+import { SolutionLanguageFeaturesProvider, solutionFilesSelectors } from './solution-language-features-provider';
 import { ReferenceLinkProvider } from './reference-link-provider';
 import type { SolutionManager } from '../solution-manager';
 
@@ -27,7 +27,7 @@ describe('SolutionLanguageFeaturesProvider', () => {
 
         await provider.activate({ subscriptions: [] });
 
-        expect(registerDocumentLinkProvider).toHaveBeenCalledWith(solutionSelectors, expect.any(ReferenceLinkProvider));
+        expect(registerDocumentLinkProvider).toHaveBeenCalledWith(solutionFilesSelectors, expect.any(ReferenceLinkProvider));
         expect(registerDocumentLinkProvider).toHaveBeenCalledTimes(1);
     });
 });
