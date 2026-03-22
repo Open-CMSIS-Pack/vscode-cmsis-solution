@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { constructor } from '../../generic/constructor';
 import * as YAML from 'yaml';
 import { DocumentLink, DocumentLinkProvider, TextDocument, Uri } from 'vscode';
 import { readMapFromMap, readSeqFromMap, requireMap } from '../parsing/yaml-file-parsing';
@@ -56,23 +57,37 @@ const projectNodeToDocumentLink = (
 /**
  * Provide links for file references in solution and project files.
  */
-export const createReferenceLinkProvider = (options: ReferenceLinkProviderOptions): DocumentLinkProvider<DocumentLink> => ({
-    provideDocumentLinks: (textDocument: TextDocument): DocumentLink[] => {
+export interface ReferenceLinkProvider extends DocumentLinkProvider<DocumentLink> {
+    readonly options: ReferenceLinkProviderOptions;
+}
+
+export class ReferenceLinkProviderImpl implements ReferenceLinkProvider {
+    constructor(
+        public readonly options: ReferenceLinkProviderOptions,
+    ) {
+    }
+
+    public provideDocumentLinks(textDocument: TextDocument): DocumentLink[] {
         try {
             const yamlDocument = YAML.parseDocument(textDocument.getText());
             const root = requireMap(yamlDocument.contents);
-            const parent = readMapFromMap(options.parentNode)(root);
-            const list = readSeqFromMap(options.listNode)(parent);
+            const parent = readMapFromMap(this.options.parentNode)(root);
+            const list = readSeqFromMap(this.options.listNode)(parent);
             const itemMaps = list.items.filter(YAML.isMap);
 
             return itemMaps.flatMap((projectNode): DocumentLink[] => {
-                const documentLink = projectNodeToDocumentLink(textDocument, options, projectNode);
+                const documentLink = projectNodeToDocumentLink(textDocument, this.options, projectNode);
                 return documentLink ? [documentLink] : [];
             });
         } catch {
             // If we can't parse the document, we can't provide links
             return [];
         }
-    },
-    resolveDocumentLink: (link: DocumentLink): DocumentLink => link,
-});
+    }
+
+    public resolveDocumentLink(link: DocumentLink): DocumentLink {
+        return link;
+    }
+}
+
+export const ReferenceLinkProvider = constructor<typeof ReferenceLinkProviderImpl, ReferenceLinkProvider>(ReferenceLinkProviderImpl);

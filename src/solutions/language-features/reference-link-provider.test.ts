@@ -16,11 +16,11 @@
 
 import 'jest';
 import { textDocumentFactory } from '../../vscode-api/text-document.factories';
-import { createReferenceLinkProvider } from './reference-link-provider';
+import { ReferenceLinkProvider } from './reference-link-provider';
 import { URI as Uri, Utils as UriUtils } from 'vscode-uri';
 import * as path from 'path';
 
-describe('createReferenceLinkProvider', () => {
+describe('ReferenceLinkProvider', () => {
     it('returns no links if the document cannot be parsed', () => {
         const unparsableDoc = `
             notMe:
@@ -33,7 +33,7 @@ describe('createReferenceLinkProvider', () => {
         const textDocument = textDocumentFactory();
         textDocument.getText.mockReturnValue(unparsableDoc);
 
-        const provider = createReferenceLinkProvider({ referenceNode: 'sublayer', parentNode: 'layer', listNode: 'sublayers' });
+        const provider = new ReferenceLinkProvider({ referenceNode: 'sublayer', parentNode: 'layer', listNode: 'sublayers' });
         const output = provider.provideDocumentLinks(textDocument, { isCancellationRequested: false, onCancellationRequested: jest.fn() });
 
         expect(output).toEqual([]);
@@ -51,7 +51,7 @@ describe('createReferenceLinkProvider', () => {
         const textDocument = textDocumentFactory({ uri: documentUri });
         textDocument.getText.mockReturnValue(parsableDoc);
 
-        const provider = createReferenceLinkProvider({ referenceNode: 'sublayer', parentNode: 'layer', listNode: 'sublayers' });
+        const provider = new ReferenceLinkProvider({ referenceNode: 'sublayer', parentNode: 'layer', listNode: 'sublayers' });
         const output = provider.provideDocumentLinks(textDocument, { isCancellationRequested: false, onCancellationRequested: jest.fn() });
 
         expect(output).toEqual([

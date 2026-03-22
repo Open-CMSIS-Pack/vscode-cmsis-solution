@@ -16,7 +16,7 @@
 
 import { DocumentSelector, ExtensionContext } from 'vscode';
 import * as vscode from 'vscode';
-import { createReferenceLinkProvider } from './reference-link-provider';
+import { ReferenceLinkProvider } from './reference-link-provider';
 
 export const solutionSelectors: Readonly<DocumentSelector> = [
     { pattern: '**/*.csolution.yml' },
@@ -35,12 +35,12 @@ export class SolutionLanguageFeaturesProvider {
 
     public async activate(context: Pick<ExtensionContext, 'subscriptions'>) {
         context.subscriptions.push(
-            this.languages.registerDocumentLinkProvider(solutionSelectors, createReferenceLinkProvider({
+            this.languages.registerDocumentLinkProvider(solutionSelectors, new ReferenceLinkProvider({
                 parentNode: 'solution',
                 listNode: 'projects',
                 referenceNode: 'project',
             })),
-            this.languages.registerDocumentLinkProvider(projectSelectors, createReferenceLinkProvider({
+            this.languages.registerDocumentLinkProvider(projectSelectors, new ReferenceLinkProvider({
                 parentNode: 'project',
                 listNode: 'layers',
                 referenceNode: 'layer',
