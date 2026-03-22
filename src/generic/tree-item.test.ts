@@ -126,6 +126,33 @@ describe('CTreeItem', () => {
         expect(data.getKind()).toEqual(ETreeItemKind.Scalar);
     });
 
+    it('stores and retrieves range via range get/set', () => {
+        const item = new CTreeItem('root');
+        const range: [number, number] = [1, 4];
+
+        expect(item.range).toBeUndefined();
+
+        item.range = range;
+        expect(item.range).toEqual([1, 4]);
+
+        item.range = undefined;
+        expect(item.range).toBeUndefined();
+    });
+
+    it('filters items across the entire tree using a predicate', () => {
+        const root = new CTreeItem('root');
+        root.createChild('group').createChild('file').setText('first.txt');
+        root.getChild('group')?.createChild('nested')?.createChild('file').setText('second.txt');
+        root.createChild('file').setText('third.txt');
+        root.createChild('other').setText('ignore.txt');
+
+        const fileTexts = root
+            .filterItems(item => item.getTag() === 'file')
+            .map(item => item.getText());
+
+        expect(fileTexts).toEqual(['first.txt', 'second.txt', 'third.txt']);
+    });
+
     it('toObject converts item tree to plain object', async () => {
         const myObject = {
             'target-types': [{

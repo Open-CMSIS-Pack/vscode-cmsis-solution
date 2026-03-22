@@ -19,6 +19,7 @@ import { textDocumentFactory } from '../../vscode-api/text-document.factories';
 import { ReferenceLinkProvider } from './reference-link-provider';
 import { URI as Uri, Utils as UriUtils } from 'vscode-uri';
 import * as path from 'path';
+import { solutionManagerFactory } from '../solution-manager.factories';
 
 describe('ReferenceLinkProvider', () => {
     it('returns no links if the document cannot be parsed', () => {
@@ -33,7 +34,7 @@ describe('ReferenceLinkProvider', () => {
         const textDocument = textDocumentFactory();
         textDocument.getText.mockReturnValue(unparsableDoc);
 
-        const provider = new ReferenceLinkProvider({ referenceNode: 'sublayer', parentNode: 'layer', listNode: 'sublayers' });
+        const provider = new ReferenceLinkProvider(solutionManagerFactory());
         const output = provider.provideDocumentLinks(textDocument, { isCancellationRequested: false, onCancellationRequested: jest.fn() });
 
         expect(output).toEqual([]);
@@ -41,22 +42,27 @@ describe('ReferenceLinkProvider', () => {
 
     it('returns links for link nodes that can be parsed', () => {
         const parsableDoc = `
-            layer:
-                sublayers:
-                    - sublayer: ./file1.sublayer.yml
-                    - sublayer: ./file2.sublayer.yml
+            project:
+                files:
+                    - file: ./file1.c
+                linker:
+                    - script: ./my.sct
+                layers:
+                    - layer: ./mylayer.clayer.yml
         `;
 
-        const documentUri = Uri.file(path.join(__dirname, 'my.clayer.yml'));
-        const textDocument = textDocumentFactory({ uri: documentUri });
+        const documentFileName = path.join(__dirname, 'my.cproject.yml');
+        const documentUri = Uri.file(documentFileName);
+        const textDocument = textDocumentFactory({ uri: documentUri, fileName: documentFileName });
         textDocument.getText.mockReturnValue(parsableDoc);
 
-        const provider = new ReferenceLinkProvider({ referenceNode: 'sublayer', parentNode: 'layer', listNode: 'sublayers' });
+        const provider = new ReferenceLinkProvider(solutionManagerFactory());
         const output = provider.provideDocumentLinks(textDocument, { isCancellationRequested: false, onCancellationRequested: jest.fn() });
 
         expect(output).toEqual([
-            expect.objectContaining({ target: UriUtils.joinPath(documentUri, '../file1.sublayer.yml') }),
-            expect.objectContaining({ target: UriUtils.joinPath(documentUri, '../file2.sublayer.yml') }),
+            expect.objectContaining({ target: expect.objectContaining({ fsPath: UriUtils.joinPath(documentUri, '../file1.c').fsPath }) }),
+            expect.objectContaining({ target: expect.objectContaining({ fsPath: UriUtils.joinPath(documentUri, '../my.sct').fsPath }) }),
+            expect.objectContaining({ target: expect.objectContaining({ fsPath: UriUtils.joinPath(documentUri, '../mylayer.clayer.yml').fsPath }) }),
         ]);
     });
 });

@@ -15,22 +15,19 @@
  */
 
 import 'jest';
-import { SolutionLanguageFeaturesProvider, projectSelectors, solutionSelectors } from './solution-language-features-provider';
-import type { DocumentLink, DocumentLinkProvider } from 'vscode';
+import { SolutionLanguageFeaturesProvider, solutionSelectors } from './solution-language-features-provider';
+import { ReferenceLinkProvider } from './reference-link-provider';
+import type { SolutionManager } from '../solution-manager';
 
 describe('SolutionLanguageFeaturesProvider', () => {
-    it('registers document link providers for solution and project files on activation', async () => {
+    it('registers a document link provider for solution, project, and layer files on activation', async () => {
         const registerDocumentLinkProvider = jest.fn();
-        const provider = new SolutionLanguageFeaturesProvider({ registerDocumentLinkProvider });
+        const solutionManager = {} as SolutionManager;
+        const provider = new SolutionLanguageFeaturesProvider(solutionManager, { registerDocumentLinkProvider });
 
         await provider.activate({ subscriptions: [] });
 
-        const expectedLinkProvider: DocumentLinkProvider<DocumentLink> = {
-            resolveDocumentLink: expect.any(Function),
-            provideDocumentLinks: expect.any(Function),
-        };
-
-        expect(registerDocumentLinkProvider).toHaveBeenCalledWith(solutionSelectors, expectedLinkProvider);
-        expect(registerDocumentLinkProvider).toHaveBeenCalledWith(projectSelectors, expectedLinkProvider);
+        expect(registerDocumentLinkProvider).toHaveBeenCalledWith(solutionSelectors, expect.any(ReferenceLinkProvider));
+        expect(registerDocumentLinkProvider).toHaveBeenCalledTimes(1);
     });
 });
