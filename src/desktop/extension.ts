@@ -248,7 +248,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const cmsisCommands = new CmsisCommands(configurationProvider, commandsProvider, solutionManager, debugProvider, serialMonitorExtension);
     const buildStopCommand = new BuildStopCommand(commandsProvider, buildTaskProvider);
     const configurationWizardView = new ConfWizWebview(context);
-    const solutionLanguageFeatures = new SolutionLanguageFeaturesProvider();
+    const solutionLanguageFeatures = new SolutionLanguageFeaturesProvider(solutionManager);
     const packInstallCommands = new PackInstallCommands(commandsProvider, cmsisToolboxManager, outputChannelProvider);
     const protocolHandler = new ProtocolHandler(cmsisToolboxManager, outputChannelProvider);
 
