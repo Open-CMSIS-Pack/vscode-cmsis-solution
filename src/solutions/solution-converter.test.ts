@@ -220,7 +220,7 @@ describe('SolutionConverter', () => {
         expect(completedListener).toHaveBeenCalledTimes(1);
     });
 
-    it('prints an error message to the output channel if the solution could not be converted', async () => {
+    it('prints an error message when ListMissingPacks fails and ConvertSolution is skipped', async () => {
         mockCsolutionService.listMissingPacks.mockResolvedValue({ success: false });
         mockCsolutionService.convertSolution.mockResolvedValue({ success: false });
         await fireAndWaitForConversion();

@@ -126,22 +126,22 @@ export class SolutionConverterImpl implements SolutionConverter {
         let toolsOutputMessages: string[] = [];
 
         outputChannel.appendLine('⚙️ Converting solution...');
-        let result = undefined;
+        let missingPacksResult = undefined;
         if (this.isDownloadPacksEnabled()) {
             // rpc method: ListMissingPacks
             outputChannel.append('Check for missing packs... ');
-            result = await this.cmsisToolboxManager.runCsolutionRpc(
+            missingPacksResult = await this.cmsisToolboxManager.runCsolutionRpc(
                 'ListMissingPacks',
                 {
                     solution: activeSolution,
                     activeTarget: activeTarget,
                 }
             ) as rpc.ListMissingPacksResult;
-            if (result.success && result.packs && result.packs.length > 0) {
+            if (missingPacksResult.success && missingPacksResult.packs && missingPacksResult.packs.length > 0) {
                 // download missing packs if any
-                const downloadPacksOutput = await this.downloadMissingPacks(result.packs);
+                const downloadPacksOutput = await this.downloadMissingPacks(missingPacksResult.packs);
                 toolsOutputMessages = toolsOutputMessages.concat(downloadPacksOutput);
-                result.success = downloadPacksOutput.length === 0;
+                missingPacksResult.success = downloadPacksOutput.length === 0;
             }
         }
         if (signal.aborted) {
@@ -149,11 +149,12 @@ export class SolutionConverterImpl implements SolutionConverter {
         }
 
         let detection = false;
+        let convertResult: rpc.ConvertSolutionResult = { success: false };
         const csolution = this.solutionManager.getCsolution();
-        if (!result || result.success) {
+        if (!missingPacksResult || missingPacksResult.success) {
             // rpc method: ConvertSolution
             outputChannel.append('Convert solution... ');
-            result = await this.cmsisToolboxManager.runCsolutionRpc(
+            convertResult = await this.cmsisToolboxManager.runCsolutionRpc(
                 'ConvertSolution',
                 {
                     solution: activeSolution,
@@ -167,17 +168,17 @@ export class SolutionConverterImpl implements SolutionConverter {
             }
 
             // compilers and variables detection handling: apply select-compiler and discover layer configurations if any
-            csolution?.setSelectCompiler(result.selectCompiler);
-            detection = (!!result.undefinedLayers && await this.checkDiscoverLayers()) || !!result.selectCompiler;
+            csolution?.setSelectCompiler(convertResult.selectCompiler);
+            detection = (!!convertResult.undefinedLayers && await this.checkDiscoverLayers()) || !!convertResult.selectCompiler;
         }
 
         let logResult = undefined;
         if (!detection) {
-            if (result.success) {
+            if (convertResult.success) {
                 // check if compile commands need to be updated: call cbuild setup skipping csolution convert step
                 outputChannel.append('Setup database... ');
                 let cbuildOutput = undefined;
-                [result.success, cbuildOutput] = await this.compileCommandsGenerator.runCbuildSetup();
+                [convertResult.success, cbuildOutput] = await this.compileCommandsGenerator.runCbuildSetup();
                 toolsOutputMessages = toolsOutputMessages.concat(cbuildOutput ?? []);
             }
             // rpc method: GetLogMessages
@@ -194,7 +195,7 @@ export class SolutionConverterImpl implements SolutionConverter {
             return;
         }
         // update 'problems' view
-        logResult = { errors: [], warnings: [], info: [], ...logResult, success: result.success };
+        logResult = { errors: [], warnings: [], info: [], ...logResult, success: convertResult.success };
         const severity = await this.updateDiagnostics(logResult, toolsOutputMessages);
 
         csolution?.setLogMessages(logResult);
@@ -227,9 +228,9 @@ export class SolutionConverterImpl implements SolutionConverter {
         // call cpackget to download missing packs
         const outputChannel = this.outputChannelProvider.getOrCreate(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
         outputChannel.append('Downloading missing packs...\n');
-        const cpackgetOutput: string[] = [];
         const formattedOutput: string[] = [];
         for (const pack of packs) {
+            const cpackgetOutput: string[] = [];
             const args = ['add', pack, '--force-reinstall', '--agree-embedded-license', '--no-dependencies'];
             const [returnCode] = await this.cmsisToolboxManager.runCmsisTool('cpackget', args, line => {
                 line = line.trimEnd();
@@ -500,14 +501,15 @@ export class SolutionConverterImpl implements SolutionConverter {
         if (!workspaceFolder) {
             return;
         }
-        // find cmsis-csolution.environmentVariables location in settings.json
+        // find cmsis-csolution.environmentVariables location in workspace file or settings.json
         const settings = vscode.workspace.workspaceFile?.fsPath ?? path.join(workspaceFolder, '.vscode', 'settings.json');
+        const settingsName = getFileNameFromPath(settings);
         const envvars = '"cmsis-csolution.environmentVariables"';
         let startPos: vscode.Position | undefined;
         if (fsUtils.fileExists(settings)) {
             const doc = await vscode.workspace.openTextDocument(settings);
             const startOffset = doc.getText().indexOf(envvars);
-            if (startOffset > 0) {
+            if (startOffset >= 0) {
                 startPos = doc.positionAt(startOffset);
             }
         }
@@ -516,7 +518,7 @@ export class SolutionConverterImpl implements SolutionConverter {
         const format = (items: string[]) => {
             for (let i = 0; i < items.length; i++) {
                 if (this.envVarWestPatterns.some(pattern => pattern.test(items[i]))) {
-                    items[i] = `settings.json${location} - ${items[i]}; review ${envvars}`;
+                    items[i] = `${settingsName}${location} - ${items[i]}; review ${envvars}`;
                 }
             }
         };
