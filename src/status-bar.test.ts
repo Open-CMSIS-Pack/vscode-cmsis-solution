@@ -92,7 +92,6 @@ describe('StatusBar', () => {
                 targetType: 'target'
             }]);
             const cmsisToolboxManager = cmsisToolboxManagerFactory();
-            cmsisToolboxManager.getSetupMessages = jest.fn().mockReturnValue(['message1', 'message2']);
 
             const statusBar = new StatusBar(solutionManager, cmsisToolboxManager, themeProvider);
             await statusBar.activate(extensionContext);
@@ -110,10 +109,9 @@ describe('StatusBar', () => {
 
             // end cmsis tool
             cmsisToolboxManager.mockTriggerOnRunCmsisTool(false, false);
-            expect(cmsisToolboxManager.getSetupMessages).toHaveBeenCalledWith('project.build+target');
             expect(statusBarItem.show).toHaveBeenCalledTimes(4);
             expect(statusBarItem.text).toBe('$(target) target@set');
-            expect(statusBarItem.tooltip.valueOf()).toEqual('**solution/test**\n - project.build\n   - message1\n   - message2\n');
+            expect(statusBarItem.tooltip.valueOf()).toEqual('**solution/test**\n - project.build\n');
 
             // cbuild setup completed and files loaded successfully
             solutionManager.onLoadedBuildFilesEmitter.fire(['success', false]);
