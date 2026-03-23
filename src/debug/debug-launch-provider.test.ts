@@ -98,12 +98,9 @@ describe('DebugLaunchProvider', () => {
     const workspaceFolderUri  = Uri.file(tmpDir);
     const workspaceFolder = workspaceFolderUri.fsPath; // platform-specific string path
     const tasksJsonFile = path.join(workspaceFolder, '.vscode', 'tasks.json');
-    const tasksJsonDir = path.join(workspaceFolder, '.vscode', 'tasks.json.d');
     const launchJsonFile = path.join(workspaceFolder, '.vscode', 'launch.json');
-    const launchJsonDir = path.join(workspaceFolder, '.vscode', 'launch.json.d');
     const solutionFolder = path.join(workspaceFolder, 'solution');
-    const solutionTasksJsonDir = path.join(solutionFolder, '.vscode', 'tasks.json.d');
-    const solutionLaunchJsonDir = path.join(solutionFolder, '.vscode', 'launch.json.d');
+    const solutionVscodeDir = path.join(solutionFolder, '.vscode.d');
 
     afterAll(async () => {
         testDataHandler.dispose();
@@ -112,10 +109,7 @@ describe('DebugLaunchProvider', () => {
     afterEach(() => {
         testDataHandler.rmFile(tasksJsonFile);
         testDataHandler.rmFile(launchJsonFile);
-        testDataHandler.rmDir(tasksJsonDir);
-        testDataHandler.rmDir(launchJsonDir);
-        testDataHandler.rmDir(solutionTasksJsonDir);
-        testDataHandler.rmDir(solutionLaunchJsonDir);
+        testDataHandler.rmDir(solutionVscodeDir);
     });
 
     describe('loadCbuildRunYml', () => {
@@ -221,7 +215,7 @@ describe('DebugLaunchProvider', () => {
             expect(expectedContent).toEqual(mockChangedContent);
         });
 
-        it('should include all files from tasks.json.d', async () => {
+        it('should include all tasks from .vscode.d/tasks.json', async () => {
             const debugLaunchProvider = new DebugLaunchProviderTest();
             debugLaunchProvider.solutionManagerMock.getCsolution.mockReturnValue(csolutionFactory({ solutionDir: solutionFolder }));
 
@@ -232,19 +226,16 @@ describe('DebugLaunchProvider', () => {
                 { id: 'input1', type: 'string', description: 'Input 1' },
             ];
             const extraTasks = [
-                { label: 'Custom Task', type: 'shell', command: '' },
-            ];
-            const solutionTasks = [
-                { label: 'Solution Task', type: 'shell', command: '' },
+                { label: 'Custom Task 1', type: 'shell', command: 'echo "Task 1"' },
+                { label: 'Custom Task 2', type: 'shell', command: 'echo "Task 2"' },
             ];
 
-            fsUtils.writeTextFile(path.join(tasksJsonDir, 'extra.json'), JSON.stringify({ version: '2.0.0', tasks: extraTasks, inputs: extraInputs }, null, 4));
-            fsUtils.writeTextFile(path.join(solutionTasksJsonDir, 'solution.json'), JSON.stringify({ version: '2.0.0', tasks: solutionTasks }, null, 4));
+            fsUtils.writeTextFile(path.join(solutionVscodeDir, 'tasks.json'), JSON.stringify({ version: '2.0.0', tasks: extraTasks, inputs: extraInputs }, null, 4));
 
             const mockContent = JSON.stringify({ version: '2.0.0', tasks }, null, 4);
             fsUtils.writeTextFile(tasksJsonFile, mockContent);
 
-            const mockChangedContent = JSON.stringify({ version: '2.0.0', inputs: [...extraInputs], tasks: [...tasks, ...extraTasks, ...solutionTasks] }, null, 4);
+            const mockChangedContent = JSON.stringify({ version: '2.0.0', inputs: [...extraInputs], tasks: [...tasks, ...extraTasks ] }, null, 4);
             await debugLaunchProvider.updateTasksJson(workspaceFolder, [], new Map<string, unknown>());
 
             const expectedContent = fs.readFileSync(tasksJsonFile, 'utf8');
@@ -430,11 +421,13 @@ describe('DebugLaunchProvider', () => {
             expect(debugLaunchProvider.activeLaunchConfiguration).toEqual(templates['multicore-start-launch']?.name);
         });
 
-        it('should include all files from launch.json.d', async () => {
+        it('should include all configurations from .vscode.d/launch.json', async () => {
             const extraConfiguration = { name: 'ExtraConfig', type: 'shell', request: 'launch' };
-            fsUtils.writeTextFile(path.join(launchJsonDir, 'extra.json'), JSON.stringify({ version: '0.2.0', configurations: [ extraConfiguration ] }, null, 4));
+            fsUtils.writeTextFile(path.join(solutionVscodeDir, 'launch.json'), JSON.stringify({ version: '0.2.0', configurations: [ extraConfiguration ] }, null, 4));
 
             const debugLaunchProvider = new DebugLaunchProviderTest();
+            debugLaunchProvider.solutionManagerMock.getCsolution.mockReturnValue(csolutionFactory({ solutionDir: solutionFolder }));
+
             const options = {
                 processors: [],
             };
