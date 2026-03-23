@@ -16,11 +16,13 @@
 
 import 'jest';
 import { textDocumentFactory } from '../../vscode-api/text-document.factories';
-import { createReferenceLinkProvider } from './reference-link-provider';
+import { ReferenceLinkProvider } from './reference-link-provider';
 import { URI as Uri, Utils as UriUtils } from 'vscode-uri';
 import * as path from 'path';
+import { solutionManagerFactory } from '../solution-manager.factories';
+import { SolutionRpcDataMock } from '../solution-rpc-data.factory';
 
-describe('createReferenceLinkProvider', () => {
+describe('ReferenceLinkProvider', () => {
     it('returns no links if the document cannot be parsed', () => {
         const unparsableDoc = `
             notMe:
@@ -33,7 +35,7 @@ describe('createReferenceLinkProvider', () => {
         const textDocument = textDocumentFactory();
         textDocument.getText.mockReturnValue(unparsableDoc);
 
-        const provider = createReferenceLinkProvider({ referenceNode: 'sublayer', parentNode: 'layer', listNode: 'sublayers' });
+        const provider = new ReferenceLinkProvider(solutionManagerFactory());
         const output = provider.provideDocumentLinks(textDocument, { isCancellationRequested: false, onCancellationRequested: jest.fn() });
 
         expect(output).toEqual([]);
@@ -41,22 +43,33 @@ describe('createReferenceLinkProvider', () => {
 
     it('returns links for link nodes that can be parsed', () => {
         const parsableDoc = `
-            layer:
-                sublayers:
-                    - sublayer: ./file1.sublayer.yml
-                    - sublayer: ./file2.sublayer.yml
+            project:
+                files:
+                    - file: ./file1.c
+                linker:
+                    - script: ./my.sct
+                layers:
+                    - layer: ./$Board-layer$
         `;
 
-        const documentUri = Uri.file(path.join(__dirname, 'my.clayer.yml'));
-        const textDocument = textDocumentFactory({ uri: documentUri });
+        const documentFileName = path.join(__dirname, 'my.cproject.yml');
+        const documentUri = Uri.file(documentFileName);
+        const textDocument = textDocumentFactory({ uri: documentUri, fileName: documentFileName });
         textDocument.getText.mockReturnValue(parsableDoc);
 
-        const provider = createReferenceLinkProvider({ referenceNode: 'sublayer', parentNode: 'layer', listNode: 'sublayers' });
+        const solutionManager = solutionManagerFactory();
+        const csolution = solutionManager.getCsolution();
+        jest.spyOn(csolution!, 'actionContext', 'get').mockReturnValue('my.Build+Target');
+        const rpcData = solutionManager.getRpcData() as SolutionRpcDataMock;
+        rpcData.seedVariables('my.Build+Target', { 'Board-layer': 'mylayer.clayer.yml' });
+
+        const provider = new ReferenceLinkProvider(solutionManager);
         const output = provider.provideDocumentLinks(textDocument, { isCancellationRequested: false, onCancellationRequested: jest.fn() });
 
         expect(output).toEqual([
-            expect.objectContaining({ target: UriUtils.joinPath(documentUri, '../file1.sublayer.yml') }),
-            expect.objectContaining({ target: UriUtils.joinPath(documentUri, '../file2.sublayer.yml') }),
+            expect.objectContaining({ target: expect.objectContaining({ fsPath: UriUtils.joinPath(documentUri, '../file1.c').fsPath }) }),
+            expect.objectContaining({ target: expect.objectContaining({ fsPath: UriUtils.joinPath(documentUri, '../my.sct').fsPath }) }),
+            expect.objectContaining({ target: expect.objectContaining({ fsPath: UriUtils.joinPath(documentUri, '../mylayer.clayer.yml').fsPath }) }),
         ]);
     });
 });

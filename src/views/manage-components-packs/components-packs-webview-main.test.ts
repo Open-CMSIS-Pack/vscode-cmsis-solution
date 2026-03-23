@@ -188,10 +188,21 @@ describe('ComponentsPacksWebviewMain', () => {
         });
 
 
-        it('does not call openWebview when node is undefined', async () => {
+        it('calls openWebview with valid project when node is undefined', async () => {
+            jest.spyOn(componentsPacksWebviewMain as any, 'getValidProjectId').mockReturnValue(projectPath);
+            await (componentsPacksWebviewMain as any).handleWebviewCommand(undefined);
+
+            expect((componentsPacksWebviewMain as any).openWebview).toHaveBeenCalledTimes(1);
+            expect((componentsPacksWebviewMain as any).openWebview).toHaveBeenCalledWith(projectPath, undefined);
+        });
+
+        it('shows warning when node is undefined and no valid project exists', async () => {
+            jest.spyOn(componentsPacksWebviewMain as any, 'getValidProjectId').mockReturnValue(undefined);
+
             await (componentsPacksWebviewMain as any).handleWebviewCommand(undefined);
 
             expect((componentsPacksWebviewMain as any).openWebview).not.toHaveBeenCalled();
+            expect(messageProvider.showWarningMessage).toHaveBeenCalledWith('No valid project found in the active solution.');
         });
     });
 

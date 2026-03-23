@@ -131,6 +131,9 @@ export class GenericTreeItemYamlParser<T extends ITreeItem<T>> extends GenericTr
     protected parseScalar(node: YAML.Scalar, treeItem: ITreeItem<T>): void {
         treeItem.setProperty('scalarType', node.type);
         treeItem.setKind(ETreeItemKind.Scalar);
+        if (node.range) {
+            treeItem.range = [node.range[0], node.range[1]];
+        }
         if (node.value !== null && node.value !== undefined) {
             const text = node.source ? node.source : node.toString();
             treeItem.setText(text);
