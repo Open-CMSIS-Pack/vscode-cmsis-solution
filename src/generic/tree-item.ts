@@ -16,6 +16,7 @@
 
 import { CAttributedItem, IAttributedItem } from './attributed-item';
 
+export type SourceRange = [number, number];
 
 /** An enum to describe ITreeItem kind */
 export enum ETreeItemKind {
@@ -57,6 +58,12 @@ export interface ITreeItem<T extends ITreeItem<T>> extends IAttributedItem {
      * Checks if this item is 'PLAIN' scalar type
      */
     get isPlain(): boolean;
+
+    /** Returns the item's source range if assigned */
+    get range(): SourceRange | undefined;
+
+    /** Sets or clears the item's source range */
+    set range(range: SourceRange | undefined);
 
     /** Returns item's parent matching tag
      * @param tag optional parent's tag
@@ -196,6 +203,13 @@ export interface ITreeItem<T extends ITreeItem<T>> extends IAttributedItem {
      * @see indexOfChild
     */
     childAtIndex(index: number): ITreeItem<T> | undefined;
+
+    /**
+     * Traverses this item and all descendants depth-first and returns items matching the predicate.
+     * @param predicate match function applied to each visited item, including this item
+     * @returns array of matching items in depth-first order
+     */
+    filterItems(predicate: (item: ITreeItem<T>) => boolean): ITreeItem<T>[];
 
     /**
      * Adds a child and returns the supplied item
@@ -398,6 +412,14 @@ export class GenericTreeItem<T extends GenericTreeItem<T>> extends CAttributedIt
         return this;
     }
 
+    get range(): SourceRange | undefined {
+        return this.getProperty('range') as SourceRange | undefined;
+    }
+
+    set range(range: SourceRange | undefined) {
+        this.setProperty('range', range);
+    }
+
     getKind(): ETreeItemKind {
         let kind = this.data.kind as ETreeItemKind;
         if (kind) {
@@ -574,6 +596,21 @@ export class GenericTreeItem<T extends GenericTreeItem<T>> extends CAttributedIt
 
     childAtIndex(index: number): ITreeItem<T> | undefined {
         return this.getChildren().at(index);
+    }
+
+    filterItems(predicate: (item: ITreeItem<T>) => boolean): ITreeItem<T>[] {
+        const matches: ITreeItem<T>[] = [];
+        const visit = (item: ITreeItem<T>) => {
+            if (predicate(item)) {
+                matches.push(item);
+            }
+            for (const child of item.getChildren()) {
+                visit(child);
+            }
+        };
+
+        visit(this);
+        return matches;
     }
 
     findChild(tags: string[]): ITreeItem<T> | undefined {

@@ -59,6 +59,15 @@ describe('parseYamlToCTreeItem', () => {
         expect(yamlString).toEqual('scalar\n');
     });
 
+    it('stores scalar range as start and value-end offsets', async () => {
+        const input = 'key: value\n';
+        const root = parseYamlToCTreeItem(input, './dummyFile');
+        const valueNode = root?.getChild('key');
+
+        expect(valueNode).toBeDefined();
+        expect(valueNode?.range).toEqual([5, 10]);
+    });
+
     it('test parseYamlToCTreeItem parsing sequence', async () => {
         const prime = dedent`
         # document comment
