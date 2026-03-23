@@ -45,7 +45,7 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         }
     }
 
-    private createHardwareNode(chardwareItem: COutlineItem, isBoard: boolean, csolution: CSolution, cbuild?: CTreeItem): COutlineItem | undefined {
+    private createHardwareNode(hardwareItem: COutlineItem, isBoard: boolean, csolution: CSolution, cbuild?: CTreeItem): COutlineItem | undefined {
         const boardName = csolution.getBoardName();
         const deviceName = csolution.getDeviceNameWithVendor();
         const hardwareName = isBoard ? boardName : deviceName;
@@ -62,32 +62,32 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
             `- ${isBoard ? 'board' : 'device'}: \`${hardwareName}\`\n` +
             `- from pack: \`${hardwarePackName}\``;
 
-        chardwareItem.setTag(isBoard ? 'board' : 'device');
-        chardwareItem.setAttribute('hardwareName', hardwareName);
-        chardwareItem.setAttribute('label', `${isBoard ? 'Board' : 'Device'}: ${hardwareName}`);
-        chardwareItem.setAttribute('expandable', '1');
-        chardwareItem.setAttribute('iconPath', isBoard ? 'circuit-board' : 'chip');
-        chardwareItem.setAttribute('tooltip', tooltip);
+        hardwareItem.setTag(isBoard ? 'board' : 'device');
+        hardwareItem.setAttribute('hardwareName', hardwareName);
+        hardwareItem.setAttribute('label', `${isBoard ? 'Board' : 'Device'}: ${hardwareName}`);
+        hardwareItem.setAttribute('expandable', '1');
+        hardwareItem.setAttribute('iconPath', isBoard ? 'circuit-board' : 'chip');
+        hardwareItem.setAttribute('tooltip', tooltip);
 
         // add dbgconfig file
-        this.createDbgConfigNode(chardwareItem, isBoard, cbuild);
+        this.createDbgConfigNode(hardwareItem, isBoard, cbuild);
 
         // create children
-        this.createBooksNodes(chardwareItem, isBoard, cbuild);
+        this.createBooksNodes(hardwareItem, isBoard, cbuild);
 
-        return chardwareItem;
+        return hardwareItem;
     }
 
-    private createBooksNodes(chardwareItem: COutlineItem, isBoard: boolean, cbuild?: CTreeItem) {
+    private createBooksNodes(hardwareItem: COutlineItem, isBoard: boolean, cbuild?: CTreeItem) {
         if (cbuild) {
             const books = isBoard ? cbuild.getGrandChildren('board-books') : cbuild.getGrandChildren('device-books');
             for (const book of books) {
-                this.createBookNode(chardwareItem, book);
+                this.createBookNode(hardwareItem, book);
             }
         }
     }
 
-    private createBookNode(chardwareItem: COutlineItem, book: ITreeItem<CTreeItem>) {
+    private createBookNode(hardwareItem: COutlineItem, book: ITreeItem<CTreeItem>) {
         const title = book.getValueAsString('title');
         if (!title) {
             return;
@@ -98,21 +98,21 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
             return;
         }
 
-        const cbookItem = chardwareItem.createChild('book');
-        cbookItem.setAttribute('label', title);
-        cbookItem.setAttribute('expandable', '0');
-        cbookItem.setAttribute('resourcePath', filePath);
-        cbookItem.setAttribute('docPath', filePath);
-        cbookItem.setAttribute('tooltip', filePath);
-        cbookItem.addFeature('docFile');
+        const bookItem = hardwareItem.createChild('book');
+        bookItem.setAttribute('label', title);
+        bookItem.setAttribute('expandable', '0');
+        bookItem.setAttribute('resourcePath', filePath);
+        bookItem.setAttribute('docPath', filePath);
+        bookItem.setAttribute('tooltip', filePath);
+        bookItem.addFeature('docFile');
 
         const useCommand = isWebAddress(filePath) || !filePath.toLowerCase().endsWith('.md');
         if (useCommand) {
-            cbookItem.setAttribute('command', 'cmsis-csolution.openDocFile');
+            bookItem.setAttribute('command', 'cmsis-csolution.openDocFile');
         }
     }
 
-    private createDbgConfigNode(chardwareItem: COutlineItem, isBoard: boolean, cbuild?: CTreeItem) {
+    private createDbgConfigNode(hardwareItem: COutlineItem, isBoard: boolean, cbuild?: CTreeItem) {
         if (!cbuild || isBoard) {
             return;
         }
@@ -136,7 +136,7 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         const filePath = file.resolvePath(fileName);
         const dbgConfFile = path.basename(fileName);
 
-        const dbgconfFileItem = chardwareItem.createChild('file');
+        const dbgconfFileItem = hardwareItem.createChild('file');
         dbgconfFileItem.setAttribute('label', dbgConfFile);
         dbgconfFileItem.setAttribute('expandable', '0');
         dbgconfFileItem.setAttribute('resourcePath', filePath);

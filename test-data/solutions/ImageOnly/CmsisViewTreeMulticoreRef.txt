@@ -1,0 +1,22 @@
+solution
+  device
+    hardwareName=ARM::RteTest_ARMCM0_Dual
+    label=Device: ARM::RteTest_ARMCM0_Dual
+    expandable=1
+    iconPath=chip
+    tooltip=- device: `ARM::RteTest_ARMCM0_Dual`
+- from pack: `ARM::RteTest_DFP@0.2.0`
+    file
+      label=image-only-multicore+CM0.dbgconf
+      expandable=0
+      resourcePath=TEST_DIR/solutions/ImageOnly/.cmsis/image-only-multicore+CM0.dbgconf
+      tooltip=`TEST_DIR/solutions/ImageOnly/.cmsis/image-only-multicore+CM0.dbgconf`
+      features=file
+    book
+      label=Cortex-M0 Device Generic Users Guide
+      expandable=0
+      resourcePath=http://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
+      docPath=http://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
+      tooltip=http://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
+      features=docFile
+      command=cmsis-csolution.openDocFile

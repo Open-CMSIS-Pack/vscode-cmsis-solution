@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/nightly.yml
+      - src/e2e-tests/**
       - '!**/*.md'
   schedule:
     - cron: '0 4 * * *'
