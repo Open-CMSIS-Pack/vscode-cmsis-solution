@@ -34,10 +34,11 @@ import { FileType } from '../vscode-api/workspace-fs-provider';
 
 const WORKSPACE_PATH = __dirname;
 
-const SOLUTION_URI_DEFAULT = URI.file(path.join(WORKSPACE_PATH,'test.csolution.yml'));
-const SOLUTION_URI_FOO = URI.file(path.join(WORKSPACE_PATH,'foo','Foo.csolution.yml'));
-const SOLUTION_URI_BAR = URI.file(path.join(WORKSPACE_PATH,'bar','Bar.csolution.yml'));
-const SOLUTION_URI_NEW = URI.file(path.join(WORKSPACE_PATH,'new','New.csolution.yml'));
+const SOLUTION_URI_DEFAULT = URI.file(path.join(WORKSPACE_PATH, 'test.csolution.yml'));
+const SOLUTION_URI_FOO = URI.file(path.join(WORKSPACE_PATH, 'foo', 'Foo.csolution.yml'));
+const SOLUTION_URI_BAR = URI.file(path.join(WORKSPACE_PATH, 'bar', 'Bar.csolution.yml'));
+const SOLUTION_URI_BAZ = URI.file(path.join(WORKSPACE_PATH, 'baz', 'Baz.csolution.yml'));
+const SOLUTION_URI_NEW = URI.file(path.join(WORKSPACE_PATH, 'new', 'New.csolution.yml'));
 
 describe('ActiveSolutionTracker', () => {
     let changeSolutionsListener: jest.Mock;
@@ -63,12 +64,6 @@ describe('ActiveSolutionTracker', () => {
             },
         };
 
-        (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
-            SOLUTION_URI_FOO,
-            SOLUTION_URI_BAR,
-            SOLUTION_URI_DEFAULT,
-        ]);
-
         changeSolutionsListener = jest.fn();
         changeActiveListener = jest.fn();
 
@@ -77,6 +72,12 @@ describe('ActiveSolutionTracker', () => {
         workspaceFoldersProvider = workspaceFoldersProviderFactory([{ uri: URI.file(WORKSPACE_PATH), name: 'Workspace Folder 1', index: 1 }]);
         configurationProvider = configurationProviderFactory();
         workspaceFsProvider = workspaceFsProviderFactory();
+
+        workspaceFoldersProvider.findFiles.mockResolvedValue([
+            SOLUTION_URI_FOO,
+            SOLUTION_URI_BAR,
+            SOLUTION_URI_DEFAULT,
+        ]);
 
         activeSolutionTracker = new ActiveSolutionTrackerImpl(
             messageProviderFactory(),
@@ -99,65 +100,50 @@ describe('ActiveSolutionTracker', () => {
     });
 
     it('searches for solution files on activation', async () => {
-        await activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
-        await waitForCondition(
-            async () => (vscode.workspace.findFiles as jest.Mock).mock.calls.length > 0,
-            'solution file search to be triggered after activation',
-            200,
-        );
-
-        expect(vscode.workspace.findFiles).toHaveBeenCalledTimes(1);
-        expect(vscode.workspace.findFiles).toHaveBeenCalledWith(ActiveSolutionTrackerImpl.GLOB_PATTERN, undefined);
+        activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+        await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);;
+        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledTimes(1);
+        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledWith(ActiveSolutionTrackerImpl.GLOB_PATTERN, undefined);
     });
 
     it('uses the configured glob pattern for searches', async () => {
         const testGlobPattern = `**/${faker.system.commonFileName()}`;
         configurationProvider.getConfigVariable.mockImplementation((name: string) => name === manifest.CONFIG_EXCLUDE ? testGlobPattern : undefined);
 
-        await activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
-        await waitForCondition(
-            async () => (vscode.workspace.findFiles as jest.Mock).mock.calls.length > 0,
-            'solution file search to be triggered with configured exclude glob',
-            200,
-        );
+        activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+        await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);;
 
-        expect(vscode.workspace.findFiles).toHaveBeenCalledTimes(1);
-        expect(vscode.workspace.findFiles).toHaveBeenCalledWith(ActiveSolutionTrackerImpl.GLOB_PATTERN, testGlobPattern);
+        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledTimes(1);
+        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledWith(ActiveSolutionTrackerImpl.GLOB_PATTERN, testGlobPattern);
     });
 
     it('updates when the configured glob pattern changes', async () => {
-        await activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
-        await waitForCondition(
-            async () => (vscode.workspace.findFiles as jest.Mock).mock.calls.length > 0,
-            'initial solution file search to complete',
-            200,
-        );
-
-        (vscode.workspace.findFiles as jest.Mock).mockClear();
+        activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+        await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);;
 
         expect(configurationProvider.onChangeConfiguration).toHaveBeenCalledTimes(1);
         expect(configurationProvider.onChangeConfiguration).toHaveBeenCalledWith(expect.any(Function), manifest.CONFIG_EXCLUDE);
 
+        workspaceFoldersProvider.findFiles.mockClear();
+
         const testGlobPattern = `**/${faker.system.commonFileName()}`;
         configurationProvider.getConfigVariable.mockImplementation((name: string) => name === manifest.CONFIG_EXCLUDE ? testGlobPattern : undefined);
         configurationProvider.onChangeConfiguration.mock.calls[0][0]();
-        await waitForCondition(
-            async () => (vscode.workspace.findFiles as jest.Mock).mock.calls.length > 0,
-            'solution file search to run after configuration change',
-            200,
-        );
 
-        expect(vscode.workspace.findFiles).toHaveBeenCalledTimes(1);
-        expect(vscode.workspace.findFiles).toHaveBeenCalledWith(ActiveSolutionTrackerImpl.GLOB_PATTERN, testGlobPattern);
+        workspaceFoldersProvider.findFiles.mockResolvedValue([SOLUTION_URI_BAZ]);
+        await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);;
+
+        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledTimes(1);
+        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledWith(ActiveSolutionTrackerImpl.GLOB_PATTERN, testGlobPattern);
     });
 
     describe('activated with no solutions in the workspace', () => {
         beforeEach(async () => {
-            (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([]);
+            workspaceFoldersProvider.findFiles.mockResolvedValue([]);
 
-            await activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+            activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
             await waitForCondition(
-                async () => (vscode.workspace.findFiles as jest.Mock).mock.calls.length > 0,
+                async () => workspaceFoldersProvider.findFiles.mock.calls.length > 0,
                 'solution file search to complete in empty workspace',
                 200,
             );
@@ -177,7 +163,7 @@ describe('ActiveSolutionTracker', () => {
 
     describe('activated with solutions in the workspace and no previous selection', () => {
         beforeEach(async () => {
-            await activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+            activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
             await waitForEvent(activeSolutionTracker.onDidChangeActiveSolution);
         });
 
@@ -204,8 +190,8 @@ describe('ActiveSolutionTracker', () => {
                 key => key === ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_KEY ? SOLUTION_URI_FOO.fsPath : undefined
             );
 
-            await activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
-            await waitForEvent(activeSolutionTracker.onDidChangeActiveSolution);
+            activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+            await waitForEvent(activeSolutionTracker.onDidChangeActiveSolution, undefined, 200);
         });
 
         it('preserves the previous selection', () => {
@@ -221,8 +207,8 @@ describe('ActiveSolutionTracker', () => {
                 key => key === ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_KEY ? URI.file(path.join(WORKSPACE_PATH, 'baz', 'Baz.csolution.yml')).fsPath : undefined
             );
 
-            await activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
-            await waitForEvent(activeSolutionTracker.onDidChangeActiveSolution);
+            activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+            await waitForEvent(activeSolutionTracker.onDidChangeActiveSolution, undefined, 200);
         });
 
         it('selects the first solution as active', () => {
@@ -240,15 +226,15 @@ describe('ActiveSolutionTracker', () => {
 
     describe('activated with solutions in workspace subfolders only', () => {
         beforeEach(async () => {
-            (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
+            workspaceFoldersProvider.findFiles.mockResolvedValue([
                 SOLUTION_URI_FOO,
                 SOLUTION_URI_BAR,
             ]);
         });
 
         it('selects no active solution', async () => {
-            await activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
-            await waitForEvent(activeSolutionTracker.onDidChangeSolutions);
+            activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+            await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);
 
             expect(activeSolutionTracker.solutions).toEqual([
                 SOLUTION_URI_BAR.fsPath,
@@ -268,8 +254,8 @@ describe('ActiveSolutionTracker', () => {
 
     describe('after activation', () => {
         beforeEach(async () => {
-            await activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
-            await waitForEvent(activeSolutionTracker.onDidChangeActiveSolution);
+            activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+            await waitForEvent(activeSolutionTracker.onDidChangeActiveSolution, undefined, 200);
             changeActiveListener.mockClear();
             changeSolutionsListener.mockClear();
         });
@@ -282,9 +268,11 @@ describe('ActiveSolutionTracker', () => {
             expect(changeActiveListener).not.toHaveBeenCalled();
         });
 
-        it('sets a new solution as active', () => {
+        it('sets a new solution as active', async () => {
             const solutionPath = SOLUTION_URI_FOO.fsPath;
+            const activeSolutionChanged = waitForEvent(activeSolutionTracker.onDidChangeActiveSolution);
             activeSolutionTracker.activeSolution = solutionPath;
+            await activeSolutionChanged;
 
             expect(activeSolutionTracker.activeSolution).toBe(solutionPath);
             expect(changeActiveListener).toHaveBeenCalled();
@@ -301,7 +289,7 @@ describe('ActiveSolutionTracker', () => {
         });
 
         it('updates the list of solutions when a new solution file is added', async () => {
-            (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
+            workspaceFoldersProvider.findFiles.mockResolvedValue([
                 SOLUTION_URI_NEW,
                 SOLUTION_URI_FOO,
                 SOLUTION_URI_BAR
@@ -309,7 +297,7 @@ describe('ActiveSolutionTracker', () => {
 
             fileWatcherProvider.mockFireEvent(ActiveSolutionTrackerImpl.GLOB_PATTERN, '/', 'create');
 
-            await waitForEvent(activeSolutionTracker.onDidChangeSolutions);
+            await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);
 
             expect(activeSolutionTracker.solutions).toEqual([
                 SOLUTION_URI_BAR.fsPath,
@@ -321,13 +309,13 @@ describe('ActiveSolutionTracker', () => {
         });
 
         it('updates the list of solutions when a solution file is deleted', async () => {
-            (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
+            workspaceFoldersProvider.findFiles.mockResolvedValue([
                 SOLUTION_URI_FOO,
             ]);
 
             fileWatcherProvider.mockFireEvent('**/*', SOLUTION_URI_BAR.fsPath, 'delete');
 
-            await waitForEvent(activeSolutionTracker.onDidChangeSolutions);
+            await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);
 
             expect(activeSolutionTracker.solutions).toEqual([
                 SOLUTION_URI_FOO.fsPath,
@@ -337,13 +325,13 @@ describe('ActiveSolutionTracker', () => {
         });
 
         it('updates the list of solutions when a folder containing a solution file is deleted', async () => {
-            (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
+            workspaceFoldersProvider.findFiles.mockResolvedValue([
                 SOLUTION_URI_FOO,
             ]);
 
             fileWatcherProvider.mockFireEvent('**/*', path.resolve(SOLUTION_URI_BAR.fsPath, '..'), 'delete');
 
-            await waitForEvent(activeSolutionTracker.onDidChangeSolutions);
+            await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);
 
             expect(activeSolutionTracker.solutions).toEqual([
                 SOLUTION_URI_FOO.fsPath,
@@ -353,7 +341,7 @@ describe('ActiveSolutionTracker', () => {
         });
 
         it('updates the list of solutions when a new workspace folder is added', async () => {
-            (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
+            workspaceFoldersProvider.findFiles.mockResolvedValue([
                 SOLUTION_URI_NEW,
                 SOLUTION_URI_FOO,
                 SOLUTION_URI_BAR
@@ -364,7 +352,7 @@ describe('ActiveSolutionTracker', () => {
                 { uri: URI.file(__dirname), name: 'Workspace Folder 2', index: 2 }
             ]);
 
-            await waitForEvent(activeSolutionTracker.onDidChangeSolutions);
+            await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);
 
             expect(activeSolutionTracker.solutions).toEqual([
                 SOLUTION_URI_BAR.fsPath,
@@ -490,13 +478,13 @@ describe('ActiveSolutionTracker solution file watching', () => {
             },
         };
 
-        (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([URI.file(activeSolution)]);
-
         fileWatcherProvider = fileWatcherProviderFactory();
         commandsProvider = commandsProviderFactory();
         workspaceFoldersProvider = workspaceFoldersProviderFactory([{ uri: URI.file(solutionRoot), name: 'workspace', index: 0 }]);
         workspaceFsProvider = workspaceFsProviderFactory();
         configurationProvider = configurationProviderFactory();
+
+        workspaceFoldersProvider.findFiles.mockResolvedValue([URI.file(activeSolution)]);
 
         tracker = new ActiveSolutionTrackerImpl(
             messageProviderFactory(),

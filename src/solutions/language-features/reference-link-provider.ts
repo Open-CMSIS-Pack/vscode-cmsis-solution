@@ -14,65 +14,95 @@
  * limitations under the License.
  */
 
-import * as YAML from 'yaml';
-import { DocumentLink, DocumentLinkProvider, TextDocument, Uri } from 'vscode';
-import { readMapFromMap, readSeqFromMap, requireMap } from '../parsing/yaml-file-parsing';
-import { rangeFromYamlNode } from './yaml-range';
-
-export type ReferenceLinkProviderOptions = {
-    /**
-     * Name of the root node for the YAML file, e.g., solution.
-     */
-    parentNode: string;
-
-    /**
-     * Name of the node containing the list of linkable references, e.g., projects.
-     */
-    listNode: string;
-
-    /**
-     * Name of the node on the linkable reference, e.g., project.
-     */
-    referenceNode: string;
-}
-
-const projectNodeToDocumentLink = (
-    textDocument: TextDocument,
-    options: ReferenceLinkProviderOptions,
-    projectNode: YAML.YAMLMap,
-): DocumentLink | undefined => {
-    const projectScalar = projectNode.get(options.referenceNode, true);
-
-    if (projectScalar && typeof projectScalar.value === 'string') {
-        return {
-            range: rangeFromYamlNode(textDocument, projectScalar),
-            target: Uri.joinPath(textDocument.uri, '..', projectScalar.value),
-        };
-    }
-
-    return undefined;
-};
+import { CancellationToken, DocumentLink, DocumentLinkProvider, Range, TextDocument, Uri } from 'vscode';
+import { parseYamlToCTreeItem } from '../../generic/tree-item-yaml-parser';
+import { CTreeItem, ETreeItemKind, ITreeItem } from '../../generic/tree-item';
+import type { SolutionManager } from '../solution-manager';
 
 /**
  * Provide links for file references in solution and project files.
  */
-export const createReferenceLinkProvider = (options: ReferenceLinkProviderOptions): DocumentLinkProvider<DocumentLink> => ({
-    provideDocumentLinks: (textDocument: TextDocument): DocumentLink[] => {
-        try {
-            const yamlDocument = YAML.parseDocument(textDocument.getText());
-            const root = requireMap(yamlDocument.contents);
-            const parent = readMapFromMap(options.parentNode)(root);
-            const list = readSeqFromMap(options.listNode)(parent);
-            const itemMaps = list.items.filter(YAML.isMap);
+export class ReferenceLinkProvider implements DocumentLinkProvider<DocumentLink> {
+    constructor(
+        private readonly solutionManager: SolutionManager,
+    ) {
+    }
 
-            return itemMaps.flatMap((projectNode): DocumentLink[] => {
-                const documentLink = projectNodeToDocumentLink(textDocument, options, projectNode);
+    public provideDocumentLinks(textDocument: TextDocument, _token?: CancellationToken): DocumentLink[] {
+        try {
+            const topItem = parseYamlToCTreeItem(textDocument.getText(), textDocument.fileName);
+
+            return (topItem?.filterItems(item => this.isReferenceFileItem(item)) ?? [])?.flatMap((item): DocumentLink[] => {
+                const documentLink = this.treeItemToDocumentLink(item, textDocument);
                 return documentLink ? [documentLink] : [];
-            });
+            }) ?? [];
         } catch {
             // If we can't parse the document, we can't provide links
             return [];
         }
-    },
-    resolveDocumentLink: (link: DocumentLink): DocumentLink => link,
-});
+    }
+
+    public resolveDocumentLink(link: DocumentLink): DocumentLink {
+        return link;
+    }
+
+    protected isReferenceFileItem(item: ITreeItem<CTreeItem>): item is CTreeItem {
+        const tag = item.getTag();
+        return !!tag && this.getReferenceItemTags().includes(tag);
+    }
+
+    protected getReferenceItemTags(): string[] {
+        return ['file', 'layer', 'project', 'script', 'regions'];
+    }
+
+    private treeItemToDocumentLink(item: ITreeItem<CTreeItem> | undefined, textDocument: TextDocument) : DocumentLink | undefined {
+        const uri = this.getUriFromItem(item);
+        if (!uri) {
+            return undefined;
+        }
+        const range = this.rangeFromItem(item, textDocument);
+        return {
+            range,
+            target: uri,
+        };
+    }
+
+
+    private getUriFromItem(item?: ITreeItem<CTreeItem>): Uri | undefined {
+        if (!item || item.getKind() !== ETreeItemKind.Scalar) {
+            return undefined;
+        }
+        let text = item.getText();
+        if (!text) {
+            return undefined;
+        }
+        const rpcData = this.solutionManager.getRpcData();
+        const context = this.getItemContext(item);
+        if (rpcData && context) {
+            text = rpcData.expandString(text, context);
+        }
+
+        const resolvedPath = item.resolvePath(text);
+        return resolvedPath ? Uri.file(resolvedPath) : undefined;
+    }
+
+    private rangeFromItem(item: ITreeItem<CTreeItem> | undefined, textDocument: TextDocument): Range {
+        return new Range(
+            textDocument.positionAt(item?.range?.[0] ?? 0),
+            textDocument.positionAt(item?.range?.[1] ?? 0),
+        );
+    }
+
+    private getItemContext(item: ITreeItem<CTreeItem>): string | undefined {
+        const csolution = this.solutionManager.getCsolution();
+        if (!csolution) {
+            return undefined;
+        }
+        const rootFileName = item.rootFileName;
+        let context = undefined;
+        if (rootFileName.includes('.cproject.y')) {
+            context = csolution.getContextDescriptor(rootFileName)?.displayName;
+        }
+        return context ?? csolution.actionContext;
+    }
+}

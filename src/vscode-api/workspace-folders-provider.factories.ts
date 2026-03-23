@@ -23,6 +23,7 @@ export type MockWorkspaceFoldersProvider = {
     onDidChangeWorkspaceFolders: WorkspaceFoldersProvider['onDidChangeWorkspaceFolders'];
     asRelativePath: jest.Mock;
     getWorkspaceFolder: jest.Mock;
+    findFiles: jest.Mock;
     workspaceFolders: WorkspaceFolder[] | undefined;
     updateWorkspaceFolders: (workspaceFolders: WorkspaceFolder[] | undefined) => void;
 };
@@ -38,6 +39,7 @@ export const workspaceFoldersProviderFactory = (workspaceFolders?: WorkspaceFold
         },
         workspaceFolders: workspaceFolders,
         getWorkspaceFolder: jest.fn((fsPath: string): WorkspaceFolder | undefined => provider.workspaceFolders?.find(folder => fsPath.startsWith(folder.uri.fsPath))),
+        findFiles: jest.fn(),
         asRelativePath: jest.fn((input: string): string => {
             const workspace = provider.getWorkspaceFolder(input)?.uri.fsPath;
             if (workspace) {

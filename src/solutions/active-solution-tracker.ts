@@ -174,7 +174,7 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
     }
 
     private async getSolutionPaths(): Promise<string[]> {
-        const uris = await vscode.workspace.findFiles(ActiveSolutionTrackerImpl.GLOB_PATTERN, this.getExcludeGlob());
+        const uris = await this.workspaceFoldersProvider.findFiles(ActiveSolutionTrackerImpl.GLOB_PATTERN, this.getExcludeGlob());
         return uris.map(uri => uri.fsPath).sort();
     }
 

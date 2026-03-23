@@ -233,7 +233,7 @@ test.describe('CMSIS Solution Build Validation', () => {
                         await vsCodeDriver.page.screenshot(`${example.name}/Build in progress - ${context}`);
                         await expect.poll(async () => {
                             const output = await helpers.copyTerminalText(vsCodeDriver);
-                            return output.includes('Completed: cbuild succeed with exit code 0');
+                            return /Program Size:\s*Code=\d+\s+RO-data=\d+\s+RW-data=\d+\s+ZI-data=\d+/i.test(output);
                         }, {
                             timeout: DEFAULT_TIMEOUT_MS,
                             intervals: [4000]
