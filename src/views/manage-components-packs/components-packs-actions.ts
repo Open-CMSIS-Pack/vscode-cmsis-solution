@@ -300,7 +300,7 @@ s    */
                 });
         };
 
-        componentTree.classes.forEach(cclass => {
+        componentTree.classes?.forEach(cclass => {
             cclass.bundles?.forEach(bundle => {
                 bundle.cgroups?.forEach(group => {
                     processLayerPaths(group.aggregates);
