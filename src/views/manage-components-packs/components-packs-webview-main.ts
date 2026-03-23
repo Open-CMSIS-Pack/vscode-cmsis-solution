@@ -113,7 +113,16 @@ export class ComponentsPacksWebviewMain {
     private async handleWebviewCommand(treeNode: COutlineItem | undefined) {
         if (treeNode) {
             await this.openWebview(treeNode.cprojectPath, treeNode.clayerPath);
+            return;
         }
+
+        const projectId = this.getValidProjectId();
+        if (!projectId) {
+            this.messageProvider.showWarningMessage('No valid project found in the active solution.');
+            return;
+        }
+
+        await this.openWebview(projectId, undefined);
     }
 
     private projectFromPath(path: string | undefined): string {
@@ -131,7 +140,8 @@ export class ComponentsPacksWebviewMain {
             return; // nothing to show
         }
 
-        const reload = this.projectFromPath(this.currentProject?.project.projectId) !== this.projectFromPath(cprojectPath);
+        const reload = this.currentProject === undefined ||
+            this.projectFromPath(this.currentProject.project.projectId) !== this.projectFromPath(cprojectPath);
         const csolution = this.solutionManager.getCsolution();
         if (csolution) {
             this.currentProject = { solutionPath: csolution.solutionPath, project: createProject(cprojectPath) };
@@ -217,7 +227,7 @@ export class ComponentsPacksWebviewMain {
         }
 
         const latestUsedItems = usedItems ?? await this.csolutionService.getUsedItems({ context: actx });
-        if (this.usedItems?.packs.length !== latestUsedItems.packs.length || this.usedItems?.components.length !== latestUsedItems.components.length) {
+        if (this.usedItems?.packs?.length !== latestUsedItems.packs?.length || this.usedItems?.components?.length !== latestUsedItems.components?.length) {
             return true;
         }
 
@@ -228,8 +238,8 @@ export class ComponentsPacksWebviewMain {
             packs: [...(this.usedItems?.packs ?? [])].sort((a, b) => a.pack.localeCompare(b.pack)).map(packMapper),
         };
         const usedItemsSorted = {
-            components: [...latestUsedItems.components].sort((a, b) => a.id.localeCompare(b.id)).map(componentMapper),
-            packs: [...latestUsedItems.packs].sort((a, b) => a.pack.localeCompare(b.pack)).map(packMapper),
+            components: [...(latestUsedItems.components ?? [])].sort((a, b) => a.id.localeCompare(b.id)).map(componentMapper),
+            packs: [...(latestUsedItems.packs ?? [])].sort((a, b) => a.pack.localeCompare(b.pack)).map(packMapper),
         };
         const usedItemsChanged = !isDeepStrictEqual(localUsedItemsSorted, usedItemsSorted);
         return usedItemsChanged;
