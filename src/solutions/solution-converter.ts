@@ -123,11 +123,14 @@ export class SolutionConverterImpl implements SolutionConverter {
             return;
         }
 
+        let toolsOutputMessages: string[] = [];
+
         outputChannel.appendLine('⚙️ Converting solution...');
+        let result = undefined;
         if (this.isDownloadPacksEnabled()) {
             // rpc method: ListMissingPacks
             outputChannel.append('Check for missing packs... ');
-            const result = await this.cmsisToolboxManager.runCsolutionRpc(
+            result = await this.cmsisToolboxManager.runCsolutionRpc(
                 'ListMissingPacks',
                 {
                     solution: activeSolution,
@@ -136,39 +139,46 @@ export class SolutionConverterImpl implements SolutionConverter {
             ) as rpc.ListMissingPacksResult;
             if (result.success && result.packs && result.packs.length > 0) {
                 // download missing packs if any
-                await this.downloadMissingPacks(result.packs);
+                const downloadPacksOutput = await this.downloadMissingPacks(result.packs);
+                toolsOutputMessages = toolsOutputMessages.concat(downloadPacksOutput);
+                result.success = downloadPacksOutput.length === 0;
             }
         }
         if (signal.aborted) {
             return;
         }
 
-        // rpc method: ConvertSolution
-        outputChannel.append('Convert solution... ');
-        const result = await this.cmsisToolboxManager.runCsolutionRpc(
-            'ConvertSolution',
-            {
-                solution: activeSolution,
-                activeTarget: activeTarget,
-                updateRte: this.data.updateRte ?? false,
-            }
-        ) as rpc.ConvertSolutionResult;
-
-        if (signal.aborted) {
-            return;
-        }
-        // compilers and variables detection handling: apply select-compiler and discover layer configurations if any
+        let detection = false;
         const csolution = this.solutionManager.getCsolution();
-        csolution?.setSelectCompiler(result.selectCompiler);
-        const detection = (!!result.undefinedLayers && await this.checkDiscoverLayers()) || !!result.selectCompiler;
+        if (!result || result.success) {
+            // rpc method: ConvertSolution
+            outputChannel.append('Convert solution... ');
+            result = await this.cmsisToolboxManager.runCsolutionRpc(
+                'ConvertSolution',
+                {
+                    solution: activeSolution,
+                    activeTarget: activeTarget,
+                    updateRte: this.data.updateRte ?? false,
+                }
+            ) as rpc.ConvertSolutionResult;
 
-        let cbuildOutput = undefined;
+            if (signal.aborted) {
+                return;
+            }
+
+            // compilers and variables detection handling: apply select-compiler and discover layer configurations if any
+            csolution?.setSelectCompiler(result.selectCompiler);
+            detection = (!!result.undefinedLayers && await this.checkDiscoverLayers()) || !!result.selectCompiler;
+        }
+
         let logResult = undefined;
         if (!detection) {
             if (result.success) {
                 // check if compile commands need to be updated: call cbuild setup skipping csolution convert step
                 outputChannel.append('Setup database... ');
+                let cbuildOutput = undefined;
                 [result.success, cbuildOutput] = await this.compileCommandsGenerator.runCbuildSetup();
+                toolsOutputMessages = toolsOutputMessages.concat(cbuildOutput ?? []);
             }
             // rpc method: GetLogMessages
             outputChannel.append('Get log messages... ');
@@ -185,7 +195,7 @@ export class SolutionConverterImpl implements SolutionConverter {
         }
         // update 'problems' view
         logResult = { errors: [], warnings: [], info: [], ...logResult, success: result.success };
-        const severity = await this.updateDiagnostics(logResult, cbuildOutput);
+        const severity = await this.updateDiagnostics(logResult, toolsOutputMessages);
 
         csolution?.setLogMessages(logResult);
 
@@ -213,14 +223,29 @@ export class SolutionConverterImpl implements SolutionConverter {
         }
     }
 
-    private async downloadMissingPacks(packs: string[]): Promise<void> {
+    private async downloadMissingPacks(packs: string[]): Promise<string[]> {
         // call cpackget to download missing packs
         const outputChannel = this.outputChannelProvider.getOrCreate(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
         outputChannel.append('Downloading missing packs...\n');
+        const cpackgetOutput: string[] = [];
+        const formattedOutput: string[] = [];
         for (const pack of packs) {
             const args = ['add', pack, '--force-reinstall', '--agree-embedded-license', '--no-dependencies'];
-            await this.cmsisToolboxManager.runCmsisTool('cpackget', args, line => outputChannel.appendLine(line.trimEnd()), undefined, undefined, true);
+            const [returnCode] = await this.cmsisToolboxManager.runCmsisTool('cpackget', args, line => {
+                line = line.trimEnd();
+                cpackgetOutput.push(line);
+                outputChannel.appendLine(line);
+            }, undefined, undefined, true);
+            if (returnCode !== 0) {
+                let errorMessage = `error cpackget: downloading pack '${pack}' failed`;
+                const details = cpackgetOutput.join('\n').match(/[EW]: .*/g)?.map(line => line.replace(/^[EW]:\s*/, '')).join('\n') ?? '';
+                if (details) {
+                    errorMessage += `\n${details}`;
+                }
+                formattedOutput.push(errorMessage);
+            }
         }
+        return formattedOutput;
     }
 
     private async checkDiscoverLayers(): Promise<boolean> {
@@ -291,14 +316,14 @@ export class SolutionConverterImpl implements SolutionConverter {
         return false;
     }
 
-    private async updateDiagnostics(messages: rpc.LogMessages, cbuildOutput?: string[]): Promise<Severity> {
+    private async updateDiagnostics(messages: rpc.LogMessages, toolsOutputMessages?: string[]): Promise<Severity> {
         // clear previous diagnostics
         this.diagnosticCollection.clear();
         this.collectYmlFiles();
         let diagnostics = false;
 
-        // extract cbuild messages from cbuild output
-        await this.collectCbuildMessages(messages, cbuildOutput);
+        // extract messages from tools output
+        await this.collectToolsMessages(messages, toolsOutputMessages);
 
         // iterate through log messages and set diagnostics
         for (const message of messages.errors ?? []) {
@@ -419,26 +444,11 @@ export class SolutionConverterImpl implements SolutionConverter {
     }
 
     /**
-    *  patterns to extract env vars warnings from cbuild output
+    *  patterns to extract errors and warnings from tools messages
     */
-    private readonly cbuildWarningPatterns = [
-        /^warning cbuild: missing ([A-Za-z_][A-Za-z0-9_]*) environment variable$/,
-        /^warning cbuild: ([A-Za-z_][A-Za-z0-9_]*) environment variable specifies non-existent directory: .+$/
-    ];
-
-    /**
-    *  patterns to extract env vars errors from cbuild output
-    */
-    private readonly cbuildErrorPatterns = [
-        /^error cbuild: exec: "west": executable file not found in .+$/,
-    ];
-
-    /**
-    *  patterns to remove from extracted cbuild messages
-    */
-    private readonly cbuildPrefixPatterns = {
-        error: /^error cbuild:\s*/,
-        warning: /^warning cbuild:\s*/,
+    private readonly toolsPrefixPatterns = {
+        error: /^.*error (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
+        warning: /^.*warning (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
     };
 
     private pushUniquely(array: string[], value: string) {
@@ -447,45 +457,71 @@ export class SolutionConverterImpl implements SolutionConverter {
         }
     }
 
-    private async collectCbuildMessages(logMessages: rpc.LogMessages, lines?: string[]): Promise<void> {
-        if (!lines) {
+    private async collectToolsMessages(logMessages: rpc.LogMessages, lines?: string[]): Promise<void> {
+        if (lines) {
+            let errors = lines.filter(line =>
+                this.toolsPrefixPatterns.error.test(line)
+            );
+            let warnings = lines.filter(line =>
+                this.toolsPrefixPatterns.warning.test(line)
+            );
+            if (warnings.length || errors.length) {
+                // remove tool-specific prefixes from messages
+                const sanitize = (m: string, kind: 'error' | 'warning') => m.replace(this.toolsPrefixPatterns[kind], '').trim();
+                errors = errors.map(e => sanitize(e, 'error'));
+                warnings = warnings.map(w => sanitize(w, 'warning'));
+                // format west related messages if any
+                await this.formatWestMessages(errors, warnings);
+                // append messages to logMessages
+                errors.forEach(e => this.pushUniquely(logMessages.errors ?? [], e));
+                warnings.forEach(w => this.pushUniquely(logMessages.warnings ?? [], w));
+            }
+        }
+    }
+
+    /**
+    *  patterns to extract environment variables and west warnings and errors
+    */
+    private readonly envVarWestPatterns = [
+        /^missing ([A-Za-z_][A-Za-z0-9_]*) environment variable$/,
+        /^([A-Za-z_][A-Za-z0-9_]*) environment variable specifies non-existent directory: .+$/,
+        /^exec: "west": executable file not found in .+$/,
+    ];
+
+    private async formatWestMessages(errors: string[], warnings: string[]): Promise<void> {
+        // extract warnings and errors around environment variables and west settings
+        const hasWestMessages = [...errors, ...warnings].some(line =>
+            this.envVarWestPatterns.some(pattern => pattern.test(line))
+        );
+        if (!hasWestMessages) {
             return;
         }
-        // extract cbuild warnings and errors around environment variables settings
-        let errors = lines.filter(line =>
-            this.cbuildErrorPatterns.some(pattern => pattern.test(line))
-        );
-        let warnings = lines.filter(line =>
-            this.cbuildWarningPatterns.some(pattern => pattern.test(line))
-        );
-        if (!warnings.length && !errors.length) {
+        const workspaceFolder = getWorkspaceFolder();
+        if (!workspaceFolder) {
             return;
         }
         // find cmsis-csolution.environmentVariables location in settings.json
-        const workspaceFolder = getWorkspaceFolder();
-        if (workspaceFolder) {
-            const settings = path.join(workspaceFolder, '.vscode', 'settings.json');
-            const envvars = '"cmsis-csolution.environmentVariables"';
-            let startPos: vscode.Position | undefined = undefined;
-            if (fsUtils.fileExists(settings)) {
-                const doc = await vscode.workspace.openTextDocument(settings);
-                if (doc) {
-                    const startOffset = doc.getText().indexOf(envvars);
-                    if (startOffset > 0) {
-                        startPos = doc.positionAt(startOffset);
-                    }
+        const settings = vscode.workspace.workspaceFile?.fsPath ?? path.join(workspaceFolder, '.vscode', 'settings.json');
+        const envvars = '"cmsis-csolution.environmentVariables"';
+        let startPos: vscode.Position | undefined;
+        if (fsUtils.fileExists(settings)) {
+            const doc = await vscode.workspace.openTextDocument(settings);
+            const startOffset = doc.getText().indexOf(envvars);
+            if (startOffset > 0) {
+                startPos = doc.positionAt(startOffset);
+            }
+        }
+        const location = startPos ? `:${startPos.line + 1}:${startPos.character + 1}` : '';
+        // format messages
+        const format = (items: string[]) => {
+            for (let i = 0; i < items.length; i++) {
+                if (this.envVarWestPatterns.some(pattern => pattern.test(items[i]))) {
+                    items[i] = `settings.json${location} - ${items[i]}; review ${envvars}`;
                 }
             }
-            const location = startPos ? `:${startPos.line + 1}:${startPos.character + 1}` : '';
-            // format messages
-            const format = (m: string, kind: 'error' | 'warning') =>
-                `settings.json${location} - ${m.replace(this.cbuildPrefixPatterns[kind], '')}; review ${envvars}`;
-            errors = errors.map(m => format(m, 'error'));
-            warnings = warnings.map(m => format(m, 'warning'));
-            this.addFile(settings);
-        }
-        // append formatted messages to logMessages
-        errors.forEach(e => this.pushUniquely(logMessages.errors ?? [], e));
-        warnings.forEach(w => this.pushUniquely(logMessages.warnings ?? [], w));
+        };
+        format(errors);
+        format(warnings);
+        this.addFile(settings);
     }
 }
