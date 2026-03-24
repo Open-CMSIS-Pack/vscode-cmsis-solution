@@ -44,12 +44,20 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
 
         const hasCmsisPackRoot = fileValue.indexOf('${CMSIS_PACK_ROOT}') !== -1;
         const resolvedFilePath = this.resolveFilePath(hasCmsisPackRoot, fileValue);
-        const fileBaseName = path.basename(fileValue);
+        const fileBaseName = path.basename(resolvedFilePath);
         const resourcePath = hasCmsisPackRoot ? resolvedFilePath : f.resolvePath(resolvedFilePath);
         const description = isApi ? ' (API)' : undefined;
         const rootFileName = f.rootFileName;
 
         const cfileItem = this.createFileItem(cgroupItem, fileBaseName, resourcePath, description);
+
+        // set special tooltip if sequences are resolved
+        if(!hasCmsisPackRoot && resolvedFilePath !== fileValue) {
+              const tooltip =
+            `- resolved: \`${resourcePath}\`\n` +
+            `- original: \`${fileValue}\``;
+            cfileItem.setAttribute('tooltip', tooltip);
+        }
 
         // Check if file is excluded based on context restrictions
         if (this.context && !matchesContext(f, this.context)) {
