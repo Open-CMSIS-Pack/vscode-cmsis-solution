@@ -15,19 +15,26 @@
  */
 
 import 'jest';
-import { SolutionLanguageFeaturesProvider, solutionFilesSelectors } from './solution-language-features-provider';
+import { SolutionLanguageFeaturesProvider, solutionBuildFilesSelectors, solutionFilesSelectors } from './solution-language-features-provider';
 import { ReferenceLinkProvider } from './reference-link-provider';
 import type { SolutionManager } from '../solution-manager';
 
 describe('SolutionLanguageFeaturesProvider', () => {
-    it('registers a document link provider for solution, project, and layer files on activation', async () => {
+    it('registers document link providers for solution and build files on activation', async () => {
         const registerDocumentLinkProvider = jest.fn();
         const solutionManager = {} as SolutionManager;
         const provider = new SolutionLanguageFeaturesProvider(solutionManager, { registerDocumentLinkProvider });
 
         await provider.activate({ subscriptions: [] });
 
-        expect(registerDocumentLinkProvider).toHaveBeenCalledWith(solutionFilesSelectors, expect.any(ReferenceLinkProvider));
-        expect(registerDocumentLinkProvider).toHaveBeenCalledTimes(1);
+        expect(registerDocumentLinkProvider).toHaveBeenNthCalledWith(1,
+            solutionFilesSelectors,
+            expect.any(ReferenceLinkProvider),
+        );
+        expect(registerDocumentLinkProvider).toHaveBeenNthCalledWith(2,
+            solutionBuildFilesSelectors,
+            expect.any(ReferenceLinkProvider),
+        );
+        expect(registerDocumentLinkProvider).toHaveBeenCalledTimes(2);
     });
 });

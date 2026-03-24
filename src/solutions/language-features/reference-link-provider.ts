@@ -18,20 +18,25 @@ import { CancellationToken, DocumentLink, DocumentLinkProvider, Range, TextDocum
 import { parseYamlToCTreeItem } from '../../generic/tree-item-yaml-parser';
 import { CTreeItem, ETreeItemKind, ITreeItem } from '../../generic/tree-item';
 import type { SolutionManager } from '../solution-manager';
+import { getCmsisPackRoot } from '../../utils/path-utils';
 
 /**
- * Provide links for file references in solution and project files.
+ * Provide links for file references in solution, project, and layer files as well as for *.cbuild*.yml files.
+ *
  */
 export class ReferenceLinkProvider implements DocumentLinkProvider<DocumentLink> {
+    private static readonly REFERENCE_ITEM_TAGS = ['file', 'layer', 'project', 'script', 'regions',
+        'solution', 'csolution', 'cbuild', 'clayer', 'cproject', 'cbuild-run', 'cdefault'];
+
     constructor(
         private readonly solutionManager: SolutionManager,
+        private readonly cbuildFile?: boolean,
     ) {
     }
 
     public provideDocumentLinks(textDocument: TextDocument, _token?: CancellationToken): DocumentLink[] {
         try {
             const topItem = parseYamlToCTreeItem(textDocument.getText(), textDocument.fileName);
-
             return (topItem?.filterItems(item => this.isReferenceFileItem(item)) ?? [])?.flatMap((item): DocumentLink[] => {
                 const documentLink = this.treeItemToDocumentLink(item, textDocument);
                 return documentLink ? [documentLink] : [];
@@ -47,15 +52,30 @@ export class ReferenceLinkProvider implements DocumentLinkProvider<DocumentLink>
     }
 
     protected isReferenceFileItem(item: ITreeItem<CTreeItem>): item is CTreeItem {
+        if (!item || item.getKind() !== ETreeItemKind.Scalar || !item.getText())
+            return false;
         const tag = item.getTag();
-        return !!tag && this.getReferenceItemTags().includes(tag);
+        if (!tag || !this.getReferenceItemTags().includes(tag)) {
+            return false;
+        }
+        if (this.cbuildFile) {
+            // in case of cbuild-idx.yml we can only expand links under 'cbuilds' section
+            if (tag === 'clayer' && !item.getParent('cbuilds')) {
+                return false;
+            }
+            // in case of cbuild-idx.yml 'project' under 'cbuilds' is just a name, not path
+            if (tag === 'project' && !!item.getParent('cbuilds')) {
+                return false;
+            }
+        }
+        return true;
     }
 
     protected getReferenceItemTags(): string[] {
-        return ['file', 'layer', 'project', 'script', 'regions'];
+        return ReferenceLinkProvider.REFERENCE_ITEM_TAGS;
     }
 
-    private treeItemToDocumentLink(item: ITreeItem<CTreeItem> | undefined, textDocument: TextDocument) : DocumentLink | undefined {
+    private treeItemToDocumentLink(item: ITreeItem<CTreeItem>, textDocument: TextDocument): DocumentLink | undefined {
         const uri = this.getUriFromItem(item);
         if (!uri) {
             return undefined;
@@ -68,20 +88,23 @@ export class ReferenceLinkProvider implements DocumentLinkProvider<DocumentLink>
     }
 
 
-    private getUriFromItem(item?: ITreeItem<CTreeItem>): Uri | undefined {
-        if (!item || item.getKind() !== ETreeItemKind.Scalar) {
-            return undefined;
-        }
+    private getUriFromItem(item: ITreeItem<CTreeItem>): Uri | undefined {
         let text = item.getText();
         if (!text) {
             return undefined;
         }
-        const rpcData = this.solutionManager.getRpcData();
-        const context = this.getItemContext(item);
-        if (rpcData && context) {
-            text = rpcData.expandString(text, context);
-        }
 
+        // generated files can contain references to files in packs directory
+        if (text.startsWith('${CMSIS_PACK_ROOT}')) {
+            return Uri.file(text.replace('${CMSIS_PACK_ROOT}', getCmsisPackRoot()));
+        }
+        if (!this.cbuildFile) { // generated files have all sequences expanded
+            const rpcData = this.solutionManager.getRpcData();
+            const context = this.getItemContext(item);
+            if (rpcData && context) {
+                text = rpcData.expandString(text, context);
+            }
+        }
         const resolvedPath = item.resolvePath(text);
         return resolvedPath ? Uri.file(resolvedPath) : undefined;
     }

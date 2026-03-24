@@ -53,7 +53,7 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
             return;
         }
 
-        const hasCmsisPackRoot = fileValue.indexOf('${CMSIS_PACK_ROOT}') !== -1;
+        const hasCmsisPackRoot = fileValue.startsWith('${CMSIS_PACK_ROOT}');
         const resolvedFilePath = this.resolveFilePath(hasCmsisPackRoot, fileValue);
         const fileBaseName = path.basename(resolvedFilePath);
         const resourcePath = hasCmsisPackRoot ? resolvedFilePath : f.resolvePath(resolvedFilePath);

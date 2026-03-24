@@ -21,6 +21,7 @@ import { URI as Uri, Utils as UriUtils } from 'vscode-uri';
 import * as path from 'path';
 import { solutionManagerFactory } from '../solution-manager.factories';
 import { SolutionRpcDataMock } from '../solution-rpc-data.factory';
+import * as pathUtils from '../../utils/path-utils';
 
 describe('ReferenceLinkProvider', () => {
     it('returns no links if the document cannot be parsed', () => {
@@ -63,7 +64,7 @@ describe('ReferenceLinkProvider', () => {
         const rpcData = solutionManager.getRpcData() as SolutionRpcDataMock;
         rpcData.seedVariables('my.Build+Target', { 'Board-layer': 'mylayer.clayer.yml' });
 
-        const provider = new ReferenceLinkProvider(solutionManager);
+        const provider = new ReferenceLinkProvider(solutionManager, false);
         const output = provider.provideDocumentLinks(textDocument, { isCancellationRequested: false, onCancellationRequested: jest.fn() });
 
         expect(output).toEqual([
@@ -71,5 +72,52 @@ describe('ReferenceLinkProvider', () => {
             expect.objectContaining({ target: expect.objectContaining({ fsPath: UriUtils.joinPath(documentUri, '../my.sct').fsPath }) }),
             expect.objectContaining({ target: expect.objectContaining({ fsPath: UriUtils.joinPath(documentUri, '../mylayer.clayer.yml').fsPath }) }),
         ]);
+    });
+
+    it('returns links for cbuild files without expanding RPC variables', () => {
+        const getCmsisPackRootSpy = jest.spyOn(pathUtils, 'getCmsisPackRoot').mockReturnValue('TEST_CMSIS_PACK_ROOT');
+
+        try {
+            const cbuildDoc = `
+                build-idx:
+                    csolution: ./my.csolution.yml
+                    cbuilds:
+                        - cbuild: ./my/debug/my.cbuild.yml
+                          clayers:
+                            - clayer: my.clayer.yml
+                    cprojects:
+                        - cproject: my/my.cproject.yml
+                          clayers:
+                            - clayer: my/$Board-layer$
+                    files:
+                        - file: \${CMSIS_PACK_ROOT}/myPack/0.0.1/myfile.yml
+            `;
+
+            const documentFileName = path.join(__dirname, 'my.cbuild-idx.yml');
+            const documentUri = Uri.file(documentFileName);
+            const textDocument = textDocumentFactory({ uri: documentUri, fileName: documentFileName });
+            textDocument.getText.mockReturnValue(cbuildDoc);
+
+            const solutionManager = solutionManagerFactory();
+            const provider = new ReferenceLinkProvider(solutionManager, true);
+            const output = provider.provideDocumentLinks(textDocument, { isCancellationRequested: false, onCancellationRequested: jest.fn() });
+            const outputPaths = output
+                .map(link => link.target?.fsPath)
+                .filter((target): target is string => !!target);
+
+            const expectedPaths = [
+                UriUtils.joinPath(documentUri, '../my.csolution.yml').fsPath,
+                UriUtils.joinPath(documentUri, '../my/debug/my.cbuild.yml').fsPath,
+                UriUtils.joinPath(documentUri, '../my.clayer.yml').fsPath,
+                UriUtils.joinPath(documentUri, '../my/my.cproject.yml').fsPath,
+                path.join(path.sep, 'TEST_CMSIS_PACK_ROOT', 'myPack', '0.0.1', 'myfile.yml'),
+            ];
+
+            expectedPaths.forEach(expectedPath => {
+                expect(outputPaths.some(outputPath => pathUtils.pathsEqual(outputPath, expectedPath))).toBe(true);
+            });
+        } finally {
+            getCmsisPackRootSpy.mockRestore();
+        }
     });
 });
