@@ -26,7 +26,7 @@ import { getCmsisPackRoot } from '../../utils/path-utils';
  */
 export class ReferenceLinkProvider implements DocumentLinkProvider<DocumentLink> {
     private static readonly REFERENCE_ITEM_TAGS = ['file', 'layer', 'project', 'script', 'regions',
-        'solution', 'csolution', 'cbuild', 'clayer', 'cproject'];
+        'solution', 'csolution', 'cbuild', 'clayer', 'cproject', 'cbuild-run', 'cdefault'];
 
     constructor(
         private readonly solutionManager: SolutionManager,
