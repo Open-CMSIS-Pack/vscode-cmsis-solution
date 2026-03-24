@@ -52,8 +52,8 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
         const cfileItem = this.createFileItem(cgroupItem, fileBaseName, resourcePath, description);
 
         // set special tooltip if sequences are resolved
-        if(!hasCmsisPackRoot && resolvedFilePath !== fileValue) {
-              const tooltip =
+        if (!hasCmsisPackRoot && resolvedFilePath !== fileValue) {
+            const tooltip =
             `- resolved: \`${resourcePath}\`\n` +
             `- original: \`${fileValue}\``;
             cfileItem.setAttribute('tooltip', tooltip);
