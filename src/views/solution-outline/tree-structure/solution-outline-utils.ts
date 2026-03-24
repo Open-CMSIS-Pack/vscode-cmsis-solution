@@ -20,7 +20,7 @@ import * as fs from 'fs';
 import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
 import path from 'path';
 
-export function setContextMenuAttributes(item: COutlineItem, resourcePath: string, rootFileName: string, topTag: string | undefined): void {
+export function setContextMenuAttributes(item: COutlineItem, resourcePath: string, rootFileName: string, topTag?: string): void {
     item.setAttribute('fileUri', resourcePath);
     item.setAttribute('projectUri', rootFileName);
     if (topTag === 'layer') {
