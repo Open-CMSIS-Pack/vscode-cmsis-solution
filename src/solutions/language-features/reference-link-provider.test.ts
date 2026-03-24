@@ -75,45 +75,49 @@ describe('ReferenceLinkProvider', () => {
     });
 
     it('returns links for cbuild files without expanding RPC variables', () => {
-        jest.spyOn(pathUtils, 'getCmsisPackRoot').mockReturnValue('TEST_CMSIS_PACK_ROOT');
+        const getCmsisPackRootSpy = jest.spyOn(pathUtils, 'getCmsisPackRoot').mockReturnValue('TEST_CMSIS_PACK_ROOT');
 
-        const cbuildDoc = `
-            build-idx:
-                csolution: ./my.csolution.yml
-                cbuilds:
-                    - cbuild: ./my/debug/my.cbuild.yml
-                      clayers:
-                        - clayer: my.clayer.yml
-                cprojects:
-                    - cproject: my/my.cproject.yml
-                      clayers:
-                        - clayer: my/$Board-layer$
-                files:
-                    - file: \${CMSIS_PACK_ROOT}/myPack/0.0.1/myfile.yml
-        `;
+        try {
+            const cbuildDoc = `
+                build-idx:
+                    csolution: ./my.csolution.yml
+                    cbuilds:
+                        - cbuild: ./my/debug/my.cbuild.yml
+                          clayers:
+                            - clayer: my.clayer.yml
+                    cprojects:
+                        - cproject: my/my.cproject.yml
+                          clayers:
+                            - clayer: my/$Board-layer$
+                    files:
+                        - file: \${CMSIS_PACK_ROOT}/myPack/0.0.1/myfile.yml
+            `;
 
-        const documentFileName = path.join(__dirname, 'my.cbuild-idx.yml');
-        const documentUri = Uri.file(documentFileName);
-        const textDocument = textDocumentFactory({ uri: documentUri, fileName: documentFileName });
-        textDocument.getText.mockReturnValue(cbuildDoc);
+            const documentFileName = path.join(__dirname, 'my.cbuild-idx.yml');
+            const documentUri = Uri.file(documentFileName);
+            const textDocument = textDocumentFactory({ uri: documentUri, fileName: documentFileName });
+            textDocument.getText.mockReturnValue(cbuildDoc);
 
-        const solutionManager = solutionManagerFactory();
-        const provider = new ReferenceLinkProvider(solutionManager, true);
-        const output = provider.provideDocumentLinks(textDocument, { isCancellationRequested: false, onCancellationRequested: jest.fn() });
-        const outputPaths = output
-            .map(link => link.target?.fsPath)
-            .filter((target): target is string => !!target);
+            const solutionManager = solutionManagerFactory();
+            const provider = new ReferenceLinkProvider(solutionManager, true);
+            const output = provider.provideDocumentLinks(textDocument, { isCancellationRequested: false, onCancellationRequested: jest.fn() });
+            const outputPaths = output
+                .map(link => link.target?.fsPath)
+                .filter((target): target is string => !!target);
 
-        const expectedPaths = [
-            UriUtils.joinPath(documentUri, '../my.csolution.yml').fsPath,
-            UriUtils.joinPath(documentUri, '../my/debug/my.cbuild.yml').fsPath,
-            UriUtils.joinPath(documentUri, '../my.clayer.yml').fsPath,
-            UriUtils.joinPath(documentUri, '../my/my.cproject.yml').fsPath,
-            path.join(path.sep, 'TEST_CMSIS_PACK_ROOT', 'myPack', '0.0.1', 'myfile.yml'),
-        ];
+            const expectedPaths = [
+                UriUtils.joinPath(documentUri, '../my.csolution.yml').fsPath,
+                UriUtils.joinPath(documentUri, '../my/debug/my.cbuild.yml').fsPath,
+                UriUtils.joinPath(documentUri, '../my.clayer.yml').fsPath,
+                UriUtils.joinPath(documentUri, '../my/my.cproject.yml').fsPath,
+                path.join(path.sep, 'TEST_CMSIS_PACK_ROOT', 'myPack', '0.0.1', 'myfile.yml'),
+            ];
 
-        expectedPaths.forEach(expectedPath => {
-            expect(outputPaths.some(outputPath => pathUtils.pathsEqual(outputPath, expectedPath))).toBe(true);
-        });
+            expectedPaths.forEach(expectedPath => {
+                expect(outputPaths.some(outputPath => pathUtils.pathsEqual(outputPath, expectedPath))).toBe(true);
+            });
+        } finally {
+            getCmsisPackRootSpy.mockRestore();
+        }
     });
 });

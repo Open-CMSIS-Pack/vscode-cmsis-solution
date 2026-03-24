@@ -59,11 +59,11 @@ export class ReferenceLinkProvider implements DocumentLinkProvider<DocumentLink>
             return false;
         }
         if (this.cbuildFile) {
-            // in case of cbuild-ids.yml we can only expand links under 'cbuilds' section
+            // in case of cbuild-idx.yml we can only expand links under 'cbuilds' section
             if (tag === 'clayer' && !item.getParent('cbuilds')) {
                 return false;
             }
-            // in case of cbuild-ids.yml 'project' under 'cbuilds' is just a name, not path
+            // in case of cbuild-idx.yml 'project' under 'cbuilds' is just a name, not path
             if (tag === 'project' && !!item.getParent('cbuilds')) {
                 return false;
             }
