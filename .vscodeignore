@@ -33,3 +33,7 @@ jestSetupFile.js
 .env
 update_copyright_years.*
 api/**
+e2e-report/**
+e2e-screenshots/**
+test-results/**
+.qlty/**
