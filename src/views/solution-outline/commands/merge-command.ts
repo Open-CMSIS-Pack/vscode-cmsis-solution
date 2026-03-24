@@ -23,7 +23,6 @@ import path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { ActiveSolutionTracker } from '../../../solutions/active-solution-tracker';
-import { quote as shellQuote } from 'shell-quote';
 
 export class MergeCommand {
     public static readonly mergeFile = `${PACKAGE_NAME}.mergeFile`;
@@ -90,9 +89,11 @@ export class MergeCommand {
             mergedMTimeBefore = fs.statSync(merged).mtimeMs;
         }
 
-        try {
-            const exitCode = await this.doOpen3WayMerge([ codePath, '--wait', '--merge', local, update, base, merged ]);
+        const command = `"${codePath}" --wait --merge "${local}" "${update}" "${base}" "${merged}"`;
 
+        try {
+            const exitCode = await this.doOpen3WayMerge(command);
+            
             // get the modification time after merge
             let mergedMTimeAfter = 0;
             if (fs.existsSync(merged)) {
@@ -182,12 +183,12 @@ export class MergeCommand {
         return undefined;
     }
 
-    private doOpen3WayMerge(command: string[]): Promise<number> {
-        const args = shellQuote(command);
+    private doOpen3WayMerge(command: string): Promise<number> {
+        
         return new Promise((resolve, reject) => {
-            exec(args, (error: ExecException | null) => {
+            exec(command, (error: ExecException | null) => {
                 if (error) {
-                    console.error(`Error executing command: ${args}`, error);
+                    console.error(`Error executing command: ${command}`, error);
 
                     if (typeof error.code === 'number') {
                         resolve(error.code);
