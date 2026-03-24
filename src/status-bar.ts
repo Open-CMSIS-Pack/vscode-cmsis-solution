@@ -122,7 +122,6 @@ export class StatusBar {
     }
 
     protected retrieveCbuildSetupStatus(severity: Severity, detection: boolean): void {
-        this.cmsisToolboxManager.collectSetupMessages(this.solutionManager.getCsolution()?.cbuildIdxYmlRoot);
         this.cbuildSetupStatus = detection ? ECbuildSetupStatus.Detection :
             severity == 'error' ? ECbuildSetupStatus.Error :
                 severity == 'warning' ? ECbuildSetupStatus.Warning : ECbuildSetupStatus.Success;
