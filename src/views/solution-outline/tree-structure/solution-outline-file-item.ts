@@ -22,8 +22,19 @@ import { getStatusTooltip, setContextMenuAttributes, setHeaderContext, setMergeD
 import { getCmsisPackRoot } from '../../../utils/path-utils';
 import { matchesContext } from '../../../utils/context-utils';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
+import { CSolution } from '../../../solutions/csolution';
+import { SolutionRpcData } from '../../../solutions/solution-rpc-data';
 
 export class FileItemBuilder extends SolutionOutlineItemBuilder {
+    constructor(
+        csolution?: CSolution,
+        rpcData?: SolutionRpcData,
+        context?: string,
+        public readonly topTag?: string,
+    ) {
+        super(csolution, rpcData, context);
+    }
+
     public createFileNodes(cgroupItem: COutlineItem, files: ITreeItem<CTreeItem>[], docs?: ITreeItem<CTreeItem>[], isApi?: boolean, addContextMenu?: boolean) {
         for (const f of files) {
             const category = f.getValue('category');
@@ -65,7 +76,7 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
         }
 
         if (addContextMenu) {
-            setContextMenuAttributes(cfileItem, fileValue, rootFileName);
+            setContextMenuAttributes(cfileItem, fileValue, rootFileName, this.topTag);
         }
 
         // add copy header button for header files

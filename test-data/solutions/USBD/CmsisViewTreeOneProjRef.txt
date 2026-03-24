@@ -317,6 +317,7 @@ solution
           features=file
           fileUri=README.md
           projectUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
         file
           label=retarget_stdio.c
           expandable=0
@@ -324,6 +325,7 @@ solution
           features=file
           fileUri=./retarget_stdio.c
           projectUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
       components
         label=Components (9)
         expandable=1
