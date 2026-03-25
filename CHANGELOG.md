@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+- Updates:
+  - Minimum required version of VS Code for using this extension is **^1.108.1**.
+  - **CMSIS View** resolves [access sequences](https://open-cmsis-pack.github.io/cmsis-toolbox/YML-Input-Format/#access-sequences) used in file references and opens the corresponding physical file on click.
+  - Extended support for file links in editor windows for [CMSIS Solution Project](https://open-cmsis-pack.github.io/cmsis-toolbox/YML-Input-Format/#project-file-structure) and [build information](https://open-cmsis-pack.github.io/cmsis-toolbox/YML-CBuild-Format) files.
+  - Extended solution conversion diagnostics to collect and surface errors and warnings from orchestrated tools (cpackget, cbuild, cbuild2cmake, csolution) in the VS Code Problems view. Messages are removed from the status bar tooltip.
+  - Solution conversion is now skipped if missing packs are detected but cannot be downloaded and installed by the pack installer `cpackget`.
+  - Added `Config File` option in Debug Adapter for Arm-FVP to open the specified file.
+
+- Solved issues:
+  - **CMSIS View** does not load and display CMSIS Solution files without `projects:` node which is the case for debug only setups.
+  - **Software Components** does not reliably open the initial view for the selected layer.
+  - **Manage Solution** dialog target-type handling breaks in case the corresponding node is changed in `*.csolution.yml` on disk.
+  - `uVision option` in Debug Adapter for Keil uVision stores absolute filepath.
+  
+
 ## 1.66.0
 
 - Updates:
