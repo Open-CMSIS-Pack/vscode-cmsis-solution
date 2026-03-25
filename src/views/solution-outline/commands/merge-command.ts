@@ -26,7 +26,7 @@ import { ActiveSolutionTracker } from '../../../solutions/active-solution-tracke
 
 export class MergeCommand {
     public static readonly mergeFile = `${PACKAGE_NAME}.mergeFile`;
-    private static readonly disallowedCmdChars  = /[\r\n&|<>^%]/;
+    private static readonly disallowedCmdChars  = /[\r\n&|<>^%"']/;
 
     constructor(
         private readonly commandsProvider: CommandsProvider,
