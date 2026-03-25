@@ -22,8 +22,19 @@ import { getStatusTooltip, setContextMenuAttributes, setHeaderContext, setMergeD
 import { getCmsisPackRoot } from '../../../utils/path-utils';
 import { matchesContext } from '../../../utils/context-utils';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
+import { CSolution } from '../../../solutions/csolution';
+import { SolutionRpcData } from '../../../solutions/solution-rpc-data';
 
 export class FileItemBuilder extends SolutionOutlineItemBuilder {
+    constructor(
+        csolution?: CSolution,
+        rpcData?: SolutionRpcData,
+        context?: string,
+        public readonly topTag?: string,
+    ) {
+        super(csolution, rpcData, context);
+    }
+
     public createFileNodes(cgroupItem: COutlineItem, files: ITreeItem<CTreeItem>[], docs?: ITreeItem<CTreeItem>[], isApi?: boolean, addContextMenu?: boolean) {
         for (const f of files) {
             const category = f.getValue('category');
@@ -42,14 +53,22 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
             return;
         }
 
-        const hasCmsisPackRoot = fileValue.indexOf('${CMSIS_PACK_ROOT}') !== -1;
+        const hasCmsisPackRoot = fileValue.startsWith('${CMSIS_PACK_ROOT}');
         const resolvedFilePath = this.resolveFilePath(hasCmsisPackRoot, fileValue);
-        const fileBaseName = path.basename(fileValue);
+        const fileBaseName = path.basename(resolvedFilePath);
         const resourcePath = hasCmsisPackRoot ? resolvedFilePath : f.resolvePath(resolvedFilePath);
         const description = isApi ? ' (API)' : undefined;
         const rootFileName = f.rootFileName;
 
         const cfileItem = this.createFileItem(cgroupItem, fileBaseName, resourcePath, description);
+
+        // set special tooltip if sequences are resolved
+        if (!hasCmsisPackRoot && resolvedFilePath !== fileValue) {
+            const tooltip =
+            `- resolved: \`${resourcePath}\`\n` +
+            `- original: \`${fileValue}\``;
+            cfileItem.setAttribute('tooltip', tooltip);
+        }
 
         // Check if file is excluded based on context restrictions
         if (this.context && !matchesContext(f, this.context)) {
@@ -57,7 +76,7 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
         }
 
         if (addContextMenu) {
-            setContextMenuAttributes(cfileItem, fileValue, rootFileName);
+            setContextMenuAttributes(cfileItem, fileValue, rootFileName, this.topTag);
         }
 
         // add copy header button for header files

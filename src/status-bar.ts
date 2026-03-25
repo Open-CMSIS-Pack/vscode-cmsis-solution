@@ -106,9 +106,8 @@ export class StatusBar {
     }
 
     protected contextToolTip(context: ContextDescriptor): string {
-        const messages = this.cmsisToolboxManager.getSetupMessages(context.displayName)?.map(m => `   - ${m}`) ?? [];
         const build = context.buildType ? `.${context.buildType}` : '';
-        return ` - ${context.projectName}${build}\n${messages.join('\n')}\n`;
+        return ` - ${context.projectName}${build}\n`;
     }
 
     protected updateIconStatus(statusBarItem: vscode.StatusBarItem, start: boolean, packs?: boolean): void {
@@ -123,7 +122,6 @@ export class StatusBar {
     }
 
     protected retrieveCbuildSetupStatus(severity: Severity, detection: boolean): void {
-        this.cmsisToolboxManager.collectSetupMessages(this.solutionManager.getCsolution()?.cbuildIdxYmlRoot);
         this.cbuildSetupStatus = detection ? ECbuildSetupStatus.Detection :
             severity == 'error' ? ECbuildSetupStatus.Error :
                 severity == 'warning' ? ECbuildSetupStatus.Warning : ECbuildSetupStatus.Success;

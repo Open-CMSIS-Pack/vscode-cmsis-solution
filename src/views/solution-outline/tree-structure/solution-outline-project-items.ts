@@ -70,16 +70,17 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
     }
 
     private createGroupNode(cprojectItem: COutlineItem, group: CTreeItem, parentGroupPath: string, mapFilePath?: string) {
-        const cgroupItem = this.createGroupTreeItem(cprojectItem, group, parentGroupPath, mapFilePath);
+        const topTag = group.getRoot()?.getChild()?.getTag() ?? '';
 
-        this.createGroupChildren(cgroupItem, group);
+        const cgroupItem = this.createGroupTreeItem(cprojectItem, group, parentGroupPath, topTag, mapFilePath);
+
+        this.createGroupChildren(cgroupItem, group, topTag);
 
         this.setExpandableAttribute(cgroupItem);
     }
 
-    private createGroupTreeItem(cprojectItem: COutlineItem, group: CTreeItem, parentGroupPath: string, mapFilePath?: string): COutlineItem {
+    private createGroupTreeItem(cprojectItem: COutlineItem, group: CTreeItem, parentGroupPath: string, topTag: string, mapFilePath?: string): COutlineItem {
         const tag = group.getTag() ?? '';
-        const topTag = group.getRoot()?.getChild()?.getTag() ?? '';
         const rootFileName = group.rootFileName;
         const mutable = topTag === 'project' || topTag === 'layer';
 
@@ -128,9 +129,9 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         }
     }
 
-    private createGroupChildren(cgroupItem: COutlineItem, group: CTreeItem): void {
+    private createGroupChildren(cgroupItem: COutlineItem, group: CTreeItem, topTag: string): void {
         const isRegularGroup = !group.getTag() || group.getTag() === '-';
-        const fileTreeItem = new FileItemBuilder(this.csolution, this.rpcData, this.context);
+        const fileTreeItem = new FileItemBuilder(this.csolution, this.rpcData, this.context, topTag);
 
         if (isRegularGroup) {
             this.createGroupTree(cgroupItem, group, cgroupItem.getAttribute('groupPath') ?? '');
