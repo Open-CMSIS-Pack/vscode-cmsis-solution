@@ -42,7 +42,7 @@
   "scripts": {
     "preprepare": "npm run download:rpc-interface",
     "prepare": "concurrently npm:download:uv2csolution npm:download:debug-adapters npm:download:toolbox",
-    "clean": "git clean -f -x ./dist ./out ./tools",
+    "clean": "git clean -f -x ./dist ./out ./tools ./coverage ./e2e-report ./e2e-screenshots ./test-results",
     "prebuild": "npm run font",
     "build": "webpack --mode production",
     "prewatch": "npm run font",
@@ -68,7 +68,8 @@
     "font": "fantasticon",
     "lint:md": "markdownlint **/*.md -c ./.github/markdownlint.jsonc -i ./node_modules -i ./dist -i ./coverage -i ./tools -i ./test-data -i ./src/e2e-tests/data -i CHANGELOG.md",
     "copyright:check": "tsx scripts/copyright-manager.ts --mode=check",
-    "copyright:fix": "tsx scripts/copyright-manager.ts --mode=fix"
+    "copyright:fix": "tsx scripts/copyright-manager.ts --mode=fix",
+    "check:links": "tsx scripts/check-links.ts -i ./node_modules/** -i ./.github/** -c ./.github/markdown-link-check.jsonc"
   },
   "dependencies": {
     "@ant-design/icons": "^5.6.1",

@@ -54,7 +54,7 @@ describe('parseXmlToCTreeItem', () => {
         const theXmlString = dedent`
           <?xml version="1.0" encoding="UTF-8" standalone="no"?>
           <!DOCTYPE xml>
-          <cprj schemaVersion="0.0.9" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="CPRJ.xsd">
+          <cprj schemaVersion="0.0.9" xmlns:xsi="https://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="CPRJ.xsd">
             <!-- first comment -->
             <!-- second comment -->
             <info>information</info>

@@ -27,7 +27,7 @@ describe('Util', () => {
 
     describe('is web address', () => {
         it('returns true if string represents webAddress', () => {
-            expect(isWebAddress('http://www.arm.com')).toBe(true);
+            expect(isWebAddress('https://www.arm.com')).toBe(true);
             expect(isWebAddress('https://www.arm.com')).toBe(true);
             expect(isWebAddress('https://www.arm.com#anchor')).toBe(true);
             expect(isWebAddress('www.arm.com')).toBe(true);

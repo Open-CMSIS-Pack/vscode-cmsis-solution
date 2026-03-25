@@ -22,9 +22,9 @@ solution
     book
       label=Cortex-M0 Device Generic Users Guide
       expandable=0
-      resourcePath=http://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
-      docPath=http://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
-      tooltip=http://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
+      resourcePath=https://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
+      docPath=https://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
+      tooltip=https://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
       features=docFile
       command=cmsis-csolution.openDocFile
   project
