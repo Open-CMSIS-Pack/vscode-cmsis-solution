@@ -216,8 +216,31 @@ describe('MergeCommand', () => {
             mockedExec.mockImplementation((_cmd, _cb) => { throw new Error('unexpected'); });
 
             const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+            const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
             await command['runVSCodeMerge'](fileNode);
             expect(errorSpy).toHaveBeenCalledWith('Merge operations failed:', expect.any(Error));
+            expect(showErrorMessageSpy).toHaveBeenCalledWith('Merge operation failed: unexpected');
+        });
+
+        it('shows a merge failure message when merge command validation throws', async () => {
+            const node = new COutlineItem('file');
+            node.setAttribute('local', '/tmp/safe-local.c');
+            node.setAttribute('update', '/tmp/update&unsafe.c');
+            node.setAttribute('base', '/tmp/base.c');
+
+            const commandPrivate = command as unknown as {
+                getVSCodeExecutablePath: () => string | undefined;
+            };
+            jest.spyOn(commandPrivate, 'getVSCodeExecutablePath').mockReturnValue('/usr/bin/code');
+            mockedFs.copyFileSync.mockImplementation(() => { });
+            mockedFs.existsSync.mockReturnValue(true);
+            mockedFs.statSync.mockReturnValue({ mtimeMs: 1000 } as fs.Stats);
+
+            const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
+
+            await command['runVSCodeMerge'](node);
+
+            expect(showErrorMessageSpy).toHaveBeenCalledWith('Merge operation failed: Invalid update file: contains unsupported shell-sensitive characters.');
         });
 
         it('performs post-merge file operations and triggers reload when merged file changes', async () => {
@@ -225,7 +248,6 @@ describe('MergeCommand', () => {
             const update = path.resolve('tmp', 'component.update.c');
             const base = path.resolve('tmp', 'component.base.c');
             const merged = `${local}.merged`;
-            const backup = `${local}.bak`;
             const expectedBase = path.join(path.dirname(update), path.basename(update).replaceAll('update', 'base'));
             const node = new COutlineItem('file');
             node.setTag('file');
@@ -249,7 +271,7 @@ describe('MergeCommand', () => {
             await command['runVSCodeMerge'](node);
 
             expect(mockedFs.copyFileSync).toHaveBeenCalledWith(local, merged);
-            expect(mockedFs.copyFileSync).toHaveBeenCalledWith(local, backup);
+            expect(mockedFs.copyFileSync).toHaveBeenCalledWith(local, `${local}.bak`);
             expect(mockedFs.unlinkSync).toHaveBeenCalledWith(local);
             expect(mockedFs.unlinkSync).toHaveBeenCalledWith(base);
             expect(mockedFs.renameSync).toHaveBeenCalledWith(update, expectedBase);
@@ -277,7 +299,6 @@ describe('MergeCommand', () => {
             const update = 'C:\\workspace\\component.update.c';
             const base = 'C:\\workspace\\component.base.c';
             const merged = `${local}.merged`;
-            const backup = `${local}.bak`;
             const expectedBase = 'C:\\workspace\\component.base.c';
             const node = new COutlineItem('file');
             node.setTag('file');
@@ -312,7 +333,7 @@ describe('MergeCommand', () => {
             expect(mockedPath.dirname).toHaveBeenCalledWith(update);
             expect(mockedPath.join).toHaveBeenCalledWith('C:\\workspace', 'component.base.c');
             expect(mockedFs.copyFileSync).toHaveBeenCalledWith(local, merged);
-            expect(mockedFs.copyFileSync).toHaveBeenCalledWith(local, backup);
+            expect(mockedFs.copyFileSync).toHaveBeenCalledWith(local, `${local}.bak`);
             expect(mockedFs.renameSync).toHaveBeenCalledWith(update, expectedBase);
             expect(mockedFs.renameSync).toHaveBeenCalledWith(merged, local);
             expect(activeSolutionTracker.triggerReload).toHaveBeenCalledTimes(1);

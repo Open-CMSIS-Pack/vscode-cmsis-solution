@@ -136,6 +136,8 @@ export class MergeCommand {
 
         } catch (err) {
             console.error('Merge operations failed:', err);
+            const details = err instanceof Error ? err.message : String(err);
+            vscode.window.showErrorMessage(`Merge operation failed: ${details}`);
         }
     }
 
