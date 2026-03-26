@@ -1,6 +1,6 @@
 # Change Log
 
-## [Unreleased]
+## 1.67.0
 
 - Updates:
   - Minimum required version of VS Code for using this extension is **^1.108.1**.
