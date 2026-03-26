@@ -314,20 +314,6 @@ jobs:
           pattern: unit-test-coverage
           path: test-coverage
 
-      - name: Download test report
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: test-report-linux
-          path: test-report-linux
-
-      - name: Zip test report
-        run: zip -r test-report.zip *
-        working-directory: test-report-linux
-
-      - name: Zip test coverage
-        run: zip -r test-coverage.zip *
-        working-directory: test-coverage
-         
       - name: Attach packages
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
         with:
