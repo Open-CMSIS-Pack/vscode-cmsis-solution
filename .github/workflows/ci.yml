@@ -77,6 +77,7 @@ jobs:
         run: npm run build
 
       - name: Update current version
+        if: github.event_name != 'release'
         run: |
           # Increment patch version by 1 (e.g. 1.64.1 -> 1.64.2)
           BASE_VERSION=$(node -p "require('./package.json').version.split('-')[0]")
@@ -102,12 +103,12 @@ jobs:
           # Get short commit SHA
           SHORT_SHA=$(git rev-parse --short HEAD)
 
-          # Create nightly version: 1.64.2-12-abc1234
-          NIGHTLY_VERSION="${NEXT_PATCH_VERSION}-${COMMIT_COUNT}-${SHORT_SHA}"
-          echo "Setting version to ${NIGHTLY_VERSION}"
+          # Create PR version: 1.64.2-12-abc1234
+          PR_VERSION="${NEXT_PATCH_VERSION}-${COMMIT_COUNT}-${SHORT_SHA}"
+          echo "Setting version to ${PR_VERSION}"
 
           # Update package.json
-          npm version "${NIGHTLY_VERSION}" --no-git-tag-version
+          npm version "${PR_VERSION}" --no-git-tag-version
 
       - name: Remove badges
         run: |
