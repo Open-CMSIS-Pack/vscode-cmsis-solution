@@ -5,7 +5,7 @@
   "version": "1.66.0",
   "preview": false,
   "publisher": "Arm",
-  "author": "Rob Moran <rob.moran@arm.com>",
+  "author": "Jens Reinecke <jens.reinecke@arm.com>",
   "license": "SEE LICENSE IN LICENSE",
   "main": "dist/extension.js",
   "repository": "https://github.com/ARM-software/vscode-cmsis-csolution",
