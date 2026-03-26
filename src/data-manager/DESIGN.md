@@ -4,7 +4,7 @@
 
 ## Introduction
 
-The Data Manager is responsible for fetching data from various sources, such as [Core Tools](https://github.com/Arm-Debug/cmsis-core-tools) or [Solar Search](https://solar-search.api.keil.arm.com/). The interface is agnostic to the actual source, i.e., the user shall not need to know about the source in order to use the retrieved information.
+The Data Manager is responsible for fetching data from various sources, such as [Solar Search](https://solar-search.api.keil.arm.com/). The interface is agnostic to the actual source, i.e., the user shall not need to know about the source in order to use the retrieved information.
 
 ## Design
 

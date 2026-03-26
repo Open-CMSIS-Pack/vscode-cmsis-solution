@@ -22,8 +22,19 @@ import * as path from 'path';
 import { glob } from 'glob';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
+import { parse as parseSemver } from 'semver';
 
 const argv = process.argv.slice(2);
+
+function isOddMinorVersion(version: string): boolean {
+    const parsedVersion = parseSemver(version);
+
+    if (!parsedVersion) {
+        throw new Error(`Invalid package version: ${version}`);
+    }
+
+    return parsedVersion.minor % 2 === 1;
+}
 
 // default target: host OS and architecture
 let target = `${os.platform()}-${os.arch()}`;
@@ -38,6 +49,18 @@ if (targetFlag !== -1) {
 // copy pre-downloaded node-pty for the target platform
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as { version?: string };
+const version = packageJson.version;
+
+if (!version) {
+    throw new Error(`Missing version in ${packageJsonPath}`);
+}
+
+if (isOddMinorVersion(version) && !argv.includes('--pre-release')) {
+    argv.push('--pre-release');
+}
+
 const src = path.resolve(__dirname, '..','tools', 'node-pty');
 if (fs.existsSync(src)) {
     const dst = path.resolve(__dirname, '..', 'node_modules', '@lydell');
