@@ -3,7 +3,7 @@
     "version": "1.60.0",
     "description": "API for the Arm.cmsis-csolution VS Code extension",
     "types": "csolution.d.ts",
-    "repository": "https://github.com/Arm-Software/vscode-cmsis-csolution",
+    "repository": "https://github.com/arm-software/vscode-cmsis-csolution",
     "files": [
         "*.d.ts"
     ],
