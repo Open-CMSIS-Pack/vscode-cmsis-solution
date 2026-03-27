@@ -2,10 +2,10 @@
   "name": "cmsis-csolution",
   "displayName": "Arm CMSIS Solution",
   "description": "Create embedded and Edge AI projects for Arm Cortex-M based devices using the Common Microcontroller Software Interface Standard (CMSIS) and csolution format",
-  "version": "1.66.0",
+  "version": "1.67.0",
   "preview": false,
   "publisher": "Arm",
-  "author": "Rob Moran <rob.moran@arm.com>",
+  "author": "Jens Reinecke <jens.reinecke@arm.com>",
   "license": "SEE LICENSE IN LICENSE",
   "main": "dist/extension.js",
   "repository": "https://github.com/ARM-software/vscode-cmsis-csolution",
@@ -19,9 +19,9 @@
     "theme": "dark"
   },
   "engines": {
-    "node": "^20.0.0",
+    "node": "^22.22.0",
     "npm": "^10.0.0",
-    "vscode": "^1.63.0"
+    "vscode": "^1.108.1"
   },
   "categories": [
     "Programming Languages"
@@ -97,7 +97,6 @@
     "react-window": "^1.8.11",
     "sax-ts": "^1.2.13",
     "semver": "^7.7.4",
-    "shell-quote": "^1.8.3",
     "tcp-port-used": "^1.0.2",
     "tmp": "^0.2.5",
     "vscode-jsonrpc": "^8.2.1",
@@ -129,16 +128,15 @@
     "@types/lodash.debounce": "^4.0.9",
     "@types/minimist": "^1.2.5",
     "@types/ncp": "^2.0.8",
-    "@types/node": "^20.14.8",
+    "@types/node": "^22.19.15",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.1",
     "@types/react-window": "^1.8.8",
     "@types/semver": "^7.7.1",
-    "@types/shell-quote": "^1.7.5",
     "@types/targz": "^1.0.5",
     "@types/tcp-port-used": "^1.0.4",
     "@types/tmp": "^0.2.6",
-    "@types/vscode": "^1.63.0",
+    "@types/vscode": "^1.108.1",
     "@types/vscode-webview": "^1.57.5",
     "@types/which": "^3.0.4",
     "@types/yargs": "^17.0.35",

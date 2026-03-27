@@ -143,8 +143,8 @@ export class DebugLaunchProviderImpl implements DebugLaunchProvider {
 
         const solutionFolder = this.solutionManager.getCsolution()?.solutionDir ?? workspaceFolder;
         await this.processConfigDir(
-            [workspaceFolder, solutionFolder],
-            '.vscode/tasks.json.d/*.json',
+            [solutionFolder],
+            '.vscode.d/tasks.json',
             TasksJsonFile,
             (extraTasksJson) => {
                 extraTasksJson.inputs.forEach(i => tasksJson.addInput(i));
@@ -209,8 +209,8 @@ export class DebugLaunchProviderImpl implements DebugLaunchProvider {
 
         const solutionFolder = this.solutionManager.getCsolution()?.solutionDir ?? workspaceFolder;
         await this.processConfigDir(
-            [workspaceFolder, solutionFolder],
-            '.vscode/launch.json.d/*.json',
+            [solutionFolder],
+            '.vscode.d/launch.json',
             LaunchJsonFile,
             (extraLaunchJson) => extraLaunchJson.configurations.forEach(c => launchJson.addConfig(c))
         );

@@ -26,6 +26,14 @@ export const solutionFilesSelectors: Readonly<DocumentSelector> = [
     { pattern: '**/*.cproject.yaml' },
     { pattern: '**/*.clayer.yml' },
     { pattern: '**/*.clayer.yaml' },
+    { pattern: '**/*.cgen.yml' },
+    { pattern: '**/*.cgen.yaml' },
+];
+
+export const solutionBuildFilesSelectors: Readonly<DocumentSelector> = [
+    { pattern: '**/*.cbuild.yml' },
+    { pattern: '**/*.cbuild-idx.yml' },
+    { pattern: '**/*.cbuild-run.yml' },
 ];
 
 export class SolutionLanguageFeaturesProvider {
@@ -36,7 +44,10 @@ export class SolutionLanguageFeaturesProvider {
 
     public async activate(context: Pick<ExtensionContext, 'subscriptions'>) {
         context.subscriptions.push(
-            this.languages.registerDocumentLinkProvider(solutionFilesSelectors, new ReferenceLinkProvider(this.solutionManager)),
+            this.languages.registerDocumentLinkProvider(solutionFilesSelectors,
+                new ReferenceLinkProvider(this.solutionManager)),
+            this.languages.registerDocumentLinkProvider(solutionBuildFilesSelectors,
+                new ReferenceLinkProvider(this.solutionManager, true)),
         );
     }
 }

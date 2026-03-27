@@ -23,10 +23,10 @@ import path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { ActiveSolutionTracker } from '../../../solutions/active-solution-tracker';
-import { quote as shellQuote } from 'shell-quote';
 
 export class MergeCommand {
     public static readonly mergeFile = `${PACKAGE_NAME}.mergeFile`;
+    private static readonly disallowedCmdChars  = /[\r\n&|<>^%"']/;
 
     constructor(
         private readonly commandsProvider: CommandsProvider,
@@ -91,7 +91,8 @@ export class MergeCommand {
         }
 
         try {
-            const exitCode = await this.doOpen3WayMerge([ codePath, '--wait', '--merge', local, update, base, merged ]);
+            const command = this.buildMergeCommand(codePath, local, update, base, merged);
+            const exitCode = await this.doOpen3WayMerge(command);
 
             // get the modification time after merge
             let mergedMTimeAfter = 0;
@@ -135,6 +136,8 @@ export class MergeCommand {
 
         } catch (err) {
             console.error('Merge operations failed:', err);
+            const details = err instanceof Error ? err.message : String(err);
+            vscode.window.showErrorMessage(`Merge operation failed: ${details}`);
         }
     }
 
@@ -182,12 +185,39 @@ export class MergeCommand {
         return undefined;
     }
 
-    private doOpen3WayMerge(command: string[]): Promise<number> {
-        const args = shellQuote(command);
+    private buildMergeCommand(
+        codePath: string,
+        local: string,
+        update: string,
+        base: string,
+        merged: string,
+    ): string {
+        const safeCodePath = this.assertMergeFilePath(codePath, 'VS Code CLI path');
+        const safeLocal = this.assertMergeFilePath(local, 'local file');
+        const safeUpdate = this.assertMergeFilePath(update, 'update file');
+        const safeBase = this.assertMergeFilePath(base, 'base file');
+        const safeMerged = this.assertMergeFilePath(merged, 'merged file');
+
+        return `"${safeCodePath}" --wait --merge "${safeLocal}" "${safeUpdate}" "${safeBase}" "${safeMerged}"`;
+    }
+
+    private assertMergeFilePath(filePath: string, label: string): string {
+        if (!path.isAbsolute(filePath)) {
+            throw new Error(`Invalid ${label}: path must be absolute.`);
+        }
+
+        if (MergeCommand.disallowedCmdChars.test(filePath)) {
+            throw new Error(`Invalid ${label}: contains unsupported shell-sensitive characters.`);
+        }
+
+        return filePath;
+    }
+
+    private doOpen3WayMerge(command: string): Promise<number> {
         return new Promise((resolve, reject) => {
-            exec(args, (error: ExecException | null) => {
+            exec(command, { windowsHide: true }, (error: ExecException | null) => {
                 if (error) {
-                    console.error(`Error executing command: ${args}`, error);
+                    console.error(`Error executing command: ${command}`, error);
 
                     if (typeof error.code === 'number') {
                         resolve(error.code);
