@@ -7,7 +7,7 @@ triggering build tasks.
 Example for getting access to the API v2 from another extension:
 
 ```typescript
-import type { CsolutionExtension } from '@Open-CMSIS-Pack/vscode-cmsis-solution';
+import type { CsolutionExtension } from '@arm-software/vscode-cmsis-csolution';
 const csolutionExtension = vscode.extensions.getExtension<CsolutionExtension>('Arm.cmsis-csolution');
 if (csolutionExtension) {
     const api = (await csolutionExtension.activate()).getApi(2);
