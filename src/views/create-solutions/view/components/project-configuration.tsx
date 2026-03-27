@@ -88,6 +88,7 @@ const ProjectConfigurationRow = (props: ProjectConfigurationRowProps) => {
                 selected={coreDropdownOptions.length === 1 ? processor?.core || '' : rowInfo.processorName}
                 available={coreDropdownOptions}
                 style={{ width: 'auto' }}
+                className='dropdownCore'
                 onChange={(option) => {
                     dispatch({
                         type: 'MODIFY_PROJECT',
@@ -101,6 +102,7 @@ const ProjectConfigurationRow = (props: ProjectConfigurationRowProps) => {
                 selected={rowInfo.trustzone}
                 available={trustzoneOptions.map(option => option)}
                 style={{ width: 'auto' }}
+                className='dropdownTrustzone'
                 onChange={(option) => {
                     dispatch({
                         type: 'MODIFY_PROJECT',
