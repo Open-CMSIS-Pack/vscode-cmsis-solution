@@ -8,10 +8,10 @@
   "author": "Jens Reinecke <jens.reinecke@arm.com>",
   "license": "SEE LICENSE IN LICENSE",
   "main": "dist/extension.js",
-  "repository": "https://github.com/ARM-software/vscode-cmsis-csolution",
-  "qna": "https://github.com/ARM-software/vscode-cmsis-csolution/issues/new/choose",
+  "repository": "https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution",
+  "qna": "https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/issues/new/choose",
   "bugs": {
-    "url": "https://github.com/ARM-software/vscode-cmsis-csolution/issues"
+    "url": "https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/issues"
   },
   "icon": "media/arm.png",
   "galleryBanner": {
