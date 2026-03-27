@@ -59,17 +59,6 @@ jest.mock('vscode-messenger-webview', () => ({
     }))
 }));
 
-jest.mock('@vscode/webview-ui-toolkit/react', () => ({
-    VSCodeTextField: ({ children: _children, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => (
-        <input role="textbox" {...props} />
-    ),
-    VSCodeCheckbox: ({ onChange, onClick, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => (
-        <input type="checkbox" onChange={onChange ?? (() => undefined)} onClick={onClick} {...props} />
-    ),
-    VSCodeDropdown: (props: React.SelectHTMLAttributes<HTMLSelectElement>) => <select {...props} />,
-    VSCodeOption: (props: React.OptionHTMLAttributes<HTMLOptionElement>) => <option {...props} />,
-}));
-
 jest.mock('primereact/treetable', () => ({
     TreeTable: ({ value, header, children }: { value: unknown[]; header: React.ReactNode; children: React.ReactNode }) => {
         const columns = React.Children.toArray(children) as React.ReactElement[];
