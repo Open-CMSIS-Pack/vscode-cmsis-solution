@@ -27,7 +27,7 @@ describe('Hardware Panel', () => {
     const hardwareInfo: HardwareInfo = {
         image: faker.internet.url(),
         memoryInfo: { 'IROM1': { size: 32768, count: 2 } },
-        debugInterfacesList: [{ adapter: 'JTAG', connector: '20 pin JTAG' } , { adapter: 'JTAG', connector: '30000 pin Micro USB' }],
+        debugInterfacesList: [{ adapter: 'JTAG', connector: '20 pin JTAG' }, { adapter: 'JTAG', connector: '30000 pin Micro USB' }],
     };
 
     beforeEach(() => {
@@ -56,7 +56,7 @@ describe('Hardware Panel', () => {
 
     it('render hardware info panel for the selected Board/Device', () => {
         React.act(() => {
-            createRoot(container).render(<HardwarePanel hardwareSelection={boardSelection} hardwareInfo={hardwareInfo} onClick={onClick} messageHandler={messageHandler} previewHardware={boardSelection} dispatch={dispatch}/>);
+            createRoot(container).render(<HardwarePanel hardwareSelection={boardSelection} hardwareInfo={hardwareInfo} onClick={onClick} messageHandler={messageHandler} previewHardware={boardSelection} dispatch={dispatch} />);
         });
         const HardwareInfoTitlesEntry = container.querySelector('.details-header-item');
         expect(HardwareInfoTitlesEntry!.querySelector('#board-device')?.innerHTML).toBe(labelForHardwareOption(boardHardwareOption));
@@ -73,7 +73,7 @@ describe('Hardware Panel', () => {
 
     it('requests board/device hardwareInfo data on startup', () => {
         React.act(() => {
-            createRoot(container).render(<HardwarePanel hardwareSelection={boardSelection} hardwareInfo={hardwareInfo} onClick={onClick} messageHandler={messageHandler} previewHardware={boardSelection} dispatch={dispatch}/>);
+            createRoot(container).render(<HardwarePanel hardwareSelection={boardSelection} hardwareInfo={hardwareInfo} onClick={onClick} messageHandler={messageHandler} previewHardware={boardSelection} dispatch={dispatch} />);
         });
         const expectedMessage: OutgoingMessage = { type: 'DATA_GET_BOARD_INFO', boardId: { ...boardHardwareOption.id, key: boardHardwareOption.key } };
         expect(listener).toHaveBeenCalledWith(expectedMessage);
@@ -82,9 +82,9 @@ describe('Hardware Panel', () => {
 
     it('dispatches a SET_BOARD_SELECTION action when the select button is clicked and a board is selected', () => {
         React.act(() => {
-            createRoot(container).render(<HardwarePanel hardwareSelection={boardSelection} hardwareInfo={hardwareInfo} onClick={onClick} messageHandler={messageHandler} previewHardware={boardSelection} dispatch={dispatch}/>);
+            createRoot(container).render(<HardwarePanel hardwareSelection={boardSelection} hardwareInfo={hardwareInfo} onClick={onClick} messageHandler={messageHandler} previewHardware={boardSelection} dispatch={dispatch} />);
         });
-        const selectBtn = container.querySelector('.select-button vscode-button') as HTMLButtonElement;
+        const selectBtn = container.querySelector('.select-button button') as HTMLButtonElement;
 
         React.act(() => {
             Simulate.click(selectBtn);
@@ -97,9 +97,9 @@ describe('Hardware Panel', () => {
         const deviceHardwareOption = deviceHardwareOptionFactory();
         const deviceSelection: HardwareSelection = { type: 'Devices', value: deviceHardwareOption };
         React.act(() => {
-            createRoot(container).render(<HardwarePanel hardwareSelection={deviceSelection} hardwareInfo={hardwareInfo} onClick={onClick} messageHandler={messageHandler} previewHardware={deviceSelection} dispatch={dispatch}/>);
+            createRoot(container).render(<HardwarePanel hardwareSelection={deviceSelection} hardwareInfo={hardwareInfo} onClick={onClick} messageHandler={messageHandler} previewHardware={deviceSelection} dispatch={dispatch} />);
         });
-        const selectBtn = container.querySelector('.select-button vscode-button') as HTMLButtonElement;
+        const selectBtn = container.querySelector('.select-button button') as HTMLButtonElement;
 
         React.act(() => {
             Simulate.click(selectBtn);

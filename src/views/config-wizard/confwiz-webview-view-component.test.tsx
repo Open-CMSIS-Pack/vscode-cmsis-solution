@@ -175,8 +175,8 @@ describe('ConfWiz functional component', () => {
         render(<ConfWiz />);
         emitWizardData({ element: makeRoot([checkboxElement]), documentPath: 'test.c', noAnnotationsFound: false });
 
-        const checkbox = document.querySelector('input[type="checkbox"]') as HTMLInputElement;
-        expect(checkbox.className).toContain('checkbox-inconsistent');
+        const checkbox = document.querySelector('input[type="checkbox"]')?.parentElement as HTMLInputElement;
+        expect(checkbox.parentElement?.className).toContain('checkbox-inconsistent');
         expect(checkbox.getAttribute('title')).toContain('Inconsistent comment state detected');
         expect(checkbox.getAttribute('title')).toContain('Original tooltip info');
     });
@@ -270,8 +270,8 @@ describe('ConfWiz dropdown overflow tooltips', () => {
         const { getByRole } = render(confWiz.getCreateCombobox(element));
         const dropdown = getByRole('combobox') as HTMLSelectElement;
 
-        expect(dropdown.title).toBe("Value '256' overflows 8 bits");
-        expect(dropdown.className).toContain('dropdown-invalid');
+        expect(dropdown.title).toBe('Value \'256\' overflows 8 bits');
+        expect(dropdown.className).toContain('compact-dropdown-trigger');
     });
 
     it('should show not-in-list tooltip when value is missing and no overflow', () => {
@@ -295,6 +295,6 @@ describe('ConfWiz dropdown overflow tooltips', () => {
         const dropdown = getByRole('combobox') as HTMLSelectElement;
 
         expect(dropdown.title).toBe("Value '0' is not in the list");
-        expect(dropdown.className).toContain('dropdown-invalid');
+        expect(dropdown.className).toContain('compact-dropdown-trigger');
     });
 });

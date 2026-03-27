@@ -28,13 +28,6 @@
         "license": "https://github.com/microsoft/vscode-codicons/blob/main/LICENSE"
     },
     {
-        "name": "@vscode/webview-ui-toolkit",
-        "version": "1.4.0",
-        "spdx": "MIT",
-        "url": "https://github.com/microsoft/vscode-webview-ui-toolkit",
-        "license": "https://github.com/microsoft/vscode-webview-ui-toolkit/blob/main/LICENSE"
-    },
-    {
         "name": "async-mutex",
         "version": "0.5.0",
         "spdx": "MIT",
