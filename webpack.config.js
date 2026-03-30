@@ -87,9 +87,6 @@ module.exports = (_env, argv) => [
             new copy({
                 patterns: [
                     {
-                        from: 'node_modules/@vscode/webview-ui-toolkit/dist/toolkit.min.js'
-                    },
-                    {
                         from: 'node_modules/@fortawesome/fontawesome-free/css/fontawesome.min.css',
                         to: 'css'
                     },

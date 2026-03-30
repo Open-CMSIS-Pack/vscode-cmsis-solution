@@ -26,13 +26,14 @@ describe('ProjectConfiguration', () => {
     });
 
     it('renders the project configuration info for device reference', () => {
-        const projects: FieldAndInteraction<NewProject>[] =  [{
+        const projects: FieldAndInteraction<NewProject>[] = [{
             value: newProjectFactory({
                 trustzone: 'secure',
                 processorName: '',
                 name: 'IO6-Alen',
             }),
-            hadInteraction: false }
+            hadInteraction: false
+        }
         ];
         const device = {
             id: { name: 'blast-blast-2000', vendor: 'c7-mark12-intergalatic' },
@@ -125,7 +126,7 @@ describe('ProjectConfiguration', () => {
         expect(dispatch).toHaveBeenCalledWith({ type: 'MODIFY_PROJECT', request: { type: 'UPDATE_PROJECT_NAME', index: 0, name: 'NewValue' } });
     });
 
-    it('update to the core selected in the dropdown', () => {
+    it('update to the core selected in the dropdown', async () => {
         const projects = [
             { value: newProjectFactory({ name: '', processorName: 'core1' }), hadInteraction: false },
             { value: newProjectFactory(), hadInteraction: false }
@@ -147,21 +148,24 @@ describe('ProjectConfiguration', () => {
             />);
         });
 
-        const targetElement = container.querySelectorAll('.dropdownCore');
-        const dropdownList = targetElement[0].querySelectorAll('vscode-option');
+        const targetElement = container.querySelector('.dropdownCore');
+        await React.act(async () => { // Open the dropdown
+            Simulate.click(targetElement!.querySelector('.compact-dropdown-trigger')!);
+        });
 
-        React.act(() => {
+        const dropdownList = targetElement!.querySelectorAll('li');
+        await React.act(async () => { // Click the first option in the dropdown
             Simulate.click(dropdownList[0]!);
         });
 
         expect(dispatch).toHaveBeenCalledWith({ type: 'MODIFY_PROJECT', request: { type: 'UPDATE_PROJECT_CORE', index: 0, processorName: 'the-core' } });
     });
 
-    it('update to the trustzone selected in the dropdown', () => {
+    it('update to the trustzone selected in the dropdown', async () => {
         const projects = [{ value: newProjectFactory({ processorName: 'coreA', trustzone: 'secure' }), hadInteraction: false }];
         const device = deviceHardwareOptionFactory({
             id: { name: 'some-device', vendor: 'some-vendor' },
-            processors: [ { name: 'coreA', core: 'Cortex-M', tz: Tz.TZ }]
+            processors: [{ name: 'coreA', core: 'Cortex-M', tz: Tz.TZ }]
         });
 
         React.act(() => {
@@ -172,10 +176,13 @@ describe('ProjectConfiguration', () => {
                 errors={[]}
             />);
         });
-        const targetElement = container.querySelectorAll('.dropdownTrustzone');
-        const dropdownList = targetElement[0].querySelectorAll('vscode-option');
+        const targetElement = container.querySelector('.dropdownTrustzone');
+        await React.act(async () => { // Open the dropdown
+            Simulate.click(targetElement!.querySelector('.compact-dropdown-trigger')!);
+        });
 
-        React.act(() => {
+        const dropdownList = targetElement!.querySelectorAll('li');
+        await React.act(async () => { // Click the second option in the dropdown
             Simulate.click(dropdownList[1]!);
         });
 

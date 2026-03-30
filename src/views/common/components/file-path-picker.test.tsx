@@ -29,12 +29,15 @@ describe('FileLocationPicker', () => {
                 openFilePicker={mockOpenFilePicker}
             />);
         });
-        const browseBtn = container.querySelector('.file-location-picker vscode-button') as HTMLButtonElement;
+        const browseBtn = container.querySelector('.file-location-picker button') as HTMLButtonElement;
 
         expect(mockOpenFilePicker).toHaveBeenCalledTimes(0);
 
         React.act(() => {
-            browseBtn!.click();
+            if (!browseBtn) {
+                throw new Error('Browse button not found. Check the selector or component rendering.');
+            }
+            browseBtn.click();
         });
 
         expect(mockOpenFilePicker).toHaveBeenCalledTimes(1);
@@ -60,6 +63,6 @@ describe('FileLocationPicker', () => {
         simulateChangeEvent(inputBox, 'my-location');
 
         expect(dispatch).toHaveBeenCalledTimes(1);
-        expect(dispatch).toHaveBeenCalledWith({ type: 'SET_SOLUTION_LOCATION' , solutionLocation: 'my-location' });
+        expect(dispatch).toHaveBeenCalledWith({ type: 'SET_SOLUTION_LOCATION', solutionLocation: 'my-location' });
     });
 });
