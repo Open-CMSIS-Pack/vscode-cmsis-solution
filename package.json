@@ -1155,7 +1155,7 @@
         },
         {
           "command": "cmsis-csolution.edit",
-          "when": "view == cmsis-csolution.outline && viewItem =~ /group/",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /group|file/",
           "group": "contextMenu"
         },
         {

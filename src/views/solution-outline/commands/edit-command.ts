@@ -34,13 +34,14 @@ export class EditCommand {
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>) {
         context.subscriptions.push(
             this.commandsProvider.registerCommand(EditCommand.editCommandId, async (node: COutlineItem) => {
-                await this.editGroup(node);
+                await this.editNode(node);
             }, this),
         );
     }
 
-    private async editGroup(node: COutlineItem): Promise<void> {
-        if (node.getTag() !== 'group') {
+    private async editNode(node: COutlineItem): Promise<void> {
+        const tag = node.getTag();
+        if (tag !== 'group' && tag !== 'file') {
             return;
         }
 
@@ -49,13 +50,19 @@ export class EditCommand {
             return;
         }
 
-        const groupPath = getGroupPathArray(node);
+        const groupPath = this.getGroupPathForNode(node);
         if (groupPath.length === 0) {
             return;
         }
 
         const parentType = this.getParentTypeFromNode(node);
-        const offset = this.findGroupOffset(filePath, parentType, groupPath) ?? 0;
+        const offset = tag === 'group'
+            ? this.findGroupOffset(filePath, parentType, groupPath)
+            : this.findFileOffset(filePath, parentType, groupPath, node.getAttribute('fileUri'));
+
+        if (offset === undefined) {
+            return;
+        }
 
         const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
         const position = document.positionAt(offset);
@@ -63,6 +70,19 @@ export class EditCommand {
             selection: new vscode.Range(position, position),
             preview: false,
         });
+    }
+
+    private getGroupPathForNode(node: COutlineItem): string[] {
+        if (node.getTag() === 'group') {
+            return getGroupPathArray(node);
+        }
+
+        const parent = node.getParent();
+        if (!parent || !(parent instanceof COutlineItem) || parent.getTag() !== 'group') {
+            return [];
+        }
+
+        return getGroupPathArray(parent);
     }
 
     private findGroupOffset(filePath: string, parentType: 'project' | 'layer', groupPath: string[]): number | undefined {
@@ -92,6 +112,34 @@ export class EditCommand {
         const targetGroupNode = getYamlNodeAtPath(contents, pathToTargetGroup);
         return (targetGroupNode && yaml.isNode(targetGroupNode) && targetGroupNode.range)
             ? targetGroupNode.range[0]
+            : undefined;
+    }
+
+    private findFileOffset(filePath: string, parentType: 'project' | 'layer', groupPath: string[], fileUri?: string): number | undefined {
+        if (!fileUri) {
+            return undefined;
+        }
+
+        const input = readTextFile(filePath);
+        if (!input) {
+            return undefined;
+        }
+
+        const yamlDocument = yaml.parseDocument(input);
+        const contents = yamlDocument.contents;
+        if (!contents) {
+            return undefined;
+        }
+
+        const pathToTargetFile = [
+            ...buildPathFromContentToGroup(groupPath, [mapKey(parentType)]),
+            mapKey('files'),
+            listItem(item => yaml.isMap(item) && item.get('file') === fileUri),
+        ];
+
+        const targetFileNode = getYamlNodeAtPath(contents, pathToTargetFile);
+        return (targetFileNode && yaml.isNode(targetFileNode) && targetFileNode.range)
+            ? targetFileNode.range[0]
             : undefined;
     }
 
