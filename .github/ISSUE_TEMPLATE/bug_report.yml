@@ -2,7 +2,8 @@ name: Bug Report
 description: File a bug/issue
 title: "<title>"
 type: "Bug"
-projects: "Open-CMSIS-Pack/projects/24"
+projects:
+  - Open-CMSIS-Pack/24
 
 body:
   - type: textarea
@@ -10,7 +11,7 @@ body:
     attributes:
       label: "Current behavior, Steps to reproduce and Expected behavior"
       description: "Provide details about the bug."
-      placeholder: "Explain the unexpected behavior, steps to reproduce and expected behvior..."
+      placeholder: "Explain the unexpected behavior, steps to reproduce and expected behavior..."
     validations:
       required: true
 
