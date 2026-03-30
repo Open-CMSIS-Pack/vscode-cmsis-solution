@@ -23,7 +23,6 @@ import { SolutionManager } from '../../../solutions/solution-manager';
 import { IOpenFileExternal } from '../../../open-file-external-if';
 import { contextDescriptorFromString } from '../../../solutions/descriptors/descriptors';
 import { existsSync } from 'fs';
-import { lineOf, readTextFile } from '../../../utils/fs-utils';
 
 
 export class OpenCommand {
@@ -84,24 +83,9 @@ export class OpenCommand {
     private async commandHandler(command: string, node: COutlineItem) {
         const filePath = this.getFilePathForCommand(command, node);
         if (filePath) {
-            if (command === OpenCommand.openProjectCommandId) {
-                this.openProjectFile(filePath);
-                return;
-            }
-
             const openExternal = command === OpenCommand.openDocCommandId;
             this.openFile(filePath, openExternal);
         }
-    }
-
-    private async openProjectFile(filePath: string): Promise<void> {
-        const projectLine = lineOf(readTextFile(filePath), 'project:');
-        const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-        const position = new vscode.Position(projectLine, 0);
-        await vscode.window.showTextDocument(document, {
-            selection: new vscode.Range(position, position),
-            preview: false,
-        });
     }
 
     private getFilePathForCommand(command: string, node: COutlineItem): string | undefined {
