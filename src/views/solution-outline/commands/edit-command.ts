@@ -41,7 +41,7 @@ export class EditCommand {
 
     private async editNode(node: COutlineItem): Promise<void> {
         const tag = node.getTag();
-        if (tag !== 'group' && tag !== 'file') {
+        if (tag !== 'group' && tag !== 'file' && tag !== 'component') {
             return;
         }
 
@@ -51,14 +51,16 @@ export class EditCommand {
         }
 
         const groupPath = this.getGroupPathForNode(node);
-        if (groupPath.length === 0) {
+        if ((tag === 'group' || tag === 'file') && groupPath.length === 0) {
             return;
         }
 
         const parentType = this.getParentTypeFromNode(node);
         const offset = tag === 'group'
             ? this.findGroupOffset(filePath, parentType, groupPath)
-            : this.findFileOffset(filePath, parentType, groupPath, node.getAttribute('fileUri'));
+            : tag === 'file'
+                ? this.findFileOffset(filePath, parentType, groupPath, node.getAttribute('fileUri'))
+                : this.findComponentOffset(filePath, parentType, node.getAttribute('label'));
 
         if (offset === undefined) {
             return;
@@ -140,6 +142,34 @@ export class EditCommand {
         const targetFileNode = getYamlNodeAtPath(contents, pathToTargetFile);
         return (targetFileNode && yaml.isNode(targetFileNode) && targetFileNode.range)
             ? targetFileNode.range[0]
+            : undefined;
+    }
+
+    private findComponentOffset(filePath: string, parentType: 'project' | 'layer', componentId?: string): number | undefined {
+        if (!componentId) {
+            return undefined;
+        }
+
+        const input = readTextFile(filePath);
+        if (!input) {
+            return undefined;
+        }
+
+        const yamlDocument = yaml.parseDocument(input);
+        const contents = yamlDocument.contents;
+        if (!contents) {
+            return undefined;
+        }
+
+        const pathToTargetComponent = [
+            mapKey(parentType),
+            mapKey('components'),
+            listItem(item => yaml.isMap(item) && item.get('component') === componentId),
+        ];
+
+        const targetComponentNode = getYamlNodeAtPath(contents, pathToTargetComponent);
+        return (targetComponentNode && yaml.isNode(targetComponentNode) && targetComponentNode.range)
+            ? targetComponentNode.range[0]
             : undefined;
     }
 

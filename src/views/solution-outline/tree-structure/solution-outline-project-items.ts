@@ -214,7 +214,8 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         componentsItem.addFeature('components');
 
         // create components from project
-        const componentNodes = this.createComponentNodes(componentsItem as COutlineItem, children);
+        const topTag = cproject.getRoot()?.getChild()?.getTag() ?? '';
+        const componentNodes = this.createComponentNodes(componentsItem as COutlineItem, children, topTag, cproject.rootFileName);
 
         if (cbuild) {
             this.addComponentDataFromCbuild(componentNodes, cbuild);
@@ -303,8 +304,10 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         return undefined;
     }
 
-    private createComponentNodes(componentsItem: COutlineItem, projectComponents: ITreeItem<CTreeItem>[]): Map<string, COutlineItem> {
+    private createComponentNodes(componentsItem: COutlineItem, projectComponents: ITreeItem<CTreeItem>[], topTag: string, rootFileName: string): Map<string, COutlineItem> {
         const componentNodes = new Map<string, COutlineItem>();
+        const editable = topTag === 'project' || topTag === 'layer';
+
         for (const component of projectComponents) {
             const refId = component.getValue();
             if (!refId) {
@@ -316,6 +319,11 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
             componentItem.setAttribute('label', refId);
             componentItem.setAttribute('expandable', '0');
             componentItem.setAttribute('iconPath', 'csolution-software-component');
+            if (editable) {
+                componentItem.addFeature('component');
+                componentItem.setAttribute('projectUri', topTag === 'project' ? rootFileName : undefined);
+                componentItem.setAttribute('layerUri', topTag === 'layer' ? rootFileName : undefined);
+            }
 
             componentNodes.set(refId, componentItem as COutlineItem);
         }

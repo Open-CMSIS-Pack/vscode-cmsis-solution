@@ -44,6 +44,8 @@ describe('EditCommand', () => {
         - group: Drivers
           files:
             - file: drv.c
+    components:
+        - component: ARM::CMSIS:RTOS2
 `;
 
         fs.writeFileSync(cprojectPath, yamlContent, 'utf8');
@@ -110,6 +112,24 @@ describe('EditCommand', () => {
         expect(vscode.window.showTextDocument).toHaveBeenCalled();
     });
 
+    it('opens cproject.yml at the selected component entry', async () => {
+        const editCommand = new EditCommand(commandsProvider);
+        await editCommand.activate(extensionContextFactory());
+
+        const componentNode = new COutlineItem('component');
+        componentNode.setAttribute('label', 'ARM::CMSIS:RTOS2');
+        componentNode.setAttribute('projectUri', cprojectPath);
+
+        await commandsProvider.mockRunRegistered(EditCommand.editCommandId, componentNode);
+
+        expect(vscode.workspace.openTextDocument).toHaveBeenCalledWith(vscode.Uri.file(cprojectPath));
+        expect(positionAt).toHaveBeenCalledTimes(1);
+        const actualOffset = positionAt.mock.calls[0][0] as number;
+        expect(actualOffset).toBeGreaterThanOrEqual(0);
+        expect(yamlContent.slice(actualOffset)).toContain('component: ARM::CMSIS:RTOS2');
+        expect(vscode.window.showTextDocument).toHaveBeenCalled();
+    });
+
     it('ignores file nodes outside editable groups', async () => {
         const editCommand = new EditCommand(commandsProvider);
         await editCommand.activate(extensionContextFactory());
@@ -122,4 +142,5 @@ describe('EditCommand', () => {
         expect(vscode.workspace.openTextDocument).not.toHaveBeenCalled();
         expect(vscode.window.showTextDocument).not.toHaveBeenCalled();
     });
+
 });
