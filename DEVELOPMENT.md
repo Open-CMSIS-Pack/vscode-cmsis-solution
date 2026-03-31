@@ -33,22 +33,20 @@ In short, run this command from the extracted directory on the Arm network:
 ## Running the extension in development
 
 1. To download the tools, you must have a `GITHUB_TOKEN` environment variable containing a
-   personal access token. This must have the `repo` scope and SSO enabled for the Arm-Debug
-   organization.
+   personal access token.
 
-2. In order to install dependencies, you must have npm configured to access the Arm-Debug registry
-   for packages that are scoped with `@arm-debug`. Edit your global .npmrc file, and add the
+2. In order to install dependencies, Edit your global .npmrc file, and add the
    following to it:
 
     ```txt
-    @arm-debug:registry=https://npm.pkg.github.com
+    @open-cmsis-pack:registry=https://npm.pkg.github.com
     //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
     ```
 
     This assumes a `GITHUB_TOKEN` environment variable is exported in your environment. This needs
     to be a GitHub personal access token with the `read:packages` scope set on it.
 
-3. Install NPM dependencies, Core Tools and build the TypeScript
+3. Install NPM dependencies and build the TypeScript
 
     ```sh
     npm install
@@ -171,18 +169,6 @@ when running in development mode.
 Before running a release, check the following:
 
 1. Tools and schemas integrated into the extension packages according to `package.json`
-   - CoreTools version referenced by the dependency (see `dependencies` section)
-
-     `"@arm-debug/cmsis-core-tools-client": "<version>"`
-
-     `version` must match a [CoreTools release](https://github.com/Arm-Debug/cmsis-core-tools/tags)
-
-   - uv2csolution version referenced in `csolution` section
-
-     `"uv2csolutionVersion": "<version>"`
-
-     `<version>` must match a [uvprojx-converter release](https://github.com/Arm-Debug/uvprojx-converter/releases)
-
    - schema version referenced in `csolution` section
 
      `"schemaVersion": "<version>"`
@@ -198,59 +184,32 @@ Before running a release, check the following:
 
 4. [Release Assessment](https://armh.sharepoint.com/sites/pwa/PJ1000480/SitePages/Assessments.aspx) for `CMSIS Solution Extension` is approved.
 
-### Release workflow
+## Release versioning
 
-Use GitHub Actions workflow dispatch to trigger a release:
+This repository follows the VS Code Marketplace pre-release recommendation:
 
-1. Navigate to <https://github.com/Arm-Debug/vscode-cmsis-csolution/actions/workflows/ci.yml>,
-   then click "Run workflow"
-2. Select the main branch
-3. Select type of new version, e.g. 'Minor'
-4. Select "Skip public publishing jobs' if the version should be created on GitHub but NOT being
-   published to Marketplace
-5. Click "Run workflow"
+- **Odd** minor versions (`x.1.z`, `x.3.z`, ...) are pre-releases.
+- **Even** minor versions (`x.0.z`, `x.2.z`, ...) are full releases.
 
-Notes
+To enforce this consistently, both packaging and publishing use `scripts/package.ts`, which:
 
-- When 'Pre-release' is selected, the version is either:
-  - incremented according the latest published pre-release (patch +1), if it is greater than the current version
-  - incremented according the the current version, newMinorVersion is always an odd number (including 0), e.g. 0,1,3,...
-- When 'Major', 'Minor' or 'Patch' is selected, the version will be increased and the new version
-  number will be committed to package.json. If a second release is triggered, it will also be
-  increased, regardless of being pushed to marketplace or not.
-- 'Major' increments major version
-- 'Minor' increments to an even number, e.g. 0,2,4,...
-- 'Patch' increments patch version
-- see [vscode-actions](https://github.com/Arm-Debug/vscode-actions/blob/main/calculate-new-version/src/bump-version.ts)
+- checks the current `package.json` version minor value.
+- automatically adds `--pre-release` to `vsce package` for odd minor versions.
 
-Github actions will then
+Use the following commands:
 
-- Bump the versions in the package.json files
-- Add the new version to the CHANGELOG.md, and move all changes listed under "Unreleased" to the new version.
-- Commit and push the version and changelog updates
-- Build the VSIX package
-- Create a GitHub release with the VSIX package
-- Publish the package on [Open VSX](https://open-vsx.org/extension/arm/cmsis-csolution) and [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Arm.cmsis-csolution)
-- Publish the API types to the Arm-Debug GitHub Packages npm registry
-- Sync the docs to [ARM-software/vscode-cmsis-csolution](https://github.com/ARM-software/vscode-cmsis-csolution)
+```sh
+> npm run package [--target <target>]
+```
 
-After publishing, check that the new version is installable in VSCode and docs for the new version
-have been synced to Arm-Software.
+### Release Workflow
 
-### Publishing to VS Code Marketplace
-
-The marketplace access token is controlled by the [DSG-OTG](https://dev.azure.com/DSG-OTG)
-organization in Azure. It is available in CI as an Arm-Debug GitHub organization secret. This must
-be rotated every 90 days.
-
-See the documentation for publishing extensions:
-<https://code.visualstudio.com/api/working-with-extensions/publishing-extension>
-
-### Publishing Open-VSX
-
-The arm namespace Open-VSX is accessible from your [user settings](https://open-vsx.org/user-settings)
-when your GitHub account has been linked to the arm namespace. An access token is stored as an
-Arm-Debug GitHub organization secret.
+1. Ensure the version in `package.json` is up to date.
+2. Update the `CHANGELOG` with the latest changes.
+3. Open a pull request with these updates and merge it into `main`.
+4. Create a new release at: https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/releases
+   - This will trigger the `CI.yml` workflow.  
+   - Once the workflow completes successfully, the release artifacts will be generated automatically.
 
 ## Debugging in KSC
 

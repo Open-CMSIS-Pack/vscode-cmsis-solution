@@ -53,7 +53,7 @@ Action buttons allow you to build, run, and debug your application, [edit *csolu
 
 The **CMSIS** view displays the name of the current *csolution project* and offers several action buttons.
 
-![Action buttons](https://github.com/ARM-software/vscode-cmsis-csolution/raw/main/docs/images/ActionButtons.png)
+![Action buttons](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/raw/main/docs/images/ActionButtons.png)
 
 | Action | Description |
 |--------|-------------|
@@ -69,7 +69,7 @@ The **CMSIS** view displays the name of the current *csolution project* and offe
 
 ## Create Solution view
 
-![Create Solution](https://github.com/ARM-software/vscode-cmsis-csolution/raw/main/docs/images/CreateNewSolution.png)
+![Create Solution](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/raw/main/docs/images/CreateNewSolution.png)
 
 To start a new *csolution project*, select a [board](https://www.keil.arm.com/boards/) or [device](https://www.keil.arm.com/devices/) and choose from the following project types:
 
@@ -82,13 +82,13 @@ Then create the *csolution project* on the selected folder on your Host computer
 
 ## Configure Solution view
 
-![Configure Solution](https://github.com/ARM-software/vscode-cmsis-csolution/raw/main/docs/images/ConfigureSolution.png)
+![Configure Solution](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/raw/main/docs/images/ConfigureSolution.png)
 
 When using a [reference application](https://open-cmsis-pack.github.io/cmsis-toolbox/ReferenceApplications/) select compatible software layers for your solution from this view.
 
 ## Software Components view
 
-![Software Components](https://github.com/ARM-software/vscode-cmsis-csolution/raw/main/docs/images/SoftwareComponents.png)
+![Software Components](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/raw/main/docs/images/SoftwareComponents.png)
 
 Select reusable software components for your application from this view.
 
@@ -96,19 +96,19 @@ Select reusable software components for your application from this view.
 
 ## Manage Solution view
 
-![Manage Solution](https://github.com/ARM-software/vscode-cmsis-csolution/raw/main/docs/images/ManageSolution.png)
+![Manage Solution](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/raw/main/docs/images/ManageSolution.png)
 
 Select the [target](https://open-cmsis-pack.github.io/cmsis-toolbox/build-overview/#target-production-hardware) and configure [related projects](https://open-cmsis-pack.github.io/cmsis-toolbox/build-overview/#configure-related-projects) for your application from this view. A Target Set stores settings for projects, images and debug adapter. You might need different build types or load settings, for example to reduce the debug overhead. Refer also to [Run and Debug](#run-and-debug) below.
 
 ## Configuration Wizard
 
-![Configuration Wizard](https://github.com/ARM-software/vscode-cmsis-csolution/raw/main/docs/images/ConfigWizard.png)
+![Configuration Wizard](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/raw/main/docs/images/ConfigWizard.png)
 
 Many configuration files have annotations for the [CMSIS Configuration Wizard](https://open-cmsis-pack.github.io/Open-CMSIS-Pack-Spec/main/html/configWizard.html). Using the **Open Preview** button in the editor allows you to modify options in a graphical view.
 
 ## YML Editor Support
 
-![YML Editor Support](https://github.com/ARM-software/vscode-cmsis-csolution/raw/main/docs/images/SyntaxYML.png)
+![YML Editor Support](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/raw/main/docs/images/SyntaxYML.png)
 
 The YML syntax support in the editor detects errors, provides auto completion, and documentation links on hover over.
 
@@ -138,4 +138,4 @@ The [Run and Debug configuration](https://mdk-packs.github.io/vscode-cmsis-solut
 
 ## Submit feedback or report issues
 
-To submit feedback or report issues on the Arm CMSIS Solution extension, please use [GitHub issues](https://github.com/ARM-software/vscode-cmsis-csolution/issues) in the extension repository.
+To submit feedback or report issues on the Arm CMSIS Solution extension, please use [GitHub issues](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/issues) in the extension repository.
