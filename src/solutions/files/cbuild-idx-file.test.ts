@@ -20,6 +20,7 @@ import path from 'node:path';
 import * as fsUtils from '../../utils/fs-utils';
 import { CbuildIdxFile } from './cbuild-idx-file';
 import { ETextFileResult } from '../../generic/text-file';
+import { getFileNameNoExt } from '../../utils/path-utils';
 
 describe('CbuildIdxFile', () => {
     const testDataHandler = new TestDataHandler();
@@ -102,9 +103,47 @@ describe('CbuildIdxFile', () => {
         expect(loadResult).toEqual(ETextFileResult.Success);
         expect(idxFile.cbuildLoadResult).toEqual(ETextFileResult.Success);
         expect(idxFile.activeContexts.length).toEqual(2);
-
-
     });
+
+    it('test load modified cbuild file with another context', async () => {
+        const solutionDir =  path.join(tmpSolutionDir, 'USBD');
+        let fileName = path.join(solutionDir, 'USB_Device.cbuild-idx.yml');
+        const idxFile = new CbuildIdxFile();
+
+        let loadResult = await idxFile.load(fileName);
+        expect(loadResult).toEqual(ETextFileResult.Success);
+        expect(idxFile.cbuildLoadResult).toEqual(ETextFileResult.Success);
+        expect(idxFile.activeContexts.length).toEqual(2);
+        expect(idxFile.cbuildFiles.size).toEqual(2);
+        let cbuild = idxFile.cbuildFiles.get('HID');
+        expect(cbuild).toBeDefined();
+
+        let baseName = getFileNameNoExt(cbuild?.fileName);
+        expect(baseName).toEqual('HID.Release+B-U585I-IOT02A');
+        const cbuildItem = idxFile.topItem?.getChild('cbuilds')?.getChildByValue('cbuild', 'HID/HID.Release+B-U585I-IOT02A.cbuild.yml');
+        expect(cbuildItem).toBeDefined();
+        let value = cbuildItem?.getValue('cbuild');
+        cbuildItem?.setValue('cbuild', value?.replace('.Release+B-U585I-IOT02A', '.Debug+B-U585I-IOT02A'));
+        value = cbuildItem?.getValue('cbuild');
+        cbuildItem?.setValue('configuration', value?.replace('.Release+B-U585I-IOT02A', '.Debug+B-U585I-IOT02A'));
+
+        // save under another name to avoid interfering with other tests
+        fileName = fileName.replace('USB_Device.cbuild-idx.yml', 'USB_Device1.cbuild-idx.yml');
+        loadResult = await idxFile.save(fileName);
+        expect(loadResult).toEqual(ETextFileResult.Success);
+
+        // load again: should be changed because cbuild file is different
+        loadResult = await idxFile.load();
+        expect(loadResult).toEqual(ETextFileResult.Success);
+        expect(idxFile.cbuildLoadResult).toEqual(ETextFileResult.Success);
+        expect(idxFile.activeContexts.length).toEqual(2);
+
+        cbuild = idxFile.cbuildFiles.get('HID');
+        expect(cbuild).toBeDefined();
+        baseName = getFileNameNoExt(cbuild?.fileName);
+        expect(baseName).toEqual('HID.Debug+B-U585I-IOT02A');
+    });
+
 
     it('test load non-existing cbuild file', async () => {
         const solutionDir =  path.join(tmpSolutionDir, 'USBD');
