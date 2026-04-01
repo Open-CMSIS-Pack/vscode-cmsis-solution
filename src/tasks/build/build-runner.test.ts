@@ -17,7 +17,7 @@
 import 'jest';
 import { cancellationTokenFactory } from '../../vscode-api/with-progress-provider.factories';
 import { MockProcessManager, processManagerFactory } from '../../vscode-api/runner/process-manager.factories';
-import { BuildTaskDefinition } from './build-task-definition';
+import { BuildTaskDefinition, BuildLogLevel } from './build-task-definition';
 import { BuildRunner, cbuildArgsFromTaskDefinition } from './build-runner';
 import { HandleBuildEnoent } from './handle-enoent';
 import { CmsisToolboxManager, CmsisToolboxManagerImpl } from '../../solutions/cmsis-toolbox';
@@ -65,7 +65,7 @@ describe('BuildRunner', () => {
                 type: 'some-task',
                 solution: 'some-solution',
                 clean: true,
-                debug: true,
+                buildLogLevel: 'debug',
                 intermediateDirectory: 'some-int-dir',
                 outputDirectory: 'some-output-dir',
                 cmakeTarget: 'cmake-target',
@@ -145,6 +145,31 @@ describe('BuildRunner', () => {
                 'some-solution',
                 '--active', '',
                 '--schema', '--skip-convert']);
+        });
+        
+    });
+
+    describe('log level flags', () => {
+        it.each([
+            ['normal', undefined],
+            ['quiet', '--quiet'],
+            ['verbose', '--verbose'],
+            ['debug', '--debug'],
+        ])('maps build log level %s to flag %s', (logLevel, expectedFlag) => {
+            const buildTaskDefinition: BuildTaskDefinition = {
+                type: 'some-task',
+                solution: 'some-solution',
+                buildLogLevel: logLevel as BuildLogLevel,
+            };
+
+            const args = cbuildArgsFromTaskDefinition(buildTaskDefinition);
+            if (expectedFlag) {
+            expect(args).toContain(expectedFlag);
+            } else {
+            expect(args).not.toContain('--quiet');
+            expect(args).not.toContain('--verbose');
+            expect(args).not.toContain('--debug');
+            }
         });
     });
 

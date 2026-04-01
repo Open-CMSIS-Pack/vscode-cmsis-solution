@@ -23,7 +23,7 @@ export type BuildTaskDefinition = {
     readonly type: string;
     solution?: string;
     clean?: boolean;
-    debug?: boolean;
+    buildLogLevel?: BuildLogLevel;
     intermediateDirectory?: string;
     outputDirectory?: string;
     cmakeTarget?: string;
@@ -38,6 +38,8 @@ export type BuildTaskDefinition = {
     setup?: boolean;
     west?: boolean;
 };
+
+export type BuildLogLevel = 'normal' | 'quiet' | 'verbose' | 'debug';
 
 type UriOrSolutionNode = vscode.Uri | COutlineItem;
 

@@ -38,6 +38,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
                 setup: false,
                 clean: false,
                 rebuild: false,
+                buildLogLevel: 'normal',
                 downloadPacks: true,
                 active: undefined,
                 cmakeTarget: 'all',
@@ -64,6 +65,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
                 setup: false,
                 clean: false,
                 rebuild: false,
+                buildLogLevel: false,
                 downloadPacks: false,
                 active: undefined,
                 cmakeTarget: 'all',
@@ -89,6 +91,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
                 setup: false,
                 clean: false,
                 rebuild: true,
+                buildLogLevel: 'normal',
                 downloadPacks: true,
                 active: undefined,
                 cmakeTarget: 'all',
@@ -113,6 +116,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
                 setup: false,
                 clean: true,
                 rebuild: false,
+                buildLogLevel: 'normal',
                 downloadPacks: true,
                 active: undefined,
                 cmakeTarget: 'all',
@@ -137,6 +141,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
                 setup: true,
                 clean: false,
                 rebuild: false,
+                buildLogLevel: 'normal',
                 downloadPacks: true,
                 active: undefined,
                 cmakeTarget: 'database',
@@ -156,6 +161,22 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
             const createDefinition = async () => await buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode('build');
 
             expect(createDefinition).rejects.toThrow('No active solution set');
+        });
+
+        it('reads buildLogLevel from configuration if non-default value is set', async () => {
+            const solutionManager = solutionManagerFactory();
+            const configProvider = configurationProviderFactory();
+            configProvider.getConfigVariable.mockImplementation((name: string) => {
+                return (name === manifest.CONFIG_BUILD_LOG_LEVEL) ? 'verbose' : undefined;
+            });
+            const buildTaskDefinitionBuilder = new BuildTaskDefinitionBuilderImpl(
+                solutionManager,
+                configProvider,
+            );
+
+            const taskDefinition = await buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode('build');
+
+            expect(taskDefinition.buildLogLevel).toBe('verbose');   
         });
     });
 });

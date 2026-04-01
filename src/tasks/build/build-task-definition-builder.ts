@@ -16,7 +16,7 @@
 
 import * as vscode from 'vscode';
 import { SolutionManager } from '../../solutions/solution-manager';
-import { BuildTaskDefinition, createLocalDefinitionFromUriOrSolutionNode } from './build-task-definition';
+import { BuildTaskDefinition, createLocalDefinitionFromUriOrSolutionNode, BuildLogLevel } from './build-task-definition';
 import * as manifest from '../../manifest';
 import { ConfigurationProvider } from '../../vscode-api/configuration-provider';
 import { COutlineItem } from '../../views/solution-outline/tree-structure/solution-outline-item';
@@ -44,6 +44,10 @@ export class BuildTaskDefinitionBuilderImpl implements BuildTaskDefinitionBuilde
         return solutionPath;
     }
 
+    private getBuildLogLevel(): BuildLogLevel {
+        return this.configProvider.getConfigVariable(manifest.CONFIG_BUILD_LOG_LEVEL) ?? 'normal';
+    }
+
     private isDownloadPacksEnabled(): boolean {
         return this.configProvider.getConfigVariable<boolean>(manifest.CONFIG_DOWNLOAD_MISSING_PACKS) ?? true;
     }
@@ -55,6 +59,7 @@ export class BuildTaskDefinitionBuilderImpl implements BuildTaskDefinitionBuilde
             clean: action === 'clean',
             rebuild: action === 'rebuild',
             setup: action === 'setup',
+            buildLogLevel: this.getBuildLogLevel(),
             downloadPacks: this.isDownloadPacksEnabled(),
             cmakeTarget: action === 'setup' ? 'database' : 'all',
             west: this.solutionManager.getCsolution()?.getCproject()?.projectType === 'West'

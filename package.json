@@ -374,10 +374,11 @@
             "default": true,
             "description": "Validate project input file(s) against schema"
           },
-          "debug": {
-            "type": "boolean",
-            "default": false,
-            "description": "Enable debug messages"
+          "buildLogLevel": {
+            "type": "string",
+            "default": "normal",
+            "enum": [ "normal", "quiet", "verbose", "debug" ],
+            "description": "Controls the log level used when invoking cbuild."
           },
           "intermediateDirectory": {
             "type": "string",
@@ -1366,6 +1367,18 @@
           },
           "default": {},
           "markdownDescription": "Specify additional environment variables to be set for build, run, and terminals."
+        },
+        "cmsis-csolution.buildLogLevel": {
+          "type": "string",
+          "default": "normal",
+          "enum": [ "normal", "quiet", "verbose", "debug"],
+          "enumDescriptions": [
+            "Default output (errors and warnings).",
+            "Show only errors (--quiet).",
+            "Show errors, warnings, and infos (--verbose).",
+            "Show errors and warnings including debug infos of build process (--debug)."
+          ],
+          "markdownDescription": "Controls the log level used when running [cbuild](https://open-cmsis-pack.github.io/cmsis-toolbox/build-tools/)."
         }
       }
     },
