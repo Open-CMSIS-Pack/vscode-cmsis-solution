@@ -1378,7 +1378,7 @@
             "Show errors, warnings, and infos (--verbose).",
             "Show errors and warnings including debug infos of build process (--debug)."
           ],
-          "markdownDescription": "Controls the log level used when running [cbuild](https://open-cmsis-pack.github.io/cmsis-toolbox/build-tools/)."
+          "markdownDescription": "Controls the log level of build process used when running [cbuild](https://open-cmsis-pack.github.io/cmsis-toolbox/build-tools/)."
         }
       }
     },

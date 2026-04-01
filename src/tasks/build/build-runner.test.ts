@@ -146,7 +146,6 @@ describe('BuildRunner', () => {
                 '--active', '',
                 '--schema', '--skip-convert']);
         });
-        
     });
 
     describe('log level flags', () => {
@@ -164,11 +163,11 @@ describe('BuildRunner', () => {
 
             const args = cbuildArgsFromTaskDefinition(buildTaskDefinition);
             if (expectedFlag) {
-            expect(args).toContain(expectedFlag);
+                expect(args).toContain(expectedFlag);
             } else {
-            expect(args).not.toContain('--quiet');
-            expect(args).not.toContain('--verbose');
-            expect(args).not.toContain('--debug');
+                expect(args).not.toContain('--quiet');
+                expect(args).not.toContain('--verbose');
+                expect(args).not.toContain('--debug');
             }
         });
     });
