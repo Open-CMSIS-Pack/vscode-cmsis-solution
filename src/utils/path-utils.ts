@@ -70,7 +70,6 @@ export function getCmsisToolboxRoot(environment = process.env): string {
     if (environmentValue) {
         return environmentValue;
     }
-
     // Default to standard fixed location
     return CMSIS_TOOLBOX_FOLDER;
 };
@@ -78,7 +77,7 @@ export function getCmsisToolboxRoot(environment = process.env): string {
 /**
  * Returns the CMSIS Compiler root directory.
  * @param environment Optional process environment.
- * @returns `CMSIS_SOLUTION_TOOLBOX` value when set; otherwise a platform-specific default path.
+ * @returns `CMSIS_COMPILER_ROOT` value when set; otherwise default path.
  * @default CMSIS_TOOLBOX_FOLDER/etc
  */
 export function getCmsisCompilerRoot(environment = process.env): string {
@@ -86,7 +85,6 @@ export function getCmsisCompilerRoot(environment = process.env): string {
     if (environmentValue) {
         return environmentValue;
     }
-
     // Default to standard fixed location
     return path.join(getCmsisToolboxRoot(environment), 'etc');
 };
