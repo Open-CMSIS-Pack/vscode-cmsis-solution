@@ -32,25 +32,21 @@ solution
       projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
       expandable=1
       file
-        label=STM32U585AIIx.test
+        label=$Dname$.test
         expandable=0
         resourcePath=TEST_DIR/solutions/USBD/HID/STM32U585AIIx.test
         features=file
-        tooltip=- resolved: `TEST_DIR/solutions/USBD/HID/STM32U585AIIx.test`
-- original: `$Dname$.test`
         fileUri=$Dname$.test
         projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
       file
-        label=testOutput.test
+        label=$OutDir()$/testOutput.test
         expandable=0
         resourcePath=TEST_DIR/solutions/USBD/out/HID/B-U585I-IOT02A/Release/testOutput.test
         features=file
-        tooltip=- resolved: `TEST_DIR/solutions/USBD/out/HID/B-U585I-IOT02A/Release/testOutput.test`
-- original: `$OutDir()$/testOutput.test`
         fileUri=$OutDir()$/testOutput.test
         projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
       file
-        label=unknown.test
+        label=$UnknownVar$/unknown.test
         expandable=0
         resourcePath=TEST_DIR/solutions/USBD/HID/$UnknownVar$/unknown.test
         features=file

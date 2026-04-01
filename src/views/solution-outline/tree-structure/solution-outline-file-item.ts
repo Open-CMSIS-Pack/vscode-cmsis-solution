@@ -19,7 +19,6 @@ import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
 import { FILE_TAGS } from '../../../solutions/constants';
 import { COutlineItem } from './solution-outline-item';
 import { getStatusTooltip, setContextMenuAttributes, setHeaderContext, setMergeDescription, setMergeFileContext } from './solution-outline-utils';
-import { getCmsisPackRoot } from '../../../utils/path-utils';
 import { matchesContext } from '../../../utils/context-utils';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 import { CSolution } from '../../../solutions/csolution';
@@ -53,22 +52,15 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
             return;
         }
 
-        const hasCmsisPackRoot = fileValue.startsWith('${CMSIS_PACK_ROOT}');
-        const resolvedFilePath = this.resolveFilePath(hasCmsisPackRoot, fileValue);
-        const fileBaseName = path.basename(resolvedFilePath);
-        const resourcePath = hasCmsisPackRoot ? resolvedFilePath : f.resolvePath(resolvedFilePath);
+        const hasCmsisRoot = fileValue.startsWith('${CMSIS_');
+        const hasAccessSequences = !hasCmsisRoot && fileValue.includes('$');
+        const expandedFilePath = this.expandString(fileValue);
+        const resourcePath = hasCmsisRoot ? expandedFilePath : f.resolvePath(expandedFilePath);
+        const label = hasAccessSequences ? fileValue : path.basename(expandedFilePath);
         const description = isApi ? ' (API)' : undefined;
         const rootFileName = f.rootFileName;
 
-        const cfileItem = this.createFileItem(cgroupItem, fileBaseName, resourcePath, description);
-
-        // set special tooltip if sequences are resolved
-        if (!hasCmsisPackRoot && resolvedFilePath !== fileValue) {
-            const tooltip =
-            `- resolved: \`${resourcePath}\`\n` +
-            `- original: \`${fileValue}\``;
-            cfileItem.setAttribute('tooltip', tooltip);
-        }
+        const cfileItem = this.createFileItem(cgroupItem, label, resourcePath, description);
 
         // Check if file is excluded based on context restrictions
         if (this.context && !matchesContext(f, this.context)) {
@@ -80,7 +72,7 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
         }
 
         // add copy header button for header files
-        if (fileBaseName.endsWith('.h')) {
+        if (expandedFilePath.endsWith('.h')) {
             setHeaderContext(cfileItem);
         }
 
@@ -88,16 +80,9 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
         this.addMergeFeature(f, cfileItem);
     }
 
-    private resolveFilePath(hasCmsisPackRoot: boolean, fileValue: string): string {
-        if (hasCmsisPackRoot) {
-            return fileValue.replace('${CMSIS_PACK_ROOT}', getCmsisPackRoot());
-        }
-        return this.expandAccessSequences(fileValue);
-    }
-
-    private createFileItem(cgroupItem: COutlineItem, fileBaseName: string, resourcePath: string, description?: string): COutlineItem {
+    private createFileItem(cgroupItem: COutlineItem, label: string, resourcePath: string, description?: string): COutlineItem {
         const item = cgroupItem.createChild('file');
-        item.setAttribute('label', fileBaseName);
+        item.setAttribute('label', label);
         item.setAttribute('expandable', '0');
         item.setAttribute('resourcePath', resourcePath);
         if (cgroupItem.mutable) {
