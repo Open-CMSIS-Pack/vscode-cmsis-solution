@@ -55,6 +55,7 @@ import { CreateSolutionWebviewMain } from '../views/create-solutions/create-solu
 import { ManageLayersWebviewMain } from '../views/manage-layers/manage-layers-webview-main';
 import { AddToGroupCommand } from '../views/solution-outline/commands/add-to-group-command';
 import { DeleteCommand } from '../views/solution-outline/commands/delete-command';
+import { EditCommand } from '../views/solution-outline/commands/edit-command';
 import { OpenCommand } from '../views/solution-outline/commands/open-command';
 import { FindCommand } from '../views/solution-outline/commands/find-command';
 import { MergeCommand } from '../views/solution-outline/commands/merge-command';
@@ -210,6 +211,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
 
     const addToGroupCommand = new AddToGroupCommand(workspaceFsProvider, commandsProvider, solutionManager);
     const deleteCommand = new DeleteCommand(commandsProvider, workspaceFsProvider);
+    const editCommand = new EditCommand(commandsProvider);
     const copyHeaderCommand = new CopyHeaderCommand(commandsProvider);
     const openCommand = new OpenCommand(solutionManager, commandsProvider, externalFileOpener);
     const findCommand = new FindCommand(commandsProvider);
@@ -273,6 +275,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         solutionLanguageFeatures.activate(context),
         addToGroupCommand.activate(context),
         deleteCommand.activate(context),
+        editCommand.activate(context),
         copyHeaderCommand.activate(context),
         openCommand.activate(context),
         findCommand.activate(context),

@@ -786,6 +786,10 @@
         "title": "Search"
       },
       {
+        "command": "cmsis-csolution.edit",
+        "title": "Edit"
+      },
+      {
         "command": "cmsis-csolution.showSolutionOutline",
         "title": "Show Solution Outline"
       },
@@ -928,6 +932,10 @@
         },
         {
           "command": "cmsis-csolution.addToGroup",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.edit",
           "when": "false"
         },
         {
@@ -1144,6 +1152,11 @@
         {
           "command": "cmsis-csolution.remove",
           "when": "view == cmsis-csolution.outline && viewItem =~ /group|file/",
+          "group": "contextMenu"
+        },
+        {
+          "command": "cmsis-csolution.edit",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)(group|file|component)(;|$)/",
           "group": "contextMenu"
         },
         {

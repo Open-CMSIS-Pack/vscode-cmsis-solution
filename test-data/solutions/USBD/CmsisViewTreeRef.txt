@@ -145,9 +145,10 @@ solution
         label=ARM::CMSIS:OS Tick:SysTick
         expandable=1
         iconPath=csolution-software-component
+        features=component;headerFile:
+        projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
         tooltip=- component: ` ARM::CMSIS:OS Tick:SysTick@1.0.5 `
 - from pack: ` ARM::CMSIS@6.1.0 `
-        features=headerFile:
         header=os_tick.h
         file
           label=os_systick.c
@@ -164,7 +165,8 @@ solution
         label=ARM::CMSIS:RTOS2:Keil RTX5&Source
         expandable=1
         iconPath=csolution-software-component
-        features=docFile:;headerFile:
+        features=component;docFile:;headerFile:
+        projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
         type=docFile
         docPath=${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Documentation/index.html
         tooltip=- component: ` ARM::CMSIS:RTOS2:Keil RTX5&Source@5.9.0 `
@@ -255,9 +257,10 @@ solution
         label=Keil::USB&MDK:CORE
         expandable=1
         iconPath=csolution-software-component
+        features=component;headerFile:
+        projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
         tooltip=- component: ` Keil::USB&MDK:CORE@8.0.0 `
 - from pack: ` Keil::MDK-Middleware@8.0.0-dev `
-        features=headerFile:
         header=rl_usb.h
         file
           label=rl_usb.h
@@ -279,7 +282,8 @@ solution
         label=Keil::USB&MDK:Device
         expandable=1
         iconPath=csolution-software-component
-        features=docFile:;headerFile:
+        features=component;docFile:;headerFile:
+        projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
         type=docFile
         docPath=TEST_DIR/MyLocalPath/MDK-Middleware/Documentation/html/USB/USB_Device.html
         tooltip=- component: ` Keil::USB&MDK:Device@8.0.0 `
@@ -315,7 +319,8 @@ solution
         label=Keil::USB&MDK:Device:HID
         expandable=1
         iconPath=csolution-software-component
-        features=docFile:;headerFile:
+        features=component;docFile:;headerFile:
+        projectUri=TEST_DIR/solutions/USBD/HID/HID.cproject.yml
         type=docFile
         docPath=TEST_DIR/MyLocalPath/MDK-Middleware/Documentation/html/USB/USB_Classes.html#HID
         tooltip=- component: ` Keil::USB&MDK:Device:HID@8.0.0 `
@@ -379,7 +384,8 @@ solution
           label=Keil::Device:CubeMX
           expandable=1
           iconPath=csolution-software-component
-          features=component-gen
+          features=component;component-gen
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           type=component-gen
           generator=CubeMX
           cbuild-context=HID.Release+B-U585I-IOT02A
@@ -646,7 +652,8 @@ solution
           label=ARM::CMSIS:CORE
           expandable=1
           iconPath=csolution-software-component
-          features=docFile:;headerFile:
+          features=component;docFile:;headerFile:
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           type=docFile
           docPath=${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Documentation/html/Core/index.html
           tooltip=- component: ` ARM::CMSIS:CORE@6.1.0 `
@@ -662,7 +669,8 @@ solution
           label=Keil::CMSIS Driver:USART
           expandable=1
           iconPath=csolution-software-component
-          features=docFile:;headerFile:
+          features=component;docFile:;headerFile:
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           type=docFile
           docPath=TEST_DIR/MyLocalPath/CMSIS-Driver_STM32/Documentation/html/usart_stm32.html
           tooltip=- component: ` Keil::CMSIS Driver:USART@3.0.0 `
@@ -691,7 +699,8 @@ solution
           label=Keil::CMSIS Driver:USB Device
           expandable=1
           iconPath=csolution-software-component
-          features=docFile:;headerFile:
+          features=component;docFile:;headerFile:
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           type=docFile
           docPath=TEST_DIR/MyLocalPath/CMSIS-Driver_STM32/Documentation/html/usbd_stm32.html
           tooltip=- component: ` Keil::CMSIS Driver:USB Device@3.0.0 `
@@ -720,9 +729,10 @@ solution
           label=Keil::CMSIS Driver:VIO:Board&B-U585I-IOT02A
           expandable=1
           iconPath=csolution-software-component
+          features=component;headerFile:
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           tooltip=- component: ` Keil::CMSIS Driver:VIO:Board&B-U585I-IOT02A@2.0.1 `
 - from pack: ` Keil::B-U585I-IOT02A_BSP@2.0.0 `
-          features=headerFile:
           header=cmsis_vio.h
           file
             label=cmsis_vio.h
@@ -741,6 +751,8 @@ solution
           label=ARM::CMSIS-Compiler:CORE
           expandable=1
           iconPath=csolution-software-component
+          features=component
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           tooltip=- component: ` ARM::CMSIS-Compiler:CORE@1.1.0 `
 - from pack: ` ARM::CMSIS-Compiler@2.1.0 `
           file
@@ -751,9 +763,10 @@ solution
           label=ARM::CMSIS-Compiler:STDERR:Custom
           expandable=1
           iconPath=csolution-software-component
+          features=component;headerFile:
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           tooltip=- component: ` ARM::CMSIS-Compiler:STDERR:Custom@1.1.0 `
 - from pack: ` ARM::CMSIS-Compiler@2.1.0 `
-          features=headerFile:
           header=retarget_stderr.h
           file
             label=retarget_stderr.h
@@ -766,9 +779,10 @@ solution
           label=ARM::CMSIS-Compiler:STDOUT:Custom
           expandable=1
           iconPath=csolution-software-component
+          features=component;headerFile:
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           tooltip=- component: ` ARM::CMSIS-Compiler:STDOUT:Custom@1.1.0 `
 - from pack: ` ARM::CMSIS-Compiler@2.1.0 `
-          features=headerFile:
           header=retarget_stdout.h
           file
             label=retarget_stdout.h
@@ -781,9 +795,10 @@ solution
           label=ARM::CMSIS-Compiler:STDIN:Custom
           expandable=1
           iconPath=csolution-software-component
+          features=component;headerFile:
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           tooltip=- component: ` ARM::CMSIS-Compiler:STDIN:Custom@1.1.0 `
 - from pack: ` ARM::CMSIS-Compiler@2.1.0 `
-          features=headerFile:
           header=retarget_stdin.h
           file
             label=retarget_stdin.h
@@ -881,9 +896,10 @@ solution
         label=ARM::CMSIS:OS Tick:SysTick
         expandable=1
         iconPath=csolution-software-component
+        features=component;headerFile:
+        projectUri=TEST_DIR/solutions/USBD/MassStorage/MassStorage.cproject.yml
         tooltip=- component: ` ARM::CMSIS:OS Tick:SysTick@1.0.5 `
 - from pack: ` ARM::CMSIS@6.1.0 `
-        features=headerFile:
         header=os_tick.h
         file
           label=os_systick.c
@@ -900,7 +916,8 @@ solution
         label=ARM::CMSIS:RTOS2:Keil RTX5&Source
         expandable=1
         iconPath=csolution-software-component
-        features=docFile:;headerFile:
+        features=component;docFile:;headerFile:
+        projectUri=TEST_DIR/solutions/USBD/MassStorage/MassStorage.cproject.yml
         type=docFile
         docPath=${CMSIS_PACK_ROOT}/ARM/CMSIS-RTX/5.9.0/Documentation/index.html
         tooltip=- component: ` ARM::CMSIS:RTOS2:Keil RTX5&Source@5.9.0 `
@@ -991,9 +1008,10 @@ solution
         label=Keil::USB&MDK:CORE
         expandable=1
         iconPath=csolution-software-component
+        features=component;headerFile:
+        projectUri=TEST_DIR/solutions/USBD/MassStorage/MassStorage.cproject.yml
         tooltip=- component: ` Keil::USB&MDK:CORE@8.0.0 `
 - from pack: ` Keil::MDK-Middleware@8.0.0-dev `
-        features=headerFile:
         header=rl_usb.h
         file
           label=rl_usb.h
@@ -1015,7 +1033,8 @@ solution
         label=Keil::USB&MDK:Device
         expandable=1
         iconPath=csolution-software-component
-        features=docFile:;headerFile:
+        features=component;docFile:;headerFile:
+        projectUri=TEST_DIR/solutions/USBD/MassStorage/MassStorage.cproject.yml
         type=docFile
         docPath=TEST_DIR/MyLocalPath/MDK-Middleware/Documentation/html/USB/USB_Device.html
         tooltip=- component: ` Keil::USB&MDK:Device@8.0.0 `
@@ -1051,7 +1070,8 @@ solution
         label=Keil::USB&MDK:Device:MSC
         expandable=1
         iconPath=csolution-software-component
-        features=docFile:;headerFile:
+        features=component;docFile:;headerFile:
+        projectUri=TEST_DIR/solutions/USBD/MassStorage/MassStorage.cproject.yml
         type=docFile
         docPath=TEST_DIR/MyLocalPath/MDK-Middleware/Documentation/html/USB/USB_Classes.html#MSC
         tooltip=- component: ` Keil::USB&MDK:Device:MSC@8.0.0 `
@@ -1115,7 +1135,8 @@ solution
           label=Keil::Device:CubeMX
           expandable=1
           iconPath=csolution-software-component
-          features=component-gen
+          features=component;component-gen
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           type=component-gen
           generator=CubeMX
           cbuild-context=MassStorage.Debug+B-U585I-IOT02A
@@ -1382,7 +1403,8 @@ solution
           label=ARM::CMSIS:CORE
           expandable=1
           iconPath=csolution-software-component
-          features=docFile:;headerFile:
+          features=component;docFile:;headerFile:
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           type=docFile
           docPath=${CMSIS_PACK_ROOT}/ARM/CMSIS/6.1.0/CMSIS/Documentation/html/Core/index.html
           tooltip=- component: ` ARM::CMSIS:CORE@6.1.0 `
@@ -1398,7 +1420,8 @@ solution
           label=Keil::CMSIS Driver:USART
           expandable=1
           iconPath=csolution-software-component
-          features=docFile:;headerFile:
+          features=component;docFile:;headerFile:
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           type=docFile
           docPath=TEST_DIR/MyLocalPath/CMSIS-Driver_STM32/Documentation/html/usart_stm32.html
           tooltip=- component: ` Keil::CMSIS Driver:USART@3.0.0 `
@@ -1427,7 +1450,8 @@ solution
           label=Keil::CMSIS Driver:USB Device
           expandable=1
           iconPath=csolution-software-component
-          features=docFile:;headerFile:
+          features=component;docFile:;headerFile:
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           type=docFile
           docPath=TEST_DIR/MyLocalPath/CMSIS-Driver_STM32/Documentation/html/usbd_stm32.html
           tooltip=- component: ` Keil::CMSIS Driver:USB Device@3.0.0 `
@@ -1456,9 +1480,10 @@ solution
           label=Keil::CMSIS Driver:VIO:Board&B-U585I-IOT02A
           expandable=1
           iconPath=csolution-software-component
+          features=component;headerFile:
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           tooltip=- component: ` Keil::CMSIS Driver:VIO:Board&B-U585I-IOT02A@2.0.1 `
 - from pack: ` Keil::B-U585I-IOT02A_BSP@2.0.0 `
-          features=headerFile:
           header=cmsis_vio.h
           file
             label=cmsis_vio.h
@@ -1477,6 +1502,8 @@ solution
           label=ARM::CMSIS-Compiler:CORE
           expandable=1
           iconPath=csolution-software-component
+          features=component
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           tooltip=- component: ` ARM::CMSIS-Compiler:CORE@1.1.0 `
 - from pack: ` ARM::CMSIS-Compiler@2.1.0 `
           file
@@ -1487,9 +1514,10 @@ solution
           label=ARM::CMSIS-Compiler:STDERR:Custom
           expandable=1
           iconPath=csolution-software-component
+          features=component;headerFile:
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           tooltip=- component: ` ARM::CMSIS-Compiler:STDERR:Custom@1.1.0 `
 - from pack: ` ARM::CMSIS-Compiler@2.1.0 `
-          features=headerFile:
           header=retarget_stderr.h
           file
             label=retarget_stderr.h
@@ -1502,9 +1530,10 @@ solution
           label=ARM::CMSIS-Compiler:STDOUT:Custom
           expandable=1
           iconPath=csolution-software-component
+          features=component;headerFile:
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           tooltip=- component: ` ARM::CMSIS-Compiler:STDOUT:Custom@1.1.0 `
 - from pack: ` ARM::CMSIS-Compiler@2.1.0 `
-          features=headerFile:
           header=retarget_stdout.h
           file
             label=retarget_stdout.h
@@ -1517,9 +1546,10 @@ solution
           label=ARM::CMSIS-Compiler:STDIN:Custom
           expandable=1
           iconPath=csolution-software-component
+          features=component;headerFile:
+          layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           tooltip=- component: ` ARM::CMSIS-Compiler:STDIN:Custom@1.1.0 `
 - from pack: ` ARM::CMSIS-Compiler@2.1.0 `
-          features=headerFile:
           header=retarget_stdin.h
           file
             label=retarget_stdin.h
