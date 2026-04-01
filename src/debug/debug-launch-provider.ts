@@ -352,6 +352,27 @@ export class DebugLaunchProviderImpl implements DebugLaunchProvider {
         if ((showInStatusBar?.globalValue ?? showInStatusBar?.workspaceValue) === undefined) {
             this.configurationProvider.setConfigVariable<string>('showInStatusBar', 'never', 'debug', true);
         }
+
+        // Configure memory inspector defaults for improved embedded memory view readability
+        const addressPadding = this.configurationProvider.inspectConfigVariable<string>('addressPadding', 'memory-inspector');
+        if ((addressPadding?.globalValue ?? addressPadding?.workspaceValue) === undefined) {
+            this.configurationProvider.setConfigVariable<string>('addressPadding', '32bit', 'memory-inspector', true);
+        }
+
+        const groupsPerRow = this.configurationProvider.inspectConfigVariable<string>('groupings.groupsPerRow', 'memory-inspector');
+        if ((groupsPerRow?.globalValue ?? groupsPerRow?.workspaceValue) === undefined) {
+            this.configurationProvider.setConfigVariable<string>('groupings.groupsPerRow', 'Autofit', 'memory-inspector', true);
+        }
+
+        const mausPerGroup = this.configurationProvider.inspectConfigVariable<number>('groupings.MAUsPerGroup', 'memory-inspector');
+        if ((mausPerGroup?.globalValue ?? mausPerGroup?.workspaceValue) === undefined) {
+            this.configurationProvider.setConfigVariable<number>('groupings.MAUsPerGroup', 4, 'memory-inspector', true);
+        }
+
+        const scrollingBehavior = this.configurationProvider.inspectConfigVariable<string>('scrollingBehavior', 'memory-inspector');
+        if ((scrollingBehavior?.globalValue ?? scrollingBehavior?.workspaceValue) === undefined) {
+            this.configurationProvider.setConfigVariable<string>('scrollingBehavior', 'Auto-Append', 'memory-inspector', true);
+        }
     }
 }
 
