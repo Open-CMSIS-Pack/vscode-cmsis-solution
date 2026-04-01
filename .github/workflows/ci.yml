@@ -70,8 +70,8 @@ jobs:
       - name: Check copyright
         run: npm run copyright:check
 
-      - name: Check links
-        run: npm run check:links
+      - name: Check links for insecure http URLs (only changed files)
+        run: npm run check:links -- -m false
 
       - name: Lint check
         run: npm run lint

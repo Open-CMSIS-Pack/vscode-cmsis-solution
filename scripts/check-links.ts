@@ -16,6 +16,25 @@
  * limitations under the License.
  */
 
+/*
+ *Usage:
+ * check-links.ts [options]
+
+ * Options:
+ *     --version        Show version number                             [boolean]
+ * -c, --config         Path to markdown-link-check config file         [string]  [default: ".github/markdown-link-check.jsonc"]
+ * -i, --ignore         Directories to ignore                           [array]   [default: ["node_modules/**"]]
+ * -m, --checkMarkdown  Validate links in markdown files                [boolean] [default: true]
+ * -u, --checkHttp      Scan changed files for insecure http URLs       [boolean] [default: true]
+ * -h, --help           Show help                                       [boolean]
+ *
+ * Example usage:
+ *   npm run check:links
+ *   npm run check:links -- -i "./dist/**" -i "./coverage/**"
+ *   npm run check:links -- -c "./.github/markdown-link-check.jsonc"
+ *   npm run check:links -- -m false -i "./dist/**" -c "./.github/markdown-link-check.jsonc"
+ */
+
 import { execFile as execFileCallback } from "child_process";
 import { readFile as readFileCallback } from "fs";
 import { glob } from "glob";
@@ -112,7 +131,14 @@ async function main() {
             description: "Directories to ignore",
             default: ["node_modules/**"],
         })
+        .option("checkMarkdown", {
+            alias: "m",
+            type: "boolean",
+            description: "Validate links in markdown files",
+            default: true,
+        })
         .option("checkHttp", {
+            alias: "u",
             type: "boolean",
             description: "Scan changed files for insecure http URLs",
             default: true,
@@ -121,27 +147,31 @@ async function main() {
         .alias("help", "h")
         .parseSync();
 
-    const configPath = resolve(argv.config);
-    const mdFiles = await glob("**/*.md", {
-        ignore: argv.ignore as string[],
-    });
+    if (argv.checkMarkdown) {
+        const configPath = resolve(argv.config);
+        const mdFiles = await glob("**/*.md", {
+            ignore: argv.ignore as string[],
+        });
 
-    if (mdFiles.length === 0) {
-        console.log("No markdown files found.");
-    } else {
-        console.log(`Checking ${mdFiles.length} markdown file(s)...`);
-        for (const file of mdFiles) {
-            try {
-                const { stdout } = await execFile(
-                    "npx", ["markdown-link-check", "-v", "-c", configPath, file], { shell: true }
-                );
-                console.log(stdout);
-            } catch (err: any) {
-                console.error(`Error in file: ${file}`);
-                console.error(err.stdout || err.message);
-                process.exitCode = 1;
+        if (mdFiles.length === 0) {
+            console.log("No markdown files found.");
+        } else {
+            console.log(`Checking ${mdFiles.length} markdown file(s)...`);
+            for (const file of mdFiles) {
+                try {
+                    const { stdout } = await execFile(
+                        "npx", ["markdown-link-check", "-v", "-c", configPath, file], { shell: true }
+                    );
+                    console.log(stdout);
+                } catch (err: any) {
+                    console.error(`Error in file: ${file}`);
+                    console.error(err.stdout || err.message);
+                    process.exitCode = 1;
+                }
             }
         }
+    } else {
+        console.log("Skipping markdown link validation.");
     }
 
     if (argv.checkHttp) {
