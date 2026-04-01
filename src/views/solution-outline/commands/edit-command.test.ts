@@ -14,26 +14,25 @@
  * limitations under the License.
  */
 
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import * as vscode from 'vscode';
 import { EditCommand } from './edit-command';
 import { extensionContextFactory } from '../../../vscode-api/extension-context.factories';
 import { commandsProviderFactory, MockCommandsProvider } from '../../../vscode-api/commands-provider.factories';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
+import { TestDataHandler } from '../../../__test__/test-data';
+import * as fsUtils from '../../../utils/fs-utils';
 
 describe('EditCommand', () => {
     let commandsProvider: MockCommandsProvider;
-    let tmpDir: string;
     let cprojectPath: string;
     let yamlContent: string;
     let positionAt: jest.Mock;
+    const testDataHandler = new TestDataHandler();
 
     beforeEach(() => {
         commandsProvider = commandsProviderFactory();
-        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edit-command-'));
-        cprojectPath = path.join(tmpDir, 'test.cproject.yml');
+        cprojectPath = path.join(testDataHandler.tmpDir, 'test.cproject.yml');
 
         yamlContent = `project:
   groups:
@@ -48,7 +47,7 @@ describe('EditCommand', () => {
         - component: ARM::CMSIS:RTOS2
 `;
 
-        fs.writeFileSync(cprojectPath, yamlContent, 'utf8');
+        fsUtils.writeTextFile(cprojectPath, yamlContent);
 
         positionAt = jest.fn().mockReturnValue(new vscode.Position(0, 0));
         jest.spyOn(vscode.workspace, 'openTextDocument').mockResolvedValue({ positionAt } as unknown as vscode.TextDocument);
@@ -57,7 +56,11 @@ describe('EditCommand', () => {
 
     afterEach(() => {
         jest.restoreAllMocks();
-        fs.rmSync(tmpDir, { recursive: true, force: true });
+        testDataHandler.rmFile(cprojectPath);
+    });
+
+    afterAll(() => {
+        testDataHandler.dispose();
     });
 
     it('registers the edit command on activation', async () => {
