@@ -45,7 +45,11 @@ export class BuildTaskDefinitionBuilderImpl implements BuildTaskDefinitionBuilde
     }
 
     private getBuildLogLevel(): BuildLogLevel {
-        return this.configProvider.getConfigVariable(manifest.CONFIG_BUILD_LOG_LEVEL) ?? 'normal';
+        const level = this.configProvider.getConfigVariable<BuildLogLevel>(manifest.CONFIG_BUILD_LOG_LEVEL);
+        if (typeof level !== 'string') {
+            return 'normal';
+        }
+        return level;
     }
 
     private isDownloadPacksEnabled(): boolean {

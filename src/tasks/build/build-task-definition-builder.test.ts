@@ -65,7 +65,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
                 setup: false,
                 clean: false,
                 rebuild: false,
-                buildLogLevel: false,
+                buildLogLevel: 'normal',
                 downloadPacks: false,
                 active: undefined,
                 cmakeTarget: 'all',
