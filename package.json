@@ -787,7 +787,7 @@
       },
       {
         "command": "cmsis-csolution.edit",
-        "title": "Edit"
+        "title": "Go to Definition"
       },
       {
         "command": "cmsis-csolution.showSolutionOutline",
