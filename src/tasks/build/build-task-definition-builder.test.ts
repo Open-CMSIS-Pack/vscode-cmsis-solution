@@ -176,7 +176,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
 
             const taskDefinition = await buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode('build');
 
-            expect(taskDefinition.buildLogLevel).toBe('verbose');   
+            expect(taskDefinition.buildLogLevel).toBe('verbose');
         });
     });
 });
