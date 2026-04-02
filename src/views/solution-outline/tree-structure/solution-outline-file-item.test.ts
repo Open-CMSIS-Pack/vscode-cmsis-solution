@@ -95,14 +95,13 @@ describe('FileItem', () => {
 
         // check attributes and merge features for each file node
         const fileLabels = ['RTX_Config.c', 'RTX_Config.h'];
-        const fileStatuses = ['- (X) \'RTX_Config.c\' is incompatible. A file update is mandatory.', '- (?) \'RTX_Config.h\' has corrections. A file update is suggested.'];
-        const fileDescriptions = ['(X)', '(?)'];
+        const fileStatuses = ["- 'RTX_Config.c' is incompatible. A file update is mandatory.", "- 'RTX_Config.h' has corrections. A file update is suggested."];
         createdChildren.forEach((child, idx) => {
             expect(child.getTag()).toBe('file');
             expect(child.getAttribute('label')).toContain(fileLabels[idx]);
             expect(child.getAttribute('update')).toContain('update');
             expect(child.getAttribute('base')).toContain('base');
-            expect(child.getAttribute('description')).toContain(fileDescriptions[idx]);
+            expect(child.getAttribute('description')).toBeUndefined();
             expect(child.getAttribute('tooltip')).toContain(fileStatuses[idx]);
         });
 
