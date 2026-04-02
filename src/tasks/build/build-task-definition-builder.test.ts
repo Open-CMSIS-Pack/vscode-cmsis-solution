@@ -38,7 +38,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
                 setup: false,
                 clean: false,
                 rebuild: false,
-                buildLogLevel: 'normal',
+                buildOutputVerbosity: 'normal',
                 downloadPacks: true,
                 active: undefined,
                 cmakeTarget: 'all',
@@ -65,7 +65,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
                 setup: false,
                 clean: false,
                 rebuild: false,
-                buildLogLevel: 'normal',
+                buildOutputVerbosity: 'normal',
                 downloadPacks: false,
                 active: undefined,
                 cmakeTarget: 'all',
@@ -91,7 +91,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
                 setup: false,
                 clean: false,
                 rebuild: true,
-                buildLogLevel: 'normal',
+                buildOutputVerbosity: 'normal',
                 downloadPacks: true,
                 active: undefined,
                 cmakeTarget: 'all',
@@ -116,7 +116,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
                 setup: false,
                 clean: true,
                 rebuild: false,
-                buildLogLevel: 'normal',
+                buildOutputVerbosity: 'normal',
                 downloadPacks: true,
                 active: undefined,
                 cmakeTarget: 'all',
@@ -141,7 +141,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
                 setup: true,
                 clean: false,
                 rebuild: false,
-                buildLogLevel: 'normal',
+                buildOutputVerbosity: 'normal',
                 downloadPacks: true,
                 active: undefined,
                 cmakeTarget: 'database',
@@ -163,11 +163,11 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
             expect(createDefinition).rejects.toThrow('No active solution set');
         });
 
-        it('reads buildLogLevel from configuration if non-default value is set', async () => {
+        it('reads buildOutputVerbosity from configuration if non-default value is set', async () => {
             const solutionManager = solutionManagerFactory();
             const configProvider = configurationProviderFactory();
             configProvider.getConfigVariable.mockImplementation((name: string) => {
-                return (name === manifest.CONFIG_BUILD_LOG_LEVEL) ? 'verbose' : undefined;
+                return (name === manifest.CONFIG_BUILD_OUTPUT_VERBOSITY) ? 'verbose' : undefined;
             });
             const buildTaskDefinitionBuilder = new BuildTaskDefinitionBuilderImpl(
                 solutionManager,
@@ -176,7 +176,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
 
             const taskDefinition = await buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode('build');
 
-            expect(taskDefinition.buildLogLevel).toBe('verbose');
+            expect(taskDefinition.buildOutputVerbosity).toBe('verbose');
         });
     });
 });

@@ -17,7 +17,7 @@
 import 'jest';
 import { cancellationTokenFactory } from '../../vscode-api/with-progress-provider.factories';
 import { MockProcessManager, processManagerFactory } from '../../vscode-api/runner/process-manager.factories';
-import { BuildTaskDefinition, BuildLogLevel } from './build-task-definition';
+import { BuildTaskDefinition, BuildOutputVerbosity } from './build-task-definition';
 import { BuildRunner, cbuildArgsFromTaskDefinition } from './build-runner';
 import { HandleBuildEnoent } from './handle-enoent';
 import { CmsisToolboxManager, CmsisToolboxManagerImpl } from '../../solutions/cmsis-toolbox';
@@ -65,7 +65,7 @@ describe('BuildRunner', () => {
                 type: 'some-task',
                 solution: 'some-solution',
                 clean: true,
-                buildLogLevel: 'debug',
+                buildOutputVerbosity: 'debug',
                 intermediateDirectory: 'some-int-dir',
                 outputDirectory: 'some-output-dir',
                 cmakeTarget: 'cmake-target',
@@ -154,11 +154,11 @@ describe('BuildRunner', () => {
             ['quiet', '--quiet'],
             ['verbose', '--verbose'],
             ['debug', '--debug'],
-        ])('maps build log level %s to flag %s', (logLevel, expectedFlag) => {
+        ])('maps build output verbosity %s to flag %s', (outputVerbosity, expectedFlag) => {
             const buildTaskDefinition: BuildTaskDefinition = {
                 type: 'some-task',
                 solution: 'some-solution',
-                buildLogLevel: logLevel as BuildLogLevel,
+                buildOutputVerbosity: outputVerbosity as BuildOutputVerbosity,
             };
 
             const args = cbuildArgsFromTaskDefinition(buildTaskDefinition);

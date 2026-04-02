@@ -16,7 +16,7 @@
 
 import * as vscode from 'vscode';
 import { SolutionManager } from '../../solutions/solution-manager';
-import { BuildTaskDefinition, createLocalDefinitionFromUriOrSolutionNode, BuildLogLevel } from './build-task-definition';
+import { BuildTaskDefinition, createLocalDefinitionFromUriOrSolutionNode, BuildOutputVerbosity } from './build-task-definition';
 import * as manifest from '../../manifest';
 import { ConfigurationProvider } from '../../vscode-api/configuration-provider';
 import { COutlineItem } from '../../views/solution-outline/tree-structure/solution-outline-item';
@@ -44,12 +44,12 @@ export class BuildTaskDefinitionBuilderImpl implements BuildTaskDefinitionBuilde
         return solutionPath;
     }
 
-    private getBuildLogLevel(): BuildLogLevel {
-        const level = this.configProvider.getConfigVariable<BuildLogLevel>(manifest.CONFIG_BUILD_LOG_LEVEL);
-        if (typeof level !== 'string') {
+    private getBuildOutputVerbosity(): BuildOutputVerbosity {
+        const verbosity = this.configProvider.getConfigVariable<BuildOutputVerbosity>(manifest.CONFIG_BUILD_OUTPUT_VERBOSITY);
+        if (typeof verbosity !== 'string') {
             return 'normal';
         }
-        return level;
+        return verbosity;
     }
 
     private isDownloadPacksEnabled(): boolean {
@@ -63,7 +63,7 @@ export class BuildTaskDefinitionBuilderImpl implements BuildTaskDefinitionBuilde
             clean: action === 'clean',
             rebuild: action === 'rebuild',
             setup: action === 'setup',
-            buildLogLevel: this.getBuildLogLevel(),
+            buildOutputVerbosity: this.getBuildOutputVerbosity(),
             downloadPacks: this.isDownloadPacksEnabled(),
             cmakeTarget: action === 'setup' ? 'database' : 'all',
             west: this.solutionManager.getCsolution()?.getCproject()?.projectType === 'West'
