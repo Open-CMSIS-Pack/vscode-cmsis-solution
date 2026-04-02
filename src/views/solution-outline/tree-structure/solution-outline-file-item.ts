@@ -18,7 +18,7 @@ import path from 'path';
 import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
 import { FILE_TAGS } from '../../../solutions/constants';
 import { COutlineItem } from './solution-outline-item';
-import { getStatusTooltip, setContextMenuAttributes, setHeaderContext, setMergeDescription, setMergeFileContext } from './solution-outline-utils';
+import { getStatusTooltip, setContextMenuAttributes, setHeaderContext, setMergeFileContext } from './solution-outline-utils';
 import { matchesContext } from '../../../utils/context-utils';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 import { CSolution } from '../../../solutions/csolution';
@@ -131,9 +131,6 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
 
         // assign merge context
         setMergeFileContext(cfileItem);
-
-        // assign description
-        setMergeDescription(cfileItem, fileStatus);
 
         // set tooltip
         const existingTooltip = cfileItem.getValue('tooltip');
