@@ -42,6 +42,7 @@ export const UV2CSOLUTION_PATH_ENV_VAR = 'UV2CSOLUTION_PATH';
 export const CONFIG_DOWNLOAD_MISSING_PACKS = 'downloadPacks';
 export const OUTPUT_DIRECTORY = 'outputDirectory';
 export const CONFIG_AUTO_DEBUG_LAUNCH = 'autoDebugLaunch';
+export const CONFIG_BUILD_OUTPUT_VERBOSITY = 'buildOutputVerbosity';
 
 export const MIN_TOOLBOX_VERSION = '2.12.0';
 
