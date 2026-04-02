@@ -21,7 +21,7 @@ import { FileItemBuilder } from './solution-outline-file-item';
 import { COutlineItem } from './solution-outline-item';
 import * as manifest from '../../../manifest';
 import { CSolution } from '../../../solutions/csolution';
-import { getMapFilePath, getStatusTooltip, setDocContext, setHeaderContext, setLinkerContext, setMergeDescription, setMergeUpdate } from './solution-outline-utils';
+import { getMapFilePath, getStatusTooltip, setDocContext, setHeaderContext, setLinkerContext } from './solution-outline-utils';
 import { CProjectYamlFile } from '../../../solutions/files/cproject-yaml-file';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 
@@ -227,9 +227,6 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         const components = Array.from(componentNodes.values());
         const fileStatus = this.getMergeDescriptionAtParentComponentLevel(components);
         if (fileStatus) {
-            // assign description
-            setMergeDescription(componentsItem, fileStatus);
-
             // assign tooltip with component ids
             const prioritizedList = this._lastPrioritizedComponentList;
             let newTooltip = 'Components with updated configuration files:';
@@ -237,8 +234,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
                 const compId = comp.getAttribute('label');
                 const compStatus = comp.getAttribute('status');
                 if (compId && compStatus) {
-                    const update = comp.getAttribute('update');
-                    newTooltip += `\n- ${update} ${compId}: ${compStatus}`;
+                    newTooltip += `\n- ${compId}: ${compStatus}`;
                 }
             }
             componentsItem.setAttribute('tooltip', newTooltip);
@@ -437,12 +433,6 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
 
         // set status at component level
         node.setAttribute('status', fileStatus);
-
-        // assign description
-        setMergeDescription(node, fileStatus);
-
-        // assign status symbol for merge update action
-        setMergeUpdate(node, fileStatus);
 
         // set tooltip
         const prevTooltip = node.getValue('tooltip');
