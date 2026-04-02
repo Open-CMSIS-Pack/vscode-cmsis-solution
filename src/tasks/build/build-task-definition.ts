@@ -39,7 +39,7 @@ export type BuildTaskDefinition = {
     west?: boolean;
 };
 
-export type BuildOutputVerbosity = 'normal' | 'quiet' | 'verbose' | 'debug';
+export type BuildOutputVerbosity = 'quiet' | 'normal' | 'verbose' | 'debug';
 
 type UriOrSolutionNode = vscode.Uri | COutlineItem;
 

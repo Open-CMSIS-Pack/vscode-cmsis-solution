@@ -150,8 +150,8 @@ describe('BuildRunner', () => {
 
     describe('log level flags', () => {
         it.each([
-            ['normal', undefined],
             ['quiet', '--quiet'],
+            ['normal', undefined],
             ['verbose', '--verbose'],
             ['debug', '--debug'],
         ])('maps build output verbosity %s to flag %s', (outputVerbosity, expectedFlag) => {
