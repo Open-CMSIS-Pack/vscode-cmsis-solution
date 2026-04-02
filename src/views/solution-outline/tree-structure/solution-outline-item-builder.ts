@@ -16,6 +16,7 @@
 
 import { CSolution } from '../../../solutions/csolution';
 import { SolutionRpcData } from '../../../solutions/solution-rpc-data';
+import { expandRootVars } from '../../../utils/path-utils';
 
 export class SolutionOutlineItemBuilder {
     constructor(
@@ -24,7 +25,8 @@ export class SolutionOutlineItemBuilder {
         protected context?: string,
     ) { }
 
-    public expandAccessSequences(str: string) {
+    public expandString(str: string) {
+        str = expandRootVars(str);
         if (!this.rpcData || !this.context || !str) {
             return str;
         }

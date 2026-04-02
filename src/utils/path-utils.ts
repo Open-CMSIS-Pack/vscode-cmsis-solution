@@ -36,12 +36,18 @@ export function pathsEqual(p1?: string, p2?: string): boolean {
  * Check the first path is an ancestor of the second.
  * This should work on all platforms, e.g. on Windows it will compare case insensitively.
  */
-export const pathIsAncestor = (maybeAncestor: string, inputPath: string) => {
+export function pathIsAncestor(maybeAncestor: string, inputPath: string) {
     const relative = path.relative(maybeAncestor, inputPath);
     return !!relative && !relative.startsWith('..') && !path.isAbsolute(relative);
 };
 
-export const getCmsisPackRoot = (environment = process.env): string => {
+/**
+ * Returns the CMSIS Pack root directory.
+ * @param environment Optional process environment.
+ * @returns `CMSIS_PACK_ROOT` value when set; otherwise a platform-specific default path.
+ * @default Windows: `%LOCALAPPDATA%/arm/packs`; macOS/Linux: `~/.cache/arm/packs`.
+ */
+export function getCmsisPackRoot (environment = process.env) : string {
     const environmentValue = environment['CMSIS_PACK_ROOT'];
     if (environmentValue) {
         return environmentValue;
@@ -53,16 +59,52 @@ export const getCmsisPackRoot = (environment = process.env): string => {
         : path.join(os.homedir(), '.cache', 'arm', 'packs');
 };
 
-export const getCmsisToolboxRoot = (environment = process.env): string => {
+/**
+ * Returns the CMSIS Toolbox root directory.
+ * @param environment Optional process environment.
+ * @returns `CMSIS_SOLUTION_TOOLBOX` value when set; otherwise a platform-specific default path.
+ * @default CMSIS_TOOLBOX_FOLDER
+ */
+export function getCmsisToolboxRoot(environment = process.env): string {
     const environmentValue = environment['CMSIS_SOLUTION_TOOLBOX'];
     if (environmentValue) {
         return environmentValue;
     }
-
     // Default to standard fixed location
     return CMSIS_TOOLBOX_FOLDER;
 };
 
+/**
+ * Returns the CMSIS Compiler root directory.
+ * @param environment Optional process environment.
+ * @returns `CMSIS_COMPILER_ROOT` value when set; otherwise default path.
+ * @default CMSIS_TOOLBOX_FOLDER/etc
+ */
+export function getCmsisCompilerRoot(environment = process.env): string {
+    const environmentValue = environment['CMSIS_COMPILER_ROOT'];
+    if (environmentValue) {
+        return environmentValue;
+    }
+    // Default to standard fixed location
+    return path.join(getCmsisToolboxRoot(environment), 'etc');
+};
+
+
+/**
+ * Expands ${CMSIS_PACK_ROOT} and ${CMSIS_COMPILER_ROOT} to actual locations
+ * @param str string to expand
+ * @returns expanded string
+ */
+export function expandRootVars(str: string, environment = process.env): string {
+    return str.replaceAll('${CMSIS_PACK_ROOT}', getCmsisPackRoot(environment)).
+        replaceAll('${CMSIS_COMPILER_ROOT}', getCmsisCompilerRoot(environment));
+}
+
+/**
+ * Converts all backslashes in a path-like string to forward slashes.
+ * @param str Input string that may contain Windows path separators.
+ * @returns String with `\\` replaced by `/`.
+ */
 export function backToForwardSlashes(str: string): string {
     return str.replaceAll('\\', '/');
 }
