@@ -177,6 +177,7 @@ class PythonEnvironmentExtensionWrapper {
 }
 
 class EnvironmentManagerImpl implements EnvironmentManager {
+    private lastEnvVars: string | undefined;
 
     private pyEnvWrapper: Optional<PythonEnvironmentExtensionWrapper> = undefined;
     private context: vscode.ExtensionContext | undefined = undefined;
@@ -240,6 +241,16 @@ class EnvironmentManagerImpl implements EnvironmentManager {
             });
         }
 
+        const vars = envSettings.vars;
+        const currentEnvVars = JSON.stringify(
+            Object.entries(vars)
+                .filter(([, v]) => v !== undefined)
+                .sort(([a], [b]) => a.localeCompare(b)),
+        );
+        if (currentEnvVars === this.lastEnvVars) {
+            return;
+        }
+
         context.environmentVariableCollection.clear();
         for (const [key, value] of Object.entries(envSettings.vars)) {
             if (value !== undefined) {
@@ -250,7 +261,7 @@ class EnvironmentManagerImpl implements EnvironmentManager {
                 }
             }
         }
-        
+        this.lastEnvVars = currentEnvVars;
         this.envVarsChangeEmitter.fire();
     }
 }

@@ -312,7 +312,7 @@ describe('SolutionManager', () => {
             expect.objectContaining({
                 solutionPath: testSolutionPath,
                 updateRte: false,
-                restartRpc: true,   
+                restartRpc: true,
                 lockAbort: false,
             }),
         );
