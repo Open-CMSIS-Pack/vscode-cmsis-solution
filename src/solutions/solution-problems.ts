@@ -143,7 +143,10 @@ export class SolutionProblemsImpl implements SolutionProblems {
         if (m?.groups) {
             const { filename, line, column, message } = m.groups;
             const fromMap = files.has(filename) ? files.get(filename) : undefined;
-            const file = (fromMap || (filename && path.isAbsolute(filename) ? filename : undefined) || this.solutionManager.getCsolution()?.solutionPath) ?? '';
+            const file = fromMap || (filename && path.isAbsolute(filename) ? filename : undefined) || this.solutionManager.getCsolution()?.solutionPath;
+            if (!file) {
+                return false;
+            }
             const startLine = line ? Math.max(Number(line) - 1, 0) : 0;
             const startCharacter = column ? Math.max(Number(column) - 1, 0) : 0;
             let endCharacter = startCharacter;
