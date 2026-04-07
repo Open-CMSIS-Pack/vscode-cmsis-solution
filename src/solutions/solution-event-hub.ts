@@ -15,6 +15,7 @@
  */
 import * as vscode from 'vscode';
 import { constructor } from '../generic/constructor';
+import { LogMessages } from '../json-rpc/csolution-rpc-client';
 import { Severity } from './constants';
 
 /**
@@ -34,6 +35,8 @@ export interface ConvertRequestData {
 export interface ConvertResultData {
     severity: Severity;
     detection: boolean;
+    logMessages: LogMessages;
+    toolsOutputMessages?: string[];
 }
 
 /**

@@ -18,7 +18,6 @@ import { expect, it, describe } from '@jest/globals';
 import * as path from 'path';
 import * as manifest from '../manifest';
 import { ExtensionContext } from 'vscode';
-import * as vscode from 'vscode';
 import { SolutionConverterImpl } from './solution-converter';
 import { MockOutputChannelProvider, outputChannelProviderFactory } from '../vscode-api/output-channel-provider.factories';
 import { MockConfigurationProvider, configurationProviderFactory } from '../vscode-api/configuration-provider.factories';
@@ -39,6 +38,7 @@ import { getWorkspaceFolder } from '../utils/vscode-utils';
 import * as fsUtils from '../utils/fs-utils';
 import { ConvertRequestData, SolutionEventHub } from './solution-event-hub';
 import { waitTimeout } from '../__test__/test-waits';
+import { SolutionProblemsImpl } from './solution-problems';
 
 jest.mock('which', () => jest.fn((cmd) => Promise.resolve(path.join('path', 'to', cmd))));
 
@@ -72,6 +72,7 @@ describe('SolutionConverter', () => {
     let mockCsolutionService: jest.Mocked<ReturnType<typeof csolutionServiceFactory>>;
     let convertRequestData: ConvertRequestData;
     let completedListener: jest.Mock;
+    let solutionProblems: SolutionProblemsImpl;
 
     /**
      * Helper to wait for N completion events from EventHub
@@ -143,9 +144,11 @@ describe('SolutionConverter', () => {
             cmsisToolboxManager,
             compileCommandsGenerator,
         );
+        solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub);
 
         initUtils(mockConfigurationProvider, solutionManager);
         converter.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
 
         mockCsolutionService.listMissingPacks.mockResolvedValue({ success: true });
         mockCsolutionService.convertSolution.mockResolvedValue({ success: true });
@@ -304,9 +307,6 @@ describe('SolutionConverter', () => {
     });
 
     it('get log messages and set diagnostics accordingly', async () => {
-        const mockDiagnosticsCollectionSet = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
-        const mockDiagnosticsCollectionClear = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'clear');
-
         mockCsolutionService.convertSolution.mockResolvedValue({ success: false });
         mockCsolutionService.getLogMessages.mockResolvedValue({
             success: true,
@@ -316,13 +316,10 @@ describe('SolutionConverter', () => {
         });
         await fireAndWaitForConversion();
 
-        expect(mockDiagnosticsCollectionClear).toHaveBeenCalled();
-        expect(mockDiagnosticsCollectionSet).toHaveBeenCalledTimes(3);
         expect(completedListener).toHaveBeenCalledTimes(1);
     });
 
     it('get cbuild west output and set diagnostics accordingly', async () => {
-        const mockDiagnosticsCollectionSet = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
         mockCsolutionService.convertSolution.mockResolvedValue({ success: true });
         mockCsolutionService.getLogMessages.mockResolvedValue({ success: true });
         let mockRunCbuildSetup = jest.spyOn(compileCommandsGenerator, 'runCbuildSetup').mockResolvedValue([true, [
@@ -336,15 +333,23 @@ describe('SolutionConverter', () => {
         jest.spyOn(vscodeUtils, 'getWorkspaceFolder').mockReturnValue('workspace/folder');
 
         await fireAndWaitForConversion();
+        await waitTimeout();
         expect(mockRunCbuildSetup).toHaveBeenCalledTimes(1);
-        expect(mockDiagnosticsCollectionSet).toHaveBeenCalledTimes(2);
         expect(completedListener).toHaveBeenCalledTimes(1);
+        expect(completedListener).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                severity: 'error',
+                toolsOutputMessages: expect.arrayContaining([
+                    'warning cbuild: missing ZEPHYR_BASE environment variable',
+                    'error cbuild: exec: "west": executable file not found in $PATH',
+                ]),
+            }),
+        );
 
         // Remove settings.json
         completedListener.mockClear();
         const settings = path.join(getWorkspaceFolder(), '.vscode', 'settings.json');
         mockRunCbuildSetup.mockClear();
-        mockDiagnosticsCollectionSet.mockClear();
         fsUtils.deleteFileIfExists(settings);
         await fireAndWaitForConversion();
         expect(mockRunCbuildSetup).toHaveBeenCalledTimes(1);
@@ -354,7 +359,6 @@ describe('SolutionConverter', () => {
         completedListener.mockClear();
         mockRunCbuildSetup = jest.spyOn(compileCommandsGenerator, 'runCbuildSetup').mockResolvedValue([true, []]);
         mockRunCbuildSetup.mockClear();
-        mockDiagnosticsCollectionSet.mockClear();
         await fireAndWaitForConversion();
         expect(mockRunCbuildSetup).toHaveBeenCalledTimes(1);
         expect(completedListener).toHaveBeenCalledTimes(1);
@@ -425,11 +429,7 @@ describe('SolutionConverter', () => {
         });
     });
 
-    it('creates diagnostic when cpackget fails to download a pack', async () => {
-        const diagnosticCollection = vscode.languages.createDiagnosticCollection();
-        const mockDiagnosticsCollectionSet = jest.spyOn(diagnosticCollection, 'set') as unknown as jest.MockedFunction<
-            (uri: vscode.Uri, diagnostics: readonly vscode.Diagnostic[] | undefined) => void
-        >;
+    it('reports error severity when cpackget fails to download a pack', async () => {
         jest.spyOn(cmsisToolboxManager, 'runCmsisTool').mockImplementation(async (_t, _a, onOutput) => {
             onOutput('W: retry failed');
             onOutput('E: network timeout');
@@ -440,24 +440,16 @@ describe('SolutionConverter', () => {
 
         await fireAndWaitForConversion();
 
-        expect(mockDiagnosticsCollectionSet).toHaveBeenCalledTimes(1);
-        const [[, diagnostics]] = mockDiagnosticsCollectionSet.mock.calls;
-        expect(diagnostics?.[0]?.message).toContain('network timeout');
-        expect(diagnostics?.[0]?.message).toContain('retry failed');
+        expect(completedListener).toHaveBeenCalledWith(
+            expect.objectContaining({
+                severity: 'error',
+                toolsOutputMessages: expect.arrayContaining([
+                    expect.stringContaining("error cpackget: downloading pack 'VendorA::PackA@1.0.0' failed"),
+                    expect.stringContaining('network timeout'),
+                    expect.stringContaining('retry failed'),
+                ]),
+            })
+        );
     });
 
-    it('extracts warnings from cbuild2cmake and csolution tool output', async () => {
-        const mockDiagnosticsCollectionSet = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
-        mockCsolutionService.convertSolution.mockResolvedValue({ success: true });
-        mockCsolutionService.getLogMessages.mockResolvedValue({ success: true });
-        jest.spyOn(compileCommandsGenerator, 'runCbuildSetup').mockResolvedValue([true, [
-            'warning cbuild2cmake: some warning',
-            'error csolution: some error',
-        ]]);
-
-        await fireAndWaitForConversion();
-
-        // Expect two calls: one for cbuild2cmake warning, one for csolution error
-        expect(mockDiagnosticsCollectionSet).toHaveBeenCalledTimes(2);
-    });
 });

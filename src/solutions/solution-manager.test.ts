@@ -31,7 +31,11 @@ import { csolutionServiceFactory } from '../json-rpc/csolution-rpc-client.factor
 import { SolutionRpcData } from './solution-rpc-data';
 
 
-const convertResultData: ConvertResultData = { severity: 'success', detection: false };
+const convertResultData: ConvertResultData = {
+    severity: 'success',
+    detection: false,
+    logMessages: { success: true, errors: [], warnings: [], info: [] },
+};
 
 describe('SolutionManager', () => {
     let mockActiveSolutionTracker: {
