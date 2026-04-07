@@ -93,8 +93,11 @@ export const enrichLogMessagesFromToolOutput = async (logMessages: LogMessages, 
 
     await formatWestMessages(errors, warnings);
 
-    errors.forEach(e => pushUniquely(logMessages.errors ?? [], e));
-    warnings.forEach(w => pushUniquely(logMessages.warnings ?? [], w));
+    const logErrors = logMessages.errors ?? (logMessages.errors = []);
+    const logWarnings = logMessages.warnings ?? (logMessages.warnings = []);
+
+    errors.forEach(e => pushUniquely(logErrors, e));
+    warnings.forEach(w => pushUniquely(logWarnings, w));
 };
 
 export interface SolutionProblems {
