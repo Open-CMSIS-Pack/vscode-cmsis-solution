@@ -53,29 +53,30 @@ describe('manageComponentsReducer', () => {
             checkValuesUnmodified(['selectedProject'], inputState, outputState);
         });
 
-        it('maps packs when receiving SET_PACKS_INFO, leaving other properties unmodified', () => {
+        it('stores packs when receiving SET_PACKS_INFO, leaving other properties unmodified', () => {
+            const pack = {
+                key: 'Vendor::Pack@1.0.0',
+                packId: 'Vendor::Pack@1.0.0',
+                name: 'Vendor::Pack',
+                description: 'A pack',
+                used: true,
+                references: [{ pack: 'Vendor::Pack@1.0.0', origin: 'my.cproject.yml', selected: true }],
+                overviewLink: '',
+                versionUsed: '1.0.0',
+                versionTarget: '',
+            };
             const action: ComponentsAction = {
                 type: 'INCOMING_MESSAGE',
                 message: {
                     type: 'SET_PACKS_INFO',
-                    packs: [{
-                        id: 'Vendor::Pack@1.0.0',
-                        description: 'A pack',
-                        used: true,
-                        references: [{ pack: 'Vendor::Pack@1.0.0', origin: 'my.cproject.yml', selected: true }]
-                    }]
+                    packs: [pack]
                 }
-            } as any;
+            };
 
             const inputState = { ...initialState, packs: undefined };
             const outputState = componentsReducer(inputState, action);
 
-            expect(outputState.packs).toEqual([expect.objectContaining({
-                key: 'Vendor::Pack@1.0.0',
-                name: 'Vendor::Pack',
-                description: 'A pack',
-                used: true,
-            })]);
+            expect(outputState.packs).toEqual([pack]);
             checkValuesUnmodified(['packs'], inputState, outputState);
         });
 

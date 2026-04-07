@@ -29,7 +29,7 @@ import { COutlineItem } from '../solution-outline/tree-structure/solution-outlin
 import { WebviewManager, WebviewManagerOptions } from '../webview-manager';
 import { BuildContext, Project, TargetSetData } from './components-data';
 import { ComponentsPacksActions, CurrentProject, normalizeForCompare } from './components-packs-actions';
-import { ComponentRowDataType, ComponentScope } from './data/component-tools';
+import { ComponentRowDataType, ComponentScope, packsRowFromInfo } from './data/component-tools';
 import { componentTreeWalker } from './data/component-tree-walker';
 import { uniqWith, cloneDeep } from 'lodash';
 import { parsePackId } from './data/pack-parse';
@@ -619,7 +619,7 @@ export class ComponentsPacksWebviewMain {
             await action(actx, target, packId);
             const requestAll = this.scope === ComponentScope.All;
             const packs = this.mapPacksFromService(await this.csolutionService.getPacksInfo({ context: actx, all: requestAll }));
-            await this.webviewManager.sendMessage({ type: 'SET_PACKS_INFO', packs: packs?.packs || [] });
+            await this.webviewManager.sendMessage({ type: 'SET_PACKS_INFO', packs: packs?.packs?.map(packsRowFromInfo) || [] });
             await this.sendDirtyState();
         } finally {
             await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: undefined });
@@ -698,7 +698,7 @@ export class ComponentsPacksWebviewMain {
             componentScope: this.scope,
             availableTargetTypes: this.getTargetSetData(),
             selectedTargetType: this.getSelectedTargetSetData(),
-            packs: packsInfo.packs,
+            packs: packsInfo.packs.map(packsRowFromInfo),
             cbuildPackPath: cbuildPackPath,
             solution: {
                 dir: this.solutionManager.getCsolution()?.solutionDir,

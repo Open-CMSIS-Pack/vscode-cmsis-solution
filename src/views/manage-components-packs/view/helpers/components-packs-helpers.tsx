@@ -9,7 +9,7 @@ import SimpleList from '../../../common/components/simple-list';
 import { Space } from 'antd';
 import { flatTree } from '../../data/component-tree';
 import { parseComponentId } from '../../data/component-parse';
-import { Pack, PackReference } from '../../../../json-rpc/csolution-rpc-client';
+import { PackReference } from '../../../../json-rpc/csolution-rpc-client';
 import { parsePackId } from '../../data/pack-parse';
 import { ComponentsState } from '../state/reducer';
 import { SolutionInfo } from '../../messages';
@@ -200,26 +200,6 @@ export const focusComponentInTree = (
             }, 300);
         });
     }
-};
-
-/**
- * Mapper to convert from PacksInfo datatype (service) to PacksRowDataType (view)
- * @param packInfo The PacksInfo object to convert
- * @returns The corresponding PacksRowDataType object
- */
-export const packsRowFromInfo = (packInfo: Pack): PackRowDataType => {
-    const pack = parsePackId(packInfo.id);
-    return {
-        key: packInfo.id,
-        name: pack ? (pack.vendor ? `${pack.vendor}::${pack.packName}` : pack.packName) : packInfo.id,
-        packId: packInfo.id,
-        versionUsed: pack?.versionOperator ? pack.versionOperator + pack.version : (pack?.version || ''),
-        versionTarget: '',
-        description: packInfo.description || '',
-        used: packInfo.used || false,
-        references: (packInfo.references || []),
-        overviewLink: packInfo.doc || ''
-    };
 };
 
 /**
