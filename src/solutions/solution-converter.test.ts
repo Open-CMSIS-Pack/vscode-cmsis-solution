@@ -18,7 +18,6 @@ import { expect, it, describe } from '@jest/globals';
 import * as path from 'path';
 import * as manifest from '../manifest';
 import { ExtensionContext } from 'vscode';
-import * as vscode from 'vscode';
 import { SolutionConverterImpl } from './solution-converter';
 import { MockOutputChannelProvider, outputChannelProviderFactory } from '../vscode-api/output-channel-provider.factories';
 import { MockConfigurationProvider, configurationProviderFactory } from '../vscode-api/configuration-provider.factories';
@@ -339,6 +338,7 @@ describe('SolutionConverter', () => {
         expect(completedListener).toHaveBeenCalledTimes(1);
         expect(completedListener).toHaveBeenLastCalledWith(
             expect.objectContaining({
+                severity: 'error',
                 toolsOutputMessages: expect.arrayContaining([
                     'warning cbuild: missing ZEPHYR_BASE environment variable',
                     'error cbuild: exec: "west": executable file not found in $PATH',
@@ -429,11 +429,7 @@ describe('SolutionConverter', () => {
         });
     });
 
-    it('creates diagnostic when cpackget fails to download a pack', async () => {
-        const diagnosticCollection = vscode.languages.createDiagnosticCollection();
-        const mockDiagnosticsCollectionSet = jest.spyOn(diagnosticCollection, 'set') as unknown as jest.MockedFunction<
-            (uri: vscode.Uri, diagnostics: readonly vscode.Diagnostic[] | undefined) => void
-        >;
+    it('reports error severity when cpackget fails to download a pack', async () => {
         jest.spyOn(cmsisToolboxManager, 'runCmsisTool').mockImplementation(async (_t, _a, onOutput) => {
             onOutput('W: retry failed');
             onOutput('E: network timeout');
@@ -444,10 +440,16 @@ describe('SolutionConverter', () => {
 
         await fireAndWaitForConversion();
 
-        expect(mockDiagnosticsCollectionSet).toHaveBeenCalledTimes(1);
-        const [[, diagnostics]] = mockDiagnosticsCollectionSet.mock.calls;
-        expect(diagnostics?.[0]?.message).toContain('network timeout');
-        expect(diagnostics?.[0]?.message).toContain('retry failed');
+        expect(completedListener).toHaveBeenCalledWith(
+            expect.objectContaining({
+                severity: 'error',
+                toolsOutputMessages: expect.arrayContaining([
+                    expect.stringContaining("error cpackget: downloading pack 'VendorA::PackA@1.0.0' failed"),
+                    expect.stringContaining('network timeout'),
+                    expect.stringContaining('retry failed'),
+                ]),
+            })
+        );
     });
 
 });

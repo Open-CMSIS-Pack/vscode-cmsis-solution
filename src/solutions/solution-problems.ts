@@ -25,12 +25,12 @@ import { getWorkspaceFolder } from '../utils/vscode-utils';
 import { SolutionManager } from './solution-manager';
 import { ConvertResultData, SolutionEventHub } from './solution-event-hub';
 
-const toolsPrefixPatterns = {
+export const toolsPrefixPatterns = {
     error: /^.*error (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
     warning: /^.*warning (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
 };
 
-const envVarWestPatterns = [
+export const envVarWestPatterns = [
     /^missing ([A-Za-z_][A-Za-z0-9_]*) environment variable$/,
     /^([A-Za-z_][A-Za-z0-9_]*) environment variable specifies non-existent directory: .+$/,
     /^exec: "west": executable file not found in .+$/,

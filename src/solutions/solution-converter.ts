@@ -25,7 +25,7 @@ import { Mutex } from 'async-mutex';
 import * as rpc from '../json-rpc/csolution-rpc-client';
 import { ConvertRequestData, SolutionEventHub } from './solution-event-hub';
 import { Severity } from './constants';
-import { enrichLogMessagesFromToolOutput } from './solution-problems';
+import { toolsPrefixPatterns } from './solution-problems';
 
 
 export interface SolutionConverter {
@@ -188,8 +188,7 @@ export class SolutionConverterImpl implements SolutionConverter {
             return;
         }
         logResult = { errors: [], warnings: [], info: [], ...logResult, success: convertResult.success };
-        await enrichLogMessagesFromToolOutput(logResult, toolsOutputMessages);
-        const severity = this.getSeverity(logResult);
+        const severity = this.getSeverity(logResult, toolsOutputMessages);
 
         // print result to output channel
         outputChannel.append('\n' + (
@@ -261,15 +260,14 @@ export class SolutionConverterImpl implements SolutionConverter {
         return result.success;
     }
 
-    private getSeverity(messages: rpc.LogMessages): Severity {
-        if (!messages.success || (messages.errors && messages.errors.length > 0)) {
+    private getSeverity(messages: rpc.LogMessages, lines?: string[]): Severity {
+        if (!messages.success || (messages.errors && messages.errors.length > 0) || lines?.find(line => toolsPrefixPatterns.error.test(line))) {
             return 'error';
-        } else if (messages.warnings && messages.warnings.length > 0) {
+        } else if ((messages.warnings && messages.warnings.length > 0) || lines?.find(line => toolsPrefixPatterns.warning.test(line))) {
             return 'warning';
         } else if (messages.info && messages.info.length > 0) {
             return 'info';
         }
         return 'success';
     }
-
 }
