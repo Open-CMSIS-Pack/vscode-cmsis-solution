@@ -82,6 +82,7 @@ import { CsolutionService } from '../json-rpc/csolution-rpc-client';
 import { BuildStopCommand } from '../tasks/build/build-stop-command';
 import { ComponentsPacksWebviewMain } from '../views/manage-components-packs/components-packs-webview-main';
 import { SolutionConverterImpl } from '../solutions/solution-converter';
+import { SolutionProblemsImpl } from '../solutions/solution-problems';
 import { EnvironmentManager } from './env-manager';
 import { ExtensionApiWrapper } from '../vscode-api/extension-api-wrapper';
 import { SerialMonitorApi, Version } from '@microsoft/vscode-serial-monitor-api';
@@ -178,6 +179,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         cmsisToolboxManager,
         compileCommandsGenerator,
     );
+    const solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub);
 
     const themeProvider = new ThemeProviderImpl();
     const statusBar = new StatusBar(solutionManager, cmsisToolboxManager, themeProvider);
@@ -263,6 +265,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         runGeneratorCommand.activate(context),
         convertMdkToCsolution.activate(context),
         solutionConverterImpl.activate(context),
+        solutionProblems.activate(context),
         clangdManager.activate(context),
         componentsManager.activate(context),
         createSolution.activate(context),

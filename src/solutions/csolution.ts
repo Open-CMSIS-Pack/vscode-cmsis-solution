@@ -28,7 +28,7 @@ import { ContextDescriptor, contextDescriptorFromString } from './descriptors/de
 import { CmsisSettingsJsonFile } from '../global/cmsis-settings-json-file';
 import { CSolutionYamlFile } from './files/csolution-yaml-file';
 import { CProjectYamlFile } from './files/cproject-yaml-file';
-import { VariablesConfiguration, LogMessages } from '../json-rpc/csolution-rpc-client';
+import { VariablesConfiguration } from '../json-rpc/csolution-rpc-client';
 import { CbuildPackFile } from './files/cbuild-pack-file';
 
 export const targetTypeSchema = new Schema({
@@ -80,9 +80,6 @@ export class CSolution {
 
     // layer configurations
     variablesConfigurations?: VariablesConfiguration[] = undefined;
-
-    // log messages
-    logMessages?: LogMessages = undefined;
 
     public get projects() {
         return this.csolutionYml.projects;
@@ -487,10 +484,6 @@ export class CSolution {
 
     public setVariablesConfigurations(variablesConfigurations: VariablesConfiguration[] | undefined) {
         this.variablesConfigurations = variablesConfigurations;
-    }
-
-    public setLogMessages(logMessages: LogMessages | undefined) {
-        this.logMessages = logMessages;
     }
 };
 

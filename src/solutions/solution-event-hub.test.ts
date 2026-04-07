@@ -21,6 +21,7 @@ import { Severity } from './constants';
 describe('EventHub', () => {
     let eventHub: SolutionEventHub;
     let mockContext: vscode.ExtensionContext;
+    const logMessages = { success: true, errors: [], warnings: [], info: [] };
 
     beforeEach(() => {
         eventHub = new SolutionEventHub();
@@ -96,7 +97,7 @@ describe('EventHub', () => {
             const listener = jest.fn();
             eventHub.onDidConvertCompleted(listener);
 
-            const data: ConvertResultData = { severity, detection };
+            const data: ConvertResultData = { severity, detection, logMessages };
             await eventHub.fireConvertCompleted(data);
 
             expect(listener).toHaveBeenCalledTimes(1);
@@ -109,7 +110,7 @@ describe('EventHub', () => {
             eventHub.onDidConvertCompleted(listener1);
             eventHub.onDidConvertCompleted(listener2);
 
-            const data: ConvertResultData = { severity: 'success', detection: true };
+            const data: ConvertResultData = { severity: 'success', detection: true, logMessages };
             await eventHub.fireConvertCompleted(data);
 
             expect(listener1).toHaveBeenCalledWith(data);
@@ -134,7 +135,7 @@ describe('EventHub', () => {
             expect(requestListener).toHaveBeenCalledTimes(1);
             expect(completeListener).not.toHaveBeenCalled();
 
-            await eventHub.fireConvertCompleted({ severity: 'success', detection: true });
+            await eventHub.fireConvertCompleted({ severity: 'success', detection: true, logMessages });
 
             expect(requestListener).toHaveBeenCalledTimes(1);
             expect(completeListener).toHaveBeenCalledTimes(1);
@@ -170,8 +171,8 @@ describe('EventHub', () => {
             eventHub.onDidConvertCompleted(listener);
 
             await Promise.all([
-                eventHub.fireConvertCompleted({ severity: 'info', detection: true }),
-                eventHub.fireConvertCompleted({ severity: 'error', detection: false })
+                eventHub.fireConvertCompleted({ severity: 'info', detection: true, logMessages }),
+                eventHub.fireConvertCompleted({ severity: 'error', detection: false, logMessages })
             ]);
 
             expect(listener).toHaveBeenCalledTimes(2);
