@@ -142,7 +142,8 @@ export class SolutionProblemsImpl implements SolutionProblems {
         const m = message.match(this.logMessageRegex);
         if (m?.groups) {
             const { filename, line, column, message } = m.groups;
-            const fromMap = files.has(filename) ? files.get(filename) : undefined;
+            const normalizedFilename = filename ? getFileNameFromPath(filename) : undefined;
+            const fromMap = (filename && files.get(filename)) || (normalizedFilename && files.get(normalizedFilename));
             const file = fromMap || (filename && path.isAbsolute(filename) ? filename : undefined) || this.solutionManager.getCsolution()?.solutionPath;
             if (!file) {
                 return false;
