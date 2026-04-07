@@ -121,23 +121,6 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
         if (cproject) {
             const projectItems = new ProjectItemsBuilder(this.csolution, this.rpcData, context);
             projectItems.addProjectChildren(this.csolution, cprojectItem, cprojectFile, cbuild);
-
-            // get prioritized component list and set merge description if available
-            const prioritizedList = projectItems.lastPrioritizedComponentList;
-            if (prioritizedList && prioritizedList.length > 0) {
-                const fileStatus = prioritizedList[0].getAttribute('status');
-                if (fileStatus) {
-                    // set tooltip
-                    const existingTooltip = cprojectItem.getAttribute('tooltip');
-                    const newTooltip = `- Component config files: ${fileStatus}`;
-
-                    if (existingTooltip) {
-                        cprojectItem.setAttribute('tooltip', existingTooltip + '\n' + newTooltip);
-                    } else {
-                        cprojectItem.setAttribute('tooltip', newTooltip);
-                    }
-                }
-            }
         } else {
             cprojectItem.setAttribute('description', 'error loading project');
         }

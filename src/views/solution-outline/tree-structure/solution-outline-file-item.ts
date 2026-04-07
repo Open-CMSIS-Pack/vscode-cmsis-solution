@@ -18,7 +18,7 @@ import path from 'path';
 import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
 import { FILE_TAGS } from '../../../solutions/constants';
 import { COutlineItem } from './solution-outline-item';
-import { getStatusTooltip, setContextMenuAttributes, setHeaderContext, setMergeFileContext } from './solution-outline-utils';
+import { setContextMenuAttributes, setHeaderContext, setMergeFileContext } from './solution-outline-utils';
 import { matchesContext } from '../../../utils/context-utils';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 import { CSolution } from '../../../solutions/csolution';
@@ -131,21 +131,6 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
 
         // assign merge context
         setMergeFileContext(cfileItem);
-
-        // set tooltip
-        const existingTooltip = cfileItem.getValue('tooltip');
-        const label = cfileItem.getValue('label');
-
-        if (label) {
-            const statusTooltip = getStatusTooltip(label, fileStatus);
-
-            if (existingTooltip) {
-                cfileItem.setAttribute('tooltip', existingTooltip + '\n' + statusTooltip);
-            } else {
-                cfileItem.setAttribute('tooltip', statusTooltip);
-            }
-        }
-
         cfileItem.setAttribute('local', localPath);
         cfileItem.setAttribute('update', updatePath);
         cfileItem.setAttribute('base', basePath);

@@ -52,19 +52,6 @@ export function setMergeFiles(component: COutlineItem, file: ITreeItem<CTreeItem
     component.setAttribute('base', basePath);
 }
 
-export function getStatusTooltip(label: string, status: string): string | undefined {
-    switch (status) {
-        case 'update suggested':
-            return `- '${label}' has corrections. A file update is suggested.`;
-        case 'update recommended':
-            return `- '${label}' has new features. A file update is recommended.`;
-        case 'update required':
-            return `- '${label}' is incompatible. A file update is mandatory.`;
-        default:
-            return undefined;
-    }
-}
-
 export function setLinkerContext(node: COutlineItem, mapFilePath: string): void {
     node.addFeature(`${manifest.LINKER_CONTEXT}`);
     node.setAttribute('type', 'linkerMapFile');

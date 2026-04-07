@@ -28,8 +28,8 @@ export class TreeViewFileDecorationProvider implements vscode.FileDecorationProv
     static readonly themeColor: string = 'descriptionForeground';
 
     static readonly mergeBadge: string = 'N';
-    static readonly mergeTooltip: string = 'Merge update available';
-    static readonly mergeColor: string = 'charts.green';
+    static readonly mergeTooltip: string = 'New Version Available for Merge';
+    static readonly mergeColor: string = 'charts.blue';
 
     static readonly excludedBadge: string = 'X';
     static readonly excludedTooltip: string = 'Excluded from build';
