@@ -649,7 +649,7 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.mergeFile",
-        "title": "Merge Updated Config File",
+        "title": "Open Merge View",
         "icon": "$(git-merge)"
       },
       {

@@ -23,7 +23,6 @@ import * as manifest from '../../../manifest';
 import { HardwareItemBuilder } from './solution-outline-hardware-item';
 import { ProjectItemsBuilder } from './solution-outline-project-items';
 import { getFileNameNoExt } from '../../../utils/path-utils';
-import { setMergeDescription } from './solution-outline-utils';
 import { CProjectYamlFile } from '../../../solutions/files/cproject-yaml-file';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 
@@ -122,26 +121,6 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
         if (cproject) {
             const projectItems = new ProjectItemsBuilder(this.csolution, this.rpcData, context);
             projectItems.addProjectChildren(this.csolution, cprojectItem, cprojectFile, cbuild);
-
-            // get prioritized component list and set merge description if available
-            const prioritizedList = projectItems.lastPrioritizedComponentList;
-            if (prioritizedList && prioritizedList.length > 0) {
-                const fileStatus = prioritizedList[0].getAttribute('status');
-                if (fileStatus) {
-                    setMergeDescription(cprojectItem, fileStatus);
-
-                    // set tooltip
-                    const existingTooltip = cprojectItem.getAttribute('tooltip');
-                    const description = cprojectItem.getAttribute('description');
-                    const newTooltip = `- ${description} Component config files: ${fileStatus}`;
-
-                    if (existingTooltip) {
-                        cprojectItem.setAttribute('tooltip', existingTooltip + '\n' + newTooltip);
-                    } else {
-                        cprojectItem.setAttribute('tooltip', newTooltip);
-                    }
-                }
-            }
         } else {
             cprojectItem.setAttribute('description', 'error loading project');
         }
