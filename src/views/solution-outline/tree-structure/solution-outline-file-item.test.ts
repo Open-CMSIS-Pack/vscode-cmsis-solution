@@ -94,13 +94,13 @@ describe('FileItem', () => {
         expect(createdChildren.length).toBe(2);
 
         // check attributes and merge features for each file node
-        const fileLabels = ['RTX_Config.c', 'RTX_Config.h'];       
+        const fileLabels = ['RTX_Config.c', 'RTX_Config.h'];
         createdChildren.forEach((child, idx) => {
             expect(child.getTag()).toBe('file');
             expect(child.getAttribute('label')).toContain(fileLabels[idx]);
             expect(child.getAttribute('update')).toContain('update');
             expect(child.getAttribute('base')).toContain('base');
-            expect(child.getAttribute('description')).toBeUndefined();            
+            expect(child.getAttribute('description')).toBeUndefined();
         });
 
     });
