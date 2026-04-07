@@ -55,6 +55,12 @@ const createProject = (cprojectPath: string): Project => {
 const packsRowFromInfo = (packInfo: Pack, solutionPath: string): PackRowDataType => {
     const pack = parsePackId(packInfo.id);
     const solutionDir = dirname(solutionPath);
+    const references = uniqWith((packInfo.references || []).map(ref => ({
+        ...ref,
+        relOrigin: backToForwardSlashes(path.relative(solutionDir, ref.origin)),
+        relPath: ref.path ? backToForwardSlashes(path.relative(solutionDir, ref.path)) : undefined,
+    } satisfies PackRowReferenceDataType)), (left, right) => left.origin === right.origin && left.pack === right.pack);
+
     return {
         key: packInfo.id,
         name: pack ? (pack.vendor ? `${pack.vendor}::${pack.packName}` : pack.packName) : packInfo.id,
@@ -63,28 +69,13 @@ const packsRowFromInfo = (packInfo: Pack, solutionPath: string): PackRowDataType
         versionTarget: '',
         description: packInfo.description || '',
         used: packInfo.used || false,
-        references: (packInfo.references || []).map(ref => ({
-            ...ref,
-            relOrigin: backToForwardSlashes(path.relative(solutionDir, ref.origin)),
-            relPath: ref.path ? backToForwardSlashes(path.relative(solutionDir, ref.path)) : undefined,
-        } satisfies PackRowReferenceDataType)),
+        references,
         overviewLink: packInfo.doc || ''
     };
 };
 
 const packsRowsFromInfo = (packsInfo: PacksInfo, solutionPath: string): PackRowDataType[] => {
-    const packs = uniqWith([...(packsInfo.packs || [])], (a, b) => {
-        const pa = parsePackId(a.id);
-        const pb = parsePackId(b.id);
-        if (pa?.vendor === pb?.vendor && pa?.packName === pb?.packName) {
-            const refs = uniqWith([...(a.references || []), ...(b.references || [])], (left, right) => left.origin === right.origin && left.pack === right.pack);
-            a.references = b.references = refs;
-            return true;
-        }
-        return false;
-    });
-
-    return packs.map(pack => packsRowFromInfo(pack, solutionPath));
+    return (packsInfo.packs || []).map(pack => packsRowFromInfo(pack, solutionPath));
 };
 
 export class ComponentsPacksWebviewMain {

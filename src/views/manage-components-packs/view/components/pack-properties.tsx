@@ -61,7 +61,6 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                 selected: o.selected,
                 path: o.path,
                 relOrigin: o.relativePath,
-                relPath: o.path ? o.relativePath : undefined,
                 resolvedPack: pack.packId,
             }));
 
