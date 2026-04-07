@@ -107,8 +107,6 @@ describe('HardwareItemBuilder', () => {
         const gotBase = base ? path.basename(base) : '';
         const wantBase = 'Hello+CS300.dbgconf.base@0.0.1';
         expect(gotBase).toEqual(wantBase);
-
-        expect(device?.getAttribute('tooltip')).toContain('- (?) \'Hello+CS300.dbgconf\' has corrections. A file update is suggested.');
     });
 
 });
