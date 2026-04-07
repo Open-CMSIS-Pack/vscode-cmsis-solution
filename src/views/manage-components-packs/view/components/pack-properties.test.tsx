@@ -18,7 +18,10 @@ describe('PackPropertiesDialog', () => {
         key: 'ARM::CMSIS@6.1.0',
         overviewLink: 'https://arm.com/cmsis/overview',
         used: true,
-        references: [{ pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', path: 'path/to/project1.cproject.yml', origin: 'origin1', selected: true }, { pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', path: 'path/to/project2.cproject.yml', origin: 'origin2', selected: true }],
+        references: [
+            { pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project1.cproject.yml', relOrigin: 'path/to/project1.cproject.yml', selected: true },
+            { pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project2.cproject.yml', relOrigin: 'path/to/project2.cproject.yml', selected: true }
+        ],
         name: 'CMSIS',
         versionUsed: '6.1.0',
         versionTarget: 'ARM::CMSIS@6.1.0',
@@ -109,7 +112,7 @@ describe('PackPropertiesDialog', () => {
 
     it('shows current pack as latest installed and disables update button when no upgrades are available', () => {
         const pack = createMockPack({
-            references: [{ pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', path: 'path/to/project1.cproject.yml', origin: 'origin1', selected: true }],
+            references: [{ pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project1.cproject.yml', relOrigin: 'path/to/project1.cproject.yml', selected: true }],
         });
 
         render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);
@@ -122,7 +125,7 @@ describe('PackPropertiesDialog', () => {
 
     it('shows upgrade pack version and marks unlock request when update is clicked', async () => {
         const pack = createMockPack({
-            references: [{ pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', path: 'path/to/project1.cproject.yml', origin: 'origin1', selected: true, upgrade: '6.2.0' }],
+            references: [{ pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project1.cproject.yml', relOrigin: 'path/to/project1.cproject.yml', selected: true, upgrade: '6.2.0' }],
         });
 
         render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);

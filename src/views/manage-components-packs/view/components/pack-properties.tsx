@@ -5,10 +5,9 @@
 import './components-properties.css';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Card, Col, Divider, Dropdown, Input, Modal, Row, Space, Tooltip } from 'antd';
-import { OriginDataType, PackRowDataType } from '../../data/component-tools';
+import { OriginDataType, PackRowDataType, PackRowReferenceDataType } from '../../data/component-tools';
 import DraggableModalWrapper from './draggable-modal-wrapper';
 import { CompactDropdown } from '../../../common/components/compact-dropdown';
-import { PackReference } from '../../../../json-rpc/csolution-rpc-client';
 import { parsePackId } from '../../data/pack-parse';
 import { EditFilled, MinusSquareOutlined, PlusSquareOutlined } from '@ant-design/icons';
 import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
@@ -55,12 +54,14 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
     const handleOk = useCallback(() => {
         if (!pack) return;
 
-        const references: PackReference[] = allOrigins
+        const references: PackRowReferenceDataType[] = allOrigins
             .map(o => ({
-                origin: o.relativePath,
+                origin: o.path,
                 pack: `${pack.name}${o.versionOperator}${o.version}`,
                 selected: o.selected,
                 path: o.path,
+                relOrigin: o.relativePath,
+                relPath: o.path ? o.relativePath : undefined,
                 resolvedPack: pack.packId,
             }));
 

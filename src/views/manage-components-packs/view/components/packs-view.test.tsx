@@ -27,7 +27,7 @@ describe('PacksView', () => {
         overviewLink: '/path/to/overview.html',
         versionUsed: '6.0.0',
         used: true,
-        references: [{ path: 'path/to/solution.cproject.yml', pack: '', origin: '', selected: false }]
+        references: [{ pack: '', origin: 'path/to/solution.cproject.yml', relOrigin: 'path/to/solution.cproject.yml', selected: false }]
     };
 
     const defaultState: ComponentsState = {

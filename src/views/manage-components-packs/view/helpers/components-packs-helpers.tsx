@@ -9,7 +9,6 @@ import SimpleList from '../../../common/components/simple-list';
 import { Space } from 'antd';
 import { flatTree } from '../../data/component-tree';
 import { parseComponentId } from '../../data/component-parse';
-import { PackReference } from '../../../../json-rpc/csolution-rpc-client';
 import { parsePackId } from '../../data/pack-parse';
 import { ComponentsState } from '../state/reducer';
 import { SolutionInfo } from '../../messages';
@@ -213,11 +212,11 @@ export const buildAllOrigins = (
     solution: SolutionInfo,
     selectedTargetType: ComponentsState['selectedTargetType'],
 ): OriginDataType[] => {
-    const refsByPath = new Map<string, PackReference[]>();
+    const refsByPath = new Map<string, PackRowDataType['references']>();
     for (const ref of selectedPack?.references ?? []) {
-        const list = refsByPath.get(ref.path ?? '') ?? [];
+        const list = refsByPath.get(ref.relOrigin) ?? [];
         list.push(ref);
-        refsByPath.set(ref.path ?? '', list);
+        refsByPath.set(ref.relOrigin, list);
     }
 
     const defaultPackParsed = selectedPack ? parsePackId(selectedPack.packId) : undefined;

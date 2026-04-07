@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-import { CtAggregate, Api, CtBundle, CtClass, Component, CtRoot, Result, Pack, PackReference } from '../../../json-rpc/csolution-rpc-client';
+import { CtAggregate, Api, CtBundle, CtClass, Component, CtRoot, Result, PackReference } from '../../../json-rpc/csolution-rpc-client';
 import { BuildContext } from '../components-data';
 import { parseComponentId } from './component-parse';
-import { parsePackId } from './pack-parse';
 
 export enum ComponentScope {
     All = 'all',
@@ -81,29 +80,14 @@ export interface PackRowDataType {
     versionUsed: string;
     versionTarget: string;
     used: boolean;
-    references: PackReference[];
+    references: PackRowReferenceDataType[];
     latestOnlineVersion?: string;
 }
 
-/**
- * Mapper to convert from Pack datatype (service) to PackRowDataType (view)
- * @param packInfo The Pack object to convert
- * @returns The corresponding PackRowDataType object
- */
-export const packsRowFromInfo = (packInfo: Pack): PackRowDataType => {
-    const pack = parsePackId(packInfo.id);
-    return {
-        key: packInfo.id,
-        name: pack ? (pack.vendor ? `${pack.vendor}::${pack.packName}` : pack.packName) : packInfo.id,
-        packId: packInfo.id,
-        versionUsed: pack?.versionOperator ? pack.versionOperator + pack.version : (pack?.version || ''),
-        versionTarget: '',
-        description: packInfo.description || '',
-        used: packInfo.used || false,
-        references: (packInfo.references || []),
-        overviewLink: packInfo.doc || ''
-    };
-};
+export interface PackRowReferenceDataType extends PackReference {
+    relOrigin: string;
+    relPath?: string;
+}
 
 export type OriginDataType = {
     type: string;

@@ -15,7 +15,6 @@ import { IncomingMessage, OutgoingMessage } from '../../messages';
 import { PackPropertiesDialog } from './pack-properties';
 import { ComponentPackTargetSelect } from './component-pack-target-select';
 import { buildAllOrigins } from '../helpers/components-packs-helpers';
-import { PackReference } from '../../../../json-rpc/csolution-rpc-client';
 
 const { Search } = Input;
 
@@ -74,7 +73,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
                             openFile(ref.origin, false, `- pack: ${ref.pack}`);
                         }
                         return false;
-                    }}><EditFilled /></a> ./{ref.path} <span className='faded'>({p?.versionOperator}{p?.version ?? pack?.version})</span></div>);
+                    }}><EditFilled /></a> ./{ref.relOrigin} <span className='faded'>({p?.versionOperator}{p?.version ?? pack?.version})</span></div>);
                 })) ?? []
             ];
 
@@ -160,8 +159,8 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
         selectPack(undefined);
     };
 
-    const referenceFromContext = (relativePath: string, pack: PackRowDataType): PackReference[] => {
-        return pack.references.filter(ref => ref.origin?.endsWith(relativePath));
+    const referenceFromContext = (relativePath: string, pack: PackRowDataType): PackRowDataType['references'] => {
+        return pack.references.filter(ref => ref.relOrigin.endsWith(relativePath));
     };
 
     const allOrigins = React.useMemo(

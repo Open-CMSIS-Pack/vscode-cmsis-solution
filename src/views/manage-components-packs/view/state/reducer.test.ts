@@ -60,7 +60,7 @@ describe('manageComponentsReducer', () => {
                 name: 'Vendor::Pack',
                 description: 'A pack',
                 used: true,
-                references: [{ pack: 'Vendor::Pack@1.0.0', origin: 'my.cproject.yml', selected: true }],
+                references: [{ pack: 'Vendor::Pack@1.0.0', origin: 'my.cproject.yml', relOrigin: 'my.cproject.yml', selected: true }],
                 overviewLink: '',
                 versionUsed: '1.0.0',
                 versionTarget: '',
