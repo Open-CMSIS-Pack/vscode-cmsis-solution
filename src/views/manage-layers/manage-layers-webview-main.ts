@@ -145,10 +145,11 @@ export class ManageLayersWebviewMain {
     }
 
 
-    private async applyConfiguration(message: ChangeLayerMessage): Promise<void> {
+    private async applyConfiguration(message: ChangeLayerMessage): Promise<boolean> {
         try {
             await this.applyOrChangeLayer(message.layer);
             await this.applyOrChangeCompiler(message.compiler);
+            return true;
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : error;
             this.messageProvider.showErrorMessage(`Failed to apply changes: ${errorMessage}`);
@@ -157,7 +158,7 @@ export class ManageLayersWebviewMain {
                 requestType: 'APPLY_CONFIGURE',
                 errorMessage: `Failed to apply changes: ${errorMessage}`
             });
-            return;
+            return false;
         }
     }
 
@@ -232,9 +233,10 @@ export class ManageLayersWebviewMain {
 
     private async handleMessage(message: Messages.OutgoingMessage): Promise<void> {
         try {
+            let successful = true;
             switch (message.type) {
                 case 'APPLY_CONFIGURE':
-                    await this.applyConfiguration(message);
+                    successful = await this.applyConfiguration(message);
                     break;
                 case 'GET_PLATFORM':
                     await this.sendPlatform();
@@ -251,7 +253,9 @@ export class ManageLayersWebviewMain {
                     return; // early exit
                 }
             }
-            this.webviewManager.sendMessage({ type: 'REQUEST_SUCCESSFUL', requestType: message.type });
+            if (successful) {
+                this.webviewManager.sendMessage({ type: 'REQUEST_SUCCESSFUL', requestType: message.type });
+            }
         } catch (err) {
             const _err = err as Error;
             this.messageProvider.showErrorMessage(`Solution service failure: ${_err.message}\n${_err.stack}`);
