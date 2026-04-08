@@ -207,11 +207,13 @@ export class ManageLayersWebviewMain {
     }
 
     private getDataUserChoice(): void {
+        const activeTarget = this.solutionManager.getCsolution()?.getActiveTargetType() ?? '';
+
         if (!this.latestConfigureData) {
+            this.sendConfigurations(undefined, activeTarget, []);
             return;
         }
         const { availableCompilers, availableConfigurations } = this.latestConfigureData;
-        const activeTarget = this.solutionManager.getCsolution()?.getActiveTargetType() ?? '';
 
         if (availableCompilers.length === 1) { // just one compiler, add it automagically
             this.applyOrChangeCompiler(availableCompilers[0]);
