@@ -162,21 +162,16 @@ export class SolutionConverterImpl implements SolutionConverter {
             detection = availableCompilers.length > 0;
             let availableConfigurations: rpc.VariablesConfiguration[] | undefined;
             if (convertResult.undefinedLayers) {
-                const discoverResult = await this.checkDiscoverLayers();
-                availableConfigurations = discoverResult.configurations;
-                detection = detection || discoverResult.success;
+                const result = await this.checkDiscoverLayers();
+                const discoverLayersOutput = !result.success && result.message ? [`error csolution: ${result.message.trim()}`] : [];
+                toolsOutputMessages = toolsOutputMessages.concat(discoverLayersOutput);
+                availableConfigurations = result.configurations;
+                detection = detection || result.success;
             }
             if (detection) {
+                // compilers and variables detection handling: apply select-compiler and discover layer configurations if any
                 this.eventHub.fireConfigureSolutionDataReady({ availableCompilers, availableConfigurations });
             }
-            // compilers and variables detection handling: apply select-compiler and discover layer configurations if any
-            csolution?.setSelectCompiler(convertResult.selectCompiler);
-            if (convertResult.undefinedLayers) {
-                const [discoverLayersDetected, discoverLayersOutput] = await this.checkDiscoverLayers();
-                detection = discoverLayersDetected;
-                toolsOutputMessages = toolsOutputMessages.concat(discoverLayersOutput);
-            }
-            detection = detection || !!convertResult.selectCompiler;
         }
 
         let logResult = undefined;
@@ -258,7 +253,7 @@ export class SolutionConverterImpl implements SolutionConverter {
         return formattedOutput;
     }
 
-    private async checkDiscoverLayers(): Promise<[boolean, string[]]> {
+    private async checkDiscoverLayers() {
         const outputChannel = this.outputChannelProvider.getOrCreate(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
         // rpc method: DiscoverLayers
         outputChannel.append('Discover Layers... ');
@@ -269,10 +264,7 @@ export class SolutionConverterImpl implements SolutionConverter {
                 activeTarget: this.data?.targetSet ?? '',
             }
         ) as rpc.DiscoverLayersInfo;
-        return { success: result.success, configurations: result.configurations };
-        this.solutionManager.getCsolution()?.setVariablesConfigurations(result.configurations);
-        const formattedOutput = !result.success && result.message ? [`error csolution: ${result.message.trim()}`] : [];
-        return [result.success, formattedOutput];
+        return result;
     }
 
     private getSeverity(messages: rpc.LogMessages, lines?: string[]): Severity {
