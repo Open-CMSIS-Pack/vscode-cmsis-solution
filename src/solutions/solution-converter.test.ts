@@ -317,6 +317,26 @@ describe('SolutionConverter', () => {
         );
     });
 
+    it('reports discoverLayers failure through toolsOutputMessages', async () => {
+        mockCsolutionService.convertSolution.mockResolvedValue({
+            success: false,
+            undefinedLayers: ['$Board-Layer'],
+        });
+        mockCsolutionService.discoverLayers.mockResolvedValue({
+            success: false,
+            message: 'No compatible software layer found.'
+        });
+        await fireAndWaitForConversion();
+
+        expect(completedListener).toHaveBeenCalledWith(
+            expect.objectContaining({
+                severity: 'error',
+                detection: false,
+                toolsOutputMessages: expect.arrayContaining(['error csolution: No compatible software layer found.']),
+            })
+        );
+    });
+
     it('run solution convert and check whether to update compile commands', async () => {
         const mockRunCbuildSetup = jest.spyOn(compileCommandsGenerator, 'runCbuildSetup').mockResolvedValue([true,[]]);
         mockCSolution.getContextDescriptors = jest.fn().mockReturnValue([{ displayName: 'context' }]);

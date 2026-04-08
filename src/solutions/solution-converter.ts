@@ -169,6 +169,14 @@ export class SolutionConverterImpl implements SolutionConverter {
             if (detection) {
                 this.eventHub.fireConfigureSolutionDataReady({ availableCompilers, availableConfigurations });
             }
+            // compilers and variables detection handling: apply select-compiler and discover layer configurations if any
+            csolution?.setSelectCompiler(convertResult.selectCompiler);
+            if (convertResult.undefinedLayers) {
+                const [discoverLayersDetected, discoverLayersOutput] = await this.checkDiscoverLayers();
+                detection = discoverLayersDetected;
+                toolsOutputMessages = toolsOutputMessages.concat(discoverLayersOutput);
+            }
+            detection = detection || !!convertResult.selectCompiler;
         }
 
         let logResult = undefined;
@@ -250,7 +258,7 @@ export class SolutionConverterImpl implements SolutionConverter {
         return formattedOutput;
     }
 
-    private async checkDiscoverLayers(): Promise<{ success: boolean; configurations: rpc.VariablesConfiguration[] | undefined }> {
+    private async checkDiscoverLayers(): Promise<[boolean, string[]]> {
         const outputChannel = this.outputChannelProvider.getOrCreate(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
         // rpc method: DiscoverLayers
         outputChannel.append('Discover Layers... ');
@@ -262,6 +270,9 @@ export class SolutionConverterImpl implements SolutionConverter {
             }
         ) as rpc.DiscoverLayersInfo;
         return { success: result.success, configurations: result.configurations };
+        this.solutionManager.getCsolution()?.setVariablesConfigurations(result.configurations);
+        const formattedOutput = !result.success && result.message ? [`error csolution: ${result.message.trim()}`] : [];
+        return [result.success, formattedOutput];
     }
 
     private getSeverity(messages: rpc.LogMessages, lines?: string[]): Severity {
