@@ -173,6 +173,7 @@ export class ManageLayersWebviewMain {
     private onConfigureSolutionDataReady(data: ConfigureSolutionData): void {
         if (data.availableCompilers.length === 0 && !data.availableConfigurations) {
             this.latestConfigureData = undefined;
+            this.sendConfigurations(undefined, '', []);
         } else {
 
             this.latestConfigureData = data;
