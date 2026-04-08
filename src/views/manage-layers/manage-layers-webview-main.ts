@@ -17,16 +17,16 @@
 import { existsSync } from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { CTreeItem, ITreeItem } from '../../generic/tree-item';
 import * as manifest from '../../manifest';
 import { SolutionManager } from '../../solutions/solution-manager';
+import { ConfigureSolutionData, SolutionEventHub } from '../../solutions/solution-event-hub';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
 import { MessageProvider } from '../../vscode-api/message-provider';
 import { WebviewManager, WebviewManagerOptions } from '../webview-manager';
 import { copyLayerToProject } from './board-layer';
 import * as Messages from './messages';
 import { ChangeLayerMessage } from './messages';
-import { ConfigurationVariable, LayerError, TargetConfiguration, VariableSet } from './view/state/reducer';
+import { ConfigurationVariable, TargetConfiguration, VariableSet } from './view/state/reducer';
 import { LayerVariable, VariablesConfiguration, SettingsType } from '../../json-rpc/csolution-rpc-client';
 
 function mapSet(settings: SettingsType[]): VariableSet[] {
@@ -70,40 +70,6 @@ function getDataBoardLayers(configurations: VariablesConfiguration[]): TargetCon
     return layers;
 }
 
-function checkError(error: ITreeItem<CTreeItem>) {
-    return error.getValueAsString();
-}
-
-function filterError(cBuildError: ITreeItem<CTreeItem>) {
-    const message = cBuildError.getValueAsString();
-    const found = message.indexOf('no compatible software layer found') != -1;
-    return found;
-}
-
-function checkCbuildForErrors(cBuild: ITreeItem<CTreeItem>): LayerError {
-    return {
-        name: cBuild.getValueAsString('cbuild'),
-        project: cBuild.getValueAsString('project'),
-        configuration: cBuild.getValueAsString('configuration'),
-        messages: cBuild.findChild(['messages', 'errors'])?.
-            getChildren().
-            filter(filterError).
-            map(checkError),
-    };
-}
-
-function filterErrorsTag(cBuild: ITreeItem<CTreeItem>) {
-    const cbuildErrors = cBuild.getValueAsString('errors') == 'true' ? true : false;
-    const cbuildMessages = !!cBuild.findChild(['messages', 'errors'])?.getChildren().filter(filterError).length;
-    return cbuildErrors && cbuildMessages;
-}
-
-function getAvailableCbuildErrors(avCBuilds: ITreeItem<CTreeItem>[]) {
-    return avCBuilds?.
-        filter(filterErrorsTag).
-        map(checkCbuildForErrors);
-}
-
 export const MANAGE_LAYERS_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> = {
     title: 'Configure Solution',
     scriptPath: path.join('dist', 'views', 'configureSolution.js'),
@@ -117,16 +83,17 @@ export const MANAGE_LAYERS_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> = {
 
 export class ManageLayersWebviewMain {
     private readonly webviewManager: WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>;
+    private latestConfigureData: ConfigureSolutionData | undefined;
 
     constructor(
         readonly context: vscode.ExtensionContext,
         private readonly commandsProvider: CommandsProvider,
         private readonly messageProvider: MessageProvider,
         private readonly solutionManager: SolutionManager,
+        private readonly eventHub: SolutionEventHub,
         webviewManager?: WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>,
     ) {
         this.webviewManager = webviewManager || new WebviewManager(context, MANAGE_LAYERS_WEBVIEW_OPTIONS, this.commandsProvider);
-        this.solutionManager.onLoadedBuildFiles((() => this.onLoadedBuildFiles()).bind(this));
     }
 
     private async sendPlatform() {
@@ -137,7 +104,7 @@ export class ManageLayersWebviewMain {
     private async applyOrChangeLayer(layer: TargetConfiguration) {
         const csolution = this.solutionManager.getCsolution();
 
-        if (csolution && csolution.variablesConfigurations) {
+        if (csolution && this.latestConfigureData?.availableConfigurations) {
             const activeTarget = csolution?.getActiveTargetType() || '';
             const activeTargetTypeItem = csolution.getDefaultTargetTypeItem(activeTarget);
             if (!activeTargetTypeItem || !activeTarget) {
@@ -163,8 +130,8 @@ export class ManageLayersWebviewMain {
                     }
                 }
             });
-            await csolution.csolutionYml.save();
-            await copyLayerToProject(layer, csolution.solutionDir);
+            await copyLayerToProject(layer, csolution.solutionDir); // first copy layer files
+            await csolution.csolutionYml.save(); // then save csolution.yml
         }
     }
 
@@ -197,22 +164,13 @@ export class ManageLayersWebviewMain {
     public async activate(context: vscode.ExtensionContext): Promise<void> {
         context.subscriptions.push(
             this.webviewManager.onDidReceiveMessage(this.handleMessage, this),
+            this.eventHub.onDidConfigureSolutionDataReady(this.onConfigureSolutionDataReady, this),
         );
         this.webviewManager.activate(context);
     }
 
-    private onLoadedBuildFiles(): void {
-        const csolution = this.solutionManager.getCsolution();
-        const activeTarget = csolution?.getActiveTargetType() || '';
-        if (!csolution) {
-            this.webviewManager.sendMessage({
-                type: 'BOARD_LAYER_NODATA',
-                activeTargetType: activeTarget,
-                availableCompilers: [],
-            });
-            return;
-        }
-
+    private onConfigureSolutionDataReady(data: ConfigureSolutionData): void {
+        this.latestConfigureData = data;
         this.getDataUserChoice();
     }
 
@@ -224,13 +182,13 @@ export class ManageLayersWebviewMain {
         this.webviewManager.createOrShowPanel();
     }
 
-    private sendConfigurations(configurations: VariablesConfiguration[] | undefined, activeTarget: string, avComps: string[] | undefined) {
+    private sendConfigurations(configurations: VariablesConfiguration[] | undefined, activeTarget: string, avComps: string[]) {
 
         if (!configurations) {
             this.webviewManager.sendMessage({
                 type: 'BOARD_LAYER_NODATA',
                 activeTargetType: activeTarget,
-                availableCompilers: avComps ?? [],
+                availableCompilers: avComps,
             });
             return;
         }
@@ -240,52 +198,24 @@ export class ManageLayersWebviewMain {
             type: 'BOARD_LAYER_DATA',
             layers,
             activeTargetType: activeTarget,
-            availableCompilers: avComps ?? [],
+            availableCompilers: avComps,
         });
     }
 
-    private checkForLayerErrors(avCBuilds: ITreeItem<CTreeItem>[] | undefined): boolean {
-        if (!avCBuilds) {
-            return false;
-        }
-
-        const layerErrors = getAvailableCbuildErrors(avCBuilds);
-        this.webviewManager.sendMessage({
-            type: 'BOARD_LAYER_DATA_ERRORS',
-            layerErrors,
-        });
-
-        // send message to GUI with error strins
-
-        return !!layerErrors?.length;
-    }
-
-    private getDataUserChoice() {
-        const csolution = this.solutionManager.getCsolution();
-        const cBuildIdxYml = csolution?.cbuildIdxYmlRoot;
-        if (!cBuildIdxYml) {
-            this.webviewManager.sendMessage({
-                type: 'LOADING'
-            });
+    private getDataUserChoice(): void {
+        if (!this.latestConfigureData) {
             return;
         }
+        const { availableCompilers, availableConfigurations } = this.latestConfigureData;
+        const activeTarget = this.solutionManager.getCsolution()?.getActiveTargetType() ?? '';
 
-        const avComps = csolution?.selectCompiler;
-        const configurations = csolution?.variablesConfigurations;
-        const avCBuilds = cBuildIdxYml.findChild(['build-idx', 'cbuilds'])?.getChildren();
-        const avErrors = this.checkForLayerErrors(avCBuilds);
-        const activeTarget = csolution?.getActiveTargetType() || '';
-
-        if (avComps?.length == 1) { // just one compiler, add it automagically
-            const availableCompilers = avComps;
-            if (availableCompilers.length) {
-                this.applyOrChangeCompiler(availableCompilers[0]);
-                return; // return here as the change triggers cbuild and another reload
-            }
+        if (availableCompilers.length === 1) { // just one compiler, add it automagically
+            this.applyOrChangeCompiler(availableCompilers[0]);
+            return; // return here as the change triggers cbuild and another reload
         }
 
-        this.showPanel(!!avComps || !!configurations || avErrors);
-        this.sendConfigurations(configurations, activeTarget, avComps);
+        this.showPanel(!!availableCompilers.length || !!availableConfigurations);
+        this.sendConfigurations(availableConfigurations, activeTarget, availableCompilers);
     }
 
     private localFolderExists(localPath: string): boolean {

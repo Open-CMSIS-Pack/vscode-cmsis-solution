@@ -19,7 +19,6 @@ import * as manifest from '../manifest';
 import { ConfigurationProvider } from '../vscode-api/configuration-provider';
 import { OutputChannelProvider } from '../vscode-api/output-channel-provider';
 import { CmsisToolboxManager } from './cmsis-toolbox';
-import { SolutionManager } from './solution-manager';
 import { CompileCommandsGenerator } from './intellisense/compile-commands-generator';
 import { Mutex } from 'async-mutex';
 import * as rpc from '../json-rpc/csolution-rpc-client';
@@ -39,7 +38,6 @@ export class SolutionConverterImpl implements SolutionConverter {
     private data: ConvertRequestData = { solutionPath: '', targetSet: '', updateRte: false, restartRpc: false };
 
     constructor(
-        private readonly solutionManager: SolutionManager,
         private readonly eventHub: SolutionEventHub,
         private readonly configProvider: ConfigurationProvider,
         private readonly outputChannelProvider: OutputChannelProvider,
@@ -143,7 +141,6 @@ export class SolutionConverterImpl implements SolutionConverter {
 
         let detection = false;
         let convertResult: rpc.ConvertSolutionResult = { success: false };
-        const csolution = this.solutionManager.getCsolution();
         if (!missingPacksResult || missingPacksResult.success) {
             // rpc method: ConvertSolution
             outputChannel.append('Convert solution... ');
@@ -160,9 +157,18 @@ export class SolutionConverterImpl implements SolutionConverter {
                 return;
             }
 
-            // compilers and variables detection handling: apply select-compiler and discover layer configurations if any
-            csolution?.setSelectCompiler(convertResult.selectCompiler);
-            detection = (!!convertResult.undefinedLayers && await this.checkDiscoverLayers()) || !!convertResult.selectCompiler;
+            // compilers and variables detection: gather locally and emit configure event
+            const availableCompilers = convertResult.selectCompiler ?? [];
+            detection = availableCompilers.length > 0;
+            let availableConfigurations: rpc.VariablesConfiguration[] | undefined;
+            if (convertResult.undefinedLayers) {
+                const discoverResult = await this.checkDiscoverLayers();
+                availableConfigurations = discoverResult.configurations;
+                detection = detection || discoverResult.success;
+            }
+            if (detection) {
+                this.eventHub.fireConfigureSolutionDataReady({ availableCompilers, availableConfigurations });
+            }
         }
 
         let logResult = undefined;
@@ -244,9 +250,8 @@ export class SolutionConverterImpl implements SolutionConverter {
         return formattedOutput;
     }
 
-    private async checkDiscoverLayers(): Promise<boolean> {
+    private async checkDiscoverLayers(): Promise<{ success: boolean; configurations: rpc.VariablesConfiguration[] | undefined }> {
         const outputChannel = this.outputChannelProvider.getOrCreate(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
-        this.solutionManager.getCsolution()?.setVariablesConfigurations(undefined);
         // rpc method: DiscoverLayers
         outputChannel.append('Discover Layers... ');
         const result = await this.cmsisToolboxManager.runCsolutionRpc(
@@ -256,8 +261,7 @@ export class SolutionConverterImpl implements SolutionConverter {
                 activeTarget: this.data?.targetSet ?? '',
             }
         ) as rpc.DiscoverLayersInfo;
-        this.solutionManager.getCsolution()?.setVariablesConfigurations(result.configurations);
-        return result.success;
+        return { success: result.success, configurations: result.configurations };
     }
 
     private getSeverity(messages: rpc.LogMessages, lines?: string[]): Severity {
