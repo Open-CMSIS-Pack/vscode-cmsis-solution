@@ -129,9 +129,9 @@ export class ManageLayersWebviewMain {
                     }
                 }
             });
-            this.latestConfigureData = undefined;
             await copyLayerToProject(layer, csolution.solutionDir); // first copy layer files
             await csolution.csolutionYml.save(); // then save csolution.yml
+            this.latestConfigureData = undefined;
         }
     }
 
