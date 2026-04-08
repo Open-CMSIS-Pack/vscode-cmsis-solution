@@ -100,7 +100,6 @@ export class ManageLayersWebviewMain {
         this.webviewManager.sendMessage({ type: 'PLATFORM', data: { name: 'vscode' } });
     }
 
-
     private async applyOrChangeLayer(layer: TargetConfiguration) {
         const csolution = this.solutionManager.getCsolution();
 
@@ -130,6 +129,7 @@ export class ManageLayersWebviewMain {
                     }
                 }
             });
+            this.latestConfigureData = undefined;
             await copyLayerToProject(layer, csolution.solutionDir); // first copy layer files
             await csolution.csolutionYml.save(); // then save csolution.yml
         }
@@ -170,16 +170,19 @@ export class ManageLayersWebviewMain {
     }
 
     private onConfigureSolutionDataReady(data: ConfigureSolutionData): void {
-        this.latestConfigureData = data;
-        this.getDataUserChoice();
+        if (data.availableCompilers.length === 0 && !data.availableConfigurations) {
+            this.latestConfigureData = undefined;
+        } else {
+
+            this.latestConfigureData = data;
+            this.getDataUserChoice();
+        }
     }
 
     private showPanel(show: boolean) {
-        if (!show) {
-            return;
+        if (show) {
+            this.webviewManager.createOrShowPanel();
         }
-
-        this.webviewManager.createOrShowPanel();
     }
 
     private sendConfigurations(configurations: VariablesConfiguration[] | undefined, activeTarget: string, avComps: string[]) {

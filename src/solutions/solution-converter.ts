@@ -141,6 +141,8 @@ export class SolutionConverterImpl implements SolutionConverter {
 
         let detection = false;
         let convertResult: rpc.ConvertSolutionResult = { success: false };
+        let availableCompilers: string[] = [];
+        let availableConfigurations: rpc.VariablesConfiguration[] | undefined;
         if (!missingPacksResult || missingPacksResult.success) {
             // rpc method: ConvertSolution
             outputChannel.append('Convert solution... ');
@@ -158,19 +160,14 @@ export class SolutionConverterImpl implements SolutionConverter {
             }
 
             // compilers and variables detection: gather locally and emit configure event
-            const availableCompilers = convertResult.selectCompiler ?? [];
+            availableCompilers = convertResult.selectCompiler ?? [];
             detection = availableCompilers.length > 0;
-            let availableConfigurations: rpc.VariablesConfiguration[] | undefined;
             if (convertResult.undefinedLayers) {
                 const result = await this.checkDiscoverLayers();
                 const discoverLayersOutput = !result.success && result.message ? [`error csolution: ${result.message.trim()}`] : [];
                 toolsOutputMessages = toolsOutputMessages.concat(discoverLayersOutput);
                 availableConfigurations = result.configurations;
                 detection = detection || result.success;
-            }
-            if (detection) {
-                // compilers and variables detection handling: apply select-compiler and discover layer configurations if any
-                this.eventHub.fireConfigureSolutionDataReady({ availableCompilers, availableConfigurations });
             }
         }
 
@@ -216,6 +213,10 @@ export class SolutionConverterImpl implements SolutionConverter {
             logMessages: logResult,
             toolsOutputMessages,
         });
+        // compilers and variables detection handling:
+        // apply select-compiler and discover layer configurations, reset state otherwise
+        this.eventHub.fireConfigureSolutionDataReady({ availableCompilers, availableConfigurations });
+
     }
 
     private async printErrorsWarnings(messages?: rpc.LogMessages): Promise<void> {
