@@ -263,7 +263,7 @@ export class SolutionConverterImpl implements SolutionConverter {
         ) as rpc.DiscoverLayersInfo;
         this.solutionManager.getCsolution()?.setVariablesConfigurations(result.configurations);
 
-        const formattedOutput = !result.success && result.message ? [`error csolution: ${result.message}`] : [];
+        const formattedOutput = !result.success && result.message ? [`error csolution: ${result.message.trim()}`] : [];
 
         return [result.success, formattedOutput];
     }
