@@ -41,7 +41,11 @@ import { COutlineItem } from '../tree-structure/solution-outline-item';
 import * as child_process from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
+<<<<<<< HEAD
 import * as fsUtils from '../../../utils/fs-utils';
+=======
+import { MergeNodeResolver } from '../merge-node-resolver';
+>>>>>>> e85440c (Add "Open Merge View" link in Problems view)
 
 jest.mock('child_process');
 jest.mock('os');
@@ -98,12 +102,60 @@ describe('MergeCommand', () => {
         it('registers the command on activation', async () => {
             await command.activate(extensionContextFactory());
 
+<<<<<<< HEAD
             expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(1);
             expect(commandsProvider.registerCommand).toHaveBeenCalledWith(MergeCommand.mergeFile, expect.any(Function), expect.anything());
         });
     });
 
     describe('merge file discovery', () => {
+=======
+        expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(2);
+        expect(commandsProvider.registerCommand).toHaveBeenCalledWith(MergeCommand.mergeFile, expect.any(Function), expect.anything());
+        expect(commandsProvider.registerCommand).toHaveBeenCalledWith(MergeCommand.mergeFileFromPath, expect.any(Function), expect.anything());
+    });
+
+    describe('cross-platform', () => {
+        it('shows error when merge path is missing', async () => {
+            const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
+
+            await command['runVSCodeMergeFromPath']('');
+
+            expect(showErrorMessageSpy).toHaveBeenCalledWith('Cannot open merge view: merge file path is missing.');
+        });
+
+        it('shows error when merge node resolver has no match', async () => {
+            const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
+            const resolver: MergeNodeResolver = {
+                setTreeRoot: jest.fn(),
+                findMergeNodeByLocalPath: jest.fn().mockReturnValue(undefined),
+            };
+            const commandWithResolver = new MergeCommand(commandsProvider, activeSolutionTracker, resolver);
+
+            await commandWithResolver['runVSCodeMergeFromPath']('C:/workspace/RTE/CMSIS/RTX_Config.c');
+
+            expect(showErrorMessageSpy).toHaveBeenCalledWith('Cannot open merge view: merge metadata not available. Reload solution and try again.');
+        });
+
+        it('resolves node by path and delegates to merge flow', async () => {
+            const resolverNode = new COutlineItem('file');
+            const resolver: MergeNodeResolver = {
+                setTreeRoot: jest.fn(),
+                findMergeNodeByLocalPath: jest.fn().mockReturnValue(resolverNode),
+            };
+            const commandWithResolver = new MergeCommand(commandsProvider, activeSolutionTracker, resolver);
+            const commandWithResolverPrivate = commandWithResolver as unknown as {
+                runVSCodeMerge: (node: COutlineItem) => Promise<void>;
+            };
+            const runVSCodeMergeSpy = jest.spyOn(commandWithResolverPrivate, 'runVSCodeMerge').mockResolvedValue(undefined);
+
+            await commandWithResolver['runVSCodeMergeFromPath']('C:/workspace/RTE/CMSIS/RTX_Config.c');
+
+            expect(resolver.findMergeNodeByLocalPath).toHaveBeenCalled();
+            expect(runVSCodeMergeSpy).toHaveBeenCalledWith(resolverNode);
+        });
+
+>>>>>>> e85440c (Add "Open Merge View" link in Problems view)
         it('shows error if node is not passed', async () => {
             const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
             // @ts-expect-error - testing behavior when `runVSCodeMerge` receives null

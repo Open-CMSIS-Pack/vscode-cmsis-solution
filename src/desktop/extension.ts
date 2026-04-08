@@ -59,6 +59,7 @@ import { EditCommand } from '../views/solution-outline/commands/edit-command';
 import { OpenCommand } from '../views/solution-outline/commands/open-command';
 import { FindCommand } from '../views/solution-outline/commands/find-command';
 import { MergeCommand } from '../views/solution-outline/commands/merge-command';
+import { MergeNodeResolverImpl } from '../views/solution-outline/merge-node-resolver';
 import { SolutionOutlineView } from '../views/solution-outline/solution-outline';
 import { TreeViewFileDecorationProvider } from '../views/solution-outline/treeview-decoration-provider';
 import { TreeViewProviderImpl } from '../views/solution-outline/treeview-provider';
@@ -218,8 +219,11 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const copyHeaderCommand = new CopyHeaderCommand(commandsProvider);
     const openCommand = new OpenCommand(solutionManager, commandsProvider, externalFileOpener);
     const findCommand = new FindCommand(commandsProvider);
-    const mergeCommand = new MergeCommand(commandsProvider, activeSolutionTracker);
     const fileDecorationProviderManager = new FileDecorationProviderManagerImpl();
+    const treeViewProviderImpl = new TreeViewProviderImpl(SolutionOutlineView.treeViewId);
+    const treeViewFileDecorationProvider = new TreeViewFileDecorationProvider(fileDecorationProviderManager, themeProvider);
+    const mergeNodeResolver = new MergeNodeResolverImpl();
+    const mergeCommand = new MergeCommand(commandsProvider, activeSolutionTracker, mergeNodeResolver);
     const buildCommand = new BuildCommand(buildTaskProvider, commandsProvider, buildTaskDefinitionBuilder);
     const runGeneratorCommand = new GeneratorCommand(commandsProvider, solutionManager, outputChannelProvider, cmsisToolboxManager);
     const armclangDefineGetter = new ArmclangDefineGetter(processManager, workspaceFsProvider);
@@ -246,10 +250,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const targetPackCommand = new TargetPackCommandImpl(commandsProvider, solutionManager);
     const debugHardwareCommands = new DebugHardwareCommands(commandsProvider, solutionManager);
     const csolutionExtension = new CsolutionExtensionImpl(solutionCreator, buildTaskProvider, dataManager);
-    const treeViewProviderImpl = new TreeViewProviderImpl(SolutionOutlineView.treeViewId);
-
-    const treeViewFileDecorationProvider = new TreeViewFileDecorationProvider(fileDecorationProviderManager, themeProvider);
-    const solutionOutline = new SolutionOutlineView(solutionManager, treeViewProviderImpl, globalStateProvider, treeViewFileDecorationProvider);
+    const solutionOutline = new SolutionOutlineView(solutionManager, treeViewProviderImpl, globalStateProvider, treeViewFileDecorationProvider, mergeNodeResolver);
     const cmsisCommands = new CmsisCommands(configurationProvider, commandsProvider, solutionManager, debugProvider, serialMonitorExtension);
     const buildStopCommand = new BuildStopCommand(commandsProvider, buildTaskProvider);
     const configurationWizardView = new ConfWizWebview(context);

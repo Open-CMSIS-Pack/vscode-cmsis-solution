@@ -23,7 +23,12 @@ import * as fsUtils from '../utils/fs-utils';
 import { getFileNameFromPath } from '../utils/path-utils';
 import { stripTwoExtensions } from '../utils/string-utils';
 import { getWorkspaceFolder } from '../utils/vscode-utils';
+<<<<<<< HEAD
 import { SolutionLoadStateChangeEvent, SolutionManager } from './solution-manager';
+=======
+import { createMergeCommandUri, createMergeDiagnosticMessage, MERGE_VIEW_LINK_LABEL, parseMergeMessage } from '../views/solution-outline/commands/merge-message-parser';
+import { SolutionManager } from './solution-manager';
+>>>>>>> e85440c (Add "Open Merge View" link in Problems view)
 import { ConvertResultData, SolutionEventHub } from './solution-event-hub';
 
 export const toolsPrefixPatterns = {
@@ -180,8 +185,64 @@ export class SolutionProblemsImpl implements SolutionProblems {
         }
         // parse message according to logMessageRegex
         const m = message.match(this.logMessageRegex);
+<<<<<<< HEAD
         if (!m || !m.groups) {
             return false;
+=======
+        if (m?.groups) {
+            const { filename, line, column, message: diagnosticMessage } = m.groups;
+            const normalizedFilename = filename ? getFileNameFromPath(filename) : undefined;
+            const fromMap = (filename && files.get(filename)) || (normalizedFilename && files.get(normalizedFilename));
+            const file = fromMap || (filename && path.isAbsolute(filename) ? filename : undefined) || this.solutionManager.getCsolution()?.solutionPath;
+            if (!file) {
+                return false;
+            }
+            const startLine = line ? Math.max(Number(line) - 1, 0) : 0;
+            const startCharacter = column ? Math.max(Number(column) - 1, 0) : 0;
+            let endCharacter = startCharacter;
+            if (filename && column) {
+                try {
+                    const doc = await vscode.workspace.openTextDocument(file);
+                    if (doc && startLine < doc.lineCount) {
+                        endCharacter = doc.lineAt(startLine).range.end.character;
+                    }
+                } catch {
+                    // Keep default endCharacter when document cannot be opened.
+                }
+            }
+            const merge = parseMergeMessage(diagnosticMessage);
+            const normalizedMessage = merge
+                ? createMergeDiagnosticMessage(merge.localPath)
+                : diagnosticMessage;
+
+            const range = new vscode.Range(startLine, startCharacter, startLine, endCharacter);
+            const entry = new vscode.Diagnostic(range, normalizedMessage, severity);
+            entry.source = 'csolution';
+
+            if (!line && !column) {
+                // add merge action first, fallback to 'Find in Files' if not a merge advisory
+                if (merge) {
+                    const commandUri = createMergeCommandUri(merge.localPath);
+                    entry.code = {
+                        value: MERGE_VIEW_LINK_LABEL,
+                        target: vscode.Uri.parse(commandUri),
+                    };
+                } else {
+                    const args = this.createQueryArgs(diagnosticMessage);
+                    if (args) {
+                        entry.code = {
+                            value: 'Find in Files',
+                            target: vscode.Uri.parse(`command:workbench.action.findInFiles?${args}`)
+                        };
+                    }
+                }
+            }
+
+            // append diagnostic entry
+            const uri = vscode.Uri.file(path.posix.normalize(file));
+            this.diagnosticCollection.set(uri, [...(this.diagnosticCollection.get(uri) ?? []), entry]);
+            return true;
+>>>>>>> e85440c (Add "Open Merge View" link in Problems view)
         }
         const { filename, line, column, message: messageText } = m.groups;
         const normalizedFilename = filename ? getFileNameFromPath(filename) : undefined;

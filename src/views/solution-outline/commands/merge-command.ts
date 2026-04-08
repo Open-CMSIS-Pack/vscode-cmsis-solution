@@ -28,11 +28,12 @@ import * as fsUtils from '../../../utils/fs-utils';
 
 export class MergeCommand {
     public static readonly mergeFile = `${PACKAGE_NAME}.mergeFile`;
+    public static readonly mergeFileFromPath = `${PACKAGE_NAME}.mergeFileFromPath`;
     private static readonly disallowedCmdChars = /[\r\n&|<>^%"']/;
 
     constructor(
         private readonly commandsProvider: CommandsProvider,
-        private readonly activeSolutionTracker: ActiveSolutionTracker
+        private readonly activeSolutionTracker: ActiveSolutionTracker,        
     ) { }
 
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>) {
@@ -40,7 +41,17 @@ export class MergeCommand {
             this.commandsProvider.registerCommand(MergeCommand.mergeFile, (node: COutlineItem) => {
                 this.runVSCodeMerge(node);
             }, this),
+            this.commandsProvider.registerCommand(MergeCommand.mergeFileFromPath, (localPath: string) => {
+                this.runVSCodeMergeFromPath(localPath);
+            }, this),
         );
+    }
+
+    private async runVSCodeMergeFromPath(localPath: string): Promise<void> {
+        if (!localPath) {
+            vscode.window.showErrorMessage('Cannot open merge view: merge file path is missing.');
+            return;
+        }       
     }
 
     private async runVSCodeMerge(node: COutlineItem): Promise<void> {

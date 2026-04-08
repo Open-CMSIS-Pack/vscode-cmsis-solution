@@ -22,6 +22,7 @@ import { CsolutionGlobalState, GlobalState } from '../../vscode-api/global-state
 import { SolutionOutlineTree } from './tree-structure/solution-outline-tree';
 import { COutlineItem } from './tree-structure/solution-outline-item';
 import { TreeViewFileDecorationProvider } from './treeview-decoration-provider';
+import { MergeNodeResolver } from './merge-node-resolver';
 
 export class SolutionOutlineView {
     public static readonly treeViewId = `${PACKAGE_NAME}.outline`;
@@ -33,6 +34,7 @@ export class SolutionOutlineView {
         private readonly treeViewProvider: TreeViewProvider<COutlineItem>,
         private readonly globalStateProvider: GlobalState<CsolutionGlobalState>,
         private readonly treeViewFileDecorationProvider: TreeViewFileDecorationProvider,
+        private readonly mergeNodeResolver?: MergeNodeResolver,
     ) { }
 
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions' | 'globalState' | 'workspaceState'>): Promise<void> {
@@ -85,9 +87,11 @@ export class SolutionOutlineView {
             const tree = solutionOutlineTree.createTree();
             this.treeViewProvider.updateTree(tree);
             this.treeViewFileDecorationProvider.setTreeRoot(tree);
+            this.mergeNodeResolver?.setTreeRoot(tree);
         } else if (!loadState.solutionPath) {
             this.treeViewProvider.updateTree();
             this.treeViewFileDecorationProvider.setTreeRoot(undefined);
+            this.mergeNodeResolver?.setTreeRoot(undefined);
         }
     }
 }
