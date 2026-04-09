@@ -146,7 +146,8 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         eventHub,
         rpcData,
         commandsProvider,
-        environmentManagerApiProvider);
+        environmentManagerApiProvider,
+        envManager);
 
     initUtils(configurationProvider, solutionManager);
 
