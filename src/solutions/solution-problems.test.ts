@@ -25,6 +25,8 @@ import { SolutionEventHub } from './solution-event-hub';
 import { enrichLogMessagesFromToolOutput, SolutionProblemsImpl } from './solution-problems';
 import { waitTimeout } from '../__test__/test-waits';
 import { createMergeCommandUri, MERGE_VIEW_LINK_LABEL } from '../views/solution-outline/commands/merge-message-parser';
+import { MergeNodeResolver } from '../views/solution-outline/merge-node-resolver';
+import { COutlineItem } from '../views/solution-outline/tree-structure/solution-outline-item';
 
 const solutionPath = '/work/app.csolution.yml';
 const layerPath = '/work/config/mylayer.clayer.yml';
@@ -50,12 +52,23 @@ describe('SolutionProblems', () => {
     let solutionManager: MockSolutionManager;
     let eventHub: SolutionEventHub;
     let solutionProblems: SolutionProblemsImpl;
+    let mergeNodeResolver: MergeNodeResolver;
 
     beforeEach(() => {
         solutionManager = solutionManagerFactory();
         solutionManager.getCsolution.mockReturnValue(buildCsolution() as unknown as ReturnType<MockSolutionManager['getCsolution']>);
         eventHub = new SolutionEventHub();
-        solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub);
+
+        const componentNode = new COutlineItem('component');
+        componentNode.setAttribute('label', 'ARM::CMSIS:RTOS2:Keil RTX5&Source@5.5.4');
+        const mergeFileNode = componentNode.createChild('file');
+
+        mergeNodeResolver = {
+            setTreeRoot: jest.fn(),
+            findMergeNodeByLocalPath: jest.fn().mockReturnValue(mergeFileNode),
+        };
+
+        solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub, mergeNodeResolver);
 
         (vscode.workspace.openTextDocument as jest.Mock).mockResolvedValue({
             lineCount: 200,
@@ -258,7 +271,9 @@ describe('SolutionProblems', () => {
         const mergeDiagnostic = diagnostics.find(d => d.code !== undefined);
 
         expect(mergeDiagnostic).toBeDefined();
-        expect(mergeDiagnostic!.message).toBe('RTX_Config.c has a new version available for merge.');
+        expect(mergeDiagnostic!.message).toBe(
+            'update recommended for config file \'RTX_Config.c\' from component \'CMSIS:RTOS2:Keil RTX5&Source\'.'
+        );
         expect(mergeDiagnostic!.source).toBe('csolution');
         expect(mergeDiagnostic!.code).toEqual({
             value: MERGE_VIEW_LINK_LABEL,

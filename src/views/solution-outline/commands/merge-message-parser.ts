@@ -15,13 +15,17 @@
  */
 
 import path from 'node:path';
+import { stripVendor, stripVersion } from '../../../utils/string-utils';
 
 export const MERGE_VIEW_LINK_LABEL = 'Open Merge View';
 
-const mergeMessageRegex = /file\s+'([^']+)'\s+update\s+(?:required|recommended|suggested|mandatory);\s*merge content from update file/i;
+export type MergeUpdateLevel = 'required' | 'recommended' | 'suggested' | 'mandatory';
+
+const mergeMessageRegex = /file\s+'([^']+)'\s+update\s+(required|recommended|suggested|mandatory);\s*merge content from update file/i;
 
 export interface MergeMessageMatch {
     localPath: string;
+    updateLevel: MergeUpdateLevel;
     matchStart: number;
     matchLength: number;
 }
@@ -34,6 +38,7 @@ export function parseMergeMessage(line: string): MergeMessageMatch | undefined {
 
     return {
         localPath: match[1],
+        updateLevel: match[2].toLowerCase() as MergeUpdateLevel,
         matchStart: match.index,
         matchLength: match[0].length,
     };
@@ -47,4 +52,11 @@ export function createMergeCommandUri(localPath: string): string {
 
 export function createMergeDiagnosticMessage(localPath: string): string {
     return `${path.basename(localPath)} has a new version available for merge.`;
+}
+
+export function createDetailedMergeDiagnosticMessage(localPath: string, updateLevel: MergeUpdateLevel, componentId: string): string {
+    const fileName = path.basename(localPath);
+    const componentIdNoVersion = stripVersion(componentId);
+    const componentDisplayName = stripVendor(componentIdNoVersion);
+    return `update ${updateLevel} for config file '${fileName}' from component '${componentDisplayName}'.`;
 }
