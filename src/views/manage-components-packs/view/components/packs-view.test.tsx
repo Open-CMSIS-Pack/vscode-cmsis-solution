@@ -7,6 +7,20 @@ import { ComponentsState } from '../state/reducer';
 import { ComponentScope, PackRowDataType } from '../../data/component-tools';
 import { MockMessageHandler } from '../../../__test__/mock-message-handler';
 
+jest.mock('antd', () => {
+    const actual = jest.requireActual('antd');
+
+    return {
+        ...actual,
+        Tooltip: ({ title, children }: { title: React.ReactNode; children: React.ReactNode }) => (
+            <>
+                <span className='test-tooltip-title'>{title}</span>
+                {children}
+            </>
+        )
+    };
+});
+
 /**
  * Copyright (C) 2025-2026 Arm Limited
  */
@@ -222,6 +236,64 @@ describe('PacksView', () => {
             const tableContent = container.textContent || '';
             expect(tableContent).toContain('CMSIS');
             expect(tableContent).toContain('MDK-Middleware');
+        });
+    });
+
+    describe('references tooltip', () => {
+        it('shows a separate path line when relPath is defined and non-empty', () => {
+            const stateWithRelPath: ComponentsState = {
+                ...defaultState,
+                packs: [{
+                    ...mockPack,
+                    references: [{
+                        ...mockPack.references[0],
+                        relPath: 'packs/mypack'
+                    }]
+                }]
+            };
+
+            const localContainer = document.createElement('div');
+            React.act(() => {
+                createRoot(localContainer).render(
+                    <PacksView
+                        state={stateWithRelPath}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={defaultState.availablePacks}
+                    />
+                );
+            });
+
+            const tableContent = localContainer.textContent || '';
+            expect(tableContent).toContain('path: packs/mypack');
+        });
+
+        it('does not show a path line when relPath is empty or whitespace', () => {
+            const stateWithEmptyRelPath: ComponentsState = {
+                ...defaultState,
+                packs: [{
+                    ...mockPack,
+                    references: [{
+                        ...mockPack.references[0],
+                        relPath: '   '
+                    }]
+                }]
+            };
+
+            const localContainer = document.createElement('div');
+            React.act(() => {
+                createRoot(localContainer).render(
+                    <PacksView
+                        state={stateWithEmptyRelPath}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={defaultState.availablePacks}
+                    />
+                );
+            });
+
+            const tableContent = localContainer.textContent || '';
+            expect(tableContent).not.toContain('path:');
         });
     });
 });

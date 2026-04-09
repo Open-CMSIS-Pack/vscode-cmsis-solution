@@ -143,4 +143,80 @@ describe('PackPropertiesDialog', () => {
         });
     });
 
+    it('shows first non-empty relPath after description when available', () => {
+        const pack = createMockPack({
+            references: [
+                { pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project1.cproject.yml', relOrigin: 'path/to/project1.cproject.yml', relPath: '', selected: true },
+                { pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project2.cproject.yml', relOrigin: 'path/to/project2.cproject.yml', relPath: 'packs/cmsis', selected: true }
+            ]
+        });
+
+        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);
+
+        expect(screen.getByText('Path:')).toBeDefined();
+        expect(screen.getByText('packs/cmsis')).toBeDefined();
+    });
+
+    it('does not show path row when all relPath values are missing or whitespace', () => {
+        const pack = createMockPack({
+            references: [
+                { pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project1.cproject.yml', relOrigin: 'path/to/project1.cproject.yml', relPath: '   ', selected: true },
+                { pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project2.cproject.yml', relOrigin: 'path/to/project2.cproject.yml', selected: true }
+            ]
+        });
+
+        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);
+
+        expect(screen.queryByText('Path:')).toBeNull();
+    });
+
+    it('shows only latest installed version mode in compact dropdown when firstReferencePath exists', () => {
+        const pack = createMockPack({
+            references: [
+                { pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project1.cproject.yml', relOrigin: 'path/to/project1.cproject.yml', relPath: 'packs/cmsis', selected: true }
+            ]
+        });
+
+        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);
+
+        expect(document.querySelectorAll('.compact-dropdown-caret')).toHaveLength(0);
+        expect(screen.getAllByText('Unspecified').length).toBeGreaterThan(0);
+    });
+
+    it('does not render Update Pack section when firstReferencePath exists', () => {
+        const pack = createMockPack({
+            references: [
+                { pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project1.cproject.yml', relOrigin: 'path/to/project1.cproject.yml', relPath: 'packs/cmsis', selected: true }
+            ]
+        });
+
+        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);
+
+        expect(screen.queryByText('Update Pack')).toBeNull();
+    });
+
+    it('keeps full compact dropdown version choices when firstReferencePath is not available', () => {
+        const pack = createMockPack({
+            references: [
+                { pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project1.cproject.yml', relOrigin: 'path/to/project1.cproject.yml', relPath: '   ', selected: true }
+            ]
+        });
+
+        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);
+
+        expect(document.querySelectorAll('.compact-dropdown-caret').length).toBeGreaterThan(0);
+    });
+
+    it('renders Update Pack section when firstReferencePath is not available', () => {
+        const pack = createMockPack({
+            references: [
+                { pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project1.cproject.yml', relOrigin: 'path/to/project1.cproject.yml', relPath: '   ', selected: true }
+            ]
+        });
+
+        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);
+
+        expect(screen.getByText('Update Pack')).toBeDefined();
+    });
+
 });

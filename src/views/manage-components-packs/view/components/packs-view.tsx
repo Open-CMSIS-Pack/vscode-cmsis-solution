@@ -66,14 +66,25 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
                 <div key='pack-name'>{record.name}</div>,
                 ...(record.references?.map((ref, index) => {
                     const p = parsePackId(ref.pack);
-                    return (<div key={index}>in: <a title={'Edit File'} onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (ref.origin) {
-                            openFile(ref.origin, false, `- pack: ${ref.pack}`);
-                        }
-                        return false;
-                    }}><EditFilled /></a> ./{ref.relOrigin} <span className='faded'>({p?.versionOperator}{p?.version ?? pack?.version})</span></div>);
+                    const hasRelPath = Boolean(ref.relPath?.trim());
+
+                    return (
+                        <React.Fragment key={index}>
+                            <div>
+                                in: <a title={'Edit File'} onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (ref.origin) {
+                                        openFile(ref.origin, false, `- pack: ${ref.pack}`);
+                                    }
+                                    return false;
+                                }}><EditFilled /></a> ./{ref.relOrigin} <span className='faded'>({p?.versionOperator}{p?.version ?? pack?.version})</span>
+                            </div>
+                            {hasRelPath ? (
+                                <div>path: {ref.relPath}</div>
+                            ) : null}
+                        </React.Fragment>
+                    );
                 })) ?? []
             ];
 
@@ -138,7 +149,6 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
             { title: 'Description', dataIndex: 'description', key: 'description', ellipsis: true, render: renderDescriptionCell },
         ];
     }, [openFile, selectPack]);
-
 
     // pack properties dialog was closed
     const packSelected = (confirmed: boolean, updated?: PackRowDataType, unlockOf?: string) => {
