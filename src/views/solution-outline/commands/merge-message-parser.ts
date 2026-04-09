@@ -22,7 +22,7 @@ export const MERGE_VIEW_LINK_LABEL = 'Open Merge View';
 
 export type MergeUpdateLevel = 'required' | 'recommended' | 'suggested' | 'mandatory';
 
-const mergeMessageRegex = /file\s+'([^']+)'\s+update\s+(required|recommended|suggested|mandatory);\s*merge content from update file/i;
+const mergeMessageRegex = /file\s+'([^']+)'\s+update\s+(required|recommended|suggested|mandatory)/i;
 
 export interface MergeMessageMatch {
     localPath: string;
