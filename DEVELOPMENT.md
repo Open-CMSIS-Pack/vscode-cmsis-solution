@@ -190,7 +190,7 @@ With these flags, `csolution` produces detailed diagnostic output and writes a `
 To test a specific RPC method manually, launch the `csolution` binary in RPC mode and send JSON-RPC requests over stdin:
 
 ```sh
-csolution --rpc
+csolution rpc
 ```
 
 Example request:
