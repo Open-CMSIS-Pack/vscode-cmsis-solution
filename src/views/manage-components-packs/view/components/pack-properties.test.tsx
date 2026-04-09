@@ -230,4 +230,30 @@ describe('PackPropertiesDialog', () => {
         expect(screen.getByText('Update Pack')).toBeDefined();
     });
 
+    it('treats firstReferencePath as undefined when relPath is not defined on all references', () => {
+        const pack = createMockPack({
+            references: [
+                { pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project1.cproject.yml', relOrigin: 'path/to/project1.cproject.yml', selected: true },
+                { pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project2.cproject.yml', relOrigin: 'path/to/project2.cproject.yml', selected: true }
+            ]
+        });
+
+        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);
+
+        expect(screen.queryByText('Path:')).toBeNull();
+        expect(screen.getByText('Update Pack')).toBeDefined();
+    });
+
+    it('keeps compact dropdown expandable when relPath is not defined on all references', () => {
+        const pack = createMockPack({
+            references: [
+                { pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project1.cproject.yml', relOrigin: 'path/to/project1.cproject.yml', selected: true }
+            ]
+        });
+
+        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);
+
+        expect(document.querySelectorAll('.compact-dropdown-caret').length).toBeGreaterThan(0);
+    });
+
 });
