@@ -179,10 +179,10 @@ When a new RPC method or data type is needed:
 
 All outgoing JSON-RPC requests are printed via `console.log` in the `transceive()` function in [src/json-rpc/csolution-rpc-client.ts](src/json-rpc/csolution-rpc-client.ts). They appear in the **Debug Console** when running the extension with F5.
 
-For more verbose output from the `csolution` process, set the `CSOLUTION_ARGS` environment variable before launching the extension:
+For more verbose output from the `csolution` process, set the `CSOLUTION_ARGS` environment variable to a comma-separated list of arguments before launching the extension:
 
 ```sh
-export CSOLUTION_ARGS="--debug -v"
+export CSOLUTION_ARGS="--debug,-v"
 ```
 
 With these flags, `csolution` produces detailed diagnostic output and writes a `csolution-rpc-log.txt` file in the target workspace folder, logging all JSON-RPC requests and responses exchanged during the session.
