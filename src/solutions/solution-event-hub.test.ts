@@ -34,7 +34,7 @@ describe('EventHub', () => {
         it('should register emitters with context subscriptions', async () => {
             await eventHub.activate(mockContext);
 
-            expect(mockContext.subscriptions).toHaveLength(2);
+            expect(mockContext.subscriptions).toHaveLength(3);
         });
     });
 
@@ -176,6 +176,32 @@ describe('EventHub', () => {
             ]);
 
             expect(listener).toHaveBeenCalledTimes(2);
+        });
+    });
+
+    describe('fireConfigureSolutionDataReady', () => {
+        it('should fire event with compilers and configurations', async () => {
+            const listener = jest.fn();
+            eventHub.onDidConfigureSolutionDataReady(listener);
+
+            const data = { availableCompilers: ['GCC', 'AC6'], availableConfigurations: undefined };
+            await eventHub.fireConfigureSolutionDataReady(data);
+
+            expect(listener).toHaveBeenCalledTimes(1);
+            expect(listener).toHaveBeenCalledWith(data);
+        });
+
+        it('should notify multiple listeners', async () => {
+            const listener1 = jest.fn();
+            const listener2 = jest.fn();
+            eventHub.onDidConfigureSolutionDataReady(listener1);
+            eventHub.onDidConfigureSolutionDataReady(listener2);
+
+            const data = { availableCompilers: [], availableConfigurations: [{ variables: [] }] };
+            await eventHub.fireConfigureSolutionDataReady(data);
+
+            expect(listener1).toHaveBeenCalledWith(data);
+            expect(listener2).toHaveBeenCalledWith(data);
         });
     });
 });

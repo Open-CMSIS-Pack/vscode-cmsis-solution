@@ -108,6 +108,7 @@ describe('SolutionConverter', () => {
         eventHub = new SolutionEventHub();
         completedListener = jest.fn();
         eventHub.onDidConvertCompleted(completedListener);
+        jest.spyOn(eventHub, 'fireConfigureSolutionDataReady');
 
         // Initialize convertRequestData with default test values
         convertRequestData = {
@@ -137,7 +138,6 @@ describe('SolutionConverter', () => {
         solutionManager.getCsolution.mockReturnValue(mockCSolution);
 
         converter = new SolutionConverterImpl(
-            solutionManager,
             eventHub,
             mockConfigurationProvider,
             outputChannelProvider,
@@ -281,6 +281,7 @@ describe('SolutionConverter', () => {
 
     it('run solution convert and discover layers', async () => {
         mockCsolutionService.convertSolution.mockResolvedValue({ success: false, undefinedLayers: ['$Board-Layer'] });
+        mockCsolutionService.discoverLayers.mockResolvedValue({ success: true, configurations: [{ variables: [] }] });
         await fireAndWaitForConversion();
 
         expect(mockCsolutionService.discoverLayers).toHaveBeenCalledTimes(1);
@@ -289,6 +290,29 @@ describe('SolutionConverter', () => {
             expect.objectContaining({
                 severity: 'error',
                 detection: true
+            })
+        );
+        expect(eventHub.fireConfigureSolutionDataReady).toHaveBeenCalledTimes(1);
+        expect(eventHub.fireConfigureSolutionDataReady).toHaveBeenCalledWith(
+            expect.objectContaining({
+                availableCompilers: [],
+                availableConfigurations: [{ variables: [] }],
+            })
+        );
+    });
+
+    it('emits configure event with compilers when selectCompiler is returned', async () => {
+        mockCsolutionService.convertSolution.mockResolvedValue({ success: true, selectCompiler: ['GCC', 'AC6'] });
+        await fireAndWaitForConversion();
+
+        expect(completedListener).toHaveBeenCalledWith(
+            expect.objectContaining({ detection: true })
+        );
+        expect(eventHub.fireConfigureSolutionDataReady).toHaveBeenCalledTimes(1);
+        expect(eventHub.fireConfigureSolutionDataReady).toHaveBeenCalledWith(
+            expect.objectContaining({
+                availableCompilers: ['GCC', 'AC6'],
+                availableConfigurations: undefined,
             })
         );
     });

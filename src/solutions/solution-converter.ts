@@ -19,7 +19,6 @@ import * as manifest from '../manifest';
 import { ConfigurationProvider } from '../vscode-api/configuration-provider';
 import { OutputChannelProvider } from '../vscode-api/output-channel-provider';
 import { CmsisToolboxManager } from './cmsis-toolbox';
-import { SolutionManager } from './solution-manager';
 import { CompileCommandsGenerator } from './intellisense/compile-commands-generator';
 import { Mutex } from 'async-mutex';
 import * as rpc from '../json-rpc/csolution-rpc-client';
@@ -39,7 +38,6 @@ export class SolutionConverterImpl implements SolutionConverter {
     private data: ConvertRequestData = { solutionPath: '', targetSet: '', updateRte: false, restartRpc: false };
 
     constructor(
-        private readonly solutionManager: SolutionManager,
         private readonly eventHub: SolutionEventHub,
         private readonly configProvider: ConfigurationProvider,
         private readonly outputChannelProvider: OutputChannelProvider,
@@ -143,7 +141,8 @@ export class SolutionConverterImpl implements SolutionConverter {
 
         let detection = false;
         let convertResult: rpc.ConvertSolutionResult = { success: false };
-        const csolution = this.solutionManager.getCsolution();
+        let availableCompilers: string[] = [];
+        let availableConfigurations: rpc.VariablesConfiguration[] | undefined;
         if (!missingPacksResult || missingPacksResult.success) {
             // rpc method: ConvertSolution
             outputChannel.append('Convert solution... ');
@@ -160,14 +159,16 @@ export class SolutionConverterImpl implements SolutionConverter {
                 return;
             }
 
-            // compilers and variables detection handling: apply select-compiler and discover layer configurations if any
-            csolution?.setSelectCompiler(convertResult.selectCompiler);
+            // compilers and variables detection: gather locally and emit configure event
+            availableCompilers = convertResult.selectCompiler ?? [];
+            detection = availableCompilers.length > 0;
             if (convertResult.undefinedLayers) {
-                const [discoverLayersDetected, discoverLayersOutput] = await this.checkDiscoverLayers();
-                detection = discoverLayersDetected;
+                const result = await this.checkDiscoverLayers();
+                const discoverLayersOutput = !result.success && result.message ? [`error csolution: ${result.message.trim()}`] : [];
                 toolsOutputMessages = toolsOutputMessages.concat(discoverLayersOutput);
+                availableConfigurations = result.configurations;
+                detection = detection || result.success;
             }
-            detection = detection || !!convertResult.selectCompiler;
         }
 
         let logResult = undefined;
@@ -212,6 +213,10 @@ export class SolutionConverterImpl implements SolutionConverter {
             logMessages: logResult,
             toolsOutputMessages,
         });
+        // compilers and variables detection handling:
+        // apply select-compiler and discover layer configurations, reset state otherwise
+        this.eventHub.fireConfigureSolutionDataReady({ availableCompilers, availableConfigurations });
+
     }
 
     private async printErrorsWarnings(messages?: rpc.LogMessages): Promise<void> {
@@ -249,9 +254,8 @@ export class SolutionConverterImpl implements SolutionConverter {
         return formattedOutput;
     }
 
-    private async checkDiscoverLayers(): Promise<[boolean, string[]]> {
+    private async checkDiscoverLayers() {
         const outputChannel = this.outputChannelProvider.getOrCreate(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
-        this.solutionManager.getCsolution()?.setVariablesConfigurations(undefined);
         // rpc method: DiscoverLayers
         outputChannel.append('Discover Layers... ');
         const result = await this.cmsisToolboxManager.runCsolutionRpc(
@@ -261,9 +265,7 @@ export class SolutionConverterImpl implements SolutionConverter {
                 activeTarget: this.data?.targetSet ?? '',
             }
         ) as rpc.DiscoverLayersInfo;
-        this.solutionManager.getCsolution()?.setVariablesConfigurations(result.configurations);
-        const formattedOutput = !result.success && result.message ? [`error csolution: ${result.message.trim()}`] : [];
-        return [result.success, formattedOutput];
+        return result;
     }
 
     private getSeverity(messages: rpc.LogMessages, lines?: string[]): Severity {

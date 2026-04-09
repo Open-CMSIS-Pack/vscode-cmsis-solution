@@ -146,7 +146,8 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         eventHub,
         rpcData,
         commandsProvider,
-        environmentManagerApiProvider);
+        environmentManagerApiProvider,
+        envManager);
 
     initUtils(configurationProvider, solutionManager);
 
@@ -172,7 +173,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const compileCommandsGenerator = new CompileCommandsGeneratorImpl(buildTaskProvider, buildTaskDefinitionBuilder);
 
     const solutionConverterImpl = new SolutionConverterImpl(
-        solutionManager,
         eventHub,
         configurationProvider,
         outputChannelProvider,
@@ -207,6 +207,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         commandsProvider,
         messageProvider,
         solutionManager,
+        eventHub,
     );
 
     const debugProvider = new DebugLaunchProvider(commandsProvider, solutionManager, configurationProvider);
