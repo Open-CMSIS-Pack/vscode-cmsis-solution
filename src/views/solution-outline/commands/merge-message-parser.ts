@@ -16,6 +16,7 @@
 
 import path from 'node:path';
 import { stripVendor, stripVersion } from '../../../utils/string-utils';
+import { MergeCommand } from './merge-command';
 
 export const MERGE_VIEW_LINK_LABEL = 'Open Merge View';
 
@@ -45,17 +46,16 @@ export function parseMergeMessage(line: string): MergeMessageMatch | undefined {
 }
 
 export function createMergeCommandUri(localPath: string): string {
-    const commandId = 'cmsis-csolution.mergeFileFromPath';
     const args = encodeURIComponent(JSON.stringify([localPath]));
-    return `command:${commandId}?${args}`;
+    return `command:${MergeCommand.mergeFileFromPath}?${args}`;
 }
 
-export function createMergeDiagnosticMessage(localPath: string): string {
-    return `${path.basename(localPath)} has a new version available for merge.`;
-}
-
-export function createDetailedMergeDiagnosticMessage(localPath: string, updateLevel: MergeUpdateLevel, componentId: string): string {
+export function createMergeDiagnosticMessage(localPath: string, updateLevel: MergeUpdateLevel, componentId: string | undefined): string {
     const fileName = path.basename(localPath);
+    if (componentId === undefined) {
+        return `update ${updateLevel} for config file '${fileName}' has a new version available for merge.`;
+    }
+
     const componentIdNoVersion = stripVersion(componentId);
     const componentDisplayName = stripVendor(componentIdNoVersion);
     return `update ${updateLevel} for config file '${fileName}' from component '${componentDisplayName}'.`;

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { createDetailedMergeDiagnosticMessage, createMergeCommandUri, createMergeDiagnosticMessage, MERGE_VIEW_LINK_LABEL, parseMergeMessage } from './merge-message-parser';
+import { createMergeDiagnosticMessage, createMergeCommandUri, parseMergeMessage } from './merge-message-parser';
 
 describe('merge-message-parser', () => {
     it.each([
@@ -45,15 +45,8 @@ describe('merge-message-parser', () => {
         expect(decodeURIComponent(uri.split('?')[1])).toBe('["C:/workspace/RTE/CMSIS/RTX_Config.c"]');
     });
 
-    it('creates concise problems-view message', () => {
-        const message = createMergeDiagnosticMessage('C:/workspace/RTE/CMSIS/RTX_Config.c');
-
-        expect(message).toBe('RTX_Config.c has a new version available for merge.');
-        expect(message).not.toContain(MERGE_VIEW_LINK_LABEL);
-    });
-
     it('creates detailed problems-view message for merge advisory diagnostics', () => {
-        const message = createDetailedMergeDiagnosticMessage(
+        const message = createMergeDiagnosticMessage(
             'C:/workspace/RTE/CMSIS/RTX_Config.c',
             'recommended',
             'ARM::CMSIS:RTOS2:Keil RTX5&Source@5.5.4'
