@@ -25,21 +25,22 @@ contains a [vcpkg-configuration.json](./test-workspace/vcpkg-configuration.json)
     This assumes a `GITHUB_TOKEN` environment variable is exported in your environment. This needs
     to be a GitHub personal access token with the `read:packages` scope set on it.
 
-3. Install NPM dependencies and build the TypeScript
+3. Install NPM dependencies
 
     ```sh
     npm install
     ```
 
-4. In Visual Studio Code, press the F5 key to run the Desktop Extension run configuration, starting
-   the extension in debug mode. A new VS Code window will open with the extension loaded so it can
-   be used.
-
-5. Build the extension.
+4. Build the extension.
 
     ```sh
     npm run build
     ```
+
+5. In Visual Studio Code, press the F5 key to run the Desktop Extension run configuration, starting
+   the extension in debug mode. A new VS Code window will open with the extension loaded so it can
+   be used.
+
 
 ## Run the tests
 
