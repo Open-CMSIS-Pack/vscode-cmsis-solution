@@ -297,6 +297,10 @@ export class SolutionProblemsImpl implements SolutionProblems {
         return encodeURIComponent(JSON.stringify(args));
     }
 
+    private encodeCommandArgs(args: unknown[]): string {
+        return encodeURIComponent(JSON.stringify(args));
+    }
+
     private createDiagnosticActionCode(message: string): vscode.Diagnostic['code'] | undefined {
         const queryAction = this.findQueryActionInMessage(message);
         if (!queryAction) {
@@ -304,9 +308,10 @@ export class SolutionProblemsImpl implements SolutionProblems {
         }
 
         if (queryAction.action === 'components-packs') {
+            const args = this.encodeCommandArgs([{ type: 'context', value: queryAction.query }]);
             return {
                 value: 'Manage Components',
-                target: vscode.Uri.parse(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}`)
+                target: vscode.Uri.parse(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}?${args}`)
             };
         }
 

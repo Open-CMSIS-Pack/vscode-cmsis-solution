@@ -78,6 +78,11 @@ const packsRowsFromInfo = (packsInfo: PacksInfo, solutionPath: string): PackRowD
     return (packsInfo.packs || []).map(pack => packsRowFromInfo(pack, solutionPath));
 };
 
+type ManageComponentsCommandPayload = {
+    type: 'context';
+    value: string;
+};
+
 export class ComponentsPacksWebviewMain {
     private readonly webviewManager: WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>;
 
@@ -134,9 +139,25 @@ export class ComponentsPacksWebviewMain {
         this.manageComponentsActions.setCurrentProject(this.currentProject);
     }
 
-    private async handleWebviewCommand(treeNode: COutlineItem | undefined) {
-        if (treeNode) {
-            await this.openWebview(treeNode.cprojectPath, treeNode.clayerPath);
+    private resolveProjectPathFromContext(context: string): string | undefined {
+        const descriptors = this.solutionManager.getCsolution()?.getContextDescriptors();
+        return descriptors?.find(descriptor => descriptor.displayName === context)?.projectPath;
+    }
+
+    private async handleWebviewCommand(commandArg: COutlineItem | ManageComponentsCommandPayload | undefined) {
+        if (commandArg instanceof COutlineItem) {
+            await this.openWebview(commandArg.cprojectPath, commandArg.clayerPath);
+            return;
+        }
+
+        if (commandArg?.type === 'context') {
+            const projectId = this.resolveProjectPathFromContext(commandArg.value);
+            if (!projectId) {
+                this.messageProvider.showWarningMessage(`No valid project found for context: ${commandArg.value}.`);
+                return;
+            }
+
+            await this.openWebview(projectId, undefined);
             return;
         }
 
