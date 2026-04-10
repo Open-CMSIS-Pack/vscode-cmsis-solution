@@ -191,7 +191,7 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
         cdefaultItem.setAttribute('type', 'cdefaultFile');
         cdefaultItem.setAttribute('iconPath', 'symbol-file');
         cdefaultItem.setAttribute('resourcePath', resolvedPath);
-        cdefaultItem.setAttribute('tooltip', '- File: \`' + resolvedPath + '\`');
+        cdefaultItem.setAttribute('tooltip', '- File: ` ' + resolvedPath + ' `');
         return cdefaultItem;
     }
 }

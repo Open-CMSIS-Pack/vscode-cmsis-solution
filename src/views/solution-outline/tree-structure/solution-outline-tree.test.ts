@@ -79,9 +79,17 @@ describe('CSolution', () => {
     it('test tree content for hardware and projects collapsed node', async () => {
         const fileName = path.join(tmpSolutionDir, 'USBD', 'USB_Device.csolution.yml');
         const csolution = new CSolution();
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
 
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
+
+        const cdefaultPath = csolution.cbuildIdxFile?.topItem?.getValue('cdefault');
+        const hasCdefault = !!cdefaultPath && fsUtils.fileExists(
+            path.isAbsolute(solutionOutlineTree.expandString(cdefaultPath))
+                ? solutionOutlineTree.expandString(cdefaultPath)
+                : (csolution.cbuildIdxFile?.topItem?.resolvePath(solutionOutlineTree.expandString(cdefaultPath)) ?? solutionOutlineTree.expandString(cdefaultPath))
+        );
 
         const want = new Map<string, string>();
         let countContext = 1;
@@ -94,7 +102,7 @@ describe('CSolution', () => {
             const device = cbuildItem?.getValueAsString('device') ?? '';
             want.set('device', device);
 
-            if (csolution.cbuildIdxFile?.topItem?.getValue('cdefault')) {
+            if (hasCdefault) {
                 want.set('cdefault', 'cdefault');
             }
 
@@ -104,7 +112,6 @@ describe('CSolution', () => {
         }
 
         // get results from tree
-        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
         const tree = solutionOutlineTree.createTree();
         const got = new Map<string, string>();
 
