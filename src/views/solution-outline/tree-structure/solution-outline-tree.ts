@@ -100,8 +100,11 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
             });
         }
         const hardwareTreeNodes = [...hardwareTreeNode.values()];
+        const cdefaultTreeNode = this.createCdefaultNode(parent, csolution);
         COutlineItem.sortTreeNodesByLabel(projectsTreeNode);
-        treeNodes = [...hardwareTreeNodes, ...projectsTreeNode];
+        treeNodes = cdefaultTreeNode
+            ? [...hardwareTreeNodes, cdefaultTreeNode, ...projectsTreeNode]
+            : [...hardwareTreeNodes, ...projectsTreeNode];
         return treeNodes;
     }
 
@@ -165,5 +168,29 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
             return prjConfPath;
         }
         return undefined;
+    }
+
+    private createCdefaultNode(parent: COutlineItem, csolution: CSolution): COutlineItem | undefined {
+        const buildIdxItem = csolution.cbuildIdxFile?.topItem;
+        const cdefaultPath = buildIdxItem?.getValue('cdefault');
+        if (!cdefaultPath) {
+            return undefined;
+        }
+
+        const expandedPath = this.expandString(cdefaultPath);
+        const resolvedPath = path.normalize(
+            path.isAbsolute(expandedPath) ? expandedPath : (buildIdxItem?.resolvePath(expandedPath) ?? expandedPath)
+        );
+        if (!fsUtils.fileExists(resolvedPath)) {
+            return undefined;
+        }
+
+        const cdefaultItem = new COutlineItem('cdefault', parent);
+        cdefaultItem.setAttribute('label', 'cdefault');
+        cdefaultItem.setAttribute('expandable', '0');
+        cdefaultItem.setAttribute('type', 'cdefaultFile');
+        cdefaultItem.setAttribute('iconPath', 'symbol-file');
+        cdefaultItem.setAttribute('resourcePath', resolvedPath);
+        return cdefaultItem;
     }
 }
