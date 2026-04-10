@@ -17,6 +17,7 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ExtensionContext } from 'vscode';
+import { MANAGE_COMPONENTS_PACKS_COMMAND_ID } from '../manifest';
 import * as fsUtils from '../utils/fs-utils';
 import * as vscodeUtils from '../utils/vscode-utils';
 import { solutionManagerFactory, MockSolutionManager } from './solution-manager.factories';
@@ -172,5 +173,30 @@ describe('SolutionProblems', () => {
         expect(messages.warnings[0]).toContain('settings.json:3:5 - missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"');
         expect(messages.errors[0]).toContain('.vscode');
         expect(messages.errors[0]).toContain('settings.json:3:5 - exec: "west": executable file not found in $PATH; review "cmsis-csolution.environmentVariables"');
+    });
+
+    it('creates manage components command link with context argument', async () => {
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+        await eventHub.fireConvertCompleted({
+            severity: 'error',
+            detection: false,
+            logMessages: {
+                success: false,
+                errors: ["dependency validation for context 'HID.Debug+STM32U585AIIx' failed:"],
+                warnings: [],
+                info: [],
+            },
+        });
+        await waitTimeout();
+
+        const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+        const code = diagnostics?.[0].code as { value: string; target: vscode.Uri };
+        const [command, args] = code.target.toString().split('?');
+
+        expect(code.value).toBe('Manage Components');
+        expect(command).toBe(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}`);
+        expect(JSON.parse(decodeURIComponent(args))).toEqual([{ type: 'context', value: 'HID.Debug+STM32U585AIIx' }]);
     });
 });

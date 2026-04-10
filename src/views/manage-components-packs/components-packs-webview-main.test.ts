@@ -204,6 +204,26 @@ describe('ComponentsPacksWebviewMain', () => {
             expect((componentsPacksWebviewMain as any).openWebview).not.toHaveBeenCalled();
             expect(messageProvider.showWarningMessage).toHaveBeenCalledWith('No valid project found in the active solution.');
         });
+
+        it('calls openWebview with project resolved from typed context payload', async () => {
+            const context = 'HID.Debug+STM32U585AIIx';
+            jest.spyOn(componentsPacksWebviewMain as any, 'resolveProjectPathFromContext').mockReturnValue(projectPath);
+
+            await (componentsPacksWebviewMain as any).handleWebviewCommand({ type: 'context', value: context });
+
+            expect((componentsPacksWebviewMain as any).openWebview).toHaveBeenCalledTimes(1);
+            expect((componentsPacksWebviewMain as any).openWebview).toHaveBeenCalledWith(projectPath, undefined);
+        });
+
+        it('shows warning when typed context payload cannot be resolved', async () => {
+            const context = 'HID.Debug+STM32U585AIIx';
+            jest.spyOn(componentsPacksWebviewMain as any, 'resolveProjectPathFromContext').mockReturnValue(undefined);
+
+            await (componentsPacksWebviewMain as any).handleWebviewCommand({ type: 'context', value: context });
+
+            expect((componentsPacksWebviewMain as any).openWebview).not.toHaveBeenCalled();
+            expect(messageProvider.showWarningMessage).toHaveBeenCalledWith(`No valid project found for context: ${context}.`);
+        });
     });
 
     describe('openWebview', () => {

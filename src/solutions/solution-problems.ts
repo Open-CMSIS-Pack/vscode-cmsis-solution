@@ -17,6 +17,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { constructor } from '../generic/constructor';
+import { MANAGE_COMPONENTS_PACKS_COMMAND_ID } from '../manifest';
 import { LogMessages } from '../json-rpc/csolution-rpc-client';
 import * as fsUtils from '../utils/fs-utils';
 import { getFileNameFromPath } from '../utils/path-utils';
@@ -108,6 +109,14 @@ export class SolutionProblemsImpl implements SolutionProblems {
 
     private readonly diagnosticCollection: vscode.DiagnosticCollection = vscode.languages.createDiagnosticCollection('csolution');
 
+    private readonly queryActionPatterns: ReadonlyArray<{ pattern: RegExp; action: 'components-packs' | 'find-in-files' }> = [
+        { pattern: /dependency validation for context '([^']+)' failed:/, action: 'components-packs' },
+        { pattern: /\/([^/\s']+\.[^/\s']+)/, action: 'find-in-files' },
+        { pattern: /'([^']+)'/, action: 'find-in-files' },
+        { pattern: /([A-Za-z0-9_.-]+::[A-Za-z0-9_.-]+(@[A-Za-z0-9_.-]+)*)/, action: 'find-in-files' },
+        { pattern: /([A-Za-z0-9_.-]+@[A-Za-z0-9_.-]*)/, action: 'find-in-files' },
+    ];
+
     constructor(
         private readonly solutionManager: SolutionManager,
         private readonly eventHub: SolutionEventHub,
@@ -136,6 +145,23 @@ export class SolutionProblemsImpl implements SolutionProblems {
     */
     private readonly logMessageRegex = /^(?:(?<filename>(?:[A-Za-z]:)?[^\r\n:]*?[^\s\r\n:])\s*(?::\s*(?<line>\d+))?(?::\s*(?<column>\d+))?\s*-\s+)?(?<message>[\s\S]*)$/;
 
+    private async createDiagnosticRange(file: string, filename: string | undefined, line: string | undefined, column: string | undefined): Promise<vscode.Range> {
+        const startLine = line ? Math.max(Number(line) - 1, 0) : 0;
+        const startCharacter = column ? Math.max(Number(column) - 1, 0) : 0;
+        let endCharacter = startCharacter;
+        if (filename && column) {
+            try {
+                const doc = await vscode.workspace.openTextDocument(file);
+                if (doc && startLine < doc.lineCount) {
+                    endCharacter = doc.lineAt(startLine).range.end.character;
+                }
+            } catch {
+                // Keep default endCharacter when document cannot be opened.
+            }
+        }
+        return new vscode.Range(startLine, startCharacter, startLine, endCharacter);
+    }
+
     private async addDiagnosticEntry(message: string, severity: vscode.DiagnosticSeverity, files: Map<string, string>): Promise<boolean> {
         // skip excluded messages
         if (this.isMessageExcluded(message)) {
@@ -143,48 +169,30 @@ export class SolutionProblemsImpl implements SolutionProblems {
         }
         // parse message according to logMessageRegex
         const m = message.match(this.logMessageRegex);
-        if (m?.groups) {
-            const { filename, line, column, message } = m.groups;
-            const normalizedFilename = filename ? getFileNameFromPath(filename) : undefined;
-            const fromMap = (filename && files.get(filename)) || (normalizedFilename && files.get(normalizedFilename));
-            const file = fromMap || (filename && path.isAbsolute(filename) ? filename : undefined) || this.solutionManager.getCsolution()?.solutionPath;
-            if (!file) {
-                return false;
-            }
-            const startLine = line ? Math.max(Number(line) - 1, 0) : 0;
-            const startCharacter = column ? Math.max(Number(column) - 1, 0) : 0;
-            let endCharacter = startCharacter;
-            if (filename && column) {
-                try {
-                    const doc = await vscode.workspace.openTextDocument(file);
-                    if (doc && startLine < doc.lineCount) {
-                        endCharacter = doc.lineAt(startLine).range.end.character;
-                    }
-                } catch {
-                    // Keep default endCharacter when document cannot be opened.
-                }
-            }
-            const range = new vscode.Range(startLine, startCharacter, startLine, endCharacter);
-            const entry = new vscode.Diagnostic(range, message, severity);
-            entry.source = 'csolution';
-
-            if (!line && !column) {
-                // add 'Find in Files' action only if no line/column info is available
-                const args = this.createQueryArgs(message);
-                if (args) {
-                    entry.code = {
-                        value: 'Find in Files',
-                        target: vscode.Uri.parse(`command:workbench.action.findInFiles?${args}`)
-                    };
-                }
-            }
-
-            // append diagnostic entry
-            const uri = vscode.Uri.file(path.posix.normalize(file));
-            this.diagnosticCollection.set(uri, [...(this.diagnosticCollection.get(uri) ?? []), entry]);
-            return true;
+        if (!m || !m.groups) {
+            return false;
         }
-        return false;
+        const { filename, line, column, message: messageText } = m.groups;
+        const normalizedFilename = filename ? getFileNameFromPath(filename) : undefined;
+        const fromMap = (filename && files.get(filename)) || (normalizedFilename && files.get(normalizedFilename));
+        const file = fromMap || (filename && path.isAbsolute(filename) ? filename : undefined) || this.solutionManager.getCsolution()?.solutionPath;
+        if (!file) {
+            return false;
+        }
+        const range = await this.createDiagnosticRange(file, filename, line, column);
+
+        const entry = new vscode.Diagnostic(range, messageText, severity);
+        entry.source = 'csolution';
+
+        if (!line && !column) {
+            // add 'Find in Files' action only if no line/column info is available
+            entry.code = this.createDiagnosticActionCode(messageText);
+        }
+
+        // append diagnostic entry
+        const uri = vscode.Uri.file(path.posix.normalize(file));
+        this.diagnosticCollection.set(uri, [...(this.diagnosticCollection.get(uri) ?? []), entry]);
+        return true;
     }
 
     private async updateDiagnostics(messages: LogMessages): Promise<void> {
@@ -265,30 +273,17 @@ export class SolutionProblemsImpl implements SolutionProblems {
         return this.excludePatterns.some(pattern => pattern.test(message));
     }
 
-    /**
-    *  patterns to extract query from log message for 'Find in Files' action
-    */
-    private readonly queryPatterns = [
-        /(?:MISSING|SELECTABLE)\s+(.*)/,                          // component dependency
-        /\/([^/\s']+\.[^/\s']+)/,                                 // capture filename from path
-        /'([^']+)'/,                                              // single quotes
-        /([A-Za-z0-9_.-]+::[A-Za-z0-9_.-]+(@[A-Za-z0-9_.-]+)*)/,  // pack/component identifier
-        /([A-Za-z0-9_.-]+@[A-Za-z0-9_.-]*)/,                      // compiler/tool identifier
-    ];
-
-    private createQueryArgs(message: string): string | undefined {
-        // empirically find possible query patterns
-        let query;
-        for (const pattern of this.queryPatterns) {
-            const match = message.match(pattern);
-            if (match) {
-                query = match[1];
-                break;
+    private findQueryActionInMessage(message: string): { query: string; action: 'components-packs' | 'find-in-files' } | undefined {
+        for (const item of this.queryActionPatterns) {
+            const match = message.match(item.pattern);
+            if (match?.[1]) {
+                return { query: match[1], action: item.action };
             }
         }
-        if (!query) {
-            return undefined;
-        }
+        return undefined;
+    }
+
+    private encodeFindInFilesArgs(query: string): string {
         const args = {
             query: query,
             filesToInclude: '*.yml,*.yaml', // limit search to yml files
@@ -301,6 +296,32 @@ export class SolutionProblemsImpl implements SolutionProblems {
         };
         return encodeURIComponent(JSON.stringify(args));
     }
+
+    private encodeCommandArgs(args: unknown[]): string {
+        return encodeURIComponent(JSON.stringify(args));
+    }
+
+    private createDiagnosticActionCode(message: string): vscode.Diagnostic['code'] | undefined {
+        const queryAction = this.findQueryActionInMessage(message);
+        if (!queryAction) {
+            return undefined;
+        }
+
+        if (queryAction.action === 'components-packs') {
+            const args = this.encodeCommandArgs([{ type: 'context', value: queryAction.query }]);
+            return {
+                value: 'Manage Components',
+                target: vscode.Uri.parse(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}?${args}`)
+            };
+        }
+
+        const args = this.encodeFindInFilesArgs(queryAction.query);
+        return {
+            value: 'Find in Files',
+            target: vscode.Uri.parse(`command:workbench.action.findInFiles?${args}`)
+        };
+    }
+
 }
 
 export const SolutionProblems = constructor<typeof SolutionProblemsImpl, SolutionProblems>(SolutionProblemsImpl);
