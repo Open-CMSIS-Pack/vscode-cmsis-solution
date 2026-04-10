@@ -13,6 +13,13 @@ solution
     iconPath=chip
     tooltip=- device: `STM32U585AIIx`
 - from pack: `Keil::STM32U5xx_DFP@3.0.0-dev`
+  cdefault
+    label=cdefault
+    expandable=0
+    type=cdefaultFile
+    iconPath=symbol-file
+    resourcePath=TEST_DIR/solutions/USBD/cdefault.yml
+    tooltip=- File: `TEST_DIR/solutions/USBD/cdefault.yml`
   project
     label=MassStorage.Debug+B-U585I-IOT02A
     expandable=2

@@ -94,6 +94,10 @@ describe('CSolution', () => {
             const device = cbuildItem?.getValueAsString('device') ?? '';
             want.set('device', device);
 
+            if (csolution.cbuildIdxFile?.topItem?.getValue('cdefault')) {
+                want.set('cdefault', 'cdefault');
+            }
+
             const context = cbuildItem?.getValueAsString('context') ?? '';
             want.set('context' + countContext.toString(), context);;
             countContext++;
@@ -174,8 +178,8 @@ describe('CSolution', () => {
         let tree = solutionOutlineTree.createTree();
 
         let topItems = tree.getChildren();
-        expect(topItems.length).toBe(4); // device, board and two projects
-        const project = topItems[2];
+        expect(topItems.length).toBe(5); // device, board, cdefault and two projects
+        const project = topItems[3];
         const children = project.getChildren();
 
         const gotGroups: string[] = [];
@@ -219,7 +223,7 @@ describe('CSolution', () => {
         loadResult = await csolution.loadBuildFiles();
         tree = solutionOutlineTree.createTree();
         topItems = tree.getChildren();
-        expect(topItems.length).toBe(3); // device, board, one project
+        expect(topItems.length).toBe(4); // device, board, cdefault, one project
         res = await dumpOutline(tree, 'USBD', 'CmsisViewTreeOneProjDmp.txt','CmsisViewTreeOneProjRef.txt');
         expect(res.dump).toEqual(res.ref);
 
