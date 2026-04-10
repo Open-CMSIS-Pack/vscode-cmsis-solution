@@ -185,7 +185,7 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                                             <td style={{ textAlign: 'left' }}>
                                                 <Input
                                                     value={origin.version}
-                                                    placeholder={origin.versionOperator ? '' : 'see cbuild-pack.yml'}
+                                                    placeholder={firstReferencePath ? 'local pack' : (origin.versionOperator ? '' : 'see cbuild-pack.yml')}
                                                     disabled={!origin.versionOperator}
                                                     onChange={(e) => {
                                                         updateOrigin(index, (o) => ({ ...o, version: e.target.value ?? '' }));

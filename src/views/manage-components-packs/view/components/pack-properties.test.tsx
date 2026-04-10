@@ -17,9 +17,24 @@
 import 'jest';
 import * as React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { PackPropertiesDialog } from './pack-properties';
 import { OriginDataType, PackRowDataType } from '../../data/component-tools';
 import { TargetSetData } from '../../components-data';
+
+jest.mock('antd', () => {
+    const actual = jest.requireActual('antd');
+
+    return {
+        ...actual,
+        Tooltip: ({ title, children }: { title: React.ReactNode; children: React.ReactNode }) => (
+            <>
+                <span className='test-tooltip-title'>{title}</span>
+                {children}
+            </>
+        )
+    };
+});
+
+import { PackPropertiesDialog } from './pack-properties';
 
 describe('PackPropertiesDialog', () => {
     const mockOnClose = jest.fn();
@@ -254,6 +269,71 @@ describe('PackPropertiesDialog', () => {
         render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);
 
         expect(document.querySelectorAll('.compact-dropdown-caret').length).toBeGreaterThan(0);
+    });
+
+    it('shows local pack placeholder when firstReferencePath exists', () => {
+        const pack = createMockPack({
+            references: [
+                { pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project1.cproject.yml', relOrigin: 'path/to/project1.cproject.yml', relPath: 'packs/cmsis', selected: true }
+            ]
+        });
+
+        const allOrigins = [
+            { type: 'project', label: 'Project 1', path: 'absolute/path/to/origin1', relativePath: 'path/to/origin1', versionOperator: '', version: '', selected: true }
+        ] as OriginDataType[];
+
+        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={allOrigins} onClose={mockOnClose} />);
+
+        expect(screen.getByPlaceholderText('local pack')).toBeDefined();
+    });
+
+    it('calls openFile with external true when version history button is clicked', () => {
+        const pack = createMockPack({ latestOnlineVersion: '6.2.0' });
+        const mockOpenFile = jest.fn();
+
+        render(
+            <PackPropertiesDialog
+                pack={pack}
+                state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }}
+                allOrigins={createMockAllOrigins()}
+                openFile={mockOpenFile}
+                onClose={mockOnClose}
+            />
+        );
+
+        const [, historyButton] = getUpdatePackButtons();
+        fireEvent.click(historyButton);
+
+        expect(mockOpenFile).toHaveBeenCalledWith('https://www.keil.arm.com/packs/cmsis-arm/versions/', true);
+    });
+
+    it('calls openFile with external false when clicking the cbuild-pack link in tooltip', async () => {
+        const pack = createMockPack();
+        const mockOpenFile = jest.fn();
+
+        render(
+            <PackPropertiesDialog
+                pack={pack}
+                state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }}
+                allOrigins={createMockAllOrigins()}
+                cbuildPackPath={'path/to/cbuild-pack.yml'}
+                openFile={mockOpenFile}
+                onClose={mockOnClose}
+            />
+        );
+
+        const [updateButton] = getUpdatePackButtons();
+        fireEvent.click(updateButton);
+
+        await screen.findByText((content) => content.includes('path/to/cbuild-pack.yml'));
+        const link = document.querySelector('.test-tooltip-title a');
+        expect(link).not.toBeNull();
+        if (!link) {
+            throw new Error('Expected cbuild-pack link in tooltip title');
+        }
+        fireEvent.click(link);
+
+        expect(mockOpenFile).toHaveBeenCalledWith('path/to/cbuild-pack.yml', false);
     });
 
 });
