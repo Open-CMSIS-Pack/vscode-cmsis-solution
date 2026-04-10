@@ -81,8 +81,6 @@ const packsRowsFromInfo = (packsInfo: PacksInfo, solutionPath: string): PackRowD
 export class ComponentsPacksWebviewMain {
     private readonly webviewManager: WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>;
 
-    public static readonly WEBVIEW_COMMAND_ID = `${manifest.PACKAGE_NAME}.manageComponentsPacks`;
-
     private currentProject: CurrentProject;
 
     private componentTree!: CtRoot;
@@ -123,7 +121,7 @@ export class ComponentsPacksWebviewMain {
             this.webviewManager.onDidReceiveMessage(this.handleMessage, this),
             this.webviewManager.onDidDispose(this.dispose, this),
             this.solutionManager.onDidChangeLoadState(this.handleSolutionLoadChange, this),
-            this.commandsProvider.registerCommand(ComponentsPacksWebviewMain.WEBVIEW_COMMAND_ID, this.handleWebviewCommand, this),
+            this.commandsProvider.registerCommand(manifest.MANAGE_COMPONENTS_PACKS_COMMAND_ID, this.handleWebviewCommand, this),
         );
 
         await this.webviewManager.activate(context);
