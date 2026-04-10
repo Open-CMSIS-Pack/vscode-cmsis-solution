@@ -19,7 +19,6 @@ solution
     type=cdefaultFile
     iconPath=symbol-file
     resourcePath=TEST_DIR/solutions/USBD/cdefault.yml
-    tooltip=- File: ` TEST_DIR/solutions/USBD/cdefault.yml `
   project
     label=HID.Release+B-U585I-IOT02A
     expandable=2
