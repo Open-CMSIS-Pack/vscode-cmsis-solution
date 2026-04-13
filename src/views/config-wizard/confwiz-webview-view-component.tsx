@@ -80,8 +80,8 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
     };
     protected get messenger(): Messenger {
         if (!this._messenger) {
-            const vscode = acquireVsCodeApi();
-            this._messenger = new Messenger(vscode);
+            const vscodeApi = acquireVsCodeApi();
+            this._messenger = new Messenger(vscodeApi);
             this._messenger.start();
         }
 

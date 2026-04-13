@@ -42,15 +42,12 @@ const getNotificationKey = (type: unknown): string => {
     return String(type);
 };
 
-// Mock acquireVsCodeApi
-// @ts-expect-error - We only need to mock the methods used by the component, so we can ignore the full type definition here
-global.acquireVsCodeApi = jest.fn(() => ({
-    postMessage: jest.fn(),
-    setState: jest.fn(),
-    getState: jest.fn(),
-}));
-
 jest.mock('vscode-messenger-webview', () => ({
+    acquireVsCodeApi: jest.fn(() => ({
+        postMessage: jest.fn(),
+        setState: jest.fn(),
+        getState: jest.fn(),
+    })),
     Messenger: jest.fn().mockImplementation(() => ({
         start: jest.fn(),
         onNotification: (type: unknown, handler: (data: unknown) => void) => {
@@ -64,7 +61,7 @@ jest.mock('primereact/treetable', () => ({
     TreeTable: ({ value, header, children }: { value: unknown[]; header: React.ReactNode; children: React.ReactNode }) => {
         const columns = React.Children.toArray(children) as React.ReactElement[];
         return (
-            <div>
+            <>
                 {header}
                 {value?.map((node: unknown, index: number) => (
                     <div key={index} data-testid={`row-${index}`}>
@@ -73,7 +70,7 @@ jest.mock('primereact/treetable', () => ({
                         ))}
                     </div>
                 ))}
-            </div>
+            </>
         );
     },
 }));
