@@ -43,6 +43,7 @@ const getNotificationKey = (type: unknown): string => {
 };
 
 // Mock acquireVsCodeApi
+// @ts-expect-error - We only need to mock the methods used by the component, so we can ignore the full type definition here
 global.acquireVsCodeApi = jest.fn(() => ({
     postMessage: jest.fn(),
     setState: jest.fn(),

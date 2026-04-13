@@ -389,6 +389,9 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                 className='tree-table-filter'
                 placeholder='Search annotations'
                 allowClear
+                onClear={(): void => {
+                    this.setState({ filter: '' });
+                }}
                 onInput={(event): void => {
                     const element = event.target as HTMLInputElement;
                     this.setState({ filter: element.value });
