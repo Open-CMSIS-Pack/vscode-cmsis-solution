@@ -142,7 +142,7 @@ export class SolutionProblemsImpl implements SolutionProblems {
 
     private handleLoadStateChanged(data: SolutionLoadStateChangeEvent): void {
         if (data.previousState.solutionPath !== data.newState.solutionPath) {
-            this.clear();
+            this.clearDiagnostics();
         }
     }
 
@@ -209,14 +209,14 @@ export class SolutionProblemsImpl implements SolutionProblems {
     /**
      * Clear diagnostic and collected files
      */
-    private clear() {
+    private clearDiagnostics(): void {
         this.diagnosticCollection.clear();
         this.collectYmlFiles();
     }
 
     private async updateDiagnostics(messages: LogMessages): Promise<void> {
         // clear previous diagnostics
-        this.clear();
+        this.clearDiagnostics();
         let diagnostics = false;
 
         // iterate through log messages and set diagnostics
