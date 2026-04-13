@@ -142,10 +142,7 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         dbgconfFileItem.setAttribute('resourcePath', filePath);
         dbgconfFileItem.setAttribute('tooltip', `\`${filePath}\``);
         dbgconfFileItem.addFeature('file');
-
-        // overwrite tooltip
-        dbgconfFileItem.setAttribute('tooltip', '');
-
+        
         // add merge feature for dbgconf node
         const fileItem = new FileItemBuilder();
         fileItem.addMergeFeature(file, dbgconfFileItem, { skipValidation: true, localPathOverride: filePath });

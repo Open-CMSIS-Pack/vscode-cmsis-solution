@@ -96,7 +96,7 @@ describe('HardwareItemBuilder', () => {
         const local = device?.getAttribute('local');
         const gotLocal = local ? path.basename(local) : '';
         const wantLocal = 'Hello+CS300.dbgconf';
-        expect(gotLocal).toEqual(wantLocal);       
+        expect(gotLocal).toEqual(wantLocal);
     });
 
 });

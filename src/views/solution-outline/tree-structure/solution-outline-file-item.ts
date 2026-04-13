@@ -112,12 +112,12 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
         if (!localPath) {
             return;
         }
-        
+
         cfileItem.setAttribute('local', localPath);
 
         const mergeFiles = findMergeFiles(localPath);
         if (mergeFiles.update && mergeFiles.base) {
-            setMergeFileContext(cfileItem);           
+            setMergeFileContext(cfileItem);
         }
     }
 }

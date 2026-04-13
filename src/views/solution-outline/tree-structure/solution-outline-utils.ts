@@ -132,7 +132,7 @@ export function findMergeFiles(localPath: string): { update: string | undefined;
     };
 }
 
-function selectMergeSibling(fileNames: string[], prefix: string): string | undefined {
+export function selectMergeSibling(fileNames: string[], prefix: string): string | undefined {
     if (fileNames.length === 0) {
         return undefined;
     }
