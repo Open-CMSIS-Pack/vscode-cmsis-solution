@@ -70,7 +70,31 @@ describe('SolutionProblems', () => {
 
         await solutionProblems.activate(context);
 
-        expect(context.subscriptions).toHaveLength(2);
+        expect(context.subscriptions).toHaveLength(3);
+    });
+
+    it('clears diagnostics when solution path changes', async () => {
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const clearSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'clear');
+
+        solutionManager.fireOnDidChangeLoadState(
+            { solutionPath: '/work/new.csolution.yml' },
+            { solutionPath: '/work/old.csolution.yml' }
+        );
+
+        expect(clearSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not clear diagnostics when solution path is unchanged', async () => {
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const clearSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'clear');
+
+        solutionManager.fireOnDidChangeLoadState(
+            { solutionPath: '/work/same.csolution.yml' },
+            { solutionPath: '/work/same.csolution.yml' }
+        );
+
+        expect(clearSpy).not.toHaveBeenCalled();
     });
 
     it('creates diagnostics from convert completed log messages', async () => {
