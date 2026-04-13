@@ -23,10 +23,11 @@ import path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { ActiveSolutionTracker } from '../../../solutions/active-solution-tracker';
+import { findMergeFiles } from '../tree-structure/solution-outline-utils';
 
 export class MergeCommand {
     public static readonly mergeFile = `${PACKAGE_NAME}.mergeFile`;
-    private static readonly disallowedCmdChars  = /[\r\n&|<>^%"']/;
+    private static readonly disallowedCmdChars = /[\r\n&|<>^%"']/;
 
     constructor(
         private readonly commandsProvider: CommandsProvider,
@@ -47,23 +48,12 @@ export class MergeCommand {
             return;
         }
 
-        let local = node.getAttribute('local');
-        if (!local) {
-            vscode.window.showErrorMessage('Required local file is missing to perform merge.');
+        const mergeFiles = this.discoverMergeFiles(node);
+        if (!mergeFiles) {
             return;
         }
 
-        let update = node.getAttribute('update');
-        if (!update) {
-            vscode.window.showErrorMessage('Required update file is missing to perform merge.');
-            return;
-        }
-
-        let base = node.getAttribute('base');
-        if (!base) {
-            vscode.window.showErrorMessage('Required base file is missing to perform merge.');
-            return;
-        }
+        let { local, update, base } = mergeFiles;
 
         const codePath = this.getVSCodeExecutablePath();
         if (!codePath) {
@@ -105,33 +95,8 @@ export class MergeCommand {
                 return;
             }
 
-            // perform post-merge file operations
             if (exitCode === 0 && mergedMTimeAfter > mergedMTimeBefore) {
-                // create .bak file of local file
-                const backupPath = `${local}.bak`;
-                fs.copyFileSync(local, backupPath);
-
-                // delete local file
-                if (fs.existsSync(local)) {
-                    fs.unlinkSync(local);
-                }
-
-                // delete base file
-                if (fs.existsSync(base)) {
-                    fs.unlinkSync(base);
-                }
-
-                // rename update file to base file
-                const newBaseFileName = path.basename(update).replaceAll('update', 'base');
-                const baseDirPath = path.dirname(update);
-                const newBase = path.join(baseDirPath, newBaseFileName);
-                fs.renameSync(update, newBase);
-
-                // rename merged file to local file
-                fs.renameSync(merged, local);
-
-                // refresh tree view to update file status
-                this.activeSolutionTracker.triggerReload();
+                this.performPostMergeOperations(local, update, base, merged);
             }
 
         } catch (err) {
@@ -139,6 +104,57 @@ export class MergeCommand {
             const details = err instanceof Error ? err.message : String(err);
             vscode.window.showErrorMessage(`Merge operation failed: ${details}`);
         }
+    }
+
+    private discoverMergeFiles(node: COutlineItem): { local: string; update: string; base: string } | undefined {
+        const local = node.getAttribute('local');
+        if (!local) {
+            vscode.window.showErrorMessage('Required local file is missing to perform merge.');
+            return undefined;
+        }
+
+        const discovered = findMergeFiles(local);
+        const update = discovered.update;
+        if (!update) {
+            vscode.window.showErrorMessage('Required update file is missing to perform merge.');
+            return undefined;
+        }
+
+        const base = discovered.base;
+        if (!base) {
+            vscode.window.showErrorMessage('Required base file is missing to perform merge.');
+            return undefined;
+        }
+
+        return { local, update, base };
+    }
+
+    private performPostMergeOperations(local: string, update: string, base: string, merged: string): void {
+        // create .bak file of local file
+        const backupPath = `${local}.bak`;
+        fs.copyFileSync(local, backupPath);
+
+        // delete local file
+        if (fs.existsSync(local)) {
+            fs.unlinkSync(local);
+        }
+
+        // delete base file
+        if (fs.existsSync(base)) {
+            fs.unlinkSync(base);
+        }
+
+        // rename update file to base file
+        const newBaseFileName = path.basename(update).replaceAll('update', 'base');
+        const baseDirPath = path.dirname(update);
+        const newBase = path.join(baseDirPath, newBaseFileName);
+        fs.renameSync(update, newBase);
+
+        // rename merged file to local file
+        fs.renameSync(merged, local);
+
+        // refresh tree view to update file status
+        this.activeSolutionTracker.triggerReload();
     }
 
     private getVSCodeExecutablePath(): string | undefined {

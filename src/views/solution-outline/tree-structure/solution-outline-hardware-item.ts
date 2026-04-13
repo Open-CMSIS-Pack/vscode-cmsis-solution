@@ -143,34 +143,10 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         dbgconfFileItem.setAttribute('tooltip', `\`${filePath}\``);
         dbgconfFileItem.addFeature('file');
 
-        // add merge feature for dbgconf node
-        const update = children.find(child => child.getTag() === 'update');
-        if (!update) {
-            return;
-        }
-
-        const base = children.find(child => child.getTag() === 'base');
-        if (!base) {
-            return;
-        }
-
-        const status = children.find(child => child.getTag() === 'status');
-        if (!status) {
-            return;
-        }
-
-        const updateFileName = update.getText();
-        file.setAttribute('update', updateFileName);
-
-        const baseFileName = base.getText();
-        file.setAttribute('base', baseFileName);
-
-        const statusFileName = status.getText();
-        file.setAttribute('status', statusFileName);
-
         // overwrite tooltip
         dbgconfFileItem.setAttribute('tooltip', '');
 
+        // add merge feature for dbgconf node
         const fileItem = new FileItemBuilder();
         fileItem.addMergeFeature(file, dbgconfFileItem, { skipValidation: true, localPathOverride: filePath });
     }

@@ -98,8 +98,6 @@ describe('FileItem', () => {
         createdChildren.forEach((child, idx) => {
             expect(child.getTag()).toBe('file');
             expect(child.getAttribute('label')).toContain(fileLabels[idx]);
-            expect(child.getAttribute('update')).toContain('update');
-            expect(child.getAttribute('base')).toContain('base');
             expect(child.getAttribute('description')).toBeUndefined();
         });
 

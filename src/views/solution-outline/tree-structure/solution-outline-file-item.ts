@@ -18,7 +18,7 @@ import path from 'path';
 import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
 import { FILE_TAGS } from '../../../solutions/constants';
 import { COutlineItem } from './solution-outline-item';
-import { setContextMenuAttributes, setHeaderContext, setMergeFileContext } from './solution-outline-utils';
+import { findMergeFiles, setContextMenuAttributes, setHeaderContext, setMergeFileContext } from './solution-outline-utils';
 import { matchesContext } from '../../../utils/context-utils';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 import { CSolution } from '../../../solutions/csolution';
@@ -94,6 +94,8 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
     }
 
     public addMergeFeature(f: ITreeItem<CTreeItem>, cfileItem: COutlineItem, options?: { skipValidation?: boolean; localPathOverride?: string }) {
+        // Only config files with a resolvable resource path are eligible.
+        // Callers can bypass this when they already validated inputs upstream.
         if (!options?.skipValidation) {
             const attr = f.getValue('attr');
             if (attr !== 'config') {
@@ -105,34 +107,17 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
             }
         }
 
-        // use override if provided, else use resourcePath
+        // Prefer an explicit local path from caller; otherwise fall back to the tree item's resource path.
         const localPath = options?.localPathOverride ?? cfileItem.getValue('resourcePath');
-
-        const update = f.getValue('update');
-        if (!update) {
+        if (!localPath) {
             return;
         }
-
-        const base = f.getValue('base');
-        if (!base) {
-            return;
-        }
-
-        const fileStatus = f.getValue('status');
-        if (!fileStatus) {
-            return;
-        }
-
-        // resolve paths
-        const rootFileName = f.rootFileName;
-        const dir = path.dirname(rootFileName);
-        const updatePath = path.join(dir, update);
-        const basePath = path.join(dir, base);
-
-        // assign merge context
-        setMergeFileContext(cfileItem);
+        
         cfileItem.setAttribute('local', localPath);
-        cfileItem.setAttribute('update', updatePath);
-        cfileItem.setAttribute('base', basePath);
+
+        const mergeFiles = findMergeFiles(localPath);
+        if (mergeFiles.update && mergeFiles.base) {
+            setMergeFileContext(cfileItem);           
+        }
     }
 }

@@ -96,17 +96,7 @@ describe('HardwareItemBuilder', () => {
         const local = device?.getAttribute('local');
         const gotLocal = local ? path.basename(local) : '';
         const wantLocal = 'Hello+CS300.dbgconf';
-        expect(gotLocal).toEqual(wantLocal);
-
-        const update = device?.getAttribute('update');
-        const gotUpdate = update ? path.basename(update) : '';
-        const wantUpdate = 'Hello+CS300.dbgconf.update@1.0.0';
-        expect(gotUpdate).toEqual(wantUpdate);
-
-        const base = device?.getAttribute('base');
-        const gotBase = base ? path.basename(base) : '';
-        const wantBase = 'Hello+CS300.dbgconf.base@0.0.1';
-        expect(gotBase).toEqual(wantBase);
+        expect(gotLocal).toEqual(wantLocal);       
     });
 
 });
