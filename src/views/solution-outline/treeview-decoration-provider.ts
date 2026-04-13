@@ -20,11 +20,16 @@ import { ThemeProvider } from '../../vscode-api/theme-provider';
 import { URI } from 'vscode-uri';
 import { getCmsisPackRoot } from '../../utils/path-utils';
 import { COutlineItem } from './tree-structure/solution-outline-item';
+import * as manifest from '../../manifest';
 
 export class TreeViewFileDecorationProvider implements vscode.FileDecorationProvider {
     static readonly badge: string = 'P';
     static readonly tooltip: string = 'Pack sourced';
     static readonly themeColor: string = 'descriptionForeground';
+
+    static readonly mergeBadge: string = 'N';
+    static readonly mergeTooltip: string = 'New Version Available for Merge';
+    static readonly mergeColor: string = 'charts.blue';
 
     static readonly excludedBadge: string = 'X';
     static readonly excludedTooltip: string = 'Excluded from build';
@@ -57,6 +62,16 @@ export class TreeViewFileDecorationProvider implements vscode.FileDecorationProv
                 badge: TreeViewFileDecorationProvider.excludedBadge,
                 tooltip: TreeViewFileDecorationProvider.excludedTooltip,
                 color: this.themeProvider.getThemeColor(TreeViewFileDecorationProvider.excludedColor),
+            };
+        }
+
+        // Merge-enabled files have higher priority than pack-sourced files
+        const features = fileItem?.getFeatures().split(';') ?? [];
+        if (features.includes(manifest.MERGE_FILE_CONTEXT)) {
+            return {
+                badge: TreeViewFileDecorationProvider.mergeBadge,
+                tooltip: TreeViewFileDecorationProvider.mergeTooltip,
+                color: this.themeProvider.getThemeColor(TreeViewFileDecorationProvider.mergeColor),
             };
         }
 

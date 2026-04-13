@@ -1,4 +1,4 @@
-# TPIP Report for vscode-cmsis-csolution
+# TPIP Report for vscode-cmsis-solution
 
 Report prepared at: 03/03/2026, 10:51:48
 

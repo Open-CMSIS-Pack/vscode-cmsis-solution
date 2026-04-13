@@ -21,7 +21,6 @@ import { CClass, ComponentOptionId, CurrentTarget, Layer, PacksFilterValue, Proj
 import { ComponentRowId } from '../../data/component-row-id';
 import { ComponentRowDataType, ComponentScope, mapTree, PackRowDataType } from '../../data/component-tools';
 import * as Messages from '../../messages';
-import { packsRowFromInfo } from '../helpers/components-packs-helpers';
 
 export type ComponentsState = {
     stateMessage: string | undefined;
@@ -120,7 +119,7 @@ const incomingMessageReducer = (
             };
         }
         case 'SET_PACKS_INFO': {
-            return { ...state, packs: message.packs?.map(packsRowFromInfo) };
+            return { ...state, packs: message.packs };
         }
         case 'SET_SOLUTION_INFO': {
             return { ...state, solution: message.solution ?? {} };
@@ -132,7 +131,7 @@ const incomingMessageReducer = (
                 componentScope: message.componentScope,
                 availableTargetTypes: message.availableTargetTypes,
                 selectedTargetType: message.selectedTargetType,
-                packs: message.packs?.map(packsRowFromInfo),
+                packs: message.packs,
                 solution: message.solution ?? {},
                 isDirty: message.isDirty ?? state.isDirty,
                 stateMessage: undefined,

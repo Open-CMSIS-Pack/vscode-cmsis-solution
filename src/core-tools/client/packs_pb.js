@@ -1622,7 +1622,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ManifestId.prototype.toObject = function(opt_includeInstance) {
@@ -1634,7 +1634,7 @@ proto.packs.ManifestId.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ManifestId} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -1789,7 +1789,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.DownloadPdscManifestFilesRequest.prototype.toObject = function(opt_includeInstance) {
@@ -1801,7 +1801,7 @@ proto.packs.DownloadPdscManifestFilesRequest.prototype.toObject = function(opt_i
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.DownloadPdscManifestFilesRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -2000,7 +2000,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.PackDownloadRequest.prototype.toObject = function(opt_includeInstance) {
@@ -2012,7 +2012,7 @@ proto.packs.PackDownloadRequest.prototype.toObject = function(opt_includeInstanc
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.PackDownloadRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -2359,7 +2359,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.PackDownloadRequests.prototype.toObject = function(opt_includeInstance) {
@@ -2371,7 +2371,7 @@ proto.packs.PackDownloadRequests.prototype.toObject = function(opt_includeInstan
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.PackDownloadRequests} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -2538,7 +2538,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.DownloadPacksRequest.prototype.toObject = function(opt_includeInstance) {
@@ -2550,7 +2550,7 @@ proto.packs.DownloadPacksRequest.prototype.toObject = function(opt_includeInstan
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.DownloadPacksRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -2737,7 +2737,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.DownloadResponse.prototype.toObject = function(opt_includeInstance) {
@@ -2749,7 +2749,7 @@ proto.packs.DownloadResponse.prototype.toObject = function(opt_includeInstance) 
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.DownloadResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -2996,7 +2996,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.CleanupRequest.prototype.toObject = function(opt_includeInstance) {
@@ -3008,7 +3008,7 @@ proto.packs.CleanupRequest.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.CleanupRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -3126,7 +3126,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.CleanupResponse.prototype.toObject = function(opt_includeInstance) {
@@ -3138,7 +3138,7 @@ proto.packs.CleanupResponse.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.CleanupResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -3385,7 +3385,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ListComponentsRequest.prototype.toObject = function(opt_includeInstance) {
@@ -3397,7 +3397,7 @@ proto.packs.ListComponentsRequest.prototype.toObject = function(opt_includeInsta
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ListComponentsRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -3715,7 +3715,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.PackScope.prototype.toObject = function(opt_includeInstance) {
@@ -3727,7 +3727,7 @@ proto.packs.PackScope.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.PackScope} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -3921,7 +3921,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.PackIds.prototype.toObject = function(opt_includeInstance) {
@@ -3933,7 +3933,7 @@ proto.packs.PackIds.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.PackIds} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -4074,7 +4074,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ListBoardsRequest.prototype.toObject = function(opt_includeInstance) {
@@ -4086,7 +4086,7 @@ proto.packs.ListBoardsRequest.prototype.toObject = function(opt_includeInstance)
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ListBoardsRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -4285,7 +4285,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.GetBoardRequest.prototype.toObject = function(opt_includeInstance) {
@@ -4297,7 +4297,7 @@ proto.packs.GetBoardRequest.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.GetBoardRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -4466,7 +4466,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ListDevicesRequest.prototype.toObject = function(opt_includeInstance) {
@@ -4478,7 +4478,7 @@ proto.packs.ListDevicesRequest.prototype.toObject = function(opt_includeInstance
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ListDevicesRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -4596,7 +4596,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.GetDeviceEntryRequest.prototype.toObject = function(opt_includeInstance) {
@@ -4608,7 +4608,7 @@ proto.packs.GetDeviceEntryRequest.prototype.toObject = function(opt_includeInsta
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.GetDeviceEntryRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -4777,7 +4777,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.GetExampleRequest.prototype.toObject = function(opt_includeInstance) {
@@ -4789,7 +4789,7 @@ proto.packs.GetExampleRequest.prototype.toObject = function(opt_includeInstance)
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.GetExampleRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -4928,7 +4928,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ListRefAppsRequest.prototype.toObject = function(opt_includeInstance) {
@@ -4940,7 +4940,7 @@ proto.packs.ListRefAppsRequest.prototype.toObject = function(opt_includeInstance
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ListRefAppsRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -5109,7 +5109,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ListTemplatesRequest.prototype.toObject = function(opt_includeInstance) {
@@ -5121,7 +5121,7 @@ proto.packs.ListTemplatesRequest.prototype.toObject = function(opt_includeInstan
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ListTemplatesRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -5341,7 +5341,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ServiceVersion.prototype.toObject = function(opt_includeInstance) {
@@ -5353,7 +5353,7 @@ proto.packs.ServiceVersion.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ServiceVersion} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -5471,7 +5471,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.CacheInitialisationStatus.prototype.toObject = function(opt_includeInstance) {
@@ -5483,7 +5483,7 @@ proto.packs.CacheInitialisationStatus.prototype.toObject = function(opt_includeI
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.CacheInitialisationStatus} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -5608,7 +5608,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.CacheStatus.prototype.toObject = function(opt_includeInstance) {
@@ -5620,7 +5620,7 @@ proto.packs.CacheStatus.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.CacheStatus} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -5863,7 +5863,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.IndexStatus.prototype.toObject = function(opt_includeInstance) {
@@ -5875,7 +5875,7 @@ proto.packs.IndexStatus.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.IndexStatus} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -6051,7 +6051,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.PackStatus.prototype.toObject = function(opt_includeInstance) {
@@ -6063,7 +6063,7 @@ proto.packs.PackStatus.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.PackStatus} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -6647,7 +6647,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.PackLoadStatus.prototype.toObject = function(opt_includeInstance) {
@@ -6659,7 +6659,7 @@ proto.packs.PackLoadStatus.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.PackLoadStatus} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -6777,7 +6777,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.BoardId.prototype.toObject = function(opt_includeInstance) {
@@ -6789,7 +6789,7 @@ proto.packs.BoardId.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.BoardId} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -6967,7 +6967,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.BoardFilter.prototype.toObject = function(opt_includeInstance) {
@@ -6979,7 +6979,7 @@ proto.packs.BoardFilter.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.BoardFilter} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -7211,7 +7211,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.PackFamilyId.prototype.toObject = function(opt_includeInstance) {
@@ -7223,7 +7223,7 @@ proto.packs.PackFamilyId.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.PackFamilyId} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -7371,7 +7371,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.PackId.prototype.toObject = function(opt_includeInstance) {
@@ -7383,7 +7383,7 @@ proto.packs.PackId.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.PackId} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -7561,7 +7561,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.PackDeprecation.prototype.toObject = function(opt_includeInstance) {
@@ -7573,7 +7573,7 @@ proto.packs.PackDeprecation.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.PackDeprecation} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -7793,7 +7793,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.PackContents.prototype.toObject = function(opt_includeInstance) {
@@ -7805,7 +7805,7 @@ proto.packs.PackContents.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.PackContents} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -7960,7 +7960,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.PackFamilyInfo.prototype.toObject = function(opt_includeInstance) {
@@ -7972,7 +7972,7 @@ proto.packs.PackFamilyInfo.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.PackFamilyInfo} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -8549,7 +8549,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.PackRepository.prototype.toObject = function(opt_includeInstance) {
@@ -8561,7 +8561,7 @@ proto.packs.PackRepository.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.PackRepository} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -8709,7 +8709,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.PackReleaseInfo.prototype.toObject = function(opt_includeInstance) {
@@ -8721,7 +8721,7 @@ proto.packs.PackReleaseInfo.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.PackReleaseInfo} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -9057,7 +9057,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.AssetReference.prototype.toObject = function(opt_includeInstance) {
@@ -9069,7 +9069,7 @@ proto.packs.AssetReference.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.AssetReference} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -9256,7 +9256,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.PackFileReference.prototype.toObject = function(opt_includeInstance) {
@@ -9268,7 +9268,7 @@ proto.packs.PackFileReference.prototype.toObject = function(opt_includeInstance)
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.PackFileReference} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -9437,7 +9437,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.AbsolutePackFilePath.prototype.toObject = function(opt_includeInstance) {
@@ -9449,7 +9449,7 @@ proto.packs.AbsolutePackFilePath.prototype.toObject = function(opt_includeInstan
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.AbsolutePackFilePath} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -9567,7 +9567,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.DebugInterface.prototype.toObject = function(opt_includeInstance) {
@@ -9579,7 +9579,7 @@ proto.packs.DebugInterface.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.DebugInterface} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -9727,7 +9727,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.BoardFeature.prototype.toObject = function(opt_includeInstance) {
@@ -9739,7 +9739,7 @@ proto.packs.BoardFeature.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.BoardFeature} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -9947,7 +9947,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.DeviceFeature.prototype.toObject = function(opt_includeInstance) {
@@ -9959,7 +9959,7 @@ proto.packs.DeviceFeature.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.DeviceFeature} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -10174,7 +10174,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.Processor.prototype.toObject = function(opt_includeInstance) {
@@ -10186,7 +10186,7 @@ proto.packs.Processor.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.Processor} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -10657,7 +10657,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.BoardImage.prototype.toObject = function(opt_includeInstance) {
@@ -10669,7 +10669,7 @@ proto.packs.BoardImage.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.BoardImage} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -10859,7 +10859,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.DeviceMemory.prototype.toObject = function(opt_includeInstance) {
@@ -10871,7 +10871,7 @@ proto.packs.DeviceMemory.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.DeviceMemory} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -11019,7 +11019,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.DeviceReference.prototype.toObject = function(opt_includeInstance) {
@@ -11031,7 +11031,7 @@ proto.packs.DeviceReference.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.DeviceReference} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -11186,7 +11186,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.DeviceFamilyInfo.prototype.toObject = function(opt_includeInstance) {
@@ -11198,7 +11198,7 @@ proto.packs.DeviceFamilyInfo.prototype.toObject = function(opt_includeInstance) 
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.DeviceFamilyInfo} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -11531,7 +11531,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.DeviceSubFamilyInfo.prototype.toObject = function(opt_includeInstance) {
@@ -11543,7 +11543,7 @@ proto.packs.DeviceSubFamilyInfo.prototype.toObject = function(opt_includeInstanc
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.DeviceSubFamilyInfo} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -11927,7 +11927,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.DeviceGroupInfo.prototype.toObject = function(opt_includeInstance) {
@@ -11939,7 +11939,7 @@ proto.packs.DeviceGroupInfo.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.DeviceGroupInfo} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -12374,7 +12374,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.DeviceInfo.prototype.toObject = function(opt_includeInstance) {
@@ -12386,7 +12386,7 @@ proto.packs.DeviceInfo.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.DeviceInfo} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -12893,7 +12893,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.DeviceEntryInfo.prototype.toObject = function(opt_includeInstance) {
@@ -12905,7 +12905,7 @@ proto.packs.DeviceEntryInfo.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.DeviceEntryInfo} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -13197,7 +13197,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.Book.prototype.toObject = function(opt_includeInstance) {
@@ -13209,7 +13209,7 @@ proto.packs.Book.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.Book} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -13415,7 +13415,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.BoardInfo.prototype.toObject = function(opt_includeInstance) {
@@ -13427,7 +13427,7 @@ proto.packs.BoardInfo.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.BoardInfo} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -14124,7 +14124,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.BoardFeatureDefaultNameMap.prototype.toObject = function(opt_includeInstance) {
@@ -14136,7 +14136,7 @@ proto.packs.BoardFeatureDefaultNameMap.prototype.toObject = function(opt_include
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.BoardFeatureDefaultNameMap} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -14258,7 +14258,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ExampleId.prototype.toObject = function(opt_includeInstance) {
@@ -14270,7 +14270,7 @@ proto.packs.ExampleId.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ExampleId} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -14536,7 +14536,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.Example.prototype.toObject = function(opt_includeInstance) {
@@ -14548,7 +14548,7 @@ proto.packs.Example.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.Example} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -15134,7 +15134,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.RefAppId.prototype.toObject = function(opt_includeInstance) {
@@ -15146,7 +15146,7 @@ proto.packs.RefAppId.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.RefAppId} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -15322,7 +15322,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.RefApp.prototype.toObject = function(opt_includeInstance) {
@@ -15334,7 +15334,7 @@ proto.packs.RefApp.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.RefApp} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -15920,7 +15920,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.TemplateId.prototype.toObject = function(opt_includeInstance) {
@@ -15932,7 +15932,7 @@ proto.packs.TemplateId.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.TemplateId} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -16101,7 +16101,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.Template.prototype.toObject = function(opt_includeInstance) {
@@ -16113,7 +16113,7 @@ proto.packs.Template.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.Template} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -16510,7 +16510,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.RelatedComponent.prototype.toObject = function(opt_includeInstance) {
@@ -16522,7 +16522,7 @@ proto.packs.RelatedComponent.prototype.toObject = function(opt_includeInstance) 
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.RelatedComponent} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -16760,7 +16760,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ExampleEnvironment.prototype.toObject = function(opt_includeInstance) {
@@ -16772,7 +16772,7 @@ proto.packs.ExampleEnvironment.prototype.toObject = function(opt_includeInstance
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ExampleEnvironment} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -16992,7 +16992,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ComponentFilter.prototype.toObject = function(opt_includeInstance) {
@@ -17004,7 +17004,7 @@ proto.packs.ComponentFilter.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ComponentFilter} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -17476,7 +17476,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.TargetOptions.prototype.toObject = function(opt_includeInstance) {
@@ -17488,7 +17488,7 @@ proto.packs.TargetOptions.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.TargetOptions} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -18152,7 +18152,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ToolchainOptions.prototype.toObject = function(opt_includeInstance) {
@@ -18164,7 +18164,7 @@ proto.packs.ToolchainOptions.prototype.toObject = function(opt_includeInstance) 
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ToolchainOptions} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -18300,7 +18300,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ComponentInfo.prototype.toObject = function(opt_includeInstance) {
@@ -18312,7 +18312,7 @@ proto.packs.ComponentInfo.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ComponentInfo} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -18511,7 +18511,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ComponentId.prototype.toObject = function(opt_includeInstance) {
@@ -18523,7 +18523,7 @@ proto.packs.ComponentId.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ComponentId} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -18872,7 +18872,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.Doc.prototype.toObject = function(opt_includeInstance) {
@@ -18884,7 +18884,7 @@ proto.packs.Doc.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.Doc} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -19079,7 +19079,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ComponentFile.prototype.toObject = function(opt_includeInstance) {
@@ -19091,7 +19091,7 @@ proto.packs.ComponentFile.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ComponentFile} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -19491,7 +19491,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ApiId.prototype.toObject = function(opt_includeInstance) {
@@ -19503,7 +19503,7 @@ proto.packs.ApiId.prototype.toObject = function(opt_includeInstance) {
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ApiId} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -19732,7 +19732,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ResolveHardwareRequest.prototype.toObject = function(opt_includeInstance) {
@@ -19744,7 +19744,7 @@ proto.packs.ResolveHardwareRequest.prototype.toObject = function(opt_includeInst
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ResolveHardwareRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -19985,7 +19985,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.BoardConstraints.prototype.toObject = function(opt_includeInstance) {
@@ -19997,7 +19997,7 @@ proto.packs.BoardConstraints.prototype.toObject = function(opt_includeInstance) 
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.BoardConstraints} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -20175,7 +20175,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.DeviceConstraints.prototype.toObject = function(opt_includeInstance) {
@@ -20187,7 +20187,7 @@ proto.packs.DeviceConstraints.prototype.toObject = function(opt_includeInstance)
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.DeviceConstraints} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
@@ -20365,7 +20365,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
  * @param {boolean=} opt_includeInstance Deprecated. whether to include the
  *     JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @return {!Object}
  */
 proto.packs.ResolvedHardware.prototype.toObject = function(opt_includeInstance) {
@@ -20377,7 +20377,7 @@ proto.packs.ResolvedHardware.prototype.toObject = function(opt_includeInstance) 
  * Static version of the {@see toObject} method.
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
- *     http://goto/soy-param-migration
+ *     https://goto/soy-param-migration
  * @param {!proto.packs.ResolvedHardware} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages

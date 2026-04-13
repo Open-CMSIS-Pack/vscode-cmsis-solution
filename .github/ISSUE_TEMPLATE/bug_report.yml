@@ -1,43 +1,19 @@
 name: Bug Report
-description: Report a bug
-title: "[Bug]: "
+description: File a bug/issue
+title: "<title>"
 type: "Bug"
-projects: ""
-labels: []
-assignees: []
+projects:
+  - Open-CMSIS-Pack/24
 
 body:
-  - type: markdown
-    attributes:
-      value: "### Thank you for reporting a problem!"
-
   - type: textarea
     id: description
     attributes:
-      label: "Description"
+      label: "Current behavior, Steps to reproduce and Expected behavior"
       description: "Provide details about the bug."
-      placeholder: "Explain the unexpected behavior in detail."
+      placeholder: "Explain the unexpected behavior, steps to reproduce and expected behavior..."
     validations:
       required: true
-
-  - type: textarea
-    id: steps
-    attributes:
-      label: "Steps to Reproduce"
-      description: "List the steps to reproduce the bug."
-      placeholder: |
-        1. Go to '...'
-        2. Click on '...'
-        3. See error"
-    validations:
-      required: false
-
-  - type: textarea
-    id: expected_behavior
-    attributes:
-      label: "Expected Behavior"
-      description: "What should happen instead?"
-      placeholder: "Describe what you expected to happen."
 
   - type: textarea
     id: additional_info

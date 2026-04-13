@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { CtRoot, Pack, Result } from '../../json-rpc/csolution-rpc-client';
+import { CtRoot, Result } from '../../json-rpc/csolution-rpc-client';
 import { Project, TargetSetData, UiErrorMessage } from './components-data';
-import { ComponentRowDataType, ComponentScope } from './data/component-tools';
+import { ComponentRowDataType, ComponentScope, PackRowDataType } from './data/component-tools';
 
 export type SolutionInfo = {
     dir?: string;
@@ -59,7 +59,7 @@ export type OutgoingMessage
 export type IncomingMessage
     = { type: 'SELECTED_PROJECT', project: Project }
     | { type: 'SET_COMPONENT_TREE', tree: CtRoot, validations?: Result[], scope?: ComponentScope }
-    | { type: 'SET_PACKS_INFO', packs: Pack[] }
+    | { type: 'SET_PACKS_INFO', packs: PackRowDataType[] }
     | { type: 'IS_DIRTY', isDirty: boolean }
     | { type: 'SET_SOLUTION_STATE', stateMessage: string | undefined }
     | { type: 'SET_ERROR_MESSAGES', messages: UiErrorMessage[] }
@@ -73,7 +73,7 @@ export type IncomingMessage
         availableTargetTypes: TargetSetData[],
         selectedTargetType?: TargetSetData,
         selectedLayer?: string,
-        packs: Pack[],
+        packs: PackRowDataType[],
         cbuildPackPath: string,
         solution: SolutionInfo,
         isDirty?: boolean,

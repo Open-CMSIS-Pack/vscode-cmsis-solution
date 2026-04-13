@@ -1,3 +1,19 @@
+/**
+ * Copyright 2025-2026 Arm Limited
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import 'jest';
 import * as React from 'react';
 import { IncomingMessage, OutgoingMessage } from '../../messages';
@@ -7,10 +23,19 @@ import { ComponentsState } from '../state/reducer';
 import { ComponentScope, PackRowDataType } from '../../data/component-tools';
 import { MockMessageHandler } from '../../../__test__/mock-message-handler';
 
-/**
- * Copyright (C) 2025-2026 Arm Limited
- */
+jest.mock('antd', () => {
+    const actual = jest.requireActual('antd');
 
+    return {
+        ...actual,
+        Tooltip: ({ title, children }: { title: React.ReactNode; children: React.ReactNode }) => (
+            <>
+                <span className='test-tooltip-title'>{title}</span>
+                {children}
+            </>
+        )
+    };
+});
 
 describe('PacksView', () => {
     let container: Element;
@@ -27,7 +52,7 @@ describe('PacksView', () => {
         overviewLink: '/path/to/overview.html',
         versionUsed: '6.0.0',
         used: true,
-        references: [{ path: 'path/to/solution.cproject.yml', pack: '', origin: '', selected: false }]
+        references: [{ pack: '', origin: 'path/to/solution.cproject.yml', relOrigin: 'path/to/solution.cproject.yml', selected: false }]
     };
 
     const defaultState: ComponentsState = {
@@ -222,6 +247,64 @@ describe('PacksView', () => {
             const tableContent = container.textContent || '';
             expect(tableContent).toContain('CMSIS');
             expect(tableContent).toContain('MDK-Middleware');
+        });
+    });
+
+    describe('references tooltip', () => {
+        it('shows a separate path line when relPath is defined and non-empty', () => {
+            const stateWithRelPath: ComponentsState = {
+                ...defaultState,
+                packs: [{
+                    ...mockPack,
+                    references: [{
+                        ...mockPack.references[0],
+                        relPath: 'packs/mypack'
+                    }]
+                }]
+            };
+
+            const localContainer = document.createElement('div');
+            React.act(() => {
+                createRoot(localContainer).render(
+                    <PacksView
+                        state={stateWithRelPath}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={defaultState.availablePacks}
+                    />
+                );
+            });
+
+            const tableContent = localContainer.textContent || '';
+            expect(tableContent).toContain('path: packs/mypack');
+        });
+
+        it('does not show a path line when relPath is empty or whitespace', () => {
+            const stateWithEmptyRelPath: ComponentsState = {
+                ...defaultState,
+                packs: [{
+                    ...mockPack,
+                    references: [{
+                        ...mockPack.references[0],
+                        relPath: '   '
+                    }]
+                }]
+            };
+
+            const localContainer = document.createElement('div');
+            React.act(() => {
+                createRoot(localContainer).render(
+                    <PacksView
+                        state={stateWithEmptyRelPath}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={defaultState.availablePacks}
+                    />
+                );
+            });
+
+            const tableContent = localContainer.textContent || '';
+            expect(tableContent).not.toContain('path:');
         });
     });
 });

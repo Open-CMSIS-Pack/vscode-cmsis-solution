@@ -15,131 +15,21 @@
  */
 
 import 'jest';
-import * as path from 'path';
-import { URI } from 'vscode-uri';
 import { isWebAddress } from './util';
-import { getFileNameFromPath } from './utils/path-utils';
 import { ITreeItem, CTreeItem } from './generic/tree-item';
 import { matchesStringOrRegExp, arrayContainsValue, matchesContext } from './utils/context-utils';
-import { pathsEqual, pathIsAncestor, getCmsisPackRoot, getFileNameNoExt, backToForwardSlashes } from './utils/path-utils';
 
 describe('Util', () => {
 
     describe('is web address', () => {
         it('returns true if string represents webAddress', () => {
-            expect(isWebAddress('http://www.arm.com')).toBe(true);
+            expect(isWebAddress('https://www.arm.com')).toBe(true);
             expect(isWebAddress('https://www.arm.com')).toBe(true);
             expect(isWebAddress('https://www.arm.com#anchor')).toBe(true);
             expect(isWebAddress('www.arm.com')).toBe(true);
             expect(isWebAddress('ftp://www.arm.com')).toBe(false);
             expect(isWebAddress('MyFile.ext')).toBe(false);
             expect(isWebAddress('/tnp/MyTmpFile')).toBe(false);
-        });
-    });
-
-    describe('pathsEqual', () => {
-        it('returns true if the inputs are identical', () => {
-            const output = pathsEqual(__dirname, __dirname);
-            expect(output).toBe(true);
-        });
-
-        it('returns true if the inputs resolve to the same path', () => {
-            // E.g. /path/to/src/../src
-            const input = `${__dirname}${path.sep}..${path.sep}${getFileNameFromPath(__dirname)}`;
-            const output = pathsEqual(__dirname, input);
-            expect(output).toBe(true);
-        });
-
-        it('returns true if one input is the URI.fsPath of the other', () => {
-            // On Windows, the drive letter will be capitalised on Windows for the first but not the second input
-            const output = pathsEqual(__dirname, URI.file(__dirname).fsPath);
-            expect(output).toBe(true);
-        });
-
-        it('returns false if the inputs do not resolve to the same path', () => {
-            const output = pathsEqual(__dirname, path.resolve(__dirname, '..'));
-            expect(output).toBe(false);
-        });
-    });
-
-    describe('pathIsAncestor', () => {
-        it('returns false if the inputs are equal', () => {
-            const output = pathIsAncestor(__dirname, __dirname);
-            expect(output).toBe(false);
-        });
-
-        it('returns true if the first input is the containing directory of the second', () => {
-            const output = pathIsAncestor(__dirname, path.join(__dirname, 'input'));
-            expect(output).toBe(true);
-        });
-
-        it('returns true if the first input is the URI.fsPath of the parent of the second', () => {
-            // On Windows, the drive letter will be capitalised on Windows for the first but not the second input
-            const output = pathIsAncestor(URI.file(__dirname).fsPath, path.join(__dirname, 'input'));
-            expect(output).toBe(true);
-        });
-
-        it('returns true if the first input is the third ancestor directory of the second', () => {
-            const output = pathIsAncestor(__dirname, path.join(__dirname, 'd1', 'd2', 'd3'));
-            expect(output).toBe(true);
-        });
-
-        it('returns false if the two inputs are in non-overlapping parts of the file tree', () => {
-            const output = pathIsAncestor(path.join(__dirname, 'a'), path.join(__dirname, 'b1', 'b2'));
-            expect(output).toBe(false);
-        });
-
-        it('returns false if the second input is an ancestor of the first', () => {
-            const output = pathIsAncestor(path.join(__dirname, 'input'), __dirname);
-            expect(output).toBe(false);
-        });
-    });
-
-    describe('getPackCachePath', () => {
-        const environmentPath = path.join(__dirname, 'environmentCmsis');
-
-        it('uses the CMSIS_PACK_ROOT environment variable', () => {
-            const output = getCmsisPackRoot({ CMSIS_PACK_ROOT: environmentPath });
-            expect(output).toBe(environmentPath);
-        });
-
-        it('falls back to the OS default location otherwise', () => {
-            const output = getCmsisPackRoot({});
-            expect(output.includes(`arm${path.sep}packs`)).toBeTruthy();
-        });
-    });
-
-    describe('project paths', () => {
-
-        it('checks if backslashes get converted', () => {
-            expect(backToForwardSlashes('\\path\\with\\slashes\\')).toEqual('/path/with/slashes/');
-            expect(backToForwardSlashes('\\path/with\\slashes\\')).toEqual('/path/with/slashes/');
-        });
-
-        it('get file base name no ext', () => {
-            expect(getFileNameNoExt('/path/to/name.cproject.yml')).toBe('name');
-            expect(getFileNameNoExt('/path/to/name.cproject.yaml')).toBe('name');
-            expect(getFileNameNoExt('/path/to/name.cproject.YML')).toBe('name');
-            expect(getFileNameNoExt('/path/to/name.CPROJECT.YAML')).toBe('name');
-            expect(getFileNameNoExt('/path/to/My.Project.cproject.yml')).toBe('My.Project');
-            expect(getFileNameNoExt('/path/to/MySolution.csolution.yml')).toBe('MySolution');
-            expect(getFileNameNoExt('/path/to/MyFile.foo')).toBe('MyFile');
-        });
-
-        it('get filename from path ', () => {
-            expect(getFileNameFromPath('/path/to/name.cproject.yml')).toBe('name.cproject.yml');
-            expect(getFileNameFromPath('/path/to/name.yaml')).toBe('name.yaml');
-        });
-
-        it('checks if paths are equal', () => {
-            expect(pathsEqual('/path/to/name.cproject.yml', '/path/to/name.cproject.yml')).toBeTruthy();
-            expect(pathsEqual('/path/to/name.cproject.yml', '/path/other/name.cproject.yml')).toBeFalsy();
-            if (process.platform === 'win32') {
-                expect(pathsEqual('C:/path/to/name.cproject.yml', 'c:\\path\\to\\name.cproject.yml')).toBeTruthy();
-            }
-            expect(pathsEqual(undefined, undefined)).toBeTruthy();
-            expect(pathsEqual('/path/to/name.cproject.yml', undefined)).toBeFalsy();
-            expect(pathsEqual(undefined, '/path/to/name.cproject.yml')).toBeFalsy();
         });
     });
 

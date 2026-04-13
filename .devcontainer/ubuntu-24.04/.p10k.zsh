@@ -1399,7 +1399,7 @@
 
   # Use POWERLEVEL9K_KUBECONTEXT_CONTENT_EXPANSION to specify the content displayed by kubecontext
   # segment. Parameter expansions are very flexible and fast, too. See reference:
-  # http://zsh.sourceforge.net/Doc/Release/Expansion.html#Parameter-Expansion.
+  # https://zsh.sourceforge.net/Doc/Release/Expansion.html#Parameter-Expansion.
   #
   # Within the expansion the following parameters are always available:
   #
@@ -1618,7 +1618,7 @@
 
   # Use POWERLEVEL9K_GOOGLE_APP_CRED_CONTENT_EXPANSION to specify the content displayed by
   # google_app_cred segment. Parameter expansions are very flexible and fast, too. See reference:
-  # http://zsh.sourceforge.net/Doc/Release/Expansion.html#Parameter-Expansion.
+  # https://zsh.sourceforge.net/Doc/Release/Expansion.html#Parameter-Expansion.
   #
   # You can use the following parameters in the expansion. Each of them corresponds to one of the
   # fields in the JSON file pointed to by GOOGLE_APPLICATION_CREDENTIALS.
