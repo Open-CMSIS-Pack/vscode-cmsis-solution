@@ -16,3 +16,7 @@
 .add-project-config-row {
     margin-top: 5px;
 }
+
+.compact-dropdown-inner {
+    height: 100%;
+}

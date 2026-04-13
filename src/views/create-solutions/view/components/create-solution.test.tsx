@@ -68,6 +68,11 @@ describe('CreateSolution', () => {
         await act(async () => firstOption.click());
     };
 
+    const confirmTargetSelection = async () => {
+        const selectButton = container.querySelector('button[title="Select"]:not([disabled])') as HTMLButtonElement;
+        await act(async () => selectButton.click());
+    };
+
     const selectFirstTemplate = async () => {
         const firstTemplate = container.querySelector('.template') as HTMLElement;
         await act(async () => firstTemplate.click());
@@ -83,6 +88,7 @@ describe('CreateSolution', () => {
 
         await openDropdown(elements.boardDropdown);
         await selectFirstTarget();
+        await confirmTargetSelection();
 
         await openDropdown(elements.templateDropdown);
         await selectFirstTemplate();
@@ -108,6 +114,17 @@ describe('CreateSolution', () => {
                     break;
                 case 'GET_PLATFORM':
                     messageHandler.postWindowMessage({ type: 'PLATFORM', data: { name: 'vscode' } });
+                    break;
+                case 'DATA_GET_BOARD_INFO':
+                    messageHandler.postWindowMessage({
+                        type: 'HARDWARE_INFO',
+                        data: {
+                            memoryInfo: {},
+                            image: '',
+                            debugInterfacesList: [],
+                            boardInfo: boardHardwareOptionFactory(),
+                        },
+                    });
                     break;
             }
             messageHandler.postWindowMessage({ type: 'REQUEST_SUCCESSFUL', requestType: message.type });
@@ -205,11 +222,11 @@ describe('CreateSolution', () => {
 
             const elements = getElements();
             expect(elements.createBtn.disabled).toBe(true);
-            expect(elements.cancelBtn.disabled).toBe(false);
-            expect(elements.fInput.disabled).toBe(false);
-            expect(elements.boardDropdown.getAttribute('aria-disabled')).toBe('false');
-            expect(elements.deviceDropdown.getAttribute('aria-disabled')).toBe('false');
-            expect(elements.gitCheckbox.disabled).toBe(false);
+            expect(elements.cancelBtn.disabled).toBe(true);
+            expect(elements.fInput.disabled).toBe(true);
+            expect(elements.boardDropdown.getAttribute('aria-disabled')).toBe('true');
+            expect(elements.deviceDropdown.getAttribute('aria-disabled')).toBe('true');
+            expect(elements.gitCheckbox.disabled).toBe(true);
         });
     });
 

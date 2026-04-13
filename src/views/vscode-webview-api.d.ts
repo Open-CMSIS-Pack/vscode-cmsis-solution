@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2026 Arm Limited
+ * Copyright 2026 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,10 @@
  * limitations under the License.
  */
 
-import '../webpack-globals';
-import { MessageHandlerImpl } from '../message-handler';
-import * as Messages from './messages';
+type VsCodeWebviewApi = {
+    postMessage: (message: unknown) => void;
+    setState: (newState: unknown) => void;
+    getState: () => unknown;
+};
 
-// Acquire the VS Code webview API via vscode-messenger-webview.
-const api = acquireVsCodeApi();
-
-const messageHandler = new MessageHandlerImpl<Messages.IncomingMessage, Messages.OutgoingMessage>(
-    api.postMessage.bind(api),
-    window
-);
-
-// Dynamically load the rest of the assets, then start the application
-import('./view/app').then(({ start }) => {
-    start(messageHandler);
-});
+declare function acquireVsCodeApi(): VsCodeWebviewApi;

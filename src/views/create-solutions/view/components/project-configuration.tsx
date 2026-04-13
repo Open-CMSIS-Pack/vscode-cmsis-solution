@@ -81,7 +81,6 @@ const ProjectConfigurationRow = (props: ProjectConfigurationRowProps) => {
                 title='Provide a descriptive name for each project contained in your solution'
             >
             </input>
-            <style>{'.compact-dropdown-inner {height: 100%;}'}</style>
             <CompactDropdown
                 disabled={coreDropdownOptions.length > 1 ? false : true}
                 title={coreDropdownOptions.length > 1 ? 'The Arm core that the project will run on, as determined by the cores on the selected microcontroller (MCU) device' : 'No additional core options to select from the dropdown'}

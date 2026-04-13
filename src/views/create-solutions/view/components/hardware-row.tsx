@@ -135,7 +135,9 @@ export const HardwareRow = (props: HardwareRowProps) => {
                         noEntriesMessage={getNoEntriesFoundAsyncStatus(state.hardwareLists, 'Board')}
                         treeViewList={boardsList}
                         onChange={(val: string) => { dispatch({ type: 'SET_BOARD_TREE_VIEW_SEARCH', search: val }); }}
-                        onSelect={(item: BoardHardwareOption) => { dispatch({ type: 'SET_BOARD_PREVIEW', boardPreview: item }); }}
+                        onSelect={(item: BoardHardwareOption) => {
+                            dispatch({ type: 'SET_BOARD_PREVIEW', boardPreview: item });
+                        }}
                         onClear={state.boardSelection.value ? clearSelection : undefined}
                         onOpen={props.onOpen}
                         onClose={props.onClose}
@@ -151,7 +153,9 @@ export const HardwareRow = (props: HardwareRowProps) => {
                         treeViewList={devicesList}
                         noEntriesMessage={getNoEntriesFoundAsyncStatus(state.hardwareLists, 'Device')}
                         onChange={(val: string) => { dispatch({ type: 'SET_DEVICE_TREE_VIEW_SEARCH', search: val }); }}
-                        onSelect={(item: DeviceHardwareOption) => { dispatch({ type: 'SET_DEVICE_PREVIEW', devicePreview: item }); }}
+                        onSelect={(item: DeviceHardwareOption) => {
+                            dispatch({ type: 'SET_DEVICE_PREVIEW', devicePreview: item });
+                        }}
                         itemPredicate={state.boardSelection.value && state.boardSelection.value.mountedDevices.length > 0 ?
                             (item: TreeViewItem<DeviceHardwareOption>) =>
                                 !!state.boardSelection.value?.mountedDevices.some(md => compareDeviceId(md.id)(item.value.id))
@@ -204,7 +208,9 @@ const HardwareDropdown = <A extends BoardHardwareOption | DeviceHardwareOption>(
                     searchValue={treeViewSearch}
                     topLevelCategories={props.treeViewList}
                     itemPredicate={itemPredicate}
-                    onSelect={item => onSelect(item.value)}
+                    onSelect={item => {
+                        onSelect(item.value);
+                    }}
                     noEntriesMessage={noEntriesMessage}
                 ></SearchableTreeView>
             </div>

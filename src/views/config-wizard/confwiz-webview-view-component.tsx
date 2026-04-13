@@ -19,7 +19,7 @@ import { TreeNode } from 'primereact/treenode';
 import { TreeTable } from 'primereact/treetable';
 import React from 'react';
 import { HOST_EXTENSION } from 'vscode-messenger-common';
-import { acquireVsCodeApi, Messenger } from 'vscode-messenger-webview';
+import { Messenger } from 'vscode-messenger-webview';
 import { ConfWizKeyboardNavigation } from './confwiz-webview-keyboard-navigation';
 import {
     ConfigWizardData,
