@@ -17,6 +17,7 @@
 import '../webpack-globals';
 import { MessageHandlerImpl } from '../message-handler';
 import { IncomingMessage, OutgoingMessage } from './messages';
+import { acquireVsCodeApi } from 'vscode-messenger-webview';
 
 // Const function created by webview iframe script
 const api = acquireVsCodeApi();
