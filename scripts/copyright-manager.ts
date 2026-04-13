@@ -24,7 +24,7 @@ const args = minimist(process.argv.slice(2));
 const mode = args.mode || 'check';
 
 
-const DEFAULT_INCLUDE_GLOBS = ['src/**/*.ts', 'scripts/**/*.ts', 'api/**/*.ts', '__mocks__/**/*.ts'];
+const DEFAULT_INCLUDE_GLOBS = ['src/**/*.ts', 'scripts/**/*.ts', 'api/**/*.ts', '__mocks__/**/*.ts', '**/*.tsx', '**/*.css'];
 const DEFAULT_EXCLUDE_GLOBS = ['**/node_modules/**', 'coverage/**', 'dist/**', 'tools/**', 'src/json-rpc/**', 'test-data/**', 'test-workspace/**'];
 
 const includeGlobs: string[] = args.include ? args.include.split(',') : DEFAULT_INCLUDE_GLOBS;
@@ -47,7 +47,7 @@ const COPYRIGHT_TEXT = `/**
  */`;
 
 // Regular expression to match the copyright notice
-const COPYRIGHT_REGEX = /\/\*\*\n \* Copyright 20\d{2}(?:-(?:20\d{2}))? Arm Limited[\s\S]*?\*\//;
+const COPYRIGHT_REGEX = /\/\*\*\r?\n \* Copyright 20\d{2}(?:-(?:20\d{2}))? Arm Limited[\s\S]*?\*\//;
 
 function getFiles(): string[] {
     const allFiles: string[] = [];
