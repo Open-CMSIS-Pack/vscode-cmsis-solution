@@ -439,6 +439,23 @@ describe('EnvironmentManager', () => {
         });
     });
 
+    describe('updateEnvironment - fires onDidChangeEnvVars', () => {
+        it('fires on init and config change', async () => {
+            const listener = jest.fn();
+            environmentManager.onDidChangeEnvVars(listener);
+
+            await environmentManager.activate(mockContext);
+            expect(listener).toHaveBeenCalledTimes(1);
+
+            listener.mockClear();
+            configurationProviderMock.getConfigVariableOrDefault.mockReturnValue({
+                MY_VAR: 'new_value',
+            });
+            configurationProviderMock.fireOnChangeConfiguration(CONFIG_ENVIRONMENT_VARIABLES);
+            expect(listener).toHaveBeenCalledTimes(1);
+        });
+    });
+
     describe('updateEnvironment - mixed variables', () => {
         it('handles both PATH and non-PATH variables together', async () => {
             configurationProviderMock = configurationProviderFactory({

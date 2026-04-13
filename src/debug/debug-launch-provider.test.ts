@@ -796,7 +796,7 @@ describe('DebugLaunchProvider', () => {
             await debugLaunchProvider.handleUpdateDebugTasks();
 
             expect(debugLaunchProvider.configurationProviderMock.inspectConfigVariable).toHaveBeenCalledWith('hideSlowPreLaunchWarning', 'debug');
-            expect(debugLaunchProvider.configurationProviderMock.setConfigVariable).not.toHaveBeenCalled();
+            expect(debugLaunchProvider.configurationProviderMock.setConfigVariable).not.toHaveBeenCalledWith('hideSlowPreLaunchWarning', true, 'debug', true);
         });
 
         it.each([false, true])('should not add hideSlowPreLaunchWarning to workspace if already set globally (%s)', async (value) => {
@@ -812,7 +812,73 @@ describe('DebugLaunchProvider', () => {
             await debugLaunchProvider.handleUpdateDebugTasks();
 
             expect(debugLaunchProvider.configurationProviderMock.inspectConfigVariable).toHaveBeenCalledWith('hideSlowPreLaunchWarning', 'debug');
-            expect(debugLaunchProvider.configurationProviderMock.setConfigVariable).not.toHaveBeenCalled();
+            expect(debugLaunchProvider.configurationProviderMock.setConfigVariable).not.toHaveBeenCalledWith('hideSlowPreLaunchWarning', true, 'debug', true);
+        });
+
+        it('should set memory inspector defaults when missing', async () => {
+            const debugLaunchProvider = new DebugLaunchProviderTest();
+
+            debugLaunchProvider.solutionManagerMock.workspaceFolder = workspaceFolderUri;
+            jest.spyOn(debugLaunchProvider, 'loadCbuildRunYml').mockResolvedValue(cbuildRunYml);
+            jest.spyOn(debugLaunchProvider, 'loadDebugAdaptersYml').mockResolvedValue(debugAdaptersYml);
+            jest.spyOn(debugLaunchProvider, 'updateDebugTasks').mockResolvedValue(undefined);
+
+            await debugLaunchProvider.handleUpdateDebugTasks();
+
+            expect(debugLaunchProvider.configurationProviderMock.setConfigVariable).toHaveBeenCalledWith('addressPadding', '32bit', 'memory-inspector', true);
+            expect(debugLaunchProvider.configurationProviderMock.setConfigVariable).toHaveBeenCalledWith('groupings.groupsPerRow', 'Autofit', 'memory-inspector', true);
+            expect(debugLaunchProvider.configurationProviderMock.setConfigVariable).toHaveBeenCalledWith('groupings.MAUsPerGroup', 4, 'memory-inspector', true);
+            expect(debugLaunchProvider.configurationProviderMock.setConfigVariable).toHaveBeenCalledWith('scrollingBehavior', 'Auto-Append', 'memory-inspector', true);
+        });
+
+        it.each([
+            ['addressPadding', '32bit'],
+            ['groupings.groupsPerRow', 'Autofit'],
+            ['groupings.MAUsPerGroup', 4],
+            ['scrollingBehavior', 'Auto-Append'],
+        ])('should not overwrite memory-inspector.%s workspace setting', async (name, defaultValue) => {
+            const debugLaunchProvider = new DebugLaunchProviderTest();
+
+            debugLaunchProvider.solutionManagerMock.workspaceFolder = workspaceFolderUri;
+            jest.spyOn(debugLaunchProvider, 'loadCbuildRunYml').mockResolvedValue(cbuildRunYml);
+            jest.spyOn(debugLaunchProvider, 'loadDebugAdaptersYml').mockResolvedValue(debugAdaptersYml);
+            jest.spyOn(debugLaunchProvider, 'updateDebugTasks').mockResolvedValue(undefined);
+
+            debugLaunchProvider.configurationProviderMock.inspectConfigVariable.mockImplementation((key, ext) => {
+                if (ext === 'memory-inspector' && key === name) {
+                    return { key: `${ext}.${key}`, workspaceValue: 'already-set' };
+                }
+                return { key: `${ext || PACKAGE_NAME}.${key}` };
+            });
+
+            await debugLaunchProvider.handleUpdateDebugTasks();
+
+            expect(debugLaunchProvider.configurationProviderMock.setConfigVariable).not.toHaveBeenCalledWith(name, defaultValue, 'memory-inspector', true);
+        });
+
+        it.each([
+            ['addressPadding', '32bit'],
+            ['groupings.groupsPerRow', 'Autofit'],
+            ['groupings.MAUsPerGroup', 4],
+            ['scrollingBehavior', 'Auto-Append'],
+        ])('should not overwrite memory-inspector.%s global setting', async (name, defaultValue) => {
+            const debugLaunchProvider = new DebugLaunchProviderTest();
+
+            debugLaunchProvider.solutionManagerMock.workspaceFolder = workspaceFolderUri;
+            jest.spyOn(debugLaunchProvider, 'loadCbuildRunYml').mockResolvedValue(cbuildRunYml);
+            jest.spyOn(debugLaunchProvider, 'loadDebugAdaptersYml').mockResolvedValue(debugAdaptersYml);
+            jest.spyOn(debugLaunchProvider, 'updateDebugTasks').mockResolvedValue(undefined);
+
+            debugLaunchProvider.configurationProviderMock.inspectConfigVariable.mockImplementation((key, ext) => {
+                if (ext === 'memory-inspector' && key === name) {
+                    return { key: `${ext}.${key}`, globalValue: 'already-set' };
+                }
+                return { key: `${ext || PACKAGE_NAME}.${key}` };
+            });
+
+            await debugLaunchProvider.handleUpdateDebugTasks();
+
+            expect(debugLaunchProvider.configurationProviderMock.setConfigVariable).not.toHaveBeenCalledWith(name, defaultValue, 'memory-inspector', true);
         });
 
     });

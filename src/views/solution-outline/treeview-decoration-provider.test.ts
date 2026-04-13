@@ -182,4 +182,77 @@ describe('provideFileDecoration', () => {
 
         expect(refreshSpy).toHaveBeenCalled();
     });
+
+    it('should return merge decoration for files with merge feature', () => {
+        const filePath = path.join('src', 'merge', 'file.c');
+        const uri = URI.file(filePath);
+
+        const root = new COutlineItem('root');
+        const project = root.createChild('project');
+        const group = project.createChild('group');
+        const file = group.createChild('file');
+        file.setTag('file');
+        file.setAttribute('resourcePath', uri.fsPath);
+        file.addFeature('mergeFile:');
+
+        treeViewDecorationProvider.setTreeRoot(root);
+
+        const result = treeViewDecorationProvider.provideFileDecoration(uri);
+
+        expect(result).toEqual({
+            badge: TreeViewFileDecorationProvider.mergeBadge,
+            tooltip: TreeViewFileDecorationProvider.mergeTooltip,
+            color: { id: TreeViewFileDecorationProvider.mergeColor },
+        });
+    });
+
+    it('should prioritize excluded decoration over merge decoration', () => {
+        const filePath = path.join('src', 'merge', 'excluded.c');
+        const uri = URI.file(filePath);
+
+        const root = new COutlineItem('root');
+        const project = root.createChild('project');
+        const group = project.createChild('group');
+        const file = group.createChild('file');
+        file.setTag('file');
+        file.setAttribute('resourcePath', uri.fsPath);
+        file.addFeature('mergeFile:');
+        file.setAttribute('excluded', '1');
+
+        treeViewDecorationProvider.setTreeRoot(root);
+
+        const result = treeViewDecorationProvider.provideFileDecoration(uri);
+
+        expect(result).toEqual({
+            badge: TreeViewFileDecorationProvider.excludedBadge,
+            tooltip: TreeViewFileDecorationProvider.excludedTooltip,
+            color: { id: TreeViewFileDecorationProvider.excludedColor },
+        });
+    });
+
+    it('should prioritize merge decoration over pack-sourced decoration', () => {
+        const packCachePath = 'MOCKED_CMSIS_PACK_ROOT';
+        jest.spyOn(path_utils, 'getCmsisPackRoot').mockReturnValue(packCachePath);
+
+        const filePath = path.join(packCachePath, 'root', 'merge.c');
+        const uri = URI.file(filePath);
+
+        const root = new COutlineItem('root');
+        const project = root.createChild('project');
+        const group = project.createChild('group');
+        const file = group.createChild('file');
+        file.setTag('file');
+        file.setAttribute('resourcePath', uri.fsPath);
+        file.addFeature('mergeFile:');
+
+        treeViewDecorationProvider.setTreeRoot(root);
+
+        const result = treeViewDecorationProvider.provideFileDecoration(uri);
+
+        expect(result).toEqual({
+            badge: TreeViewFileDecorationProvider.mergeBadge,
+            tooltip: TreeViewFileDecorationProvider.mergeTooltip,
+            color: { id: TreeViewFileDecorationProvider.mergeColor },
+        });
+    });
 });

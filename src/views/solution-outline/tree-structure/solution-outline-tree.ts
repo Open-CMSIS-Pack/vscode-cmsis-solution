@@ -23,7 +23,6 @@ import * as manifest from '../../../manifest';
 import { HardwareItemBuilder } from './solution-outline-hardware-item';
 import { ProjectItemsBuilder } from './solution-outline-project-items';
 import { getFileNameNoExt } from '../../../utils/path-utils';
-import { setMergeDescription } from './solution-outline-utils';
 import { CProjectYamlFile } from '../../../solutions/files/cproject-yaml-file';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 
@@ -101,8 +100,11 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
             });
         }
         const hardwareTreeNodes = [...hardwareTreeNode.values()];
+        const cdefaultTreeNode = this.createCdefaultNode(parent, csolution);
         COutlineItem.sortTreeNodesByLabel(projectsTreeNode);
-        treeNodes = [...hardwareTreeNodes, ...projectsTreeNode];
+        treeNodes = cdefaultTreeNode
+            ? [...hardwareTreeNodes, cdefaultTreeNode, ...projectsTreeNode]
+            : [...hardwareTreeNodes, ...projectsTreeNode];
         return treeNodes;
     }
 
@@ -122,26 +124,6 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
         if (cproject) {
             const projectItems = new ProjectItemsBuilder(this.csolution, this.rpcData, context);
             projectItems.addProjectChildren(this.csolution, cprojectItem, cprojectFile, cbuild);
-
-            // get prioritized component list and set merge description if available
-            const prioritizedList = projectItems.lastPrioritizedComponentList;
-            if (prioritizedList && prioritizedList.length > 0) {
-                const fileStatus = prioritizedList[0].getAttribute('status');
-                if (fileStatus) {
-                    setMergeDescription(cprojectItem, fileStatus);
-
-                    // set tooltip
-                    const existingTooltip = cprojectItem.getAttribute('tooltip');
-                    const description = cprojectItem.getAttribute('description');
-                    const newTooltip = `- ${description} Component config files: ${fileStatus}`;
-
-                    if (existingTooltip) {
-                        cprojectItem.setAttribute('tooltip', existingTooltip + '\n' + newTooltip);
-                    } else {
-                        cprojectItem.setAttribute('tooltip', newTooltip);
-                    }
-                }
-            }
         } else {
             cprojectItem.setAttribute('description', 'error loading project');
         }
@@ -186,5 +168,29 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
             return prjConfPath;
         }
         return undefined;
+    }
+
+    private createCdefaultNode(parent: COutlineItem, csolution: CSolution): COutlineItem | undefined {
+        const buildIdxItem = csolution.cbuildIdxFile?.topItem;
+        const cdefaultPath = buildIdxItem?.getValue('cdefault');
+        if (!cdefaultPath) {
+            return undefined;
+        }
+
+        const expandedPath = this.expandString(cdefaultPath);
+        const resolvedPath = path.normalize(
+            path.isAbsolute(expandedPath) ? expandedPath : (buildIdxItem?.resolvePath(expandedPath) ?? expandedPath)
+        );
+        if (!fsUtils.fileExists(resolvedPath)) {
+            return undefined;
+        }
+
+        const cdefaultItem = new COutlineItem('cdefault', parent);
+        cdefaultItem.setAttribute('label', 'cdefault');
+        cdefaultItem.setAttribute('expandable', '0');
+        cdefaultItem.setAttribute('type', 'cdefaultFile');
+        cdefaultItem.setAttribute('iconPath', 'symbol-file');
+        cdefaultItem.setAttribute('resourcePath', resolvedPath);
+        return cdefaultItem;
     }
 }

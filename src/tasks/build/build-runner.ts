@@ -17,7 +17,7 @@
 import { CmsisToolboxManager } from '../../solutions/cmsis-toolbox';
 import { getOutputDirectory } from '../../util';
 import { CancellationToken, Runner } from '../../vscode-api/runner/runner';
-import { BuildTaskDefinition } from './build-task-definition';
+import { BuildTaskDefinition, BuildOutputVerbosity } from './build-task-definition';
 import type { TerminalDimensions } from 'vscode';
 
 export const cbuildArgsFromTaskDefinition = (definition: BuildTaskDefinition): string[] => {
@@ -35,8 +35,9 @@ export const cbuildArgsFromTaskDefinition = (definition: BuildTaskDefinition): s
         executionArgs.push('--clean');
     }
 
-    if (definition.debug) {
-        executionArgs.push('--debug');
+    const buildOutputFlag = VERBOSITY_TO_FLAG[definition.buildOutputVerbosity ?? 'normal'];
+    if (buildOutputFlag) {
+        executionArgs.push(buildOutputFlag);
     }
 
     if (definition.generator) {
@@ -93,6 +94,13 @@ export const cbuildArgsFromTaskDefinition = (definition: BuildTaskDefinition): s
     }
 
     return executionArgs;
+};
+
+const VERBOSITY_TO_FLAG: Record<BuildOutputVerbosity, string | undefined> = {
+    quiet: '--quiet',
+    normal: undefined,
+    verbose: '--verbose',
+    debug: '--debug',
 };
 
 export class BuildRunner implements Runner {

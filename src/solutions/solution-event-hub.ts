@@ -15,6 +15,7 @@
  */
 import * as vscode from 'vscode';
 import { constructor } from '../generic/constructor';
+import { LogMessages, VariablesConfiguration } from '../json-rpc/csolution-rpc-client';
 import { Severity } from './constants';
 
 /**
@@ -29,11 +30,21 @@ export interface ConvertRequestData {
 }
 
 /**
+ * Event data for configure solution readiness
+ */
+export interface ConfigureSolutionData {
+    availableCompilers: string[];
+    availableConfigurations: VariablesConfiguration[] | undefined;
+}
+
+/**
  * Event data for solution conversion result
  */
 export interface ConvertResultData {
     severity: Severity;
     detection: boolean;
+    logMessages: LogMessages;
+    toolsOutputMessages?: string[];
 }
 
 /**
@@ -66,6 +77,14 @@ export interface SolutionEventHub {
      * Event fired when solution conversion is completed
      */
     readonly onDidConvertCompleted: vscode.Event<ConvertResultData>;
+    /**
+     * Fire configure solution data ready event
+     */
+    fireConfigureSolutionDataReady(data: ConfigureSolutionData): Promise<void>;
+    /**
+     * Event fired when configure solution data is ready (compilers / layer configurations detected)
+     */
+    readonly onDidConfigureSolutionDataReady: vscode.Event<ConfigureSolutionData>;
 }
 
 class SolutionEventHubImpl {
@@ -76,9 +95,13 @@ class SolutionEventHubImpl {
     private readonly convertCompleteEmitter = new vscode.EventEmitter<ConvertResultData>();
     public readonly onDidConvertCompleted: vscode.Event<ConvertResultData> = this.convertCompleteEmitter.event;
 
+    private readonly configureSolutionDataEmitter = new vscode.EventEmitter<ConfigureSolutionData>();
+    public readonly onDidConfigureSolutionDataReady: vscode.Event<ConfigureSolutionData> = this.configureSolutionDataEmitter.event;
+
     public async activate(context: vscode.ExtensionContext): Promise<void> {
         context.subscriptions.push(this.convertRequestEmitter);
         context.subscriptions.push(this.convertCompleteEmitter);
+        context.subscriptions.push(this.configureSolutionDataEmitter);
     }
 
     public async fireConvertRequest(data: ConvertRequestData): Promise<void> {
@@ -87,6 +110,10 @@ class SolutionEventHubImpl {
 
     public async fireConvertCompleted(data: ConvertResultData): Promise<void> {
         this.convertCompleteEmitter.fire(data);
+    }
+
+    public async fireConfigureSolutionDataReady(data: ConfigureSolutionData): Promise<void> {
+        this.configureSolutionDataEmitter.fire(data);
     }
 }
 

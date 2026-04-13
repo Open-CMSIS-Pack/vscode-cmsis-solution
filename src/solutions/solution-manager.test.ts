@@ -29,9 +29,16 @@ import { TestDataHandler } from '../__test__/test-data';
 import { Board, Device } from '../json-rpc/csolution-rpc-client';
 import { csolutionServiceFactory } from '../json-rpc/csolution-rpc-client.factory';
 import { SolutionRpcData } from './solution-rpc-data';
+import { configurationProviderFactory, MockConfigurationProvider } from '../vscode-api/configuration-provider.factories';
+import { EnvironmentManager } from '../desktop/env-manager';
+import { CONFIG_ENVIRONMENT_VARIABLES } from '../manifest';
 
 
-const convertResultData: ConvertResultData = { severity: 'success', detection: false };
+const convertResultData: ConvertResultData = {
+    severity: 'success',
+    detection: false,
+    logMessages: { success: true, errors: [], warnings: [], info: [] },
+};
 
 describe('SolutionManager', () => {
     let mockActiveSolutionTracker: {
@@ -47,9 +54,11 @@ describe('SolutionManager', () => {
     let loadStateChangeListener: jest.Mock;
     let changeConfigurationEmitter: EventEmitter<ConfigurationChangeEvent>;
     let commandsProvider: MockCommandsProvider;
+    let configurationProviderMock: MockConfigurationProvider;
     let changeSolutionFilesEmitter: EventEmitter<void>;
     let vcpkgActivateEmitter: EventEmitter<VcpkgResults>;
     let environmentManagerApi: Pick<EnvironmentManagerApiV1, 'onDidActivate' | 'getActiveTools'>;
+    let environmentManager: EnvironmentManager;
     let eventHub: SolutionEventHub;
     let convertMock: jest.Mock;
     let loadBuildFilesListener: jest.Mock;
@@ -112,6 +121,9 @@ describe('SolutionManager', () => {
 
         commandsProvider = commandsProviderFactory();
         csolutionService = csolutionServiceFactory();
+        configurationProviderMock = configurationProviderFactory({
+            [CONFIG_ENVIRONMENT_VARIABLES]: {},
+        });
         const device: Device = { id: 'device-id' };
         const board: Board = { id: 'board-id' };
         csolutionService.getDeviceInfo.mockResolvedValue({ success: true, device });
@@ -119,6 +131,7 @@ describe('SolutionManager', () => {
         csolutionService.loadSolution.mockResolvedValue({ success: true });
         csolutionService.getVariables.mockResolvedValue({ success: true, variables: {} });
         rpcData = new SolutionRpcData(csolutionService);
+        environmentManager = new EnvironmentManager(configurationProviderMock);
 
         solutionManager = new SolutionManagerImpl(
             mockActiveSolutionTracker as unknown as ActiveSolutionTracker,
@@ -126,6 +139,7 @@ describe('SolutionManager', () => {
             rpcData,
             commandsProvider,
             extensionApiProviderFactory(environmentManagerApi),
+            environmentManager,
         );
         loadStateChangeListener = jest.fn();
         solutionManager.onDidChangeLoadState(loadStateChangeListener);
@@ -273,6 +287,38 @@ describe('SolutionManager', () => {
                 convertResultData.severity,
                 convertResultData.detection,
             ]),
+        );
+    });
+
+    it('requests restartRpc when envVars change after solution is activated', async () => {
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(100);
+
+        await environmentManager.activate({
+            subscriptions: [],
+            environmentVariableCollection: {
+                clear: jest.fn(),
+                prepend: jest.fn(),
+                replace: jest.fn(),
+            } as unknown as vscode.GlobalEnvironmentVariableCollection,
+        } as unknown as ExtensionContext);
+
+        convertMock.mockClear();
+        configurationProviderMock.getConfigVariableOrDefault.mockReturnValue({
+            NEW_VAR: 'new_value',
+        });
+        configurationProviderMock.fireOnChangeConfiguration(CONFIG_ENVIRONMENT_VARIABLES);
+        await waitTimeout(600);
+
+        expect(convertMock).toHaveBeenCalledTimes(1);
+        expect(convertMock).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                solutionPath: testSolutionPath,
+                updateRte: false,
+                restartRpc: true,
+                lockAbort: false,
+            }),
         );
     });
 });

@@ -18,7 +18,7 @@ import { CancellationToken, DocumentLink, DocumentLinkProvider, Range, TextDocum
 import { parseYamlToCTreeItem } from '../../generic/tree-item-yaml-parser';
 import { CTreeItem, ETreeItemKind, ITreeItem } from '../../generic/tree-item';
 import type { SolutionManager } from '../solution-manager';
-import { getCmsisPackRoot } from '../../utils/path-utils';
+import { expandRootVars } from '../../utils/path-utils';
 
 /**
  * Provide links for file references in solution, project, and layer files as well as for *.cbuild*.yml files.
@@ -87,25 +87,24 @@ export class ReferenceLinkProvider implements DocumentLinkProvider<DocumentLink>
         };
     }
 
+    private expandString(str: string, context?: string) {
+        str = expandRootVars(str);
+        if (!this.cbuildFile) { // generated files have all sequences expanded
+            const rpcData = this.solutionManager.getRpcData();
+            if (rpcData && context) {
+                return rpcData.expandString(str, context);
+            }
+        }
+        return str;
+    }
 
     private getUriFromItem(item: ITreeItem<CTreeItem>): Uri | undefined {
-        let text = item.getText();
+        const text = item.getText();
         if (!text) {
             return undefined;
         }
-
-        // generated files can contain references to files in packs directory
-        if (text.startsWith('${CMSIS_PACK_ROOT}')) {
-            return Uri.file(text.replace('${CMSIS_PACK_ROOT}', getCmsisPackRoot()));
-        }
-        if (!this.cbuildFile) { // generated files have all sequences expanded
-            const rpcData = this.solutionManager.getRpcData();
-            const context = this.getItemContext(item);
-            if (rpcData && context) {
-                text = rpcData.expandString(text, context);
-            }
-        }
-        const resolvedPath = item.resolvePath(text);
+        const context = this.getItemContext(item);
+        const resolvedPath = item.resolvePath(this.expandString(text, context));
         return resolvedPath ? Uri.file(resolvedPath) : undefined;
     }
 
