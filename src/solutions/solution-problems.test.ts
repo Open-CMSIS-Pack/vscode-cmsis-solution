@@ -85,6 +85,17 @@ describe('SolutionProblems', () => {
         expect(clearSpy).toHaveBeenCalledTimes(1);
     });
 
+    it('clears diagnostics when solution is closed', async () => {
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const clearSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'clear');
+
+        solutionManager.fireOnDidChangeLoadState(
+            { solutionPath: undefined },
+            { solutionPath: '/work/old.csolution.yml' }
+        );
+
+        expect(clearSpy).toHaveBeenCalledTimes(1);
+    });
     it('does not clear diagnostics when solution path is unchanged', async () => {
         await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
         const clearSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'clear');
