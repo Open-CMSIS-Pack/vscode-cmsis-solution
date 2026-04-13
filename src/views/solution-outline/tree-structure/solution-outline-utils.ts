@@ -20,8 +20,8 @@ import * as fs from 'fs';
 import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
 import path from 'path';
 
-export function setContextMenuAttributes(item: COutlineItem, resourcePath: string, rootFileName: string, topTag?: string): void {
-    item.setAttribute('fileUri', resourcePath);
+export function setContextMenuAttributes(item: COutlineItem, fileUri: string, rootFileName: string, topTag?: string): void {
+    item.setAttribute('fileUri', fileUri);
     item.setAttribute('projectUri', rootFileName);
     if (topTag === 'layer') {
         item.setAttribute('layerUri', rootFileName);
@@ -52,19 +52,6 @@ export function setMergeFiles(component: COutlineItem, file: ITreeItem<CTreeItem
     component.setAttribute('base', basePath);
 }
 
-export function getStatusTooltip(label: string, status: string): string | undefined {
-    switch (status) {
-        case 'update suggested':
-            return `- (?) '${label}' has corrections. A file update is suggested.`;
-        case 'update recommended':
-            return `- (!) '${label}' has new features. A file update is recommended.`;
-        case 'update required':
-            return `- (X) '${label}' is incompatible. A file update is mandatory.`;
-        default:
-            return undefined;
-    }
-}
-
 export function setLinkerContext(node: COutlineItem, mapFilePath: string): void {
     node.addFeature(`${manifest.LINKER_CONTEXT}`);
     node.setAttribute('type', 'linkerMapFile');
@@ -81,20 +68,6 @@ export function getMapFilePath(cbuild: CTreeItem): string | undefined {
     const mapFile = findMapFile(output);
 
     return mapFile ? path.join(outDirPath, mapFile) : findFirstMapFile(outDirPath);
-}
-
-export function setMergeDescription(node: COutlineItem, fileStatus: string): void {
-    const desc = getMergeStatusSymbol(fileStatus);
-    if (desc !== undefined) {
-        node.setAttribute('description', desc);
-    }
-}
-
-export function setMergeUpdate(node: COutlineItem, fileStatus: string): void {
-    const update = getMergeStatusSymbol(fileStatus);
-    if (update !== undefined) {
-        node.setAttribute('update', update);
-    }
 }
 
 function getOutdirPath(cbuild: CTreeItem): string | undefined {
@@ -128,15 +101,3 @@ function findFirstMapFile(dirPath: string): string | undefined {
     return undefined;
 }
 
-function getMergeStatusSymbol(fileStatus: string): string | undefined {
-    switch (fileStatus) {
-        case 'update required':
-            return '(X)';
-        case 'update recommended':
-            return '(!)';
-        case 'update suggested':
-            return '(?)';
-        default:
-            return undefined;
-    }
-}

@@ -27,6 +27,7 @@ import { EnvironmentManagerApiV1 } from '@arm-software/vscode-environment-manage
 import { ETextFileResult } from '../generic/text-file';
 import { debounce } from 'lodash';
 import { SolutionRpcData } from './solution-rpc-data';
+import { EnvironmentManager } from '../desktop/env-manager';
 
 
 export interface SolutionLoadState {
@@ -94,7 +95,7 @@ export class SolutionManagerImpl implements SolutionManager {
         private readonly rpcData: SolutionRpcData,
         private readonly commandsProvider: CommandsProvider,
         private readonly environmentManagerApiProvider: ExtensionApiProvider<Pick<EnvironmentManagerApiV1, 'onDidActivate' | 'getActiveTools'>>,
-
+        private readonly environmentManager: EnvironmentManager,
     ) { }
 
     public async activate(context: vscode.ExtensionContext): Promise<void> {
@@ -111,6 +112,9 @@ export class SolutionManagerImpl implements SolutionManager {
                     this.debouncedHandleEnvironmentChange();
                 }, undefined, context.subscriptions);
             }),
+            this.environmentManager.onDidChangeEnvVars(() => {
+                this.debouncedHandleEnvironmentChange();
+            }, undefined, context.subscriptions),
             this.loadStateChangeEmitter,
             this.loadBuildFilesEmitter,
             this.updatedCompileCommandsEmitter,

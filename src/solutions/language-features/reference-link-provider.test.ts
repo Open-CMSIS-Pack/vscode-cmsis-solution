@@ -75,7 +75,12 @@ describe('ReferenceLinkProvider', () => {
     });
 
     it('returns links for cbuild files without expanding RPC variables', () => {
-        const getCmsisPackRootSpy = jest.spyOn(pathUtils, 'getCmsisPackRoot').mockReturnValue('TEST_CMSIS_PACK_ROOT');
+        const originalCmsisPackRoot = process.env['CMSIS_PACK_ROOT'];
+        const originalCmsisCompilerRoot = process.env['CMSIS_COMPILER_ROOT'];
+        const cmsisPackRoot = path.join(__dirname, 'test_directory', 'packs');
+        const cmsisCompilerRoot = path.join(__dirname, 'test_directory', 'compiler');
+        process.env['CMSIS_PACK_ROOT'] = cmsisPackRoot;
+        process.env['CMSIS_COMPILER_ROOT'] = cmsisCompilerRoot;
 
         try {
             const cbuildDoc = `
@@ -91,6 +96,7 @@ describe('ReferenceLinkProvider', () => {
                             - clayer: my/$Board-layer$
                     files:
                         - file: \${CMSIS_PACK_ROOT}/myPack/0.0.1/myfile.yml
+                    cdefault: \${CMSIS_COMPILER_ROOT}/cdefault.yml
             `;
 
             const documentFileName = path.join(__dirname, 'my.cbuild-idx.yml');
@@ -110,14 +116,25 @@ describe('ReferenceLinkProvider', () => {
                 UriUtils.joinPath(documentUri, '../my/debug/my.cbuild.yml').fsPath,
                 UriUtils.joinPath(documentUri, '../my.clayer.yml').fsPath,
                 UriUtils.joinPath(documentUri, '../my/my.cproject.yml').fsPath,
-                path.join(path.sep, 'TEST_CMSIS_PACK_ROOT', 'myPack', '0.0.1', 'myfile.yml'),
+                path.join(cmsisPackRoot, 'myPack', '0.0.1', 'myfile.yml'),
+                path.join(cmsisCompilerRoot, 'cdefault.yml'),
             ];
 
-            expectedPaths.forEach(expectedPath => {
-                expect(outputPaths.some(outputPath => pathUtils.pathsEqual(outputPath, expectedPath))).toBe(true);
-            });
+            const missingPaths = expectedPaths.filter(expectedPath =>
+                !outputPaths.some(outputPath => pathUtils.pathsEqual(outputPath, expectedPath))
+            );
+            expect(missingPaths).toEqual([]);
         } finally {
-            getCmsisPackRootSpy.mockRestore();
+            if (originalCmsisPackRoot === undefined) {
+                delete process.env['CMSIS_PACK_ROOT'];
+            } else {
+                process.env['CMSIS_PACK_ROOT'] = originalCmsisPackRoot;
+            }
+            if (originalCmsisCompilerRoot === undefined) {
+                delete process.env['CMSIS_COMPILER_ROOT'];
+            } else {
+                process.env['CMSIS_COMPILER_ROOT'] = originalCmsisCompilerRoot;
+            }
         }
     });
 });

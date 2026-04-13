@@ -21,6 +21,7 @@ import { Severity } from './constants';
 describe('EventHub', () => {
     let eventHub: SolutionEventHub;
     let mockContext: vscode.ExtensionContext;
+    const logMessages = { success: true, errors: [], warnings: [], info: [] };
 
     beforeEach(() => {
         eventHub = new SolutionEventHub();
@@ -33,7 +34,7 @@ describe('EventHub', () => {
         it('should register emitters with context subscriptions', async () => {
             await eventHub.activate(mockContext);
 
-            expect(mockContext.subscriptions).toHaveLength(2);
+            expect(mockContext.subscriptions).toHaveLength(3);
         });
     });
 
@@ -96,7 +97,7 @@ describe('EventHub', () => {
             const listener = jest.fn();
             eventHub.onDidConvertCompleted(listener);
 
-            const data: ConvertResultData = { severity, detection };
+            const data: ConvertResultData = { severity, detection, logMessages };
             await eventHub.fireConvertCompleted(data);
 
             expect(listener).toHaveBeenCalledTimes(1);
@@ -109,7 +110,7 @@ describe('EventHub', () => {
             eventHub.onDidConvertCompleted(listener1);
             eventHub.onDidConvertCompleted(listener2);
 
-            const data: ConvertResultData = { severity: 'success', detection: true };
+            const data: ConvertResultData = { severity: 'success', detection: true, logMessages };
             await eventHub.fireConvertCompleted(data);
 
             expect(listener1).toHaveBeenCalledWith(data);
@@ -134,7 +135,7 @@ describe('EventHub', () => {
             expect(requestListener).toHaveBeenCalledTimes(1);
             expect(completeListener).not.toHaveBeenCalled();
 
-            await eventHub.fireConvertCompleted({ severity: 'success', detection: true });
+            await eventHub.fireConvertCompleted({ severity: 'success', detection: true, logMessages });
 
             expect(requestListener).toHaveBeenCalledTimes(1);
             expect(completeListener).toHaveBeenCalledTimes(1);
@@ -170,11 +171,37 @@ describe('EventHub', () => {
             eventHub.onDidConvertCompleted(listener);
 
             await Promise.all([
-                eventHub.fireConvertCompleted({ severity: 'info', detection: true }),
-                eventHub.fireConvertCompleted({ severity: 'error', detection: false })
+                eventHub.fireConvertCompleted({ severity: 'info', detection: true, logMessages }),
+                eventHub.fireConvertCompleted({ severity: 'error', detection: false, logMessages })
             ]);
 
             expect(listener).toHaveBeenCalledTimes(2);
+        });
+    });
+
+    describe('fireConfigureSolutionDataReady', () => {
+        it('should fire event with compilers and configurations', async () => {
+            const listener = jest.fn();
+            eventHub.onDidConfigureSolutionDataReady(listener);
+
+            const data = { availableCompilers: ['GCC', 'AC6'], availableConfigurations: undefined };
+            await eventHub.fireConfigureSolutionDataReady(data);
+
+            expect(listener).toHaveBeenCalledTimes(1);
+            expect(listener).toHaveBeenCalledWith(data);
+        });
+
+        it('should notify multiple listeners', async () => {
+            const listener1 = jest.fn();
+            const listener2 = jest.fn();
+            eventHub.onDidConfigureSolutionDataReady(listener1);
+            eventHub.onDidConfigureSolutionDataReady(listener2);
+
+            const data = { availableCompilers: [], availableConfigurations: [{ variables: [] }] };
+            await eventHub.fireConfigureSolutionDataReady(data);
+
+            expect(listener1).toHaveBeenCalledWith(data);
+            expect(listener2).toHaveBeenCalledWith(data);
         });
     });
 });

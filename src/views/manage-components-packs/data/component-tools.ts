@@ -80,8 +80,13 @@ export interface PackRowDataType {
     versionUsed: string;
     versionTarget: string;
     used: boolean;
-    references: PackReference[];
+    references: PackRowReferenceDataType[];
     latestOnlineVersion?: string;
+}
+
+export interface PackRowReferenceDataType extends PackReference {
+    relOrigin: string;
+    relPath?: string;
 }
 
 export type OriginDataType = {

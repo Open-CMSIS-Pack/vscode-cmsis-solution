@@ -1,5 +1,17 @@
 /**
- * Copyright (C) 2025-2026 Arm Limited
+ * Copyright 2025-2026 Arm Limited
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 import React from 'react';
@@ -9,7 +21,6 @@ import SimpleList from '../../../common/components/simple-list';
 import { Space } from 'antd';
 import { flatTree } from '../../data/component-tree';
 import { parseComponentId } from '../../data/component-parse';
-import { Pack, PackReference } from '../../../../json-rpc/csolution-rpc-client';
 import { parsePackId } from '../../data/pack-parse';
 import { ComponentsState } from '../state/reducer';
 import { SolutionInfo } from '../../messages';
@@ -203,26 +214,6 @@ export const focusComponentInTree = (
 };
 
 /**
- * Mapper to convert from PacksInfo datatype (service) to PacksRowDataType (view)
- * @param packInfo The PacksInfo object to convert
- * @returns The corresponding PacksRowDataType object
- */
-export const packsRowFromInfo = (packInfo: Pack): PackRowDataType => {
-    const pack = parsePackId(packInfo.id);
-    return {
-        key: packInfo.id,
-        name: pack ? (pack.vendor ? `${pack.vendor}::${pack.packName}` : pack.packName) : packInfo.id,
-        packId: packInfo.id,
-        versionUsed: pack?.versionOperator ? pack.versionOperator + pack.version : (pack?.version || ''),
-        versionTarget: '',
-        description: packInfo.description || '',
-        used: packInfo.used || false,
-        references: (packInfo.references || []),
-        overviewLink: packInfo.doc || ''
-    };
-};
-
-/**
  * Builds a list of all origins for a selected pack and target type.
  * @param selectedPack The currently selected pack
  * @param selectedTargetType The currently selected target type
@@ -233,11 +224,11 @@ export const buildAllOrigins = (
     solution: SolutionInfo,
     selectedTargetType: ComponentsState['selectedTargetType'],
 ): OriginDataType[] => {
-    const refsByPath = new Map<string, PackReference[]>();
+    const refsByPath = new Map<string, PackRowDataType['references']>();
     for (const ref of selectedPack?.references ?? []) {
-        const list = refsByPath.get(ref.path ?? '') ?? [];
+        const list = refsByPath.get(ref.relOrigin) ?? [];
         list.push(ref);
-        refsByPath.set(ref.path ?? '', list);
+        refsByPath.set(ref.relOrigin, list);
     }
 
     const defaultPackParsed = selectedPack ? parsePackId(selectedPack.packId) : undefined;

@@ -43,7 +43,7 @@ const cprojectItem = new COutlineItem('project');
 cprojectItem.setAttribute('label', 'project');
 cprojectItem.setAttribute('expandable', '0');
 cprojectItem.setAttribute('type', 'projectFile');
-cprojectItem.setAttribute('resourcePath', 'to/project/path/myproject.cproject.yaml');
+cprojectItem.setAttribute('resourcePath', 'to/project/path/myproject.cproject.yml');
 
 describe('ComponentsPacksWebviewMain', () => {
     let solutionManager: MockSolutionManager;
@@ -143,7 +143,7 @@ describe('ComponentsPacksWebviewMain', () => {
     });
 
     describe('handleWebviewCommand', () => {
-        const projectPath = 'to/project/path/myproject.cproject.yaml';
+        const projectPath = 'to/project/path/myproject.cproject.yml';
 
         beforeEach(() => {
             // Replace openWebview with a spy for each test
@@ -203,6 +203,26 @@ describe('ComponentsPacksWebviewMain', () => {
 
             expect((componentsPacksWebviewMain as any).openWebview).not.toHaveBeenCalled();
             expect(messageProvider.showWarningMessage).toHaveBeenCalledWith('No valid project found in the active solution.');
+        });
+
+        it('calls openWebview with project resolved from typed context payload', async () => {
+            const context = 'HID.Debug+STM32U585AIIx';
+            jest.spyOn(componentsPacksWebviewMain as any, 'resolveProjectPathFromContext').mockReturnValue(projectPath);
+
+            await (componentsPacksWebviewMain as any).handleWebviewCommand({ type: 'context', value: context });
+
+            expect((componentsPacksWebviewMain as any).openWebview).toHaveBeenCalledTimes(1);
+            expect((componentsPacksWebviewMain as any).openWebview).toHaveBeenCalledWith(projectPath, undefined);
+        });
+
+        it('shows warning when typed context payload cannot be resolved', async () => {
+            const context = 'HID.Debug+STM32U585AIIx';
+            jest.spyOn(componentsPacksWebviewMain as any, 'resolveProjectPathFromContext').mockReturnValue(undefined);
+
+            await (componentsPacksWebviewMain as any).handleWebviewCommand({ type: 'context', value: context });
+
+            expect((componentsPacksWebviewMain as any).openWebview).not.toHaveBeenCalled();
+            expect(messageProvider.showWarningMessage).toHaveBeenCalledWith(`No valid project found for context: ${context}.`);
         });
     });
 
@@ -1254,6 +1274,63 @@ describe('ComponentsPacksWebviewMain', () => {
 
             expect(selectSpy).toHaveBeenCalledWith('ctx', 'target', 'pack.id@1.0.0');
             expect(webviewManager.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'SET_PACKS_INFO', packs: expect.any(Array) }));
+        });
+
+        it('maps pack row fields and dedupes references in SET_PACKS_INFO', async () => {
+            (componentsPacksWebviewMain as any).csolutionService.getPacksInfo = jest.fn().mockResolvedValue({
+                packs: [{
+                    id: 'Arm::CMSIS@1.2.3',
+                    description: 'CMSIS pack',
+                    used: true,
+                    doc: 'https://example.com/cmsis',
+                    references: [
+                        { pack: 'myPack', origin: path.join('root', 'my.cproject.yml'), path: path.join('root', 'packs/mypack') },
+                        { pack: 'myPack', origin: path.join('root', 'my.cproject.yml'), path: path.join('root', 'packs/mypack') },
+                    ]
+                }]
+            });
+
+            const selectSpy = jest.spyOn((componentsPacksWebviewMain as any).manageComponentsActions, 'selectPackage').mockResolvedValue(undefined);
+
+            await (componentsPacksWebviewMain as any).selectPackage({ type: 'SELECT_PACKAGE', target: 'target', packId: 'Arm::CMSIS@1.2.3' });
+
+            expect(selectSpy).toHaveBeenCalledWith('ctx', 'target', 'Arm::CMSIS@1.2.3');
+            const packsMsg = webviewManager.sendMessage.mock.calls.map(c => c[0]).find(m => m.type === 'SET_PACKS_INFO');
+            expect(packsMsg).toBeDefined();
+            expect(packsMsg.packs).toHaveLength(1);
+            expect(packsMsg.packs[0]).toEqual(expect.objectContaining({
+                name: 'Arm::CMSIS',
+                packId: 'Arm::CMSIS@1.2.3',
+                versionUsed: '@1.2.3',
+                description: 'CMSIS pack',
+                used: true,
+                overviewLink: 'https://example.com/cmsis'
+            }));
+            expect(packsMsg.packs[0].references).toHaveLength(1);
+            expect(packsMsg.packs[0].references[0]).toEqual(expect.objectContaining({
+                pack: 'myPack',
+                origin: path.join('root', 'my.cproject.yml'),
+                relOrigin: 'my.cproject.yml',
+                relPath: 'packs/mypack'
+            }));
+        });
+
+        it('maps each input pack into SET_PACKS_INFO without pack-level dedupe', async () => {
+            (componentsPacksWebviewMain as any).csolutionService.getPacksInfo = jest.fn().mockResolvedValue({
+                packs: [
+                    { id: 'Arm::CMSIS@1.2.3', references: [] },
+                    { id: 'Arm::CMSIS@2.0.0', references: [] },
+                ]
+            });
+
+            jest.spyOn((componentsPacksWebviewMain as any).manageComponentsActions, 'selectPackage').mockResolvedValue(undefined);
+
+            await (componentsPacksWebviewMain as any).selectPackage({ type: 'SELECT_PACKAGE', target: 'target', packId: 'Arm::CMSIS@2.0.0' });
+
+            const packsMsg = webviewManager.sendMessage.mock.calls.map(c => c[0]).find(m => m.type === 'SET_PACKS_INFO');
+            expect(packsMsg).toBeDefined();
+            expect(packsMsg.packs).toHaveLength(2);
+            expect(packsMsg.packs.map((p: { packId: string }) => p.packId)).toEqual(['Arm::CMSIS@1.2.3', 'Arm::CMSIS@2.0.0']);
         });
 
         it('unselects a package and refreshes the pack list', async () => {

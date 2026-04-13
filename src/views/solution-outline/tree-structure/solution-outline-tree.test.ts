@@ -79,9 +79,17 @@ describe('CSolution', () => {
     it('test tree content for hardware and projects collapsed node', async () => {
         const fileName = path.join(tmpSolutionDir, 'USBD', 'USB_Device.csolution.yml');
         const csolution = new CSolution();
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
 
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
+
+        const cdefaultPath = csolution.cbuildIdxFile?.topItem?.getValue('cdefault');
+        const hasCdefault = !!cdefaultPath && fsUtils.fileExists(
+            path.isAbsolute(solutionOutlineTree.expandString(cdefaultPath))
+                ? solutionOutlineTree.expandString(cdefaultPath)
+                : (csolution.cbuildIdxFile?.topItem?.resolvePath(solutionOutlineTree.expandString(cdefaultPath)) ?? solutionOutlineTree.expandString(cdefaultPath))
+        );
 
         const want = new Map<string, string>();
         let countContext = 1;
@@ -94,13 +102,16 @@ describe('CSolution', () => {
             const device = cbuildItem?.getValueAsString('device') ?? '';
             want.set('device', device);
 
+            if (hasCdefault) {
+                want.set('cdefault', 'cdefault');
+            }
+
             const context = cbuildItem?.getValueAsString('context') ?? '';
             want.set('context' + countContext.toString(), context);;
             countContext++;
         }
 
         // get results from tree
-        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
         const tree = solutionOutlineTree.createTree();
         const got = new Map<string, string>();
 
@@ -174,8 +185,8 @@ describe('CSolution', () => {
         let tree = solutionOutlineTree.createTree();
 
         let topItems = tree.getChildren();
-        expect(topItems.length).toBe(4); // device, board and two projects
-        const project = topItems[2];
+        expect(topItems.length).toBe(5); // device, board, cdefault and two projects
+        const project = topItems[3];
         const children = project.getChildren();
 
         const gotGroups: string[] = [];
@@ -219,7 +230,7 @@ describe('CSolution', () => {
         loadResult = await csolution.loadBuildFiles();
         tree = solutionOutlineTree.createTree();
         topItems = tree.getChildren();
-        expect(topItems.length).toBe(3); // device, board, one project
+        expect(topItems.length).toBe(4); // device, board, cdefault, one project
         res = await dumpOutline(tree, 'USBD', 'CmsisViewTreeOneProjDmp.txt','CmsisViewTreeOneProjRef.txt');
         expect(res.dump).toEqual(res.ref);
 
