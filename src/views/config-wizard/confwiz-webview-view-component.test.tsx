@@ -29,6 +29,12 @@ import {
 
 const sendNotificationMock = jest.fn();
 const notificationHandlers = new Map<string, (data: unknown) => void>();
+const mockVsCodeApi = {
+    postMessage: jest.fn(),
+    setState: jest.fn(),
+    getState: jest.fn(),
+};
+const acquireVsCodeApiMock = jest.fn(() => mockVsCodeApi);
 
 const getNotificationKey = (type: unknown): string => {
     if (typeof type === 'string') {
@@ -43,11 +49,6 @@ const getNotificationKey = (type: unknown): string => {
 };
 
 jest.mock('vscode-messenger-webview', () => ({
-    acquireVsCodeApi: jest.fn(() => ({
-        postMessage: jest.fn(),
-        setState: jest.fn(),
-        getState: jest.fn(),
-    })),
     Messenger: jest.fn().mockImplementation(() => ({
         start: jest.fn(),
         onNotification: (type: unknown, handler: (data: unknown) => void) => {
@@ -117,8 +118,17 @@ const makeRoot = (children: TreeNodeElement[]): TreeNodeElement => ({
 
 describe('ConfWiz functional component', () => {
     beforeEach(() => {
+        (globalThis as { acquireVsCodeApi?: () => unknown }).acquireVsCodeApi = acquireVsCodeApiMock;
+        acquireVsCodeApiMock.mockClear();
         sendNotificationMock.mockClear();
+        mockVsCodeApi.postMessage.mockClear();
+        mockVsCodeApi.setState.mockClear();
+        mockVsCodeApi.getState.mockClear();
         notificationHandlers.clear();
+    });
+
+    afterEach(() => {
+        delete (globalThis as { acquireVsCodeApi?: () => unknown }).acquireVsCodeApi;
     });
 
     it('marks dirty on first edit and saves on blur', () => {
