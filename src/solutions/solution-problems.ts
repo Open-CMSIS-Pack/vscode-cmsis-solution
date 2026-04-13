@@ -23,7 +23,7 @@ import * as fsUtils from '../utils/fs-utils';
 import { getFileNameFromPath } from '../utils/path-utils';
 import { stripTwoExtensions } from '../utils/string-utils';
 import { getWorkspaceFolder } from '../utils/vscode-utils';
-import { SolutionManager } from './solution-manager';
+import { SolutionLoadStateChangeEvent, SolutionManager } from './solution-manager';
 import { ConvertResultData, SolutionEventHub } from './solution-event-hub';
 
 export const toolsPrefixPatterns = {
@@ -108,6 +108,10 @@ export interface SolutionProblems {
 export class SolutionProblemsImpl implements SolutionProblems {
 
     private readonly diagnosticCollection: vscode.DiagnosticCollection = vscode.languages.createDiagnosticCollection('csolution');
+    /**
+    *  source files for diagnostics mapping
+    */
+    private readonly sourceFiles: Map<string, string> = new Map<string, string>();
 
     private readonly queryActionPatterns: ReadonlyArray<{ pattern: RegExp; action: 'components-packs' | 'find-in-files' }> = [
         { pattern: /dependency validation for context '([^']+)' failed:/, action: 'components-packs' },
@@ -126,6 +130,7 @@ export class SolutionProblemsImpl implements SolutionProblems {
     public async activate(context: vscode.ExtensionContext): Promise<void> {
         context.subscriptions.push(
             this.eventHub.onDidConvertCompleted(this.handleConvertCompleted, this),
+            this.solutionManager.onDidChangeLoadState(this.handleLoadStateChanged, this),
             this.diagnosticCollection,
         );
     }
@@ -133,6 +138,12 @@ export class SolutionProblemsImpl implements SolutionProblems {
     private async handleConvertCompleted(data: ConvertResultData): Promise<void> {
         await enrichLogMessagesFromToolOutput(data.logMessages, data.toolsOutputMessages);
         await this.updateDiagnostics(data.logMessages);
+    }
+
+    private handleLoadStateChanged(data: SolutionLoadStateChangeEvent): void {
+        if (data.previousState.solutionPath !== data.newState.solutionPath) {
+            this.clearDiagnostics();
+        }
     }
 
     /**
@@ -195,10 +206,17 @@ export class SolutionProblemsImpl implements SolutionProblems {
         return true;
     }
 
-    private async updateDiagnostics(messages: LogMessages): Promise<void> {
-        // clear previous diagnostics
+    /**
+     * Clear diagnostic and collected files
+     */
+    private clearDiagnostics(): void {
         this.diagnosticCollection.clear();
         this.collectYmlFiles();
+    }
+
+    private async updateDiagnostics(messages: LogMessages): Promise<void> {
+        // clear previous diagnostics
+        this.clearDiagnostics();
         let diagnostics = false;
 
         // iterate through log messages and set diagnostics
@@ -215,11 +233,6 @@ export class SolutionProblemsImpl implements SolutionProblems {
             vscode.commands.executeCommand('workbench.actions.view.problems', { preserveFocus: true });
         }
     }
-
-    /**
-    *  source files for diagnostics mapping
-    */
-    private readonly sourceFiles: Map<string, string> = new Map<string, string>();
 
     private addFile(file: string): void {
         if (file.length > 0) {
