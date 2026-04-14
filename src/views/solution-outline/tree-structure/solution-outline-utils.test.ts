@@ -15,9 +15,7 @@
  */
 
 import {
-    findMergeFiles,
     getMapFilePath,
-    selectMergeSibling,
     setContextMenuAttributes,
     setDocContext,
     setHeaderContext,
@@ -25,32 +23,31 @@ import {
 } from './solution-outline-utils';
 import { CTreeItem } from '../../../generic/tree-item';
 import path from 'path';
-import fs from 'fs';
-import os from 'os';
 import { parseYamlToCTreeItem } from '../../../generic/tree-item-yaml-parser';
 import { COutlineItem } from './solution-outline-item';
 import * as manifest from '../../../manifest';
+import { TestDataHandler } from '../../../__test__/test-data';
+import * as fsUtils from '../../../utils/fs-utils';
 
 describe('getMapFilePath', () => {
+    const testDataHandler = new TestDataHandler();
     let projectDir: string;
     let linkerDir: string;
     let cSolFile: string;
 
     beforeEach(async () => {
-        const tmpDir = os.tmpdir();
-        projectDir = fs.mkdtempSync(path.join(tmpDir, 'myProject'));
+        testDataHandler.rmTmpDir();
+        projectDir = path.join(testDataHandler.tmpDir, 'myProject');
         cSolFile = `${projectDir}/Blinky.csolution.yml`;
 
         linkerDir = path.join(projectDir, 'out', 'Blinky', 'Debug');
-        fs.mkdirSync(linkerDir, { recursive: true });
-
-        fs.writeFileSync(path.join(linkerDir, 'myFile1.axf.map'), '');
-        fs.writeFileSync(path.join(linkerDir, 'myFile2.axf.map'), '');
+        fsUtils.writeTextFile(path.join(linkerDir, 'myFile1.axf.map'));
+        fsUtils.writeTextFile(path.join(linkerDir, 'myFile2.axf.map'));
 
     });
 
-    afterEach(() => {
-        fs.rmSync(projectDir, { recursive: true, force: true });
+    afterAll(() => {
+        testDataHandler.dispose();
     });
 
     it('get linker map file if type map exists', async () => {
@@ -133,85 +130,3 @@ describe('Context utilities', () => {
 
 });
 
-describe('findMergeFiles', () => {
-    let projectDir: string;
-    let localPath: string;
-
-    beforeEach(() => {
-        projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'merge-files-'));
-        localPath = path.join(projectDir, 'RTX_Config.c');
-        fs.writeFileSync(localPath, '');
-    });
-
-    afterEach(() => {
-        fs.rmSync(projectDir, { recursive: true, force: true });
-    });
-
-    it('returns the highest-version update and base siblings', () => {
-        fs.writeFileSync(path.join(projectDir, 'RTX_Config.c.update@1.2.0'), '');
-        fs.writeFileSync(path.join(projectDir, 'RTX_Config.c.update@1.10.0'), '');
-        fs.writeFileSync(path.join(projectDir, 'RTX_Config.c.base@1.2.0'), '');
-        fs.writeFileSync(path.join(projectDir, 'RTX_Config.c.base@1.10.0'), '');
-
-        expect(findMergeFiles(localPath)).toEqual({
-            update: path.join(projectDir, 'RTX_Config.c.update@1.10.0'),
-            base: path.join(projectDir, 'RTX_Config.c.base@1.10.0'),
-        });
-    });
-
-    it('returns undefined siblings when one side is missing', () => {
-        fs.writeFileSync(path.join(projectDir, 'RTX_Config.c.update@1.10.0'), '');
-
-        expect(findMergeFiles(localPath)).toEqual({
-            update: undefined,
-            base: undefined,
-        });
-    });
-
-    it('returns undefined siblings when the directory cannot be read', () => {
-        const missingLocalPath = path.join(projectDir, 'missing', 'RTX_Config.c');
-
-        expect(findMergeFiles(missingLocalPath)).toEqual({
-            update: undefined,
-            base: undefined,
-        });
-    });
-});
-
-describe('selectMergeSibling', () => {
-    it('returns undefined for an empty list', () => {
-        expect(selectMergeSibling([], 'MyComponent.clayer.yml.update@')).toBeUndefined();
-    });
-
-    it('selects the highest semver suffix', () => {
-        const prefix = 'MyComponent.clayer.yml.update@';
-        const fileNames = [
-            `${prefix}1.2.0`,
-            `${prefix}1.10.0`,
-            `${prefix}1.3.0`,
-        ];
-
-        expect(selectMergeSibling(fileNames, prefix)).toBe(`${prefix}1.10.0`);
-    });
-
-    it('ignores invalid semver suffixes', () => {
-        const prefix = 'MyComponent.clayer.yml.update@';
-        const fileNames = [
-            `${prefix}1.0.0.bak`,
-            `${prefix}1.2.0`,
-            `${prefix}1.10.0`,
-        ];
-
-        expect(selectMergeSibling(fileNames, prefix)).toBe(`${prefix}1.10.0`);
-    });
-
-    it('returns undefined when no valid semver suffix exists', () => {
-        const prefix = 'MyComponent.clayer.yml.update@';
-        const fileNames = [
-            `${prefix}1.0.0.bak`,
-            `${prefix}latest`,
-        ];
-
-        expect(selectMergeSibling(fileNames, prefix)).toBeUndefined();
-    });
-});

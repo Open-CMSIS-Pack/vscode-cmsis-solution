@@ -19,7 +19,6 @@ solution
       resourcePath=TEST_DIR/solutions/WestSupport/.cmsis/solution+CM0.dbgconf
       tooltip=`TEST_DIR/solutions/WestSupport/.cmsis/solution+CM0.dbgconf`
       features=file
-      local=TEST_DIR/solutions/WestSupport/.cmsis/solution+CM0.dbgconf
     book
       label=Cortex-M0 Device Generic Users Guide
       expandable=0

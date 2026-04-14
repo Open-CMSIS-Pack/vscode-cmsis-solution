@@ -19,7 +19,6 @@ import * as manifest from '../../../manifest';
 import * as fs from 'fs';
 import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
 import path from 'path';
-import semver from 'semver';
 
 export function setContextMenuAttributes(item: COutlineItem, fileUri: string, rootFileName: string, topTag?: string): void {
     item.setAttribute('fileUri', fileUri);
@@ -100,55 +99,5 @@ function findFirstMapFile(dirPath: string): string | undefined {
         }
     }
     return undefined;
-}
-
-export function findMergeFiles(localPath: string): { update: string | undefined; base: string | undefined } {
-    const dir = path.dirname(localPath);
-    const fileName = path.basename(localPath);
-
-    let fileNames: string[];
-    try {
-        fileNames = fs.readdirSync(dir);
-    } catch {
-        return { update: undefined, base: undefined };
-    }
-
-    const updatePrefix = `${fileName}.update@`;
-    const basePrefix = `${fileName}.base@`;
-
-    const updateMatches = fileNames.filter(name => name.startsWith(updatePrefix));
-    const baseMatches = fileNames.filter(name => name.startsWith(basePrefix));
-
-    const update = selectMergeSibling(updateMatches, updatePrefix);
-    const base = selectMergeSibling(baseMatches, basePrefix);
-
-    if (!update || !base) {
-        return { update: undefined, base: undefined };
-    }
-
-    return {
-        update: update ? path.join(dir, update) : undefined,
-        base: base ? path.join(dir, base) : undefined,
-    };
-}
-
-export function selectMergeSibling(fileNames: string[], prefix: string): string | undefined {
-    if (fileNames.length === 0) {
-        return undefined;
-    }
-
-    const candidates = fileNames
-        .map(fileName => {
-            const version = semver.valid(fileName.slice(prefix.length));
-            return version ? { fileName, version } : undefined;
-        })
-        .filter((candidate): candidate is { fileName: string; version: string } => candidate !== undefined);
-
-    if (candidates.length === 0) {
-        return undefined;
-    }
-
-    // If multiple versions exist, pick the highest valid semver suffix after '@'.
-    return candidates.sort((left, right) => semver.rcompare(left.version, right.version))[0].fileName;
 }
 

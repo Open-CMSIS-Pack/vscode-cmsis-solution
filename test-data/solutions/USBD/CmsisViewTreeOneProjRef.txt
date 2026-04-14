@@ -152,14 +152,12 @@ solution
           label=RTX_Config.c
           expandable=0
           resourcePath=TEST_DIR/solutions/USBD/MassStorage/RTE/CMSIS/RTX_Config.c
-          local=TEST_DIR/solutions/USBD/MassStorage/RTE/CMSIS/RTX_Config.c
         file
           label=RTX_Config.h
           expandable=0
           resourcePath=TEST_DIR/solutions/USBD/MassStorage/RTE/CMSIS/RTX_Config.h
           features=headerFile:
           header=RTX_Config.h
-          local=TEST_DIR/solutions/USBD/MassStorage/RTE/CMSIS/RTX_Config.h
         file
           label=rtx_delay.c
           expandable=0
@@ -239,7 +237,6 @@ solution
           resourcePath=TEST_DIR/solutions/USBD/MassStorage/RTE/USB/USB_Debug.h
           features=headerFile:
           header=USB_Debug.h
-          local=TEST_DIR/solutions/USBD/MassStorage/RTE/USB/USB_Debug.h
         file
           label=usb_lib_ver.c
           expandable=0
@@ -261,7 +258,6 @@ solution
           resourcePath=TEST_DIR/solutions/USBD/MassStorage/RTE/USB/USBD_Config_0.h
           features=headerFile:
           header=USBD_Config_0.h
-          local=TEST_DIR/solutions/USBD/MassStorage/RTE/USB/USBD_Config_0.h
         file
           label=usbd_config.c
           expandable=0
@@ -299,7 +295,6 @@ solution
           resourcePath=TEST_DIR/solutions/USBD/MassStorage/RTE/USB/USBD_Config_MSC_0.h
           features=headerFile:
           header=USBD_Config_MSC_0.h
-          local=TEST_DIR/solutions/USBD/MassStorage/RTE/USB/USBD_Config_MSC_0.h
         file
           label=usbd_lib_core_msc.c
           expandable=0

@@ -18,7 +18,7 @@ import path from 'path';
 import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
 import { FILE_TAGS } from '../../../solutions/constants';
 import { COutlineItem } from './solution-outline-item';
-import { findMergeFiles, setContextMenuAttributes, setHeaderContext, setMergeFileContext } from './solution-outline-utils';
+import { setContextMenuAttributes, setHeaderContext, setMergeFileContext } from './solution-outline-utils';
 import { matchesContext } from '../../../utils/context-utils';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 import { CSolution } from '../../../solutions/csolution';
@@ -113,11 +113,12 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
             return;
         }
 
-        cfileItem.setAttribute('local', localPath);
-
-        const mergeFiles = findMergeFiles(localPath);
-        if (mergeFiles.update && mergeFiles.base) {
-            setMergeFileContext(cfileItem);
+        const fileStatus = f.getValue('status');
+        if (!fileStatus) {
+            return;
         }
+
+        cfileItem.setAttribute('local', localPath);
+        setMergeFileContext(cfileItem);
     }
 }

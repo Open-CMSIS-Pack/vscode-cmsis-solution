@@ -93,6 +93,18 @@ export function deleteFileIfExists(filePath?: string) {
     }
 }
 
+export function copyFile(source: string, destination: string) {
+    fs.copyFileSync(source, destination);
+}
+
+export function renameFile(source: string, destination: string) {
+    fs.renameSync(source, destination);
+}
+
+export function readDirectory(directoryPath: string): string[] {
+    return fs.readdirSync(directoryPath);
+}
+
 export function getFileModificationTime(filePath: string): number {
     if (fileExists(filePath)) {
         const stat = fs.statSync(filePath);

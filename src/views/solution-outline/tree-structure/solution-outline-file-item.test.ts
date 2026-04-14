@@ -16,22 +16,23 @@
 
 import { FileItemBuilder } from './solution-outline-file-item';
 import { parseYamlToCTreeItem } from '../../../generic/tree-item-yaml-parser';
-import fs from 'fs';
 import * as manifest from '../../../manifest';
-import os from 'os';
 import path from 'path';
 import { COutlineItem } from './solution-outline-item';
+import { TestDataHandler } from '../../../__test__/test-data';
+import * as fsUtils from '../../../utils/fs-utils';
 
 
 describe('FileItem', () => {
+    const testDataHandler = new TestDataHandler();
     let fileItem: FileItemBuilder;
     let projectDir: string;
     let cSolFile: string;
     let componentNode: COutlineItem;
 
     beforeEach(async () => {
-        const tmpDir = os.tmpdir();
-        projectDir = fs.mkdtempSync(path.join(tmpDir, 'myProject'));
+        testDataHandler.rmTmpDir();
+        projectDir = path.join(testDataHandler.tmpDir, 'myProject');
         cSolFile = `${projectDir}/Blinky.csolution.yml`;
 
         fileItem = new FileItemBuilder();
@@ -42,18 +43,17 @@ describe('FileItem', () => {
         componentNode.setAttribute('local', 'localPath');
     });
 
-    afterEach(() => {
-        fs.rmSync(projectDir, { recursive: true, force: true });
+    afterAll(() => {
+        testDataHandler.dispose();
     });
 
     it('creates file node with merge feature', async () => {
-        fs.mkdirSync(path.join(projectDir, 'RTE', 'CMSIS'), { recursive: true });
-        fs.writeFileSync(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.c'), '');
-        fs.writeFileSync(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.c.base@4.0.0'), '');
-        fs.writeFileSync(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.c.update@5.1.1'), '');
-        fs.writeFileSync(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.h'), '');
-        fs.writeFileSync(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.h.base@5.5.1'), '');
-        fs.writeFileSync(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.h.update@5.5.2'), '');
+        fsUtils.writeTextFile(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.c'));
+        fsUtils.writeTextFile(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.c.base@4.0.0'));
+        fsUtils.writeTextFile(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.c.update@5.1.1'));
+        fsUtils.writeTextFile(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.h'));
+        fsUtils.writeTextFile(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.h.base@5.5.1'));
+        fsUtils.writeTextFile(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.h.update@5.5.2'));
 
         const cbuildContent = `
         build:

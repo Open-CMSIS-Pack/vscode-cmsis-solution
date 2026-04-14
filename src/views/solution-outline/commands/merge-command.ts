@@ -21,9 +21,10 @@ import { exec, ExecException, execSync } from 'child_process';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 import path from 'path';
 import * as os from 'os';
-import * as fs from 'fs';
 import { ActiveSolutionTracker } from '../../../solutions/active-solution-tracker';
-import { findMergeFiles } from '../tree-structure/solution-outline-utils';
+import semver from 'semver';
+import { extractSuffix } from '../../../utils/string-utils';
+import * as fsUtils from '../../../utils/fs-utils';
 
 export class MergeCommand {
     public static readonly mergeFile = `${PACKAGE_NAME}.mergeFile`;
@@ -65,7 +66,7 @@ export class MergeCommand {
         let merged = local + '.merged';
 
         // make a copy of local to create merged file
-        fs.copyFileSync(local, merged);
+        fsUtils.copyFile(local, merged);
         node.setAttribute('merged', merged);
 
         // ensure all paths are absolute
@@ -75,20 +76,14 @@ export class MergeCommand {
         merged = path.resolve(merged);
 
         // get the modification time of the merged file before merge
-        let mergedMTimeBefore = 0;
-        if (fs.existsSync(merged)) {
-            mergedMTimeBefore = fs.statSync(merged).mtimeMs;
-        }
+        const mergedMTimeBefore = fsUtils.getFileModificationTime(merged);
 
         try {
             const command = this.buildMergeCommand(codePath, local, update, base, merged);
             const exitCode = await this.doOpen3WayMerge(command);
 
             // get the modification time after merge
-            let mergedMTimeAfter = 0;
-            if (fs.existsSync(merged)) {
-                mergedMTimeAfter = fs.statSync(merged).mtimeMs;
-            }
+            const mergedMTimeAfter = fsUtils.getFileModificationTime(merged);
 
             if (exitCode !== 0) {
                 console.warn(`Merge exited with code ${exitCode}. Conflicts may exist.`);
@@ -113,7 +108,7 @@ export class MergeCommand {
             return undefined;
         }
 
-        const discovered = findMergeFiles(local);
+        const discovered = this.findMergeFiles(local);
         const update = discovered.update;
         if (!update) {
             vscode.window.showErrorMessage('Required update file is missing to perform merge.');
@@ -132,26 +127,22 @@ export class MergeCommand {
     private performPostMergeOperations(local: string, update: string, base: string, merged: string): void {
         // create .bak file of local file
         const backupPath = `${local}.bak`;
-        fs.copyFileSync(local, backupPath);
+        fsUtils.copyFile(local, backupPath);
 
         // delete local file
-        if (fs.existsSync(local)) {
-            fs.unlinkSync(local);
-        }
+        fsUtils.deleteFileIfExists(local);
 
         // delete base file
-        if (fs.existsSync(base)) {
-            fs.unlinkSync(base);
-        }
+        fsUtils.deleteFileIfExists(base);
 
         // rename update file to base file
         const newBaseFileName = path.basename(update).replaceAll('update', 'base');
         const baseDirPath = path.dirname(update);
         const newBase = path.join(baseDirPath, newBaseFileName);
-        fs.renameSync(update, newBase);
+        fsUtils.renameFile(update, newBase);
 
         // rename merged file to local file
-        fs.renameSync(merged, local);
+        fsUtils.renameFile(merged, local);
 
         // refresh tree view to update file status
         this.activeSolutionTracker.triggerReload();
@@ -170,7 +161,7 @@ export class MergeCommand {
             ];
 
             for (const p of possiblePaths) {
-                if (fs.existsSync(p)) {
+                if (fsUtils.fileExists(p)) {
                     return p;
                 }
             }
@@ -184,7 +175,7 @@ export class MergeCommand {
             ];
 
             for (const p of possiblePaths) {
-                if (fs.existsSync(p)) {
+                if (fsUtils.fileExists(p)) {
                     return p;
                 }
             }
@@ -192,7 +183,7 @@ export class MergeCommand {
             // fallback to using 'which code'
             try {
                 const resolved = execSync('which code', { stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim();
-                if (resolved && fs.existsSync(resolved)) return resolved;
+                if (resolved && fsUtils.fileExists(resolved)) return resolved;
             } catch (err) {
                 vscode.window.showWarningMessage(`Could not resolve 'code' binary via 'which': ${err instanceof Error ? err.message : String(err)}`);
                 return undefined;
@@ -246,4 +237,51 @@ export class MergeCommand {
             });
         });
     }
+
+    private findMergeFiles(localPath: string): { update: string | undefined; base: string | undefined } {
+        const dir = path.dirname(localPath);
+        const fileName = path.basename(localPath);
+
+        let fileNames: string[];
+        try {
+            fileNames = fsUtils.readDirectory(dir);
+        } catch {
+            return { update: undefined, base: undefined };
+        }
+
+        const updatePrefix = `${fileName}.update@`;
+        const basePrefix = `${fileName}.base@`;
+
+        const update = this.resolveMergeSibling(fileNames, updatePrefix);
+        const base = this.resolveMergeSibling(fileNames, basePrefix);
+
+        if (!update || !base) {
+            return { update: undefined, base: undefined };
+        }
+
+        return {
+            update: update ? path.join(dir, update) : undefined,
+            base: base ? path.join(dir, base) : undefined,
+        };
+    }
+
+    private resolveMergeSibling(fileNames: string[], prefix: string): string | undefined {
+        const matches = fileNames.filter(fileName => fileName.startsWith(prefix));
+        return this.selectMergeSibling(matches, prefix);
+    }
+
+    private selectMergeSibling(fileNames: string[], prefix: string): string | undefined {
+        if (fileNames.length === 0) {
+            return undefined;
+        }
+
+        return fileNames
+            .map(fileName => {
+                const version = semver.valid(extractSuffix(fileName, prefix));
+                return version ? { fileName, version } : undefined;
+            })
+            .filter((candidate): candidate is { fileName: string; version: string } => candidate !== undefined)
+            .sort((left, right) => semver.rcompare(left.version, right.version))[0]?.fileName;
+    }
+
 }
