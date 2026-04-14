@@ -26,6 +26,7 @@ import { IncomingMessage, OutgoingMessage } from '../../messages';
 import { CreationActions } from '../actions';
 import { CreateSolution } from './create-solution';
 import { act } from 'react';
+import { CreateSolutionState } from '../state/reducer';
 
 
 
@@ -225,6 +226,19 @@ describe('CreateSolution', () => {
             creationActions.createSolution.mockImplementation(async (dispatch) => {
                 dispatch({ type: 'CREATION_CHECK_START' });
             });
+        });
+
+        it('calls the createSolution creation action', async () => {
+            await renderCreateSolution();
+            await fillOutFormFields();
+            await act(async () => getElements().createBtn!.click());
+
+            const expectedSolutionNameState: CreateSolutionState['solutionFolder'] = { hadInteraction: true, value: 'test solution' };
+            expect(creationActions.createSolution).toHaveBeenCalledWith(
+                expect.any(Function),
+                expect.objectContaining({ solutionFolder: expectedSolutionNameState }),
+                messageHandler,
+            );
         });
 
         it('disables interactive elements', async () => {
