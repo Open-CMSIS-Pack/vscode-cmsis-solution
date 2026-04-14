@@ -24,6 +24,7 @@ import { parsePackId } from '../../data/pack-parse';
 import { EditFilled, MinusSquareOutlined, PlusSquareOutlined } from '@ant-design/icons';
 import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
 import { TargetSetData } from '../../components-data';
+import { packURL } from '../../../../packs/pack-urls';
 
 interface PackPropertiesDialogProperties {
     pack?: PackRowDataType;
@@ -103,8 +104,7 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
         setUnlockOf(pack?.name);
     };
 
-    const p = parsePackId(pack?.packId || '');
-    const packUri = `https://www.keil.arm.com/packs/${p?.packName}-${p?.vendor}/versions/`.toLowerCase();
+    const packVersionsUrl = packURL(pack?.packId, 'versions');
     const firstReferenceWithPath = pack?.references.find(reference => Boolean(reference.relPath?.trim()));
     const firstReferencePath = firstReferenceWithPath?.relPath?.trim();
     const versionOperators = firstReferencePath ? [none] : [none, '@', '@>=', '@^', '@~'];
@@ -231,12 +231,12 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                                     </Tooltip>
                                 </Col>
                                 <Col flex={1}>
-                                    <Tooltip title={<><div>Show pack history on web portal</div>{onlineTooltip}</>}>
+                                    <Tooltip title={<><div>Software pack versions</div>{onlineTooltip}</>}>
                                         <Button
                                             type="text"
                                             style={{ color: onlineTooltip ? 'var(--vscode-list-warningForeground)' : undefined }}
-                                            onClick={() => { if (openFile) openFile(packUri, true); }}
-                                            icon={<CmsisCodicon name="version-history" />}
+                                            onClick={() => { if (openFile) openFile(packVersionsUrl, true); }}
+                                            icon={<CmsisCodicon name="link-external" />}
                                         />
                                     </Tooltip>
                                 </Col>
