@@ -105,7 +105,7 @@ describe('FileItem', () => {
             expect(child.getTag()).toBe('file');
             expect(child.getAttribute('label')).toContain(fileLabels[idx]);
             expect(child.getAttribute('description')).toBeUndefined();
-            expect(path.basename(child.getAttribute('local') ?? '')).toBe(fileLabels[idx]);
+            expect(path.basename(child.getAttribute('resourcePath') ?? '')).toBe(fileLabels[idx]);
             expect(child.getAttribute('features')).toContain(manifest.MERGE_FILE_CONTEXT);
         });
 

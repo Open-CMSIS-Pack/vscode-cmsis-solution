@@ -23,7 +23,7 @@ import path from 'path';
 import * as os from 'os';
 import { ActiveSolutionTracker } from '../../../solutions/active-solution-tracker';
 import semver from 'semver';
-import { extractSuffix } from '../../../utils/string-utils';
+import { extractVersion } from '../../../utils/string-utils';
 import * as fsUtils from '../../../utils/fs-utils';
 
 export class MergeCommand {
@@ -108,7 +108,7 @@ export class MergeCommand {
             return undefined;
         }
 
-        const discovered = this.findMergeFiles(local);
+        const discovered = this.findNewestMergeFiles(local);
         const update = discovered.update;
         if (!update) {
             vscode.window.showErrorMessage('Required update file is missing to perform merge.');
@@ -238,7 +238,7 @@ export class MergeCommand {
         });
     }
 
-    private findMergeFiles(localPath: string): { update: string | undefined; base: string | undefined } {
+    private findNewestMergeFiles(localPath: string): { update: string | undefined; base: string | undefined } {
         const dir = path.dirname(localPath);
         const fileName = path.basename(localPath);
 
@@ -248,12 +248,11 @@ export class MergeCommand {
         } catch {
             return { update: undefined, base: undefined };
         }
-
         const updatePrefix = `${fileName}.update@`;
         const basePrefix = `${fileName}.base@`;
 
-        const update = this.resolveMergeSibling(fileNames, updatePrefix);
-        const base = this.resolveMergeSibling(fileNames, basePrefix);
+        const update = this.resolveNewestMergeSibling(fileNames, updatePrefix);
+        const base = this.resolveNewestMergeSibling(fileNames, basePrefix);
 
         if (!update || !base) {
             return { update: undefined, base: undefined };
@@ -265,19 +264,19 @@ export class MergeCommand {
         };
     }
 
-    private resolveMergeSibling(fileNames: string[], prefix: string): string | undefined {
+    private resolveNewestMergeSibling(fileNames: string[], prefix: string): string | undefined {
         const matches = fileNames.filter(fileName => fileName.startsWith(prefix));
-        return this.selectMergeSibling(matches, prefix);
+        return this.selectNewestMergeSibling(matches);
     }
 
-    private selectMergeSibling(fileNames: string[], prefix: string): string | undefined {
+    private selectNewestMergeSibling(fileNames: string[]): string | undefined {
         if (fileNames.length === 0) {
             return undefined;
         }
 
         return fileNames
             .map(fileName => {
-                const version = semver.valid(extractSuffix(fileName, prefix));
+                const version = semver.valid(extractVersion(fileName));
                 return version ? { fileName, version } : undefined;
             })
             .filter((candidate): candidate is { fileName: string; version: string } => candidate !== undefined)
@@ -285,3 +284,4 @@ export class MergeCommand {
     }
 
 }
+

@@ -93,7 +93,7 @@ describe('HardwareItemBuilder', () => {
         const device = children?.[0];
 
         // check merge attributes set by addMergeFeature
-        const local = device?.getAttribute('local');
+        const local = device?.getAttribute('resourcePath');
         const gotLocal = local ? path.basename(local) : '';
         const wantLocal = 'Hello+CS300.dbgconf';
         expect(gotLocal).toEqual(wantLocal);

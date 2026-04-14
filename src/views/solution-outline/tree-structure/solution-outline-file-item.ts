@@ -93,32 +93,16 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
         return item as COutlineItem;
     }
 
-    public addMergeFeature(f: ITreeItem<CTreeItem>, cfileItem: COutlineItem, options?: { skipValidation?: boolean; localPathOverride?: string }) {
+    public addMergeFeature(f: ITreeItem<CTreeItem>, cfileItem: COutlineItem) {
         // Only config files with a resolvable resource path are eligible.
-        // Callers can bypass this when they already validated inputs upstream.
-        if (!options?.skipValidation) {
-            const attr = f.getValue('attr');
-            if (attr !== 'config') {
-                return;
-            }
-            const localPath = cfileItem.getValue('resourcePath');
-            if (!localPath) {
-                return;
-            }
-        }
-
-        // Prefer an explicit local path from caller; otherwise fall back to the tree item's resource path.
-        const localPath = options?.localPathOverride ?? cfileItem.getValue('resourcePath');
-        if (!localPath) {
+        const attr = f.getValue('attr');
+        if (attr !== 'config') {
             return;
         }
-
         const fileStatus = f.getValue('status');
         if (!fileStatus) {
             return;
         }
-
-        cfileItem.setAttribute('local', localPath);
         setMergeFileContext(cfileItem);
     }
 }

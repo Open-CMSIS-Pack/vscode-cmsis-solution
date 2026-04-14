@@ -41,11 +41,10 @@ import { COutlineItem } from '../tree-structure/solution-outline-item';
 import * as child_process from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
-import * as fsUtilsModule from '../../../utils/fs-utils';
+import * as fsUtils from '../../../utils/fs-utils';
 
 jest.mock('child_process');
 jest.mock('os');
-jest.mock('../../../utils/fs-utils');
 
 describe('MergeCommand', () => {
     let commandsProvider: MockCommandsProvider;
@@ -57,11 +56,9 @@ describe('MergeCommand', () => {
     let componentNode: COutlineItem;
     let fileNode: COutlineItem;
 
-    const mockedFsUtils = fsUtilsModule as jest.Mocked<typeof fsUtilsModule>;
     const mockedExec = child_process.exec as jest.MockedFunction<typeof child_process.exec>;
     const mockedExecSync = child_process.execSync as jest.MockedFunction<typeof child_process.execSync>;
     const mockedPath = path as jest.Mocked<typeof path>;
-    const fsUtils = jest.requireActual('../../../utils/fs-utils') as typeof import('../../../utils/fs-utils');
 
     beforeAll(() => {
         tmpDir = testDataHandler.tmpDir;
@@ -72,6 +69,7 @@ describe('MergeCommand', () => {
     });
 
     beforeEach(async () => {
+        jest.restoreAllMocks();
         jest.resetAllMocks();
         mockedPath.isAbsolute.mockImplementation((filePath: string) => actualPath.isAbsolute(filePath));
         testDataHandler.rmTmpDir();
@@ -80,8 +78,6 @@ describe('MergeCommand', () => {
         fsUtils.writeTextFile(path.join(tmpDir, 'component.c'), '// component\n');
         fsUtils.writeTextFile(path.join(tmpDir, 'component.c.update@1.0.0'), '// update\n');
         fsUtils.writeTextFile(path.join(tmpDir, 'component.c.base@1.0.0'), '// base\n');
-
-        mockedFsUtils.readDirectory.mockImplementation((dir: string) => fsUtils.readDirectory(dir));
 
         commandsProvider = commandsProviderFactory();
         activeSolutionTracker = activeSolutionTrackerFactory();
@@ -128,7 +124,7 @@ describe('MergeCommand', () => {
             fsUtils.writeTextFile(path.join(tmpDir, 'component.c.update@invalid'), '// ignored update\n');
             fsUtils.writeTextFile(path.join(tmpDir, 'component.c.base@invalid'), '// ignored base\n');
 
-            const result = command['findMergeFiles'](path.join(tmpDir, 'component.c'));
+            const result = command['findNewestMergeFiles'](path.join(tmpDir, 'component.c'));
 
             expect(result).toEqual({
                 update: path.join(tmpDir, 'component.c.update@1.2.0'),
@@ -137,19 +133,19 @@ describe('MergeCommand', () => {
         });
 
         it('returns undefined siblings when reading the local directory fails', () => {
-            mockedFsUtils.readDirectory.mockImplementation(() => {
+            jest.spyOn(fsUtils, 'readDirectory').mockImplementation(() => {
                 throw new Error('directory unavailable');
             });
 
-            const result = command['findMergeFiles'](path.join(tmpDir, 'component.c'));
+            const result = command['findNewestMergeFiles'](path.join(tmpDir, 'component.c'));
 
             expect(result).toEqual({ update: undefined, base: undefined });
         });
     });
 
     describe('merge sibling resolution', () => {
-        it('resolveMergeSibling filters by prefix and returns the highest valid semver file', () => {
-            const result = command['resolveMergeSibling']([
+        it('resolveNewestMergeSibling filters by prefix and returns the highest valid semver file', () => {
+            const result = command['resolveNewestMergeSibling']([
                 'component.c.base@1.0.0',
                 'component.c.update@1.0.0',
                 'component.c.update@2.0.0',
@@ -160,8 +156,8 @@ describe('MergeCommand', () => {
             expect(result).toBe('component.c.update@2.0.0');
         });
 
-        it('resolveMergeSibling returns undefined when no file matches the prefix', () => {
-            const result = command['resolveMergeSibling']([
+        it('resolveNewestMergeSibling returns undefined when no file matches the prefix', () => {
+            const result = command['resolveNewestMergeSibling']([
                 'component.c.base@1.0.0',
                 'other.c.update@2.0.0',
             ], 'component.c.update@');
@@ -169,22 +165,22 @@ describe('MergeCommand', () => {
             expect(result).toBeUndefined();
         });
 
-        it('selectMergeSibling ignores non-semver suffixes and picks the latest version', () => {
-            const result = command['selectMergeSibling']([
+        it('selectNewestMergeSibling ignores non-semver suffixes and picks the latest version', () => {
+            const result = command['selectNewestMergeSibling']([
                 'component.c.update@1.9.0',
                 'component.c.update@invalid',
                 'component.c.update@2.0.0-beta.1',
                 'component.c.update@2.0.0',
-            ], 'component.c.update@');
+            ]);
 
             expect(result).toBe('component.c.update@2.0.0');
         });
 
-        it('selectMergeSibling returns undefined when there are no valid semver candidates', () => {
-            const result = command['selectMergeSibling']([
+        it('selectNewestMergeSibling returns undefined when there are no valid semver candidates', () => {
+            const result = command['selectNewestMergeSibling']([
                 'component.c.update@draft',
                 'component.c.update@next',
-            ], 'component.c.update@');
+            ]);
 
             expect(result).toBeUndefined();
         });
@@ -266,7 +262,7 @@ describe('MergeCommand', () => {
         it('returns Windows VS Code CLI path when found in standard locations', () => {
             const expectedCodePath = path.join('C:', 'Program Files', 'Microsoft VS Code', 'bin', 'code.cmd');
             jest.spyOn(os, 'platform').mockReturnValue('win32');
-            mockedFsUtils.fileExists.mockImplementation((filePath?: string): filePath is string => filePath === expectedCodePath);
+            jest.spyOn(fsUtils, 'fileExists').mockImplementation((filePath?: string): filePath is string => filePath === expectedCodePath);
 
             const result = command['getVSCodeExecutablePath']();
 
@@ -292,18 +288,20 @@ describe('MergeCommand', () => {
                 getVSCodeExecutablePath: () => string | undefined;
                 doOpen3WayMerge: (cmd: string) => Promise<number>;
             };
+            const deleteFileIfExistsSpy = jest.spyOn(fsUtils, 'deleteFileIfExists');
+            const renameFileSpy = jest.spyOn(fsUtils, 'renameFile');
+            jest.spyOn(fsUtils, 'copyFile').mockImplementation(() => { });
+            jest.spyOn(fsUtils, 'getFileModificationTime').mockReturnValue(1000);
             jest.spyOn(commandPrivate, 'getVSCodeExecutablePath').mockReturnValue('/usr/bin/code');
             jest.spyOn(commandPrivate, 'doOpen3WayMerge').mockResolvedValue(1);
-            mockedFsUtils.copyFile.mockImplementation(() => { });
-            mockedFsUtils.getFileModificationTime.mockReturnValue(1000);
 
             const warningSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
 
             await command['runVSCodeMerge'](fileNode);
 
             expect(warningSpy).toHaveBeenCalledWith('Merge exited with code 1. Conflicts may exist.');
-            expect(mockedFsUtils.deleteFileIfExists).not.toHaveBeenCalled();
-            expect(mockedFsUtils.renameFile).not.toHaveBeenCalled();
+            expect(deleteFileIfExistsSpy).not.toHaveBeenCalled();
+            expect(renameFileSpy).not.toHaveBeenCalled();
             expect(activeSolutionTracker.triggerReload).not.toHaveBeenCalled();
         });
 
@@ -311,9 +309,9 @@ describe('MergeCommand', () => {
             const codePath = '/usr/bin/code';
             jest.spyOn(os, 'platform').mockReturnValue('linux');
             mockedExecSync.mockReturnValue(codePath);
-            mockedFsUtils.copyFile.mockImplementation(() => { });
-            mockedFsUtils.fileExists.mockReturnValue(true);
-            mockedFsUtils.getFileModificationTime.mockReturnValue(1000);
+            jest.spyOn(fsUtils, 'copyFile').mockImplementation(() => { });
+            jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
+            jest.spyOn(fsUtils, 'getFileModificationTime').mockReturnValue(1000);
             mockedExec.mockImplementation((_cmd, _cb) => { throw new Error('unexpected'); });
 
             const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
@@ -330,15 +328,15 @@ describe('MergeCommand', () => {
 
             const commandPrivate = command as unknown as {
                 getVSCodeExecutablePath: () => string | undefined;
-                findMergeFiles: (localPath: string) => { update: string | undefined; base: string | undefined };
+                findNewestMergeFiles: (localPath: string) => { update: string | undefined; base: string | undefined };
             };
             jest.spyOn(commandPrivate, 'getVSCodeExecutablePath').mockReturnValue('/usr/bin/code');
-            jest.spyOn(commandPrivate, 'findMergeFiles').mockReturnValue({
+            jest.spyOn(commandPrivate, 'findNewestMergeFiles').mockReturnValue({
                 update: `${local}.update@1.0.0&unsafe`,
                 base: `${local}.base@1.0.0`,
             });
-            mockedFsUtils.copyFile.mockImplementation(() => { });
-            mockedFsUtils.getFileModificationTime.mockReturnValue(1000);
+            jest.spyOn(fsUtils, 'copyFile').mockImplementation(() => { });
+            jest.spyOn(fsUtils, 'getFileModificationTime').mockReturnValue(1000);
 
             const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
 
@@ -362,21 +360,24 @@ describe('MergeCommand', () => {
                 getVSCodeExecutablePath: () => string | undefined;
                 doOpen3WayMerge: (cmd: string) => Promise<number>;
             };
-            jest.spyOn(commandPrivate, 'getVSCodeExecutablePath').mockReturnValue('/usr/bin/code');
-            jest.spyOn(commandPrivate, 'doOpen3WayMerge').mockResolvedValue(0);
-            mockedFsUtils.copyFile.mockImplementation(() => { });
-            mockedFsUtils.getFileModificationTime
+            const copyFileSpy = jest.spyOn(fsUtils, 'copyFile').mockImplementation(() => { });
+            const getFileModificationTimeSpy = jest.spyOn(fsUtils, 'getFileModificationTime')
                 .mockReturnValueOnce(1000)
                 .mockReturnValueOnce(2000);
+            const deleteFileIfExistsSpy = jest.spyOn(fsUtils, 'deleteFileIfExists').mockImplementation(() => { });
+            const renameFileSpy = jest.spyOn(fsUtils, 'renameFile').mockImplementation(() => { });
+            jest.spyOn(commandPrivate, 'getVSCodeExecutablePath').mockReturnValue('/usr/bin/code');
+            jest.spyOn(commandPrivate, 'doOpen3WayMerge').mockResolvedValue(0);
 
             await command['runVSCodeMerge'](node);
 
-            expect(mockedFsUtils.copyFile).toHaveBeenCalledWith(local, merged);
-            expect(mockedFsUtils.copyFile).toHaveBeenCalledWith(local, `${local}.bak`);
-            expect(mockedFsUtils.deleteFileIfExists).toHaveBeenCalledWith(local);
-            expect(mockedFsUtils.deleteFileIfExists).toHaveBeenCalledWith(base);
-            expect(mockedFsUtils.renameFile).toHaveBeenCalledWith(update, expectedBase);
-            expect(mockedFsUtils.renameFile).toHaveBeenCalledWith(merged, local);
+            expect(copyFileSpy).toHaveBeenCalledWith(local, merged);
+            expect(copyFileSpy).toHaveBeenCalledWith(local, `${local}.bak`);
+            expect(getFileModificationTimeSpy).toHaveBeenCalledTimes(2);
+            expect(deleteFileIfExistsSpy).toHaveBeenCalledWith(local);
+            expect(deleteFileIfExistsSpy).toHaveBeenCalledWith(base);
+            expect(renameFileSpy).toHaveBeenCalledWith(update, expectedBase);
+            expect(renameFileSpy).toHaveBeenCalledWith(merged, local);
             expect(activeSolutionTracker.triggerReload).toHaveBeenCalledTimes(1);
         });
     });

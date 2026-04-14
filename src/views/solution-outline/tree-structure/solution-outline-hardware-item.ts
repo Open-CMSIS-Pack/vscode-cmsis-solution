@@ -146,6 +146,6 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
 
         // add merge feature for dbgconf node
         const fileItem = new FileItemBuilder();
-        fileItem.addMergeFeature(dbgConfigEntry ?? file, dbgconfFileItem, { skipValidation: true, localPathOverride: filePath });
+        fileItem.addMergeFeature(dbgConfigEntry ?? file, dbgconfFileItem);
     }
 }
