@@ -135,6 +135,7 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         const fileName = file.getText() ?? '';
         const filePath = file.resolvePath(fileName);
         const dbgConfFile = path.basename(fileName);
+        const dbgConfigEntry = file.getParent();
 
         const dbgconfFileItem = hardwareItem.createChild('file');
         dbgconfFileItem.setAttribute('label', dbgConfFile);
@@ -145,6 +146,6 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
 
         // add merge feature for dbgconf node
         const fileItem = new FileItemBuilder();
-        fileItem.addMergeFeature(file, dbgconfFileItem, { skipValidation: true, localPathOverride: filePath });
+        fileItem.addMergeFeature(dbgConfigEntry ?? file, dbgconfFileItem, { skipValidation: true, localPathOverride: filePath });
     }
 }
