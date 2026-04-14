@@ -16,7 +16,7 @@
 
 import * as vscode from 'vscode';
 import { SolutionManager } from '../../solutions/solution-manager';
-import { BuildTaskDefinition, createLocalDefinitionFromUriOrSolutionNode } from './build-task-definition';
+import { BuildTaskDefinition, createLocalDefinitionFromUriOrSolutionNode, BuildOutputVerbosity } from './build-task-definition';
 import * as manifest from '../../manifest';
 import { ConfigurationProvider } from '../../vscode-api/configuration-provider';
 import { COutlineItem } from '../../views/solution-outline/tree-structure/solution-outline-item';
@@ -44,6 +44,14 @@ export class BuildTaskDefinitionBuilderImpl implements BuildTaskDefinitionBuilde
         return solutionPath;
     }
 
+    private getBuildOutputVerbosity(): BuildOutputVerbosity {
+        const verbosity = this.configProvider.getConfigVariable<BuildOutputVerbosity>(manifest.CONFIG_BUILD_OUTPUT_VERBOSITY);
+        if (typeof verbosity !== 'string') {
+            return 'normal';
+        }
+        return verbosity;
+    }
+
     private isDownloadPacksEnabled(): boolean {
         return this.configProvider.getConfigVariable<boolean>(manifest.CONFIG_DOWNLOAD_MISSING_PACKS) ?? true;
     }
@@ -55,6 +63,7 @@ export class BuildTaskDefinitionBuilderImpl implements BuildTaskDefinitionBuilde
             clean: action === 'clean',
             rebuild: action === 'rebuild',
             setup: action === 'setup',
+            buildOutputVerbosity: this.getBuildOutputVerbosity(),
             downloadPacks: this.isDownloadPacksEnabled(),
             cmakeTarget: action === 'setup' ? 'database' : 'all',
             west: this.solutionManager.getCsolution()?.getCproject()?.projectType === 'West'

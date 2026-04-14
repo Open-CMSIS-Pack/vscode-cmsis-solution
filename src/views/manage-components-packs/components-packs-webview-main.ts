@@ -18,7 +18,7 @@ import * as vscode from 'vscode';
 import * as manifest from '../../manifest';
 import * as Messages from './messages';
 import path, { dirname } from 'path';
-import { ComponentInstance, CsolutionService, CtAggregate, CtRoot, PackReference, PacksInfo, Results, UsedItems } from '../../json-rpc/csolution-rpc-client';
+import { ComponentInstance, CsolutionService, CtAggregate, CtRoot, Pack, PackReference, PacksInfo, Results, UsedItems } from '../../json-rpc/csolution-rpc-client';
 import { IOpenFileExternal } from '../../open-file-external-if';
 import { ProjectFileUpdater, ProjectFileUpdaterImpl } from '../../solutions/edit/project-file-updater';
 import { SolutionLoadStateChangeEvent, SolutionManager } from '../../solutions/solution-manager';
@@ -29,9 +29,9 @@ import { COutlineItem } from '../solution-outline/tree-structure/solution-outlin
 import { WebviewManager, WebviewManagerOptions } from '../webview-manager';
 import { BuildContext, Project, TargetSetData } from './components-data';
 import { ComponentsPacksActions, CurrentProject, normalizeForCompare } from './components-packs-actions';
-import { ComponentRowDataType, ComponentScope } from './data/component-tools';
+import { ComponentRowDataType, ComponentScope, PackRowDataType, PackRowReferenceDataType } from './data/component-tools';
 import { componentTreeWalker } from './data/component-tree-walker';
-import { uniqWith, cloneDeep } from 'lodash';
+import { cloneDeep, uniqWith } from 'lodash';
 import { parsePackId } from './data/pack-parse';
 import { lineOf, readTextFile } from '../../utils/fs-utils';
 import { stripTwoExtensions } from '../../utils/string-utils';
@@ -52,12 +52,44 @@ const createProject = (cprojectPath: string): Project => {
     return { projectId: cprojectPath, projectName: getFileNameNoExt(cprojectPath) };
 };
 
+const packsRowFromInfo = (packInfo: Pack, solutionPath: string): PackRowDataType => {
+    const pack = parsePackId(packInfo.id);
+    const solutionDir = dirname(solutionPath);
+    const references = uniqWith((packInfo.references || []).map(ref => ({
+        ...ref,
+        relOrigin: backToForwardSlashes(path.relative(solutionDir, ref.origin)),
+        relPath: ref.path ? backToForwardSlashes(path.relative(solutionDir, ref.path)) : undefined,
+    } satisfies PackRowReferenceDataType)), (left, right) => left.origin === right.origin && left.pack === right.pack);
+
+    return {
+        key: packInfo.id,
+        name: pack ? (pack.vendor ? `${pack.vendor}::${pack.packName}` : pack.packName) : packInfo.id,
+        packId: packInfo.id,
+        versionUsed: pack?.versionOperator ? pack.versionOperator + pack.version : (pack?.version || ''),
+        versionTarget: '',
+        description: packInfo.description || '',
+        used: packInfo.used || false,
+        references,
+        overviewLink: packInfo.doc || ''
+    };
+};
+
+const packsRowsFromInfo = (packsInfo: PacksInfo, solutionPath: string): PackRowDataType[] => {
+    return (packsInfo.packs || []).map(pack => packsRowFromInfo(pack, solutionPath));
+};
+
+type ManageComponentsCommandPayload = {
+    type: 'context';
+    value: string;
+};
+
 export class ComponentsPacksWebviewMain {
     private readonly webviewManager: WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>;
 
     public static readonly WEBVIEW_COMMAND_ID = `${manifest.PACKAGE_NAME}.manageComponentsPacks`;
 
     private project: CurrentProject;
+
     private componentTree!: CtRoot;
     private validations!: Results;
     private selectedContext: TargetSetData | undefined;
@@ -95,7 +127,7 @@ export class ComponentsPacksWebviewMain {
             this.webviewManager.onDidReceiveMessage(this.handleMessage, this),
             this.webviewManager.onDidDispose(this.dispose, this),
             this.solutionManager.onDidChangeLoadState(this.handleSolutionLoadChange, this),
-            this.commandsProvider.registerCommand(ComponentsPacksWebviewMain.WEBVIEW_COMMAND_ID, this.handleWebviewCommand, this),
+            this.commandsProvider.registerCommand(manifest.MANAGE_COMPONENTS_PACKS_COMMAND_ID, this.handleWebviewCommand, this),
         );
 
         await this.webviewManager.activate(context);
@@ -110,7 +142,7 @@ export class ComponentsPacksWebviewMain {
 
     private async disposeInternal(): Promise<void> {
         const discardView = () => {
-            this.currentProject = undefined;
+            this.project = undefined;
             this.componentTree = { success: false, classes: [] };
             this.validations = { success: false, result: 'UNDEFINED', validation: [] };
             this.usedItems = { components: [], packs: [], success: false };
@@ -155,18 +187,30 @@ export class ComponentsPacksWebviewMain {
         }
     }
 
-    get currentProject(): CurrentProject | undefined {
-        return this.project;
-    }
-
     set currentProject(project: CurrentProject | undefined) {
         this.project = project;
         this.manageComponentsActions.setCurrentProject(project);
     }
 
-    private async handleWebviewCommand(treeNode: COutlineItem | undefined) {
-        if (treeNode) {
-            await this.openWebview(treeNode.cprojectPath, treeNode.clayerPath);
+    private resolveProjectPathFromContext(context: string): string | undefined {
+        const descriptors = this.solutionManager.getCsolution()?.getContextDescriptors();
+        return descriptors?.find(descriptor => descriptor.displayName === context)?.projectPath;
+    }
+
+    private async handleWebviewCommand(commandArg: COutlineItem | ManageComponentsCommandPayload | undefined) {
+        if (commandArg instanceof COutlineItem) {
+            await this.openWebview(commandArg.cprojectPath, commandArg.clayerPath);
+            return;
+        }
+
+        if (commandArg?.type === 'context') {
+            const projectId = this.resolveProjectPathFromContext(commandArg.value);
+            if (!projectId) {
+                this.messageProvider.showWarningMessage(`No valid project found for context: ${commandArg.value}.`);
+                return;
+            }
+
+            await this.openWebview(projectId, undefined);
             return;
         }
 
@@ -194,11 +238,11 @@ export class ComponentsPacksWebviewMain {
             return; // nothing to show
         }
 
-        const reload = this.currentProject === undefined ||
-            this.projectFromPath(this.currentProject.project.projectId) !== this.projectFromPath(cprojectPath);
+        const reload = this.project === undefined ||
+            this.projectFromPath(this.project.project.projectId) !== this.projectFromPath(cprojectPath);
         const csolution = this.solutionManager.getCsolution();
         if (csolution) {
-            this.currentProject = { solutionPath: csolution.solutionPath, project: createProject(cprojectPath) };
+            this.project = { solutionPath: csolution.solutionPath, project: createProject(cprojectPath) };
         }
 
         if (clayerPath) {
@@ -227,20 +271,20 @@ export class ComponentsPacksWebviewMain {
 
         if (csolution && e.newState.solutionPath) {
             // in case of switching a solution we need to track the correct or first project from the solution to keep this.currentProject active
-            if (e.newState.solutionPath !== this.currentProject?.solutionPath) {
-                this.currentProject = undefined;
+            if (e.newState.solutionPath !== this.project?.solutionPath) {
+                this.project = undefined;
             }
 
             const validProjectId = this.getValidProjectId();
             if (!validProjectId) {
-                this.currentProject = undefined;
+                this.project = undefined;
             }
-            if (validProjectId && validProjectId !== this.currentProject?.project.projectId) {
-                this.currentProject = { solutionPath: csolution.solutionPath, project: createProject(validProjectId) };
+            if (validProjectId && validProjectId !== this.project?.project.projectId) {
+                this.project = { solutionPath: csolution.solutionPath, project: createProject(validProjectId) };
             }
 
-            if (this.currentProject) {
-                await this.debounce_load(this.currentProject.project.projectId, true);
+            if (this.project) {
+                await this.debounce_load(this.project.project.projectId, true);
             } else {
                 await this.clearComponents();
                 await this.webviewManager.sendMessage({
@@ -262,8 +306,8 @@ export class ComponentsPacksWebviewMain {
     private getValidProjectId(): string | undefined {
         const csolution = this.solutionManager.getCsolution();
         if (csolution) {
-            if (this.currentProject?.project.projectId && csolution.getCproject(this.currentProject.project.projectId)) {
-                return this.currentProject.project.projectId;
+            if (this.project?.project.projectId && csolution.getCproject(this.project.project.projectId)) {
+                return this.project.project.projectId;
             }
             const firstProjectPath = csolution?.getContextDescriptors()
                 .find(ctx => ctx.targetType === csolution.getActiveTargetSetName())
@@ -328,7 +372,7 @@ export class ComponentsPacksWebviewMain {
         const csolution = this.solutionManager.getCsolution();
         if (csolution) {
             this.clearTargetSetCache();
-            this.currentProject = { solutionPath: csolution.solutionPath, project: createProject(projectId) };
+            this.project = { solutionPath: csolution.solutionPath, project: createProject(projectId) };
             const actx = this.getActiveContext();
 
             const activeTs = csolution.getActiveTargetSetName() ?? '';
@@ -391,7 +435,7 @@ export class ComponentsPacksWebviewMain {
 
     private getSelectedTargetSetData(): TargetSetData | undefined {
         if (!this.selectedContext) {
-            const normalizedProjectId = normalizeForCompare(this.currentProject?.project.projectId || '');
+            const normalizedProjectId = normalizeForCompare(this.project?.project.projectId || '');
             this.selectedContext = this.getTargetSetData().find(ts => normalizeForCompare(ts.path) === normalizedProjectId);
             if (!this.selectedContext) {
                 this.selectedContext = this.getTargetSetData()?.at(0);
@@ -409,7 +453,7 @@ export class ComponentsPacksWebviewMain {
     }
 
     private getSolutionDir(): string {
-        return dirname(this.currentProject?.solutionPath ?? '');
+        return dirname(this.project?.solutionPath ?? '');
     }
 
     private getTargetSetData(): TargetSetData[] {
@@ -465,7 +509,7 @@ export class ComponentsPacksWebviewMain {
         const cprojectPath = this.getValidProjectId();
         this.scope = ComponentScope.Solution;
         if (cprojectPath) {
-            const reload = this.projectFromPath(this.currentProject?.project.projectId) !== this.projectFromPath(cprojectPath);
+            const reload = this.projectFromPath(this.project?.project.projectId) !== this.projectFromPath(cprojectPath);
 
             await this.debounce_load(cprojectPath, reload);
         }
@@ -475,7 +519,7 @@ export class ComponentsPacksWebviewMain {
         if (isChangeComponentScopeMessage(message)) {
             this.scope = message.scope;
         }
-        await this.debounce_load(this.currentProject?.project.projectId ?? '', false);
+        await this.debounce_load(this.project?.project.projectId ?? '', false);
     }
 
     private async handleApplyComponentSet(): Promise<void> {
@@ -491,7 +535,7 @@ export class ComponentsPacksWebviewMain {
         const state = await this.csolutionService.apply({ context: activeContext });
         this.usedItems = await this.csolutionService.getUsedItems({ context: activeContext });
         const usedItemsForProjectFileUpdate = cloneDeep(this.usedItems);
-        const projectFileName = this.currentProject?.project.projectId ?? '';
+        const projectFileName = this.project?.project.projectId ?? '';
         const requestAll = this.scope === ComponentScope.All;
         this.componentTree = this.manageComponentsActions.mapComponentsFromService(await this.csolutionService.getComponentsTree({ context: activeContext, all: requestAll }));
         this.validations = await this.csolutionService.validateComponents({ context: activeContext });
@@ -678,8 +722,11 @@ export class ComponentsPacksWebviewMain {
             const actx = this.getActiveContext();
             await action(actx, target, packId);
             const requestAll = this.scope === ComponentScope.All;
-            const packs = this.mapPacksFromService(await this.csolutionService.getPacksInfo({ context: actx, all: requestAll }));
-            await this.webviewManager.sendMessage({ type: 'SET_PACKS_INFO', packs: packs?.packs || [] });
+            const packs = await this.csolutionService.getPacksInfo({ context: actx, all: requestAll });
+            await this.webviewManager.sendMessage({
+                type: 'SET_PACKS_INFO',
+                packs: packsRowsFromInfo(packs, this.project?.solutionPath ?? '')
+            });
             await this.sendDirtyState();
         } finally {
             await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: undefined });
@@ -738,7 +785,10 @@ export class ComponentsPacksWebviewMain {
 
         this.componentTree = this.manageComponentsActions.mapComponentsFromService(await this.csolutionService.getComponentsTree({ context: activeContext, all: requestAll }));
         this.validations = await this.csolutionService.validateComponents({ context: activeContext });
-        const packsInfo = this.mapPacksFromService(await this.csolutionService.getPacksInfo({ context: activeContext, all: requestAll }));
+        const packs = packsRowsFromInfo(
+            await this.csolutionService.getPacksInfo({ context: activeContext, all: requestAll }),
+            this.project?.solutionPath ?? ''
+        );
 
         componentTreeWalker(this.componentTree, (node, type) => {
             if (type === 'aggregate' && (node as CtAggregate).options?.layer) {
@@ -758,7 +808,7 @@ export class ComponentsPacksWebviewMain {
             componentScope: this.scope,
             availableTargetTypes: this.getTargetSetData(),
             selectedTargetType: this.getSelectedTargetSetData(),
-            packs: packsInfo.packs,
+            packs,
             cbuildPackPath: cbuildPackPath,
             solution: {
                 dir: this.solutionManager.getCsolution()?.solutionDir,
@@ -776,33 +826,6 @@ export class ComponentsPacksWebviewMain {
         await this.sendSolutionData();
         await this.sendDirtyState();
     };
-
-    private mapPacksFromService(packs: PacksInfo) {
-        if (packs.packs) {
-            // merge duplicate versions to one.
-            packs.packs = uniqWith(packs.packs, (a, b) => {
-                const pa = parsePackId(a.id);
-                const pb = parsePackId(b.id);
-                if (pa?.vendor === pb?.vendor && pa?.packName === pb?.packName) {
-                    const refs = uniqWith([... (a.references || []), ...(b.references || [])], (a, b) => a.origin === b.origin && a.pack === b.pack);
-                    a.references = b.references = refs;
-                    return true;
-                }
-                return false;
-            });
-
-            // replace origin file names to relative
-            packs.packs.forEach(pack => {
-                pack.references?.forEach(ref => {
-                    ref.origin = backToForwardSlashes(ref.origin);
-                    ref.path = backToForwardSlashes(
-                        path.relative(dirname(this.currentProject?.solutionPath ?? ''), ref.origin)
-                    );
-                });
-            });
-        }
-        return packs;
-    }
 
     private async clearComponents() {
         if (this.componentTree) {
@@ -867,7 +890,7 @@ export class ComponentsPacksWebviewMain {
         if (openExternal) {
             this.openFileExternal.openFile(filePath);
         } else {
-            const absoluteFilePath = path.resolve(path.dirname(this.currentProject?.solutionPath || './'), filePath);
+            const absoluteFilePath = path.resolve(path.dirname(this.project?.solutionPath || './'), filePath);
             const isMarkdown = absoluteFilePath.toLowerCase().endsWith('.md');
 
             if (isMarkdown) {
@@ -890,7 +913,7 @@ export class ComponentsPacksWebviewMain {
         const activeContexts = this.solutionManager.getCsolution()?.getContextDescriptors();
         const currentContext = activeContexts
             ?.find(ctx =>
-                normalizeForCompare(ctx.projectPath ?? '') === normalizeForCompare(this.currentProject?.project.projectId ?? '')
+                normalizeForCompare(ctx.projectPath ?? '') === normalizeForCompare(this.project?.project.projectId ?? '')
             );
         return currentContext?.displayName ?? '';
     }

@@ -1,14 +1,25 @@
-/*
- * Copyright (C) 2025-2026 Arm Limited
+/**
+ * Copyright 2025-2026 Arm Limited
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 import './components-properties.css';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Card, Col, Divider, Dropdown, Input, Modal, Row, Space, Tooltip } from 'antd';
-import { OriginDataType, PackRowDataType } from '../../data/component-tools';
+import { OriginDataType, PackRowDataType, PackRowReferenceDataType } from '../../data/component-tools';
 import DraggableModalWrapper from './draggable-modal-wrapper';
 import { CompactDropdown } from '../../../common/components/compact-dropdown';
-import { PackReference } from '../../../../json-rpc/csolution-rpc-client';
 import { parsePackId } from '../../data/pack-parse';
 import { EditFilled, MinusSquareOutlined, PlusSquareOutlined } from '@ant-design/icons';
 import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
@@ -55,12 +66,13 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
     const handleOk = useCallback(() => {
         if (!pack) return;
 
-        const references: PackReference[] = allOrigins
+        const references: PackRowReferenceDataType[] = allOrigins
             .map(o => ({
-                origin: o.relativePath,
+                origin: o.path,
                 pack: `${pack.name}${o.versionOperator}${o.version}`,
                 selected: o.selected,
                 path: o.path,
+                relOrigin: o.relativePath,
                 resolvedPack: pack.packId,
             }));
 
@@ -93,6 +105,18 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
 
     const p = parsePackId(pack?.packId || '');
     const packUri = `https://www.keil.arm.com/packs/${p?.packName}-${p?.vendor}/versions/`.toLowerCase();
+    const firstReferenceWithPath = pack?.references.find(reference => Boolean(reference.relPath?.trim()));
+    const firstReferencePath = firstReferenceWithPath?.relPath?.trim();
+    const versionOperators = firstReferencePath ? [none] : [none, '@', '@>=', '@^', '@~'];
+    const versionTagLabels = firstReferencePath
+        ? ['Latest installed version']
+        : [
+            'Latest installed version',
+            'Exact version',
+            'Equal or higher',
+            'Equal or higher with same major version',
+            'Equal or higher with same major and minor version'
+        ];
 
     const latestInstalledPack = latestUpgradable ? `${pack?.name}@${latestUpgradable}` : pack?.packId;
     const hasNewerOnlineVersion = !!pack?.latestOnlineVersion && !latestInstalledPack?.endsWith(pack.latestOnlineVersion);
@@ -139,16 +163,10 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                                             <td style={{ textAlign: 'left' }}>
                                                 <CompactDropdown
                                                     style={{ minWidth: '50px', marginRight: '8px' }}
-                                                    available={[none, '@', '@>=', '@^', '@~']}
+                                                    available={versionOperators}
                                                     unselectedLabel={none}
-                                                    tagLabels={[
-                                                        'Latest installed version',
-                                                        'Exact version',
-                                                        'Equal or higher',
-                                                        'Equal or higher with same major version',
-                                                        'Equal or higher with same major and minor version'
-                                                    ]}
-                                                    selected={origin.versionOperator}
+                                                    tagLabels={versionTagLabels}
+                                                    selected={firstReferencePath ? none : origin.versionOperator}
                                                     onChange={(value) => {
                                                         updateOrigin(index, (o) => ({
                                                             ...o,
@@ -167,7 +185,7 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                                             <td style={{ textAlign: 'left' }}>
                                                 <Input
                                                     value={origin.version}
-                                                    placeholder={origin.versionOperator ? '' : 'see cbuild-pack.yml'}
+                                                    placeholder={firstReferencePath ? 'local pack' : (origin.versionOperator ? '' : 'see cbuild-pack.yml')}
                                                     disabled={!origin.versionOperator}
                                                     onChange={(e) => {
                                                         updateOrigin(index, (o) => ({ ...o, version: e.target.value ?? '' }));
@@ -192,36 +210,39 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                             <tbody>
                                 <tr><td>Used Pack:</td><td>{pack.packId}</td></tr>
                                 <tr><td>Description:</td><td>{pack.description}</td></tr>
+                                {firstReferencePath ? <tr><td>Path:</td><td>{firstReferencePath}</td></tr> : null}
                             </tbody>
                         </table>
                     </Card>
-                    <Card title="Update Pack" size="small">
-                        <Row>
-                            <Col flex={3}>Latest Installed Pack:</Col>
-                            <Col flex={5}>{latestInstalledPack}</Col>
-                            <Col flex={1}>
-                                <Tooltip title={<span>Update and remove lock in <a onClick={() => { if (openFile && cbuildPackPath) openFile(cbuildPackPath, false); }}><EditFilled /></a>{cbuildPackPath} {unlockOf && <><br />Pending unlock request will be committed on save</>}</span>}>
-                                    <Button
-                                        type="text"
-                                        disabled={latestInstalledPack === pack.packId || unlockOf === pack.name}
-                                        style={{ border: unlockOf ? '1px dashed var(--vscode-foreground)' : 'none' }}
-                                        onClick={requestUnlock}
-                                        icon={<CmsisCodicon name="update-arrow" />}
-                                    />
-                                </Tooltip>
-                            </Col>
-                            <Col flex={1}>
-                                <Tooltip title={<><div>Show pack history on web portal</div>{onlineTooltip}</>}>
-                                    <Button
-                                        type="text"
-                                        style={{ color: onlineTooltip ? 'var(--vscode-list-warningForeground)' : undefined }}
-                                        onClick={() => { if (openFile) openFile(packUri, true); }}
-                                        icon={<CmsisCodicon name="version-history" />}
-                                    />
-                                </Tooltip>
-                            </Col>
-                        </Row>
-                    </Card>
+                    {!firstReferencePath && (
+                        <Card title="Update Pack" size="small">
+                            <Row>
+                                <Col flex={3}>Latest Installed Pack:</Col>
+                                <Col flex={5}>{latestInstalledPack}</Col>
+                                <Col flex={1}>
+                                    <Tooltip title={<span>Update and remove lock in <a onClick={() => { if (openFile && cbuildPackPath) openFile(cbuildPackPath, false); }}><EditFilled /></a>{cbuildPackPath} {unlockOf && <><br />Pending unlock request will be committed on save</>}</span>}>
+                                        <Button
+                                            type="text"
+                                            disabled={latestInstalledPack === pack.packId || unlockOf === pack.name}
+                                            style={{ border: unlockOf ? '1px dashed var(--vscode-foreground)' : 'none' }}
+                                            onClick={requestUnlock}
+                                            icon={<CmsisCodicon name="update-arrow" />}
+                                        />
+                                    </Tooltip>
+                                </Col>
+                                <Col flex={1}>
+                                    <Tooltip title={<><div>Show pack history on web portal</div>{onlineTooltip}</>}>
+                                        <Button
+                                            type="text"
+                                            style={{ color: onlineTooltip ? 'var(--vscode-list-warningForeground)' : undefined }}
+                                            onClick={() => { if (openFile) openFile(packUri, true); }}
+                                            icon={<CmsisCodicon name="version-history" />}
+                                        />
+                                    </Tooltip>
+                                </Col>
+                            </Row>
+                        </Card>
+                    )}
                 </Space>
             )
             }

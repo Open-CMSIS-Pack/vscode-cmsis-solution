@@ -21,12 +21,12 @@ import { FileItemBuilder } from './solution-outline-file-item';
 import { COutlineItem } from './solution-outline-item';
 import * as manifest from '../../../manifest';
 import { CSolution } from '../../../solutions/csolution';
-import { getMapFilePath, getStatusTooltip, setDocContext, setHeaderContext, setLinkerContext, setMergeDescription, setMergeUpdate } from './solution-outline-utils';
+import { getMapFilePath, setDocContext, setHeaderContext, setLinkerContext } from './solution-outline-utils';
 import { CProjectYamlFile } from '../../../solutions/files/cproject-yaml-file';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 
 export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
-    private _lastPrioritizedComponentList: COutlineItem[] = [];
+    private readonly _lastPrioritizedComponentList: COutlineItem[] = [];
 
     public get lastPrioritizedComponentList(): COutlineItem[] {
         return this._lastPrioritizedComponentList;
@@ -214,67 +214,15 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         componentsItem.addFeature('components');
 
         // create components from project
-        const componentNodes = this.createComponentNodes(componentsItem as COutlineItem, children);
+        const topTag = cproject.getRoot()?.getChild()?.getTag() ?? '';
+        const componentNodes = this.createComponentNodes(componentsItem as COutlineItem, children, topTag, cproject.rootFileName);
 
         if (cbuild) {
             this.addComponentDataFromCbuild(componentNodes, cbuild);
         }
 
         this.addComponentOptions(componentNodes);
-
-        // add merge description
-        const components = Array.from(componentNodes.values());
-        const fileStatus = this.getMergeDescriptionAtParentComponentLevel(components);
-        if (fileStatus) {
-            // assign description
-            setMergeDescription(componentsItem, fileStatus);
-
-            // assign tooltip with component ids
-            const prioritizedList = this._lastPrioritizedComponentList;
-            let newTooltip = 'Components with updated configuration files:';
-            for (const comp of prioritizedList) {
-                const compId = comp.getAttribute('label');
-                const compStatus = comp.getAttribute('status');
-                if (compId && compStatus) {
-                    const update = comp.getAttribute('update');
-                    newTooltip += `\n- ${update} ${compId}: ${compStatus}`;
-                }
-            }
-            componentsItem.setAttribute('tooltip', newTooltip);
-        }
         return true; // do have components to edit
-    }
-
-    private getMergeDescriptionAtParentComponentLevel(components: COutlineItem[]): string | undefined {
-        let result: string | undefined = undefined;
-        const updateRequired: COutlineItem[] = [];
-        const updateRecommended: COutlineItem[] = [];
-        const updateSuggested: COutlineItem[] = [];
-
-        for (const component of components) {
-            const status = component.getAttribute('status');
-            if (!status) {
-                continue;
-            }
-            if (status == 'update required') {
-                updateRequired.push(component);
-            } else if (status == 'update recommended') {
-                updateRecommended.push(component);
-            } else if (status == 'update suggested') {
-                updateSuggested.push(component);
-            }
-        }
-
-        const prioritizedList = [...updateRequired, ...updateRecommended, ...updateSuggested];
-        this._lastPrioritizedComponentList = prioritizedList;
-        const prioritizedFile = prioritizedList[0];
-
-        const fileStatus = prioritizedFile?.getAttribute('status');
-        if (fileStatus) {
-            result = fileStatus;
-        }
-
-        return result;
     }
 
     private addComponentOptions(componentNodes: Map<string, COutlineItem>) {
@@ -303,8 +251,10 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         return undefined;
     }
 
-    private createComponentNodes(componentsItem: COutlineItem, projectComponents: ITreeItem<CTreeItem>[]): Map<string, COutlineItem> {
+    private createComponentNodes(componentsItem: COutlineItem, projectComponents: ITreeItem<CTreeItem>[], topTag: string, rootFileName: string): Map<string, COutlineItem> {
         const componentNodes = new Map<string, COutlineItem>();
+        const editable = topTag === 'project' || topTag === 'layer';
+
         for (const component of projectComponents) {
             const refId = component.getValue();
             if (!refId) {
@@ -316,6 +266,11 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
             componentItem.setAttribute('label', refId);
             componentItem.setAttribute('expandable', '0');
             componentItem.setAttribute('iconPath', 'csolution-software-component');
+            if (editable) {
+                componentItem.addFeature('component');
+                componentItem.setAttribute('projectUri', topTag === 'project' ? rootFileName : undefined);
+                componentItem.setAttribute('layerUri', topTag === 'layer' ? rootFileName : undefined);
+            }
 
             componentNodes.set(refId, componentItem as COutlineItem);
         }
@@ -429,31 +384,6 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
 
         // set status at component level
         node.setAttribute('status', fileStatus);
-
-        // assign description
-        setMergeDescription(node, fileStatus);
-
-        // assign status symbol for merge update action
-        setMergeUpdate(node, fileStatus);
-
-        // set tooltip
-        const prevTooltip = node.getValue('tooltip');
-        let newTooltip: string = '';
-        for (const file of prioritizedList) {
-            const fileLabel = file.getValue('file');
-            const fileStatus = file.getValue('status');
-            if (fileLabel && fileStatus) {
-                const tooltip = getStatusTooltip(fileLabel, fileStatus);
-                newTooltip += `\n ${tooltip}`;
-            }
-        }
-
-        if (prevTooltip) {
-            node.setAttribute('tooltip', prevTooltip + '\n' + newTooltip);
-        } else {
-            node.setAttribute('tooltip', newTooltip);
-        }
-
     }
 
     private getPrioritizedMergeFile(files: ITreeItem<CTreeItem>[]): ITreeItem<CTreeItem>[] {

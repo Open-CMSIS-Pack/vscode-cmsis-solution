@@ -15,22 +15,16 @@
  */
 
 import { ExtensionContext } from 'vscode';
-import * as vscode from 'vscode';
-import path from 'node:path';
 import * as manifest from '../manifest';
 import { ConfigurationProvider } from '../vscode-api/configuration-provider';
 import { OutputChannelProvider } from '../vscode-api/output-channel-provider';
 import { CmsisToolboxManager } from './cmsis-toolbox';
-import { SolutionManager } from './solution-manager';
 import { CompileCommandsGenerator } from './intellisense/compile-commands-generator';
 import { Mutex } from 'async-mutex';
 import * as rpc from '../json-rpc/csolution-rpc-client';
-import * as fsUtils from '../utils/fs-utils';
-import { getFileNameFromPath } from '../utils/path-utils';
-import { stripTwoExtensions } from '../utils/string-utils';
-import { getWorkspaceFolder } from '../utils/vscode-utils';
 import { ConvertRequestData, SolutionEventHub } from './solution-event-hub';
 import { Severity } from './constants';
+import { toolsPrefixPatterns } from './solution-problems';
 
 
 export interface SolutionConverter {
@@ -42,10 +36,8 @@ export class SolutionConverterImpl implements SolutionConverter {
     private readonly convertSolutionMutex = new Mutex();
     private controller: AbortController | null = null;
     private data: ConvertRequestData = { solutionPath: '', targetSet: '', updateRte: false, restartRpc: false };
-    private readonly diagnosticCollection: vscode.DiagnosticCollection = vscode.languages.createDiagnosticCollection('csolution');
 
     constructor(
-        private readonly solutionManager: SolutionManager,
         private readonly eventHub: SolutionEventHub,
         private readonly configProvider: ConfigurationProvider,
         private readonly outputChannelProvider: OutputChannelProvider,
@@ -57,7 +49,6 @@ export class SolutionConverterImpl implements SolutionConverter {
     public activate(context: ExtensionContext) {
         context.subscriptions.push(
             this.eventHub.onDidConvertRequested(this.handleConvertRequested, this),
-            this.diagnosticCollection,
         );
     }
 
@@ -150,7 +141,8 @@ export class SolutionConverterImpl implements SolutionConverter {
 
         let detection = false;
         let convertResult: rpc.ConvertSolutionResult = { success: false };
-        const csolution = this.solutionManager.getCsolution();
+        let availableCompilers: string[] = [];
+        let availableConfigurations: rpc.VariablesConfiguration[] | undefined;
         if (!missingPacksResult || missingPacksResult.success) {
             // rpc method: ConvertSolution
             outputChannel.append('Convert solution... ');
@@ -167,9 +159,16 @@ export class SolutionConverterImpl implements SolutionConverter {
                 return;
             }
 
-            // compilers and variables detection handling: apply select-compiler and discover layer configurations if any
-            csolution?.setSelectCompiler(convertResult.selectCompiler);
-            detection = (!!convertResult.undefinedLayers && await this.checkDiscoverLayers()) || !!convertResult.selectCompiler;
+            // compilers and variables detection: gather locally and emit configure event
+            availableCompilers = convertResult.selectCompiler ?? [];
+            detection = availableCompilers.length > 0;
+            if (convertResult.undefinedLayers) {
+                const result = await this.checkDiscoverLayers();
+                const discoverLayersOutput = !result.success && result.message ? [`error csolution: ${result.message.trim()}`] : [];
+                toolsOutputMessages = toolsOutputMessages.concat(discoverLayersOutput);
+                availableConfigurations = result.configurations;
+                detection = detection || result.success;
+            }
         }
 
         let logResult = undefined;
@@ -194,11 +193,8 @@ export class SolutionConverterImpl implements SolutionConverter {
         if (signal.aborted) {
             return;
         }
-        // update 'problems' view
         logResult = { errors: [], warnings: [], info: [], ...logResult, success: convertResult.success };
-        const severity = await this.updateDiagnostics(logResult, toolsOutputMessages);
-
-        csolution?.setLogMessages(logResult);
+        const severity = this.getSeverity(logResult, toolsOutputMessages);
 
         // print result to output channel
         outputChannel.append('\n' + (
@@ -211,7 +207,16 @@ export class SolutionConverterImpl implements SolutionConverter {
                         '✅ Convert solution completed'
         ) + '\n\n');
         // notify conversion result and detection status asynchronously!
-        this.eventHub.fireConvertCompleted({ severity: severity, detection: detection });
+        this.eventHub.fireConvertCompleted({
+            severity: severity,
+            detection: detection,
+            logMessages: logResult,
+            toolsOutputMessages,
+        });
+        // compilers and variables detection handling:
+        // apply select-compiler and discover layer configurations, reset state otherwise
+        this.eventHub.fireConfigureSolutionDataReady({ availableCompilers, availableConfigurations });
+
     }
 
     private async printErrorsWarnings(messages?: rpc.LogMessages): Promise<void> {
@@ -249,9 +254,8 @@ export class SolutionConverterImpl implements SolutionConverter {
         return formattedOutput;
     }
 
-    private async checkDiscoverLayers(): Promise<boolean> {
+    private async checkDiscoverLayers() {
         const outputChannel = this.outputChannelProvider.getOrCreate(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
-        this.solutionManager.getCsolution()?.setVariablesConfigurations(undefined);
         // rpc method: DiscoverLayers
         outputChannel.append('Discover Layers... ');
         const result = await this.cmsisToolboxManager.runCsolutionRpc(
@@ -261,269 +265,17 @@ export class SolutionConverterImpl implements SolutionConverter {
                 activeTarget: this.data?.targetSet ?? '',
             }
         ) as rpc.DiscoverLayersInfo;
-        this.solutionManager.getCsolution()?.setVariablesConfigurations(result.configurations);
-        return result.success;
+        return result;
     }
 
-    /**
-    *  log message regex in the format <filename>:<line>:<column> - <message>
-    *  regex named groups:
-    *    filename: optional file path
-    *    line:     optional line number (digits)
-    *    column:   optional column number (digits)
-    *    message:  the actual diagnostic message (may span multiple lines)
-    */
-    private readonly logMessageRegex = /^(?:(?<filename>(?:[A-Za-z]:)?[^\r\n:]*?[^\s\r\n:])\s*(?::\s*(?<line>\d+))?(?::\s*(?<column>\d+))?\s*-\s+)?(?<message>[\s\S]*)$/;
-
-    private async addDiagnosticEntry(message: string, severity: vscode.DiagnosticSeverity, files: Map<string, string>): Promise<boolean> {
-        // skip excluded messages
-        if (this.isMessageExcluded(message)) {
-            return false;
-        }
-        // parse message according to logMessageRegex
-        const m = message.match(this.logMessageRegex);
-        if (m?.groups) {
-            const { filename, line, column, message } = m.groups;
-            const file = (files.has(filename) ? files.get(filename) : this.data?.solutionPath) ?? '';
-            const startLine = line ? Number(line) - 1 : 0;
-            const startCharacter = column ? Number(column) - 1 : 0;
-            let endCharacter = startCharacter;
-            if (filename && column) {
-                const doc = await vscode.workspace.openTextDocument(file);
-                if (doc) {
-                    endCharacter = doc.lineAt(startLine).range.end.character;
-                }
-            }
-            const range = new vscode.Range(startLine, startCharacter, startLine, endCharacter);
-            const entry = new vscode.Diagnostic(range, message, severity);
-            entry.source = 'csolution';
-
-            if (!line && !column) {
-                // add 'Find in Files' action only if no line/column info is available
-                const args = this.createQueryArgs(message);
-                if (args) {
-                    entry.code = {
-                        value: 'Find in Files',
-                        target: vscode.Uri.parse(`command:workbench.action.findInFiles?${args}`)
-                    };
-                }
-            }
-
-            // append diagnostic entry
-            const uri = vscode.Uri.file(path.posix.normalize(file));
-            this.diagnosticCollection.set(uri, [...(this.diagnosticCollection.get(uri) ?? []), entry]);
-            return true;
-        }
-        return false;
-    }
-
-    private async updateDiagnostics(messages: rpc.LogMessages, toolsOutputMessages?: string[]): Promise<Severity> {
-        // clear previous diagnostics
-        this.diagnosticCollection.clear();
-        this.collectYmlFiles();
-        let diagnostics = false;
-
-        // extract messages from tools output
-        await this.collectToolsMessages(messages, toolsOutputMessages);
-
-        // iterate through log messages and set diagnostics
-        for (const message of messages.errors ?? []) {
-            diagnostics = await this.addDiagnosticEntry(message, vscode.DiagnosticSeverity.Error, this.sourceFiles) || diagnostics;
-        }
-        for (const message of messages.warnings ?? []) {
-            diagnostics = await this.addDiagnosticEntry(message, vscode.DiagnosticSeverity.Warning, this.sourceFiles) || diagnostics;
-        }
-        for (const message of messages.info ?? []) {
-            diagnostics = await this.addDiagnosticEntry(message, vscode.DiagnosticSeverity.Information, this.sourceFiles) || diagnostics;
-        }
-        if (diagnostics) {
-            vscode.commands.executeCommand('workbench.actions.view.problems', { preserveFocus: true });
-        }
-        // return overall severity
-        if (!messages.success || (messages.errors && messages.errors.length > 0)) {
+    private getSeverity(messages: rpc.LogMessages, lines?: string[]): Severity {
+        if (!messages.success || (messages.errors && messages.errors.length > 0) || lines?.find(line => toolsPrefixPatterns.error.test(line))) {
             return 'error';
-        } else if (messages.warnings && messages.warnings.length > 0) {
+        } else if ((messages.warnings && messages.warnings.length > 0) || lines?.find(line => toolsPrefixPatterns.warning.test(line))) {
             return 'warning';
         } else if (messages.info && messages.info.length > 0) {
             return 'info';
         }
         return 'success';
-    }
-
-    /**
-    *  source files for diagnostics mapping
-    */
-    private readonly sourceFiles: Map<string, string> = new Map<string, string>();
-
-    private addFile(file: string): void {
-        if (file.length > 0) {
-            this.sourceFiles.set(getFileNameFromPath(file), file);
-        }
-    }
-
-    private collectYmlFiles(): void {
-        // collect relevant yml files for diagnostics mapping
-        this.sourceFiles.clear();
-        const csolution = this.solutionManager.getCsolution();
-        if (csolution) {
-            const activeSolution = csolution.solutionPath ?? '';
-            // get yml files located alongside the active solution and cbuild-idx file
-            this.addFile(activeSolution);
-            this.addFile(csolution.cbuildIdxFile.fileName);
-            this.addFile(csolution.cbuildRunYml?.fileName ?? '');
-            const strippedSolution = stripTwoExtensions(activeSolution);
-            this.addFile(strippedSolution + '.cbuild-pack.yml');
-            this.addFile(strippedSolution + '.cbuild-set.yml');
-            // get cproject.yml and clayer.yml files from all contexts
-            const contexts = csolution.cbuildIdxFile.activeContexts;
-            for (const context of contexts ?? []) {
-                if (context.projectPath) {
-                    this.addFile(context.projectPath);
-                }
-                for (const layer of context.layers ?? []) {
-                    this.addFile(layer.absolutePath);
-                }
-            }
-            // get all cbuild.yml files
-            const cbuilds = csolution.cbuildIdxFile.cbuildFiles;
-            for (const [, cbuild] of cbuilds) {
-                this.addFile(cbuild.fileName);
-            }
-        }
-    }
-
-    /**
-    *  patterns for non relevant log messages to be excluded from diagnostics
-    */
-    private readonly excludePatterns = [
-        /processing context .* failed/,
-        /file is already up-to-date/,
-        /file generated successfully/,
-        /file skipped/,
-    ];
-
-    private isMessageExcluded(message: string): boolean {
-        // exclude non relevant messages
-        return this.excludePatterns.some(pattern => pattern.test(message));
-    }
-
-    /**
-    *  patterns to extract query from log message for 'Find in Files' action
-    */
-    private readonly queryPatterns = [
-        /(?:MISSING|SELECTABLE)\s+(.*)/,                          // component dependency
-        /\/([^/\s']+\.[^/\s']+)/,                                 // capture filename from path
-        /'([^']+)'/,                                              // single quotes
-        /([A-Za-z0-9_.-]+::[A-Za-z0-9_.-]+(@[A-Za-z0-9_.-]+)*)/,  // pack/component identifier
-        /([A-Za-z0-9_.-]+@[A-Za-z0-9_.-]*)/,                      // compiler/tool identifier
-    ];
-
-    private createQueryArgs(message: string): string | undefined {
-        // empirically find possible query patterns
-        let query;
-        for (const pattern of this.queryPatterns) {
-            const match = message.match(pattern);
-            if (match) {
-                query = match[1];
-                break;
-            }
-        }
-        if (!query) {
-            return undefined;
-        }
-        const args = {
-            query: query,
-            filesToInclude: '*.yml,*.yaml', // limit search to yml files
-            filesToExclude: '*.cbuild-idx.yml,*.cbuild.yml,*.cbuild-run.yml', // exclude generated or intermediate files
-            isRegex: false,
-            isCaseSensitive: false,
-            matchWholeWord: false,
-            triggerSearch: true,
-            focusResults: true,
-        };
-        return encodeURIComponent(JSON.stringify(args));
-    }
-
-    /**
-    *  patterns to extract errors and warnings from tools messages
-    */
-    private readonly toolsPrefixPatterns = {
-        error: /^.*error (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
-        warning: /^.*warning (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
-    };
-
-    private pushUniquely(array: string[], value: string) {
-        if (!array.includes(value)) {
-            array.push(value);
-        }
-    }
-
-    private async collectToolsMessages(logMessages: rpc.LogMessages, lines?: string[]): Promise<void> {
-        if (lines) {
-            let errors = lines.filter(line =>
-                this.toolsPrefixPatterns.error.test(line)
-            );
-            let warnings = lines.filter(line =>
-                this.toolsPrefixPatterns.warning.test(line)
-            );
-            if (warnings.length || errors.length) {
-                // remove tool-specific prefixes from messages
-                const sanitize = (m: string, kind: 'error' | 'warning') => m.replace(this.toolsPrefixPatterns[kind], '').trim();
-                errors = errors.map(e => sanitize(e, 'error'));
-                warnings = warnings.map(w => sanitize(w, 'warning'));
-                // format west related messages if any
-                await this.formatWestMessages(errors, warnings);
-                // append messages to logMessages
-                errors.forEach(e => this.pushUniquely(logMessages.errors ?? [], e));
-                warnings.forEach(w => this.pushUniquely(logMessages.warnings ?? [], w));
-            }
-        }
-    }
-
-    /**
-    *  patterns to extract environment variables and west warnings and errors
-    */
-    private readonly envVarWestPatterns = [
-        /^missing ([A-Za-z_][A-Za-z0-9_]*) environment variable$/,
-        /^([A-Za-z_][A-Za-z0-9_]*) environment variable specifies non-existent directory: .+$/,
-        /^exec: "west": executable file not found in .+$/,
-    ];
-
-    private async formatWestMessages(errors: string[], warnings: string[]): Promise<void> {
-        // extract warnings and errors around environment variables and west settings
-        const hasWestMessages = [...errors, ...warnings].some(line =>
-            this.envVarWestPatterns.some(pattern => pattern.test(line))
-        );
-        if (!hasWestMessages) {
-            return;
-        }
-        const workspaceFolder = getWorkspaceFolder();
-        if (!workspaceFolder) {
-            return;
-        }
-        // find cmsis-csolution.environmentVariables location in workspace file or settings.json
-        const settings = vscode.workspace.workspaceFile?.fsPath ?? path.join(workspaceFolder, '.vscode', 'settings.json');
-        const settingsName = getFileNameFromPath(settings);
-        const envvars = '"cmsis-csolution.environmentVariables"';
-        let startPos: vscode.Position | undefined;
-        if (fsUtils.fileExists(settings)) {
-            const doc = await vscode.workspace.openTextDocument(settings);
-            const startOffset = doc.getText().indexOf(envvars);
-            if (startOffset >= 0) {
-                startPos = doc.positionAt(startOffset);
-            }
-        }
-        const location = startPos ? `:${startPos.line + 1}:${startPos.character + 1}` : '';
-        // format messages
-        const format = (items: string[]) => {
-            for (let i = 0; i < items.length; i++) {
-                if (this.envVarWestPatterns.some(pattern => pattern.test(items[i]))) {
-                    items[i] = `${settingsName}${location} - ${items[i]}; review ${envvars}`;
-                }
-            }
-        };
-        format(errors);
-        format(warnings);
-        this.addFile(settings);
     }
 }

@@ -55,6 +55,7 @@ import { CreateSolutionWebviewMain } from '../views/create-solutions/create-solu
 import { ManageLayersWebviewMain } from '../views/manage-layers/manage-layers-webview-main';
 import { AddToGroupCommand } from '../views/solution-outline/commands/add-to-group-command';
 import { DeleteCommand } from '../views/solution-outline/commands/delete-command';
+import { EditCommand } from '../views/solution-outline/commands/edit-command';
 import { OpenCommand } from '../views/solution-outline/commands/open-command';
 import { FindCommand } from '../views/solution-outline/commands/find-command';
 import { MergeCommand } from '../views/solution-outline/commands/merge-command';
@@ -81,6 +82,7 @@ import { CsolutionService } from '../json-rpc/csolution-rpc-client';
 import { BuildStopCommand } from '../tasks/build/build-stop-command';
 import { ComponentsPacksWebviewMain } from '../views/manage-components-packs/components-packs-webview-main';
 import { SolutionConverterImpl } from '../solutions/solution-converter';
+import { SolutionProblemsImpl } from '../solutions/solution-problems';
 import { EnvironmentManager } from './env-manager';
 import { ExtensionApiWrapper } from '../vscode-api/extension-api-wrapper';
 import { SerialMonitorApi, Version } from '@microsoft/vscode-serial-monitor-api';
@@ -144,7 +146,8 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         eventHub,
         rpcData,
         commandsProvider,
-        environmentManagerApiProvider);
+        environmentManagerApiProvider,
+        envManager);
 
     initUtils(configurationProvider, solutionManager);
 
@@ -170,13 +173,13 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const compileCommandsGenerator = new CompileCommandsGeneratorImpl(buildTaskProvider, buildTaskDefinitionBuilder);
 
     const solutionConverterImpl = new SolutionConverterImpl(
-        solutionManager,
         eventHub,
         configurationProvider,
         outputChannelProvider,
         cmsisToolboxManager,
         compileCommandsGenerator,
     );
+    const solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub);
 
     const themeProvider = new ThemeProviderImpl();
     const statusBar = new StatusBar(solutionManager, cmsisToolboxManager, themeProvider);
@@ -204,12 +207,14 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         commandsProvider,
         messageProvider,
         solutionManager,
+        eventHub,
     );
 
     const debugProvider = new DebugLaunchProvider(commandsProvider, solutionManager, configurationProvider);
 
     const addToGroupCommand = new AddToGroupCommand(workspaceFsProvider, commandsProvider, solutionManager);
     const deleteCommand = new DeleteCommand(commandsProvider, workspaceFsProvider);
+    const editCommand = new EditCommand(commandsProvider);
     const copyHeaderCommand = new CopyHeaderCommand(commandsProvider);
     const openCommand = new OpenCommand(solutionManager, commandsProvider, externalFileOpener);
     const findCommand = new FindCommand(commandsProvider);
@@ -261,6 +266,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         runGeneratorCommand.activate(context),
         convertMdkToCsolution.activate(context),
         solutionConverterImpl.activate(context),
+        solutionProblems.activate(context),
         clangdManager.activate(context),
         componentsManager.activate(context),
         createSolution.activate(context),
@@ -273,6 +279,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         solutionLanguageFeatures.activate(context),
         addToGroupCommand.activate(context),
         deleteCommand.activate(context),
+        editCommand.activate(context),
         copyHeaderCommand.activate(context),
         openCommand.activate(context),
         findCommand.activate(context),

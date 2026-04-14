@@ -36,7 +36,7 @@ describe('IndexPidxFile', () => {
 
     it('maps pack identifiers to Keil URLs', () => {
         const xml = `<?xml version="1.0" encoding="UTF-8" ?>
-<index schemaVersion="1.1.0" xs:noNamespaceSchemaLocation="PackIndex.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema-instance">
+<index schemaVersion="1.1.0" xs:noNamespaceSchemaLocation="PackIndex.xsd" xmlns:xs="https://www.w3.org/2001/XMLSchema-instance">
 <vendor>Keil</vendor>
 <url>https://www.keil.com/pack/</url>
 <timestamp>2026-01-14T04:01:27.0418082+00:00</timestamp>
