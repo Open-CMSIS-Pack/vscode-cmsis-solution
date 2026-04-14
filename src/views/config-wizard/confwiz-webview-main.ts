@@ -152,13 +152,6 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
     }
 
     protected _getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): string {
-        const toolkitUri = webview.asWebviewUri(vscode.Uri.joinPath(
-            extensionUri,
-            'dist',
-            'views',
-            'toolkit.min.js'
-        ));
-
         const mainUri = webview.asWebviewUri(vscode.Uri.joinPath(
             extensionUri,
             'dist',
@@ -194,7 +187,6 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
                     <meta charset='UTF-8'>
                     <meta name='viewport' content='width=device-width, initial-scale=1.0'>
                     <meta http-equiv='Content-Security-Policy' content="default-src 'none'; script-src ${cspSource}; style-src ${cspSource} 'unsafe-inline'; font-src ${cspSource};">
-                    <script type='module' src='${toolkitUri}'></script>
                     <script type='module' src='${mainUri}'></script>
                     <link rel='preload' as='style' href='${fontAwesomeUri}' >
                     <link rel='preload' as='style' href='${fontAwesomeStyleUri}' >
