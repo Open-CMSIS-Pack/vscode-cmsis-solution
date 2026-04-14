@@ -555,8 +555,8 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
             <Checkbox
                 className={isInconsistent ? 'checkbox-inconsistent' : undefined}
                 disabled={element.value.readOnly || shouldDisable}
-                onClick={(event) => {
-                    const inputElement = event.currentTarget as HTMLInputElement;
+                onChange={(event) => {
+                    const inputElement = event.target as HTMLInputElement;
                     this.toggleChecked(inputElement, element);
                 }}
                 onKeyDown={(event) => {
