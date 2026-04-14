@@ -331,9 +331,6 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         // create generator import if available
         this.addGenerator(node, component, cbuild);
 
-        // add merge feature
-        this.addMergeFeature(node, componentFiles);
-
         const children = node.getChildren();
         node.setAttribute('expandable', children.length > 0 ? '1' : '0');
     }
@@ -369,60 +366,4 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         node.setAttribute('tooltip', tooltip);
     }
 
-    private addMergeFeature(node: COutlineItem, files: ITreeItem<CTreeItem>[]) {
-        const prioritizedList = this.getPrioritizedMergeFile(files);
-
-        if (!prioritizedList.length) {
-            return;
-        }
-
-        const prioritizedMergeFile = prioritizedList[0];
-        const fileStatus = prioritizedMergeFile.getValue('status');
-        if (!fileStatus) {
-            return;
-        }
-
-        // set status at component level
-        node.setAttribute('status', fileStatus);
-    }
-
-    private getPrioritizedMergeFile(files: ITreeItem<CTreeItem>[]): ITreeItem<CTreeItem>[] {
-        const updateRequired: ITreeItem<CTreeItem>[] = [];
-        const updateRecommended: ITreeItem<CTreeItem>[] = [];
-        const updateSuggested: ITreeItem<CTreeItem>[] = [];
-
-        for (const file of files) {
-            const attr = file.getValue('attr');
-            if (attr !== 'config') {
-                continue;
-            }
-
-            const update = file.getValue('update');
-            if (!update) {
-                continue;
-            }
-
-            const base = file.getValue('base');
-            if (!base) {
-                continue;
-            }
-
-            const fileStatus = file.getValue('status');
-            if (!fileStatus) {
-                continue;
-            }
-
-            if (fileStatus === 'update required') {
-                updateRequired.push(file);
-            } else if (fileStatus === 'update recommended') {
-                updateRecommended.push(file);
-            } else if (fileStatus === 'update suggested') {
-                updateSuggested.push(file);
-            }
-        }
-
-        const prioritizedList = [...updateRequired, ...updateRecommended, ...updateSuggested];
-
-        return prioritizedList;
-    }
 }
