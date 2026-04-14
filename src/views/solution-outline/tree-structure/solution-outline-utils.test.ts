@@ -193,4 +193,25 @@ describe('selectMergeSibling', () => {
 
         expect(selectMergeSibling(fileNames, prefix)).toBe(`${prefix}1.10.0`);
     });
+
+    it('ignores invalid semver suffixes', () => {
+        const prefix = 'MyComponent.clayer.yml.update@';
+        const fileNames = [
+            `${prefix}1.0.0.bak`,
+            `${prefix}1.2.0`,
+            `${prefix}1.10.0`,
+        ];
+
+        expect(selectMergeSibling(fileNames, prefix)).toBe(`${prefix}1.10.0`);
+    });
+
+    it('returns undefined when no valid semver suffix exists', () => {
+        const prefix = 'MyComponent.clayer.yml.update@';
+        const fileNames = [
+            `${prefix}1.0.0.bak`,
+            `${prefix}latest`,
+        ];
+
+        expect(selectMergeSibling(fileNames, prefix)).toBeUndefined();
+    });
 });

@@ -137,11 +137,18 @@ export function selectMergeSibling(fileNames: string[], prefix: string): string 
         return undefined;
     }
 
-    // If multiple versions exist, pick the highest version suffix after '@'.
-    return [...fileNames].sort((left, right) => {
-        const leftVersion = left.slice(prefix.length);
-        const rightVersion = right.slice(prefix.length);
-        return semver.rcompare(leftVersion, rightVersion);
-    })[0];
+    const candidates = fileNames
+        .map(fileName => {
+            const version = semver.valid(fileName.slice(prefix.length));
+            return version ? { fileName, version } : undefined;
+        })
+        .filter((candidate): candidate is { fileName: string; version: string } => candidate !== undefined);
+
+    if (candidates.length === 0) {
+        return undefined;
+    }
+
+    // If multiple versions exist, pick the highest valid semver suffix after '@'.
+    return candidates.sort((left, right) => semver.rcompare(left.version, right.version))[0].fileName;
 }
 

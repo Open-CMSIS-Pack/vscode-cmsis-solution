@@ -17,6 +17,7 @@
 import { FileItemBuilder } from './solution-outline-file-item';
 import { parseYamlToCTreeItem } from '../../../generic/tree-item-yaml-parser';
 import fs from 'fs';
+import * as manifest from '../../../manifest';
 import os from 'os';
 import path from 'path';
 import { COutlineItem } from './solution-outline-item';
@@ -39,9 +40,6 @@ describe('FileItem', () => {
         componentNode.setTag('component');
         componentNode.setAttribute('label', 'Component X');
         componentNode.setAttribute('local', 'localPath');
-        componentNode.setAttribute('update', 'updatePath');
-        componentNode.setAttribute('base', 'basePath');
-
     });
 
     afterEach(() => {
@@ -49,6 +47,14 @@ describe('FileItem', () => {
     });
 
     it('creates file node with merge feature', async () => {
+        fs.mkdirSync(path.join(projectDir, 'RTE', 'CMSIS'), { recursive: true });
+        fs.writeFileSync(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.c'), '');
+        fs.writeFileSync(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.c.base@4.0.0'), '');
+        fs.writeFileSync(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.c.update@5.1.1'), '');
+        fs.writeFileSync(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.h'), '');
+        fs.writeFileSync(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.h.base@5.5.1'), '');
+        fs.writeFileSync(path.join(projectDir, 'RTE', 'CMSIS', 'RTX_Config.h.update@5.5.2'), '');
+
         const cbuildContent = `
         build:
             components:
@@ -99,6 +105,8 @@ describe('FileItem', () => {
             expect(child.getTag()).toBe('file');
             expect(child.getAttribute('label')).toContain(fileLabels[idx]);
             expect(child.getAttribute('description')).toBeUndefined();
+            expect(path.basename(child.getAttribute('local') ?? '')).toBe(fileLabels[idx]);
+            expect(child.getAttribute('features')).toContain(manifest.MERGE_FILE_CONTEXT);
         });
 
     });
