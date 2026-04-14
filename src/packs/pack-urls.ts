@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { extractPrefix, stripAffix } from "../utils/string-utils";
+import { extractPrefix, stripAffix } from '../utils/string-utils';
 
 export const KEIL_ARM_COM_PACKS = 'https://www.keil.arm.com/packs';
 
