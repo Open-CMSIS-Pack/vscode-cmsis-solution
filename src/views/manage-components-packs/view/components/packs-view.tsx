@@ -25,10 +25,10 @@ import { parsePackId } from '../../data/pack-parse';
 import { MessageHandler } from '../../../message-handler';
 import { IncomingMessage, OutgoingMessage } from '../../messages';
 import { PackPropertiesDialog } from './pack-properties';
-import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
+import { PackTitleLink } from './pack-title-link';
 import { ComponentPackTargetSelect } from './component-pack-target-select';
 import { buildAllOrigins } from '../helpers/components-packs-helpers';
-import { packURL } from '../../../../packs/pack-urls';
+
 
 const { Search } = Input;
 
@@ -75,24 +75,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
 
         const renderPackColumn = (_value: string, record: PackRowDataType) => {
             const pack = parsePackId(record.packId);
-            const packUrl = packURL(record.packId);
-            const packTitle = (
-                <>
-                    {record.name}{' '}
-                    <a
-                        title='Open software pack overview'
-                        aria-label='Open software pack overview'
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            openFile(packUrl, true);
-                        }}
-                        href={packUrl}
-                    >
-                        <CmsisCodicon name='link-external' style={{ fontSize: '1em', display: 'inline' }} />
-                    </a>
-                </>
-            );
+            const packTitle = <PackTitleLink packId={record.packId} packName={record.name} openFile={openFile} />;
             const referencedFrom = [
                 <div key='pack-name'>{packTitle}</div>,
                 ...(record.references?.map((ref, index) => {

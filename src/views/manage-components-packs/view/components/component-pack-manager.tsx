@@ -136,10 +136,10 @@ export const ComponentPackManager = (props: ComponentProps) => {
                                     options={[{ label: 'Components', value: 'components' }, { label: 'Software packs', value: 'packs' }]}
                                     value={activeView}
                                     onChange={onChangeActiveView} />
-                                <Space align='baseline'>
-                                    <div> </div>
+                                <Space align='baseline' style={{ marginLeft: '8px' }}>
                                     <a
                                         title='View list of software packs'
+                                        aria-label='View list of software packs'
                                         href={packsUrl}
                                         onClick={(event) => {
                                             event.preventDefault();

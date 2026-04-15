@@ -19,8 +19,7 @@ import { ComponentRowDataType } from '../../../data/component-tools';
 import { Tooltip } from 'antd';
 import { validationIds } from './render-warning-cell';
 import { EditFilled } from '@ant-design/icons';
-import { CmsisCodicon } from '../../../../common/components/cmsis-codicon';
-import { packURL } from '../../../../../packs/pack-urls';
+import { PackTitleLink } from '../pack-title-link';
 
 /**
  * Renders the name cell with a tooltip that shows additional information about the component.
@@ -45,19 +44,7 @@ export const renderNameCell = (value: string, record: ComponentRowDataType, open
             : '';
 
     const vids = validationIds(record, undefined, 'name-col');
-    const packUrl = packURL(record.data.pack);
-    const packTitle = (
-        <>
-            {record.data.pack}{' '}
-            <a title='Open software pack overview' onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                openFile(packUrl, true);
-            }} href={packUrl}>
-                <CmsisCodicon name='link-external' style={{ fontSize: '1em', display: 'inline' }} />
-            </a>
-        </>
-    );
+    const packTitle = <PackTitleLink packId={record.data.pack} packName={record.data.pack} openFile={openFile} />;
 
     const tooltTipContent = (
         <div>
