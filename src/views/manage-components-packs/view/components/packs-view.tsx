@@ -110,7 +110,9 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
                                 <span>{record.name}</span>
                             </Tooltip>
                         ) : (
-                            <Tooltip title={packTitle}>{record.name}</Tooltip>
+                            <Tooltip title={record.name}>
+                                {packTitle}
+                            </Tooltip>
                         )}
                     </span>
                 </div>
