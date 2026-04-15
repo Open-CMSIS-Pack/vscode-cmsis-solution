@@ -17,7 +17,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { constructor } from '../generic/constructor';
-import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_FROM_PATH_COMMAND_ID } from '../manifest';
+import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID } from '../manifest';
 import { LogMessages } from '../json-rpc/csolution-rpc-client';
 import * as fsUtils from '../utils/fs-utils';
 import { getFileNameFromPath } from '../utils/path-utils';
@@ -337,7 +337,7 @@ export class SolutionProblemsImpl implements SolutionProblems {
 
     private createMergeCommandUri(localPath: string): vscode.Uri {
         const args = this.encodeCommandArgs([localPath]);
-        return vscode.Uri.parse(`command:${MERGE_FILE_FROM_PATH_COMMAND_ID}?${args}`);
+        return vscode.Uri.parse(`command:${MERGE_FILE_COMMAND_ID}?${args}`);
     }
 
     private createMergeDiagnosticAction(message: string, diagnosticFilePath: string): { message: string; code: NonNullable<vscode.Diagnostic['code']> } | undefined {

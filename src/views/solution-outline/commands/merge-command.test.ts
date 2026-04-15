@@ -100,12 +100,11 @@ describe('MergeCommand', () => {
         it('registers the command on activation', async () => {
             await command.activate(extensionContextFactory());
 
-            expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(2);
+            expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(1);
             expect(commandsProvider.registerCommand).toHaveBeenCalledWith(MergeCommand.mergeFile, expect.any(Function), expect.anything());
-            expect(commandsProvider.registerCommand).toHaveBeenCalledWith(MergeCommand.mergeFileFromPath, expect.any(Function), expect.anything());
         });
 
-        it('forwards the mergeFileFromPath command argument to the merge handler', async () => {
+        it('forwards string command argument to the merge handler', async () => {
             const runVSCodeMergeFromPathSpy = jest.spyOn(
                 command as unknown as { runVSCodeMergeFromPath: (localPath: string) => Promise<void> },
                 'runVSCodeMergeFromPath',
@@ -113,9 +112,30 @@ describe('MergeCommand', () => {
             const localPath = path.join(tmpDir, 'component.c');
 
             await command.activate(extensionContextFactory());
-            await commandsProvider.mockRunRegistered(MergeCommand.mergeFileFromPath, localPath);
+            await commandsProvider.mockRunRegistered(MergeCommand.mergeFile, localPath);
 
             expect(runVSCodeMergeFromPathSpy).toHaveBeenCalledWith(localPath);
+        });
+
+        it('forwards COutlineItem command argument to the node merge handler', async () => {
+            const runVSCodeMergeSpy = jest.spyOn(
+                command as unknown as { runVSCodeMerge: (node: COutlineItem) => Promise<void> },
+                'runVSCodeMerge',
+            ).mockResolvedValue();
+
+            await command.activate(extensionContextFactory());
+            await commandsProvider.mockRunRegistered(MergeCommand.mergeFile, fileNode);
+
+            expect(runVSCodeMergeSpy).toHaveBeenCalledWith(fileNode);
+        });
+
+        it('shows error for unsupported command argument type', async () => {
+            const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
+
+            await command.activate(extensionContextFactory());
+            await commandsProvider.mockRunRegistered(MergeCommand.mergeFile, undefined);
+
+            expect(showErrorMessageSpy).toHaveBeenCalledWith('Cannot open merge view: unsupported command argument.');
         });
     });
 

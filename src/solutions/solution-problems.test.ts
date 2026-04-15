@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ExtensionContext } from 'vscode';
-import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_FROM_PATH_COMMAND_ID } from '../manifest';
+import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID } from '../manifest';
 import * as fsUtils from '../utils/fs-utils';
 import * as vscodeUtils from '../utils/vscode-utils';
 import { solutionManagerFactory, MockSolutionManager } from './solution-manager.factories';
@@ -258,7 +258,7 @@ describe('SolutionProblems', () => {
 
         expect(diagnostic?.message).toBe("update required for config file 'config.c' from component 'Device'.");
         expect(code.value).toBe('Open in Merge View');
-        expect(command).toBe(`command:${MERGE_FILE_FROM_PATH_COMMAND_ID}`);
+        expect(command).toBe(`command:${MERGE_FILE_COMMAND_ID}`);
         expect(JSON.parse(decodeURIComponent(args))).toEqual(['/packs/Component/config.c']);
     });
 
@@ -266,7 +266,7 @@ describe('SolutionProblems', () => {
         const result = solutionProblems['createMergeCommandUri']('/packs/Component/config.c');
         const [command, args] = result.toString().split('?');
 
-        expect(command).toBe(`command:${MERGE_FILE_FROM_PATH_COMMAND_ID}`);
+        expect(command).toBe(`command:${MERGE_FILE_COMMAND_ID}`);
         expect(JSON.parse(decodeURIComponent(args))).toEqual(['/packs/Component/config.c']);
     });
 
@@ -280,7 +280,7 @@ describe('SolutionProblems', () => {
             message: "update required for config file 'config.c' from component 'Device'.",
             code: {
                 value: 'Open in Merge View',
-                target: vscode.Uri.parse(`command:${MERGE_FILE_FROM_PATH_COMMAND_ID}?${encodeURIComponent(JSON.stringify(['/packs/Component/config.c']))}`),
+                target: vscode.Uri.parse(`command:${MERGE_FILE_COMMAND_ID}?${encodeURIComponent(JSON.stringify(['/packs/Component/config.c']))}`),
             },
         });
     });
@@ -318,7 +318,7 @@ describe('SolutionProblems', () => {
         expect(uri.fsPath).toContain('mylayer.clayer.yml');
         expect(diagnostic?.message).toBe("update recommended for config file 'mylayer.clayer.yml' has a new version available for merge.");
         expect(code.value).toBe('Open in Merge View');
-        expect(command).toBe(`command:${MERGE_FILE_FROM_PATH_COMMAND_ID}`);
+        expect(command).toBe(`command:${MERGE_FILE_COMMAND_ID}`);
         expect(JSON.parse(decodeURIComponent(args))).toEqual([layerPath]);
     });
 

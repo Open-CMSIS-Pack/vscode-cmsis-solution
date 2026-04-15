@@ -28,7 +28,6 @@ import * as fsUtils from '../../../utils/fs-utils';
 
 export class MergeCommand {
     public static readonly mergeFile = `${PACKAGE_NAME}.mergeFile`;
-    public static readonly mergeFileFromPath = `${PACKAGE_NAME}.mergeFileFromPath`;
     private static readonly disallowedCmdChars = /[\r\n&|<>^%"']/;
 
     constructor(
@@ -38,13 +37,22 @@ export class MergeCommand {
 
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>) {
         context.subscriptions.push(
-            this.commandsProvider.registerCommand(MergeCommand.mergeFile, (node: COutlineItem) => {
-                this.runVSCodeMerge(node);
-            }, this),
-            this.commandsProvider.registerCommand(MergeCommand.mergeFileFromPath, (localPath: string) => {
-                this.runVSCodeMergeFromPath(localPath);
-            }, this),
+            this.commandsProvider.registerCommand(MergeCommand.mergeFile, this.handleMergeCommand, this),
         );
+    }
+
+    private async handleMergeCommand(commandArg: COutlineItem | string | undefined): Promise<void> {
+        if (commandArg instanceof COutlineItem) {
+            await this.runVSCodeMerge(commandArg);
+            return;
+        }
+
+        if (typeof commandArg === 'string') {
+            await this.runVSCodeMergeFromPath(commandArg);
+            return;
+        }
+
+        vscode.window.showErrorMessage('Cannot open merge view: unsupported command argument.');
     }
 
     private async runVSCodeMergeFromPath(localPath: string): Promise<void> {

@@ -44,7 +44,7 @@ export const OUTPUT_DIRECTORY = 'outputDirectory';
 export const CONFIG_AUTO_DEBUG_LAUNCH = 'autoDebugLaunch';
 export const CONFIG_BUILD_OUTPUT_VERBOSITY = 'buildOutputVerbosity';
 export const MANAGE_COMPONENTS_PACKS_COMMAND_ID = `${PACKAGE_NAME}.manageComponentsPacks`;
-export const MERGE_FILE_FROM_PATH_COMMAND_ID = `${PACKAGE_NAME}.mergeFileFromPath`;
+export const MERGE_FILE_COMMAND_ID = `${PACKAGE_NAME}.mergeFile`;
 
 export const MIN_TOOLBOX_VERSION = '2.12.0';
 
