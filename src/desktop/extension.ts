@@ -179,8 +179,8 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         cmsisToolboxManager,
         compileCommandsGenerator,
     );
-    const solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub);
 
+    const solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub);
     const themeProvider = new ThemeProviderImpl();
     const statusBar = new StatusBar(solutionManager, cmsisToolboxManager, themeProvider);
     const componentsManager = new ComponentsPacksWebviewMain(solutionManager, csolutionService, context, messageProvider, commandsProvider, externalFileOpener);
@@ -218,8 +218,10 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const copyHeaderCommand = new CopyHeaderCommand(commandsProvider);
     const openCommand = new OpenCommand(solutionManager, commandsProvider, externalFileOpener);
     const findCommand = new FindCommand(commandsProvider);
-    const mergeCommand = new MergeCommand(commandsProvider, activeSolutionTracker);
     const fileDecorationProviderManager = new FileDecorationProviderManagerImpl();
+    const treeViewProviderImpl = new TreeViewProviderImpl(SolutionOutlineView.treeViewId);
+    const treeViewFileDecorationProvider = new TreeViewFileDecorationProvider(fileDecorationProviderManager, themeProvider);
+    const mergeCommand = new MergeCommand(commandsProvider, activeSolutionTracker);
     const buildCommand = new BuildCommand(buildTaskProvider, commandsProvider, buildTaskDefinitionBuilder);
     const runGeneratorCommand = new GeneratorCommand(commandsProvider, solutionManager, outputChannelProvider, cmsisToolboxManager);
     const armclangDefineGetter = new ArmclangDefineGetter(processManager, workspaceFsProvider);
@@ -246,9 +248,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const targetPackCommand = new TargetPackCommandImpl(commandsProvider, solutionManager);
     const debugHardwareCommands = new DebugHardwareCommands(commandsProvider, solutionManager);
     const csolutionExtension = new CsolutionExtensionImpl(solutionCreator, buildTaskProvider, dataManager);
-    const treeViewProviderImpl = new TreeViewProviderImpl(SolutionOutlineView.treeViewId);
-
-    const treeViewFileDecorationProvider = new TreeViewFileDecorationProvider(fileDecorationProviderManager, themeProvider);
     const solutionOutline = new SolutionOutlineView(solutionManager, treeViewProviderImpl, globalStateProvider, treeViewFileDecorationProvider);
     const cmsisCommands = new CmsisCommands(configurationProvider, commandsProvider, solutionManager, debugProvider, serialMonitorExtension);
     const buildStopCommand = new BuildStopCommand(commandsProvider, buildTaskProvider);

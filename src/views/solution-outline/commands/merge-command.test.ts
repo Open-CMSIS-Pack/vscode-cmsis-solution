@@ -87,11 +87,13 @@ describe('MergeCommand', () => {
         componentNode.setTag('component');
         componentNode.setAttribute('label', 'Component X');
         componentNode.setAttribute('local', path.join(tmpDir, 'component.c'));
+        componentNode.setAttribute('resourcePath', path.join(tmpDir, 'component.c'));
 
         fileNode = new COutlineItem('file');
         fileNode.setTag('file');
         fileNode.setAttribute('label', 'Component X');
         fileNode.setAttribute('local', path.join(tmpDir, 'component.c'));
+        fileNode.setAttribute('resourcePath', path.join(tmpDir, 'component.c'));
     });
 
     describe('activation', () => {
@@ -101,9 +103,63 @@ describe('MergeCommand', () => {
             expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(1);
             expect(commandsProvider.registerCommand).toHaveBeenCalledWith(MergeCommand.mergeFile, expect.any(Function), expect.anything());
         });
+
+        it('forwards string command argument to the merge handler', async () => {
+            const runVSCodeMergeFromPathSpy = jest.spyOn(
+                command as unknown as { runVSCodeMergeFromPath: (localPath: string) => Promise<void> },
+                'runVSCodeMergeFromPath',
+            ).mockResolvedValue();
+            const localPath = path.join(tmpDir, 'component.c');
+
+            await command.activate(extensionContextFactory());
+            await commandsProvider.mockRunRegistered(MergeCommand.mergeFile, localPath);
+
+            expect(runVSCodeMergeFromPathSpy).toHaveBeenCalledWith(localPath);
+        });
+
+        it('forwards COutlineItem command argument to the node merge handler', async () => {
+            const runVSCodeMergeSpy = jest.spyOn(
+                command as unknown as { runVSCodeMerge: (node: COutlineItem) => Promise<void> },
+                'runVSCodeMerge',
+            ).mockResolvedValue();
+
+            await command.activate(extensionContextFactory());
+            await commandsProvider.mockRunRegistered(MergeCommand.mergeFile, fileNode);
+
+            expect(runVSCodeMergeSpy).toHaveBeenCalledWith(fileNode);
+        });
+
+        it('shows error for unsupported command argument type', async () => {
+            const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
+
+            await command.activate(extensionContextFactory());
+            await commandsProvider.mockRunRegistered(MergeCommand.mergeFile, undefined);
+
+            expect(showErrorMessageSpy).toHaveBeenCalledWith('Cannot open merge view: unsupported command argument.');
+        });
     });
 
     describe('merge file discovery', () => {
+        it('shows error if merge path is missing when invoked from path', async () => {
+            const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
+
+            await command['runVSCodeMergeFromPath']('');
+
+            expect(showErrorMessageSpy).toHaveBeenCalledWith('Cannot open merge view: merge file path is missing.');
+        });
+
+        it('normalizes the merge path before opening merge view from path', async () => {
+            const commandPrivate = command as unknown as {
+                runVSCodeMergeForPath: (localPath: string) => Promise<void>;
+            };
+            const runVSCodeMergeForPathSpy = jest.spyOn(commandPrivate, 'runVSCodeMergeForPath').mockResolvedValue();
+            const localPath = path.join(tmpDir, '.', 'component.c');
+
+            await command['runVSCodeMergeFromPath'](localPath);
+
+            expect(runVSCodeMergeForPathSpy).toHaveBeenCalledWith(path.normalize(localPath));
+        });
+
         it('shows error if node is not passed', async () => {
             const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
             // @ts-expect-error - testing behavior when `runVSCodeMerge` receives null
@@ -325,6 +381,7 @@ describe('MergeCommand', () => {
             const node = new COutlineItem('file');
             const local = path.join(tmpDir, 'safe-local.c');
             node.setAttribute('local', local);
+            node.setAttribute('resourcePath', local);
 
             const commandPrivate = command as unknown as {
                 getVSCodeExecutablePath: () => string | undefined;
@@ -355,6 +412,7 @@ describe('MergeCommand', () => {
             node.setTag('file');
             node.setAttribute('label', 'Component X');
             node.setAttribute('local', local);
+            node.setAttribute('resourcePath', local);
 
             const commandPrivate = command as unknown as {
                 getVSCodeExecutablePath: () => string | undefined;

@@ -23,6 +23,7 @@ import { SolutionOutlineTree } from './tree-structure/solution-outline-tree';
 import { COutlineItem } from './tree-structure/solution-outline-item';
 import { TreeViewFileDecorationProvider } from './treeview-decoration-provider';
 
+
 export class SolutionOutlineView {
     public static readonly treeViewId = `${PACKAGE_NAME}.outline`;
     private solutionPath?: string;
