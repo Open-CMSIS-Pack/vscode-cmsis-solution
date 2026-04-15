@@ -142,7 +142,7 @@ export class ComponentsPacksWebviewMain {
 
     private async disposeInternal(): Promise<void> {
         const discardView = () => {
-            this.project = undefined;
+            this.currentProject = undefined;
             this.componentTree = { success: false, classes: [] };
             this.validations = { success: false, result: 'UNDEFINED', validation: [] };
             this.usedItems = { components: [], packs: [], success: false };
@@ -192,6 +192,10 @@ export class ComponentsPacksWebviewMain {
         this.manageComponentsActions.setCurrentProject(project);
     }
 
+    get currentProject(): CurrentProject | undefined {
+        return this.project;
+    }
+
     private resolveProjectPathFromContext(context: string): string | undefined {
         const descriptors = this.solutionManager.getCsolution()?.getContextDescriptors();
         return descriptors?.find(descriptor => descriptor.displayName === context)?.projectPath;
@@ -238,11 +242,11 @@ export class ComponentsPacksWebviewMain {
             return; // nothing to show
         }
 
-        const reload = this.project === undefined ||
-            this.projectFromPath(this.project.project.projectId) !== this.projectFromPath(cprojectPath);
+        const reload = this.currentProject === undefined ||
+            this.projectFromPath(this.currentProject.project.projectId) !== this.projectFromPath(cprojectPath);
         const csolution = this.solutionManager.getCsolution();
         if (csolution) {
-            this.project = { solutionPath: csolution.solutionPath, project: createProject(cprojectPath) };
+            this.currentProject = { solutionPath: csolution.solutionPath, project: createProject(cprojectPath) };
         }
 
         if (clayerPath) {
@@ -272,19 +276,19 @@ export class ComponentsPacksWebviewMain {
         if (csolution && e.newState.solutionPath) {
             // in case of switching a solution we need to track the correct or first project from the solution to keep this.currentProject active
             if (e.newState.solutionPath !== this.project?.solutionPath) {
-                this.project = undefined;
+                this.currentProject = undefined;
             }
 
             const validProjectId = this.getValidProjectId();
             if (!validProjectId) {
-                this.project = undefined;
+                this.currentProject = undefined;
             }
-            if (validProjectId && validProjectId !== this.project?.project.projectId) {
-                this.project = { solutionPath: csolution.solutionPath, project: createProject(validProjectId) };
+            if (validProjectId && validProjectId !== this.currentProject?.project.projectId) {
+                this.currentProject = { solutionPath: csolution.solutionPath, project: createProject(validProjectId) };
             }
 
-            if (this.project) {
-                await this.debounce_load(this.project.project.projectId, true);
+            if (this.currentProject) {
+                await this.debounce_load(this.currentProject.project.projectId, true);
             } else {
                 await this.clearComponents();
                 await this.webviewManager.sendMessage({
@@ -306,8 +310,8 @@ export class ComponentsPacksWebviewMain {
     private getValidProjectId(): string | undefined {
         const csolution = this.solutionManager.getCsolution();
         if (csolution) {
-            if (this.project?.project.projectId && csolution.getCproject(this.project.project.projectId)) {
-                return this.project.project.projectId;
+            if (this.currentProject?.project.projectId && csolution.getCproject(this.currentProject.project.projectId)) {
+                return this.currentProject.project.projectId;
             }
             const firstProjectPath = csolution?.getContextDescriptors()
                 .find(ctx => ctx.targetType === csolution.getActiveTargetSetName())
@@ -372,7 +376,7 @@ export class ComponentsPacksWebviewMain {
         const csolution = this.solutionManager.getCsolution();
         if (csolution) {
             this.clearTargetSetCache();
-            this.project = { solutionPath: csolution.solutionPath, project: createProject(projectId) };
+            this.currentProject = { solutionPath: csolution.solutionPath, project: createProject(projectId) };
             const actx = this.getActiveContext();
 
             const activeTs = csolution.getActiveTargetSetName() ?? '';
@@ -435,7 +439,7 @@ export class ComponentsPacksWebviewMain {
 
     private getSelectedTargetSetData(): TargetSetData | undefined {
         if (!this.selectedContext) {
-            const normalizedProjectId = normalizeForCompare(this.project?.project.projectId || '');
+            const normalizedProjectId = normalizeForCompare(this.currentProject?.project.projectId || '');
             this.selectedContext = this.getTargetSetData().find(ts => normalizeForCompare(ts.path) === normalizedProjectId);
             if (!this.selectedContext) {
                 this.selectedContext = this.getTargetSetData()?.at(0);
@@ -509,7 +513,7 @@ export class ComponentsPacksWebviewMain {
         const cprojectPath = this.getValidProjectId();
         this.scope = ComponentScope.Solution;
         if (cprojectPath) {
-            const reload = this.projectFromPath(this.project?.project.projectId) !== this.projectFromPath(cprojectPath);
+            const reload = this.projectFromPath(this.currentProject?.project.projectId) !== this.projectFromPath(cprojectPath);
 
             await this.debounce_load(cprojectPath, reload);
         }
