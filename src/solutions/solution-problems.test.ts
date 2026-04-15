@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ExtensionContext } from 'vscode';
-import { MANAGE_COMPONENTS_PACKS_COMMAND_ID } from '../manifest';
+import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_FROM_PATH_COMMAND_ID } from '../manifest';
 import * as fsUtils from '../utils/fs-utils';
 import * as vscodeUtils from '../utils/vscode-utils';
 import { solutionManagerFactory, MockSolutionManager } from './solution-manager.factories';
@@ -233,5 +233,142 @@ describe('SolutionProblems', () => {
         expect(code.value).toBe('Manage Components');
         expect(command).toBe(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}`);
         expect(JSON.parse(decodeURIComponent(args))).toEqual([{ type: 'context', value: 'HID.Debug+STM32U585AIIx' }]);
+    });
+
+    it('creates open merge view command link for absolute merge paths', async () => {
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+        await eventHub.fireConvertCompleted({
+            severity: 'warning',
+            detection: false,
+            logMessages: {
+                success: true,
+                errors: [],
+                warnings: ["mylayer.clayer.yml - file '/packs/Component/config.c' update required from component 'Arm::Device@2.3.4'"],
+                info: [],
+            },
+        });
+        await waitTimeout();
+
+        const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+        const diagnostic = diagnostics?.[0];
+        const code = diagnostic?.code as { value: string; target: vscode.Uri };
+        const [command, args] = code.target.toString().split('?');
+
+        expect(diagnostic?.message).toBe("update required for config file 'config.c' from component 'Device'.");
+        expect(code.value).toBe('Open in Merge View');
+        expect(command).toBe(`command:${MERGE_FILE_FROM_PATH_COMMAND_ID}`);
+        expect(JSON.parse(decodeURIComponent(args))).toEqual(['/packs/Component/config.c']);
+    });
+
+    it('creates a merge command uri with encoded local path', () => {
+        const result = solutionProblems['createMergeCommandUri']('/packs/Component/config.c');
+        const [command, args] = result.toString().split('?');
+
+        expect(command).toBe(`command:${MERGE_FILE_FROM_PATH_COMMAND_ID}`);
+        expect(JSON.parse(decodeURIComponent(args))).toEqual(['/packs/Component/config.c']);
+    });
+
+    it('creates merge diagnostic action for merge messages with component context', () => {
+        const result = solutionProblems['createMergeDiagnosticAction'](
+            "file '/packs/Component/config.c' update required from component 'Arm::Device@2.3.4'",
+            layerPath,
+        );
+
+        expect(result).toEqual({
+            message: "update required for config file 'config.c' from component 'Device'.",
+            code: {
+                value: 'Open in Merge View',
+                target: vscode.Uri.parse(`command:${MERGE_FILE_FROM_PATH_COMMAND_ID}?${encodeURIComponent(JSON.stringify(['/packs/Component/config.c']))}`),
+            },
+        });
+    });
+
+    it('returns undefined merge diagnostic action for non-merge messages', () => {
+        const result = solutionProblems['createMergeDiagnosticAction'](
+            "component 'Arm::Device@2.3.4' is missing",
+            layerPath,
+        );
+
+        expect(result).toBeUndefined();
+    });
+
+    it('falls back to the diagnostic file path for relative merge paths', async () => {
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+        await eventHub.fireConvertCompleted({
+            severity: 'warning',
+            detection: false,
+            logMessages: {
+                success: true,
+                errors: [],
+                warnings: ["mylayer.clayer.yml - file 'relative-config.c' update recommended"],
+                info: [],
+            },
+        });
+        await waitTimeout();
+
+        const [uri, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+        const diagnostic = diagnostics?.[0];
+        const code = diagnostic?.code as { value: string; target: vscode.Uri };
+        const [command, args] = code.target.toString().split('?');
+
+        expect(uri.fsPath).toContain('mylayer.clayer.yml');
+        expect(diagnostic?.message).toBe("update recommended for config file 'mylayer.clayer.yml' has a new version available for merge.");
+        expect(code.value).toBe('Open in Merge View');
+        expect(command).toBe(`command:${MERGE_FILE_FROM_PATH_COMMAND_ID}`);
+        expect(JSON.parse(decodeURIComponent(args))).toEqual([layerPath]);
+    });
+
+    it.each(['required', 'recommended', 'suggested', 'mandatory'] as const)(
+        'renders merge diagnostics for %s update levels',
+        async updateLevel => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireConvertCompleted({
+                severity: 'warning',
+                detection: false,
+                logMessages: {
+                    success: true,
+                    errors: [],
+                    warnings: [`mylayer.clayer.yml - file '/packs/Component/${updateLevel}.c' update ${updateLevel}`],
+                    info: [],
+                },
+            });
+            await waitTimeout();
+
+            const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+            expect(diagnostics?.[0].message).toBe(
+                `update ${updateLevel} for config file '${updateLevel}.c' has a new version available for merge.`
+            );
+        }
+    );
+
+    it('keeps non-merge diagnostics on the generic action path', async () => {
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+        await eventHub.fireConvertCompleted({
+            severity: 'error',
+            detection: false,
+            logMessages: {
+                success: false,
+                errors: ["mylayer.clayer.yml - component 'Arm::Device@2.3.4' is missing"],
+                warnings: [],
+                info: [],
+            },
+        });
+        await waitTimeout();
+
+        const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+        const diagnostic = diagnostics?.[0];
+        const code = diagnostic?.code as { value: string; target: vscode.Uri };
+
+        expect(diagnostic?.message).toBe("component 'Arm::Device@2.3.4' is missing");
+        expect(code.value).toBe('Find in Files');
+        expect(code.target.toString()).toContain('command:workbench.action.findInFiles');
     });
 });

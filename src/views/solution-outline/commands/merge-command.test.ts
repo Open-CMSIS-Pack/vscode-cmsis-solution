@@ -104,9 +104,42 @@ describe('MergeCommand', () => {
             expect(commandsProvider.registerCommand).toHaveBeenCalledWith(MergeCommand.mergeFile, expect.any(Function), expect.anything());
             expect(commandsProvider.registerCommand).toHaveBeenCalledWith(MergeCommand.mergeFileFromPath, expect.any(Function), expect.anything());
         });
+
+        it('forwards the mergeFileFromPath command argument to the merge handler', async () => {
+            const runVSCodeMergeFromPathSpy = jest.spyOn(
+                command as unknown as { runVSCodeMergeFromPath: (localPath: string) => Promise<void> },
+                'runVSCodeMergeFromPath',
+            ).mockResolvedValue();
+            const localPath = path.join(tmpDir, 'component.c');
+
+            await command.activate(extensionContextFactory());
+            await commandsProvider.mockRunRegistered(MergeCommand.mergeFileFromPath, localPath);
+
+            expect(runVSCodeMergeFromPathSpy).toHaveBeenCalledWith(localPath);
+        });
     });
 
     describe('merge file discovery', () => {
+        it('shows error if merge path is missing when invoked from path', async () => {
+            const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
+
+            await command['runVSCodeMergeFromPath']('');
+
+            expect(showErrorMessageSpy).toHaveBeenCalledWith('Cannot open merge view: merge file path is missing.');
+        });
+
+        it('normalizes the merge path before opening merge view from path', async () => {
+            const commandPrivate = command as unknown as {
+                runVSCodeMergeForPath: (localPath: string) => Promise<void>;
+            };
+            const runVSCodeMergeForPathSpy = jest.spyOn(commandPrivate, 'runVSCodeMergeForPath').mockResolvedValue();
+            const localPath = path.join(tmpDir, '.', 'component.c');
+
+            await command['runVSCodeMergeFromPath'](localPath);
+
+            expect(runVSCodeMergeForPathSpy).toHaveBeenCalledWith(path.normalize(localPath));
+        });
+
         it('shows error if node is not passed', async () => {
             const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
             // @ts-expect-error - testing behavior when `runVSCodeMerge` receives null
