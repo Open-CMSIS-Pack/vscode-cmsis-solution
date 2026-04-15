@@ -16,8 +16,8 @@
 
 import './file-path-picker.css';
 import * as React from 'react';
-import { VSCodeButton } from '@vscode/webview-ui-toolkit/react';
 import { CreateSolutionAction } from '../../create-solutions/view/state/reducer';
+import { Button } from 'antd';
 
 export interface FileLocationPickerProps {
     disabled: boolean;
@@ -41,12 +41,13 @@ export const FileLocationPicker = ({ id, disabled, location, dispatch, openFileP
             })}
             value={location}
             disabled={disabled} />
-        <VSCodeButton
+        <Button
             title='Browse'
             disabled={disabled}
+            style={{ height: 'var(--arm-input-height)' }}
             onClick={() => openFilePicker()}
         >
             Browse
-        </VSCodeButton>
+        </Button>
     </div>
 );

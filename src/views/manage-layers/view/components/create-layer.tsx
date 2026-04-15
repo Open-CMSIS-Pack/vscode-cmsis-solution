@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import { VSCodeButton } from '@vscode/webview-ui-toolkit/react';
 import * as React from 'react';
 import { ConfigurationVariable, ManageLayersAction, TargetConfiguration, VariableSet } from '../state/reducer';
 import { ValidationErrors } from '../state/validation';
 import './manage-layers.css';
 import { validationError } from './validation-message';
+import { Button } from 'antd';
 
 
 export type CreateLayerProps = {
@@ -43,7 +43,7 @@ export function CreateLayer(props: CreateLayerProps): React.ReactElement {
 
 function createVariable(curVariable: ConfigurationVariable, errStr: string, idx: number, props: CreateLayerProps): React.ReactElement {
     const settings = curVariable.settings;
-    const variableName = curVariable.variableName ;
+    const variableName = curVariable.variableName;
     const variableValue = curVariable.variableValue;
     const description = curVariable.description;
     const copyTo = curVariable.copyTo;
@@ -112,14 +112,14 @@ function createEdit(name: string, value: string, idx: number, props: CreateLayer
 
 function createDefaultSelection(idx: number, props: CreateLayerProps, disabled: boolean): React.ReactElement {
 
-    return <VSCodeButton
-        title='Set default path'
-        disabled={disabled}
-        onClick={() => {
-            props.dispatch({ type: 'CURRENT_LAYER_PATH_COPYTO_DEFAULT', variableId: idx });
-        }}
-    >
-        Default
-    </VSCodeButton>
-    ;
+    return (
+        <Button
+            title='Set default path'
+            disabled={disabled}
+            onClick={() => {
+                props.dispatch({ type: 'CURRENT_LAYER_PATH_COPYTO_DEFAULT', variableId: idx });
+            }}>
+            Default
+        </Button>
+    );
 }

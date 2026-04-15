@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { VSCodeButton } from '@vscode/webview-ui-toolkit/react';
 import * as React from 'react';
 import { LayerErrors } from '../../../common/components/layer-errors';
 import { RadioButton } from '../../../common/components/radio-button';
@@ -25,6 +24,8 @@ import { initialState, manageLayersReducer } from '../state/reducer';
 import { hasErrors, validate } from '../state/validation';
 import { CreateLayer } from './create-layer';
 import './manage-layers.css';
+import { Button, ConfigProvider, theme } from 'antd';
+import { useVSCodeTheme } from '../../../hooks/use-vscode-theme';
 
 export interface ManageLayersProps {
     /**
@@ -57,7 +58,7 @@ export const ManageLayers = ({ changeLayerActions, messageHandler }: ManageLayer
         if (currentLayer) {
             for (let idx = 0; idx < currentLayer.variables.length; idx++) {
                 const variable = currentLayer.variables[idx];
-                if (!variable.disabled)  {
+                if (!variable.disabled) {
                     messageHandler.push({ type: 'CHECK_LAYER_DOES_NOT_EXIST', layerFolder: variable.copyTo, variableId: idx });
                 }
             }
@@ -76,128 +77,136 @@ export const ManageLayers = ({ changeLayerActions, messageHandler }: ManageLayer
     const layerErrors = state.layerErrors;
     const showLayer = !!numOfLayers || loading || !!layerErrors.length;
     const activeTargetName = state.activeTargetType?.length ? state.activeTargetType : 'unknown';
+    const isDarkTheme = useVSCodeTheme();
 
     return (
         <React.StrictMode>
-            <div className='manage-layers-frame'>
-                <form id='manage-layers-form' autoComplete='off' onSubmit={e => { e.preventDefault(); }}>
+            <ConfigProvider
+                theme={{
+                    algorithm: isDarkTheme ? theme.darkAlgorithm : theme.defaultAlgorithm,
+                }}>
+                <div className='manage-layers-frame'>
+                    <form id='manage-layers-form' autoComplete='off' onSubmit={e => { e.preventDefault(); }}>
 
-                    {showLayer &&
-                    <div>
-                        <div className='manage-layers-header'>
-                            <h2>{'Add Software Layer'}</h2>
-                            <a href="https://open-cmsis-pack.github.io/cmsis-toolbox/build-overview/#software-layers"
-                                className="codicon codicon-link-external">
-                            </a>
-                        </div>
-                        <div className='section-description-text'>
-                            <p>{'Reference Applications are hardware agnostic and require '}
-                                <a href='https://open-cmsis-pack.github.io/cmsis-toolbox/build-overview/#software-layers'>{'software layers'}</a>
-                                {' with API drivers to connect to specific target hardware, typically an evaluation board.'}</p>
-                            <p>{'The following software layers are available in packs to complete the Reference Application.'}
-                                <br/>{'Click OK to copy these software layers to a sub-directory of the solution.'}</p>
-                        </div>
-
-                        <div>
-                            <p>{`Configuration options for Active Target: ${activeTargetName}`}</p>
-                        </div>
-
-                        {!!numOfLayers && <div className='select-layer-button-strip'>
-                            <div className='select-layer-col1'>
-                                <div className='select-layer-option-text'>
-                                    {`OPTION ${currentLayerNumber + (numOfLayers ? 1 : 0)} OF ${numOfLayers}`}
+                        {showLayer &&
+                            <div>
+                                <div className='manage-layers-header'>
+                                    <h2>{'Add Software Layer'}</h2>
+                                    <a href="https://open-cmsis-pack.github.io/cmsis-toolbox/build-overview/#software-layers"
+                                        className="codicon codicon-link-external">
+                                    </a>
                                 </div>
-                                <div className='select-layer-buttons'>
-                                    <VSCodeButton
-                                        title='Btn_Prev'
-                                        disabled={disabled}
-                                        onClick={() => dispatch({ type: 'PREV_LAYER' })} >
-                                        {'Prev'}
-                                    </VSCodeButton>
-                                    <VSCodeButton
-                                        title='Btn_Next'
-                                        disabled={disabled}
-                                        onClick={() => dispatch({ type: 'NEXT_LAYER' })} >
-                                        {'Next'}
-                                    </VSCodeButton>
+                                <div className='section-description-text'>
+                                    <p>{'Reference Applications are hardware agnostic and require '}
+                                        <a href='https://open-cmsis-pack.github.io/cmsis-toolbox/build-overview/#software-layers'>{'software layers'}</a>
+                                        {' with API drivers to connect to specific target hardware, typically an evaluation board.'}</p>
+                                    <p>{'The following software layers are available in packs to complete the Reference Application.'}
+                                        <br />{'Click OK to copy these software layers to a sub-directory of the solution.'}</p>
                                 </div>
-                            </div>
-                            <div className='select-layer-col2'>
-                                <div className='select-layer-option-description'>
-                                    {'Copy to sub-directory'}
-                                </div>
-                            </div>
-                        </div>}
-                        {currentLayer && <CreateLayer
-                            layer={currentLayer}
-                            dispatch={dispatch}
-                            errors={validation}
-                        />}
 
-                        {!numOfLayers && loading &&
-                            <div className='noLayersAvailable'>
-                                {stateText}
+                                <div>
+                                    <p>{`Configuration options for Active Target: ${activeTargetName}`}</p>
+                                </div>
+
+                                {!!numOfLayers && <div className='select-layer-button-strip'>
+                                    <div className='select-layer-col1'>
+                                        <div className='select-layer-option-text'>
+                                            {`OPTION ${currentLayerNumber + (numOfLayers ? 1 : 0)} OF ${numOfLayers}`}
+                                        </div>
+                                        <div className='select-layer-buttons'>
+                                            <Button
+                                                title='Btn_Prev'
+                                                disabled={disabled}
+                                                onClick={() => dispatch({ type: 'PREV_LAYER' })} >
+                                                {'Prev'}
+                                            </Button>
+                                            <Button
+                                                title='Btn_Next'
+                                                disabled={disabled}
+                                                onClick={() => dispatch({ type: 'NEXT_LAYER' })} >
+                                                {'Next'}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <div className='select-layer-col2'>
+                                        <div className='select-layer-option-description'>
+                                            {'Copy to sub-directory'}
+                                        </div>
+                                    </div>
+                                </div>}
+                                {currentLayer && <CreateLayer
+                                    layer={currentLayer}
+                                    dispatch={dispatch}
+                                    errors={validation}
+                                />}
+
+                                {!numOfLayers && loading &&
+                                    <div className='noLayersAvailable'>
+                                        {stateText}
+                                    </div>}
                             </div>}
-                    </div>}
 
-                    {!!layerErrors.length && <>
-                        <div className='manage-layers-layer-errors'>
-                            <LayerErrors
-                                layerErrors={layerErrors}
-                                id='layer-errors-display'
-                            ></LayerErrors>
+                        {!!layerErrors.length && <>
+                            <div className='manage-layers-layer-errors'>
+                                <LayerErrors
+                                    layerErrors={layerErrors}
+                                    id='layer-errors-display'
+                                ></LayerErrors>
 
-                        </div></>
-                    }
+                            </div></>
+                        }
 
-                    {!!numOfCompilers && <>
-                        <div>
-                            <div className='manage-layers-section-end'></div>
-                            <div className='select-compilers-header'>
-                                <h2>{'Select Compiler'}</h2>
-                                <a href="https://open-cmsis-pack.github.io/cmsis-toolbox/build-overview/#compiler-selection"
-                                    className="codicon codicon-link-external"></a>
+                        {!!numOfCompilers && <>
+                            <div>
+                                <div className='manage-layers-section-end'></div>
+                                <div className='select-compilers-header'>
+                                    <h2>{'Select Compiler'}</h2>
+                                    <a href="https://open-cmsis-pack.github.io/cmsis-toolbox/build-overview/#compiler-selection"
+                                        className="codicon codicon-link-external"></a>
+                                </div>
+                                <div className='section-description-text'>
+                                    {'This is a toolchain agnostic project that requires compiler selection.'}
+                                </div>
+
+                                <div className='dropdown-select-label'>
+                                    <label htmlFor='manage-layer-compiler-selector'>Compiler</label>
+                                </div>
+                                <RadioButton
+                                    id='manage-layer-compiler-selector'
+                                    values={state.availableCompilers}
+                                    selectedValue={state.selectedCompiler}
+                                    onChange={newValue => dispatch({ type: 'SET_COMPILER', compiler: newValue })}
+                                    disabled={false}
+                                />
+                            </div></>
+                        }
+
+                        {!numOfLayers && !numOfCompilers && !loading && <>
+                            <div className='nothing-to-configure'>
+                                <p>{'Nothing to configure'}</p>
+                            </div></>
+                        }
+
+                        <footer className='manage-layers-footer'>
+                            <div className='manage-layers-button-strip'>
+                                <Button title='Cancel' disabled={state.changeLayerProgress !== 'idle'}
+                                    variant='filled'
+                                    onClick={() => { messageHandler.push({ type: 'WEBVIEW_CLOSE' }); }} >
+                                    {'Cancel'}
+                                </Button>
+
+                                <Button
+                                    title='OK'
+                                    type='primary'
+                                    disabled={disabled && !numOfCompilers && hasErrors(validation)}
+                                    onClick={() => changeLayerActions.changeLayer(dispatch, state, messageHandler)} >
+                                    {'OK'}
+                                </Button>
                             </div>
-                            <div className='section-description-text'>
-                                {'This is a toolchain agnostic project that requires compiler selection.'}
-                            </div>
-
-                            <div className='dropdown-select-label'>
-                                <label htmlFor='manage-layer-compiler-selector'>Compiler</label>
-                            </div>
-                            <RadioButton
-                                id='manage-layer-compiler-selector'
-                                values={state.availableCompilers}
-                                selectedValue={state.selectedCompiler}
-                                onChange={newValue => dispatch({ type: 'SET_COMPILER', compiler: newValue })}
-                                disabled={false}
-                            />
-                        </div></>
-                    }
-
-                    {!numOfLayers && !numOfCompilers && !loading && <>
-                        <div className='nothing-to-configure'>
-                            <p>{'Nothing to configure'}</p>
-                        </div></>
-                    }
-
-                    <footer className='manage-layers-footer'>
-                        <div className='manage-layers-button-strip'>
-                            <VSCodeButton title='Cancel' appearance='secondary' disabled={state.changeLayerProgress !== 'idle'}
-                                onClick={() => { messageHandler.push({ type: 'WEBVIEW_CLOSE' }); }} >
-                                {'Cancel'}
-                            </VSCodeButton>
-
-                            <VSCodeButton
-                                title='OK'
-                                disabled={disabled && !numOfCompilers && hasErrors(validation) }
-                                onClick={() => changeLayerActions.changeLayer(dispatch, state, messageHandler)} >
-                                {'OK'}
-                            </VSCodeButton>
-                        </div>
-                    </footer>
-                </form>
-            </div>
+                        </footer>
+                    </form>
+                </div>
+            </ConfigProvider>
         </React.StrictMode>
     );
 };

@@ -79,7 +79,6 @@
     "@lydell/node-pty": "^1.1.0",
     "@microsoft/vscode-serial-monitor-api": "^0.1.7",
     "@vscode/codicons": "^0.0.44",
-    "@vscode/webview-ui-toolkit": "^1.4.0",
     "antd": "^5.29.3",
     "async-mutex": "^0.5.0",
     "eta": "^4.5.1",
@@ -1553,7 +1552,7 @@
       ]
     },
     "transformIgnorePatterns": [
-      "/node_modules/(?!(@vscode/webview-ui-toolkit|@microsoft|exenv-es6|yaml)/)"
+      "/node_modules/(?!(@microsoft|yaml)/)"
     ],
     "testPathIgnorePatterns": [
       "/node_modules/",

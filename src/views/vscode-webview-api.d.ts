@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2026 Arm Limited
+ * Copyright 2026 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,10 @@
  * limitations under the License.
  */
 
-.project-config-row {
-    display: grid;
-    padding-top: 8px;
-    padding-bottom: 8px;
-    gap: 8px;
-}
+type VsCodeWebviewApi = {
+    postMessage: (message: unknown) => void;
+    setState: (newState: unknown) => void;
+    getState: () => unknown;
+};
 
-.layout-header {
-    font-size: 13px;
-}
-
-.add-project-config-row {
-    margin-top: 5px;
-}
-
-.compact-dropdown-inner {
-    height: 100%;
-}
+declare function acquireVsCodeApi(): VsCodeWebviewApi;

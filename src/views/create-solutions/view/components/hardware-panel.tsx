@@ -22,12 +22,12 @@ import { MessageHandler } from '../../../message-handler';
 import { IncomingMessage, OutgoingMessage } from '../../messages';
 import { formatBytes } from '../../units-conversion';
 import { HardwareSelection } from '../state/hardware-selection';
-import { VSCodeButton, VSCodeProgressRing } from '@vscode/webview-ui-toolkit/react';
 import * as Messages from '../../messages';
 import { dedupe } from '../../../../array';
 import { DebugInterface } from '../../../../core-tools/client/packs_pb';
 import { CreateSolutionAction } from '../state/reducer';
 import { serialisePackId } from '../../../../packs/pack-id';
+import { Button, Spin } from 'antd';
 
 interface HardwarePanelProps {
     hardwareInfo: HardwareInfo | undefined;
@@ -77,7 +77,7 @@ export const HardwarePanel = (props: HardwarePanelProps) => {
             previewHardware.value.mountedDevices.flatMap(device => device.processors) :
             previewHardware.value.processors;
 
-        const coreCounts: {[key in string]: number} = {};
+        const coreCounts: { [key in string]: number } = {};
         processorList.forEach(processorInfo => {
             coreCounts[processorInfo.core] = (coreCounts[processorInfo.core] ?? 0) + 1;
         });
@@ -119,51 +119,54 @@ export const HardwarePanel = (props: HardwarePanelProps) => {
                 .map(debugInterface => debugInterface.adapter);
 
         content = (
-            <><div className='hardware-panel-header'>
-                <div className='details-header-item'>
-                    <h2 id="board-device" title={headingText}>{headingText}</h2>
-                    <p id="vendor">{previewHardware.value.id.vendor}</p>
-                    {enableWebsiteLinks && (
-                        <a href={'/add-url'}>Product page <i className='codicon codicon-link-external'></i></a>
-                    )}
+            <>
+                <div className='hardware-panel-header'>
+                    <div className='details-header-item'>
+                        <h2 id="board-device" title={headingText}>{headingText}</h2>
+                        <p id="vendor">{previewHardware.value.id.vendor}</p>
+                        {enableWebsiteLinks && (
+                            <a href={'/add-url'}>Product page <i className='codicon codicon-link-external'></i></a>
+                        )}
+                    </div>
+                    <img src={hardwareInfo?.image ?? ''} alt="hardware-image" />
                 </div>
-                <img src={hardwareInfo?.image ?? ''} alt="hardware-image" />
-            </div><div className='details-grid'>
-                {coreElement}
-                {(previewHardware.type === 'Boards' && previewHardware.value.mountedDevices.length) ? (
-                    <><p className='title'>Mounted Devices</p>
-                        <ul className='hardware-grid-info mounted-dev'>{previewHardware.value.mountedDevices.map((p, i) => (
-                            <li key={i}>{p.id.name}</li>
-                        ))}</ul>
-                    </>
-                ) : undefined}
-                {debugAdapters?.length ? (
-                    <><p className='title'>Debug Interface</p>
-                        <ul className='hardware-grid-info debug-int'>{debugAdapters.map((adapter, i) => (
-                            <li key={i}>{adapter}</li>
-                        ))}</ul>
-                    </>
-                ) : undefined}
-                {memoryElement}
-                {packInfoElement}
-            </div><div className='select-button'>
-                <VSCodeButton
-                    title="Select" disabled={false} onClick={() => {
-                        dispatchSelect(previewHardware);
-                        onClick();
-                    } }>Select</VSCodeButton>
-            </div></>
+                <div className='details-grid'>
+                    {coreElement}
+                    {(previewHardware.type === 'Boards' && previewHardware.value.mountedDevices.length) ? (
+                        <><p className='title'>Mounted Devices</p>
+                            <ul className='hardware-grid-info mounted-dev'>{previewHardware.value.mountedDevices.map((p, i) => (
+                                <li key={i}>{p.id.name}</li>
+                            ))}</ul>
+                        </>
+                    ) : undefined}
+                    {debugAdapters?.length ? (
+                        <><p className='title'>Debug Interface</p>
+                            <ul className='hardware-grid-info debug-int'>{debugAdapters.map((adapter, i) => (
+                                <li key={i}>{adapter}</li>
+                            ))}</ul>
+                        </>
+                    ) : undefined}
+                    {memoryElement}
+                    {packInfoElement}
+                </div><div className='select-button'>
+                    <Button
+                        title="Select" disabled={false} type="primary" onClick={() => {
+                            dispatchSelect(previewHardware);
+                            onClick();
+                        }}>Select</Button>
+                </div>
+            </>
         );
     } else if (previewHardware && !hardwareInfo) {
-        content = <div className='loading-spinner'><VSCodeProgressRing></VSCodeProgressRing></div>;
+        content = <div className='loading-spinner'><Spin size="large" /></div>;
     } else {
         content = (
             <div className='hardware-panel-placeholder'>
                 <p>Please select a target</p>
                 <div className='select-button'>
-                    <VSCodeButton
-                        title="Select" disabled={true} onClick={onClick}
-                    >Select</VSCodeButton>
+                    <Button
+                        title="Select" disabled={true} onClick={onClick} type="primary"
+                    >Select</Button>
                 </div>
             </div>
         );
