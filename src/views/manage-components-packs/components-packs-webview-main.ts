@@ -161,7 +161,7 @@ export class ComponentsPacksWebviewMain {
                 { title: 'Don\'t Save' },
                 { title: 'Cancel', isCloseAffordance: true },
             ];
-            const messageOptions: vscode.MessageOptions = { modal: true, detail: 'Your changes will be lost if you don\'t save them. Press cancel to continue editing.' };
+            const messageOptions: vscode.MessageOptions = { modal: true, detail: 'Your changes will be lost if you don\'t save them.\nPress cancel to continue editing.' };
 
             const pick = (await vscode.window.showWarningMessage(
                 'Do you want to save the changes you made to the Solution?',
