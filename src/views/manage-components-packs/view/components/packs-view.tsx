@@ -79,11 +79,16 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
             const packTitle = (
                 <>
                     {record.name}{' '}
-                    <a title='Open software pack overview' onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        openFile(packUrl, true);
-                    }} href={packUrl}>
+                    <a
+                        title='Open software pack overview'
+                        aria-label='Open software pack overview'
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            openFile(packUrl, true);
+                        }}
+                        href={packUrl}
+                    >
                         <CmsisCodicon name='link-external' style={{ fontSize: '1em', display: 'inline' }} />
                     </a>
                 </>
