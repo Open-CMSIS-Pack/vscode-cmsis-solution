@@ -87,11 +87,13 @@ describe('MergeCommand', () => {
         componentNode.setTag('component');
         componentNode.setAttribute('label', 'Component X');
         componentNode.setAttribute('local', path.join(tmpDir, 'component.c'));
+        componentNode.setAttribute('resourcePath', path.join(tmpDir, 'component.c'));
 
         fileNode = new COutlineItem('file');
         fileNode.setTag('file');
         fileNode.setAttribute('label', 'Component X');
         fileNode.setAttribute('local', path.join(tmpDir, 'component.c'));
+        fileNode.setAttribute('resourcePath', path.join(tmpDir, 'component.c'));
     });
 
     describe('activation', () => {
@@ -326,6 +328,7 @@ describe('MergeCommand', () => {
             const node = new COutlineItem('file');
             const local = path.join(tmpDir, 'safe-local.c');
             node.setAttribute('local', local);
+            node.setAttribute('resourcePath', local);
 
             const commandPrivate = command as unknown as {
                 getVSCodeExecutablePath: () => string | undefined;
@@ -356,6 +359,7 @@ describe('MergeCommand', () => {
             node.setTag('file');
             node.setAttribute('label', 'Component X');
             node.setAttribute('local', local);
+            node.setAttribute('resourcePath', local);
 
             const commandPrivate = command as unknown as {
                 getVSCodeExecutablePath: () => string | undefined;

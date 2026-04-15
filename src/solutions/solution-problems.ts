@@ -17,11 +17,11 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { constructor } from '../generic/constructor';
-import { MANAGE_COMPONENTS_PACKS_COMMAND_ID } from '../manifest';
+import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_FROM_PATH_COMMAND_ID } from '../manifest';
 import { LogMessages } from '../json-rpc/csolution-rpc-client';
 import * as fsUtils from '../utils/fs-utils';
 import { getFileNameFromPath } from '../utils/path-utils';
-import { stripTwoExtensions } from '../utils/string-utils';
+import { stripTwoExtensions, stripVendor, stripVersion } from '../utils/string-utils';
 import { getWorkspaceFolder } from '../utils/vscode-utils';
 import { SolutionLoadStateChangeEvent, SolutionManager } from './solution-manager';
 import { ConvertResultData, SolutionEventHub } from './solution-event-hub';
@@ -100,6 +100,17 @@ export const enrichLogMessagesFromToolOutput = async (logMessages: LogMessages, 
     errors.forEach(e => pushUniquely(logErrors, e));
     warnings.forEach(w => pushUniquely(logWarnings, w));
 };
+
+export const MERGE_VIEW_LINK_LABEL = 'Open in Merge View';
+export type MergeUpdateLevel = 'required' | 'recommended' | 'suggested' | 'mandatory';
+const mergeMessageRegex = /file\s+'([^']+)'\s+update\s+(required|recommended|suggested|mandatory)/i;
+const mergeComponentRegex = /(?:for|from)\s+component\s+'([^']+)'/i;
+export interface MergeMessageMatch {
+    localPath: string;
+    updateLevel: MergeUpdateLevel;
+    matchStart: number;
+    matchLength: number;
+}
 
 export interface SolutionProblems {
     activate(context: vscode.ExtensionContext): Promise<void>;
@@ -190,12 +201,15 @@ export class SolutionProblemsImpl implements SolutionProblems {
         if (!file) {
             return false;
         }
+        const mergeAction = this.createMergeDiagnosticAction(messageText, file);
         const range = await this.createDiagnosticRange(file, filename, line, column);
 
-        const entry = new vscode.Diagnostic(range, messageText, severity);
+        const entry = new vscode.Diagnostic(range, mergeAction?.message ?? messageText, severity);
         entry.source = 'csolution';
 
-        if (!line && !column) {
+        if (mergeAction) {
+            entry.code = mergeAction.code;
+        } else if (!line && !column) {
             // add 'Find in Files' action only if no line/column info is available
             entry.code = this.createDiagnosticActionCode(messageText);
         }
@@ -294,6 +308,55 @@ export class SolutionProblemsImpl implements SolutionProblems {
             }
         }
         return undefined;
+    }
+
+    private parseMergeMessage(line: string): MergeMessageMatch | undefined {
+        const match = mergeMessageRegex.exec(line);
+        if (!match || match.index === undefined) {
+            return undefined;
+        }
+
+        return {
+            localPath: match[1],
+            updateLevel: match[2].toLowerCase() as MergeUpdateLevel,
+            matchStart: match.index,
+            matchLength: match[0].length,
+        };
+    }
+
+    private createMergeDiagnosticMessage(localPath: string, updateLevel: MergeUpdateLevel, componentId: string | undefined): string {
+        const fileName = path.basename(localPath);
+        if (componentId === undefined) {
+            return `update ${updateLevel} for config file '${fileName}' has a new version available for merge.`;
+        }
+
+        const componentIdNoVersion = stripVersion(componentId);
+        const componentDisplayName = stripVendor(componentIdNoVersion);
+        return `update ${updateLevel} for config file '${fileName}' from component '${componentDisplayName}'.`;
+    }
+
+    private createMergeCommandUri(localPath: string): vscode.Uri {
+        const args = this.encodeCommandArgs([localPath]);
+        return vscode.Uri.parse(`command:${MERGE_FILE_FROM_PATH_COMMAND_ID}?${args}`);
+    }
+
+    private createMergeDiagnosticAction(message: string, diagnosticFilePath: string): { message: string; code: NonNullable<vscode.Diagnostic['code']> } | undefined {
+        const merge = this.parseMergeMessage(message);
+        if (!merge) {
+            return undefined;
+        }
+
+        const componentId = mergeComponentRegex.exec(message)?.[1];
+        const localPath = path.isAbsolute(merge.localPath) ? merge.localPath : diagnosticFilePath;
+        const formattedMessage = this.createMergeDiagnosticMessage(localPath, merge.updateLevel, componentId);
+
+        return {
+            message: formattedMessage,
+            code: {
+                value: MERGE_VIEW_LINK_LABEL,
+                target: this.createMergeCommandUri(localPath),
+            },
+        };
     }
 
     private encodeFindInFilesArgs(query: string): string {

@@ -52,6 +52,8 @@ export class MergeCommand {
             vscode.window.showErrorMessage('Cannot open merge view: merge file path is missing.');
             return;
         }
+
+        await this.runVSCodeMergeForPath(path.normalize(localPath));
     }
 
     private async runVSCodeMerge(node: COutlineItem): Promise<void> {
@@ -60,7 +62,17 @@ export class MergeCommand {
             return;
         }
 
-        const mergeFiles = this.discoverMergeFiles(node);
+        const localPath = node.getResourcePath();
+        if (!localPath) {
+            vscode.window.showErrorMessage('Required local file is missing to perform merge.');
+            return;
+        }
+
+        await this.runVSCodeMergeForPath(localPath);
+    }
+
+    private async runVSCodeMergeForPath(localPath: string): Promise<void> {
+        const mergeFiles = this.discoverMergeFiles(localPath);
         if (!mergeFiles) {
             return;
         }
@@ -78,7 +90,6 @@ export class MergeCommand {
 
         // make a copy of local to create merged file
         fsUtils.copyFile(local, merged);
-        node.setAttribute('merged', merged);
 
         // ensure all paths are absolute
         local = path.resolve(local);
@@ -112,12 +123,7 @@ export class MergeCommand {
         }
     }
 
-    private discoverMergeFiles(node: COutlineItem): { local: string; update: string; base: string } | undefined {
-        const local = node.getAttribute('local');
-        if (!local) {
-            vscode.window.showErrorMessage('Required local file is missing to perform merge.');
-            return undefined;
-        }
+    private discoverMergeFiles(local: string): { local: string; update: string; base: string } | undefined {
 
         const discovered = this.findNewestMergeFiles(local);
         const update = discovered.update;

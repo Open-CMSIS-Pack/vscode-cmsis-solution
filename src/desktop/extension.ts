@@ -179,7 +179,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         cmsisToolboxManager,
         compileCommandsGenerator,
     );
-    
+
     const solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub);
     const themeProvider = new ThemeProviderImpl();
     const statusBar = new StatusBar(solutionManager, cmsisToolboxManager, themeProvider);
