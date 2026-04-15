@@ -24,9 +24,6 @@ import { solutionManagerFactory, MockSolutionManager } from './solution-manager.
 import { SolutionEventHub } from './solution-event-hub';
 import { enrichLogMessagesFromToolOutput, SolutionProblemsImpl } from './solution-problems';
 import { waitTimeout } from '../__test__/test-waits';
-import { createMergeCommandUri, MERGE_VIEW_LINK_LABEL } from '../views/solution-outline/commands/merge-message-parser';
-import { MergeNodeResolver } from '../views/solution-outline/merge-node-resolver';
-import { COutlineItem } from '../views/solution-outline/tree-structure/solution-outline-item';
 
 const solutionPath = '/work/app.csolution.yml';
 const layerPath = '/work/config/mylayer.clayer.yml';
@@ -52,23 +49,12 @@ describe('SolutionProblems', () => {
     let solutionManager: MockSolutionManager;
     let eventHub: SolutionEventHub;
     let solutionProblems: SolutionProblemsImpl;
-    let mergeNodeResolver: MergeNodeResolver;
 
     beforeEach(() => {
         solutionManager = solutionManagerFactory();
         solutionManager.getCsolution.mockReturnValue(buildCsolution() as unknown as ReturnType<MockSolutionManager['getCsolution']>);
         eventHub = new SolutionEventHub();
-
-        const componentNode = new COutlineItem('component');
-        componentNode.setAttribute('label', 'ARM::CMSIS:RTOS2:Keil RTX5&Source@5.5.4');
-        const mergeFileNode = componentNode.createChild('file');
-
-        mergeNodeResolver = {
-            setTreeRoot: jest.fn(),
-            findMergeNodeByLocalPath: jest.fn().mockReturnValue(mergeFileNode),
-        };
-
-        solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub, mergeNodeResolver);
+        solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub);
 
         (vscode.workspace.openTextDocument as jest.Mock).mockResolvedValue({
             lineCount: 200,
@@ -224,7 +210,6 @@ describe('SolutionProblems', () => {
         expect(messages.errors[0]).toContain('settings.json:3:5 - exec: "west": executable file not found in $PATH; review "cmsis-csolution.environmentVariables"');
     });
 
-<<<<<<< HEAD
     it('creates manage components command link with context argument', async () => {
         await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
@@ -236,28 +221,11 @@ describe('SolutionProblems', () => {
                 success: false,
                 errors: ["dependency validation for context 'HID.Debug+STM32U585AIIx' failed:"],
                 warnings: [],
-=======
-    it('creates Open Merge View code action for merge advisory diagnostics', async () => {
-        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
-        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
-        const localPath = 'C:/Users/myuser/my_csolution_examples/CubeMX/CubeMX/RTE/CMSIS/RTX_Config.c';
-
-        await eventHub.fireConvertCompleted({
-            severity: 'warning',
-            detection: false,
-            logMessages: {
-                success: true,
-                errors: [],
-                warnings: [
-                    `file '${localPath}' update recommended; merge content from update file, rename update file to base file and remove previous base file`,
-                ],
->>>>>>> e85440c (Add "Open Merge View" link in Problems view)
                 info: [],
             },
         });
         await waitTimeout();
 
-<<<<<<< HEAD
         const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
         const code = diagnostics?.[0].code as { value: string; target: vscode.Uri };
         const [command, args] = code.target.toString().split('?');
@@ -265,20 +233,5 @@ describe('SolutionProblems', () => {
         expect(code.value).toBe('Manage Components');
         expect(command).toBe(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}`);
         expect(JSON.parse(decodeURIComponent(args))).toEqual([{ type: 'context', value: 'HID.Debug+STM32U585AIIx' }]);
-=======
-        const setCalls = setSpy.mock.calls as unknown as Array<[vscode.Uri, readonly vscode.Diagnostic[] | undefined]>;
-        const diagnostics = setCalls.flatMap(([, entries]) => [...(entries ?? [])]);
-        const mergeDiagnostic = diagnostics.find(d => d.code !== undefined);
-
-        expect(mergeDiagnostic).toBeDefined();
-        expect(mergeDiagnostic!.message).toBe(
-            'update recommended for config file \'RTX_Config.c\' from component \'CMSIS:RTOS2:Keil RTX5&Source\'.'
-        );
-        expect(mergeDiagnostic!.source).toBe('csolution');
-        expect(mergeDiagnostic!.code).toEqual({
-            value: MERGE_VIEW_LINK_LABEL,
-            target: vscode.Uri.parse(createMergeCommandUri(localPath)),
-        });
->>>>>>> e85440c (Add "Open Merge View" link in Problems view)
     });
 });

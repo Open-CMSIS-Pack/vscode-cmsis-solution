@@ -33,7 +33,7 @@ export class MergeCommand {
 
     constructor(
         private readonly commandsProvider: CommandsProvider,
-        private readonly activeSolutionTracker: ActiveSolutionTracker,        
+        private readonly activeSolutionTracker: ActiveSolutionTracker,
     ) { }
 
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>) {
@@ -51,7 +51,7 @@ export class MergeCommand {
         if (!localPath) {
             vscode.window.showErrorMessage('Cannot open merge view: merge file path is missing.');
             return;
-        }       
+        }
     }
 
     private async runVSCodeMerge(node: COutlineItem): Promise<void> {

@@ -181,7 +181,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         compileCommandsGenerator,
     );
     const mergeNodeResolver = new MergeNodeResolverImpl();
-    const solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub, mergeNodeResolver);
+    const solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub);
 
     const themeProvider = new ThemeProviderImpl();
     const statusBar = new StatusBar(solutionManager, cmsisToolboxManager, themeProvider);
@@ -223,7 +223,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const fileDecorationProviderManager = new FileDecorationProviderManagerImpl();
     const treeViewProviderImpl = new TreeViewProviderImpl(SolutionOutlineView.treeViewId);
     const treeViewFileDecorationProvider = new TreeViewFileDecorationProvider(fileDecorationProviderManager, themeProvider);
-    const mergeCommand = new MergeCommand(commandsProvider, activeSolutionTracker, mergeNodeResolver);
+    const mergeCommand = new MergeCommand(commandsProvider, activeSolutionTracker);
     const buildCommand = new BuildCommand(buildTaskProvider, commandsProvider, buildTaskDefinitionBuilder);
     const runGeneratorCommand = new GeneratorCommand(commandsProvider, solutionManager, outputChannelProvider, cmsisToolboxManager);
     const armclangDefineGetter = new ArmclangDefineGetter(processManager, workspaceFsProvider);
