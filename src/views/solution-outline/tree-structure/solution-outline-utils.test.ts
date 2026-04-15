@@ -23,32 +23,31 @@ import {
 } from './solution-outline-utils';
 import { CTreeItem } from '../../../generic/tree-item';
 import path from 'path';
-import fs from 'fs';
-import os from 'os';
 import { parseYamlToCTreeItem } from '../../../generic/tree-item-yaml-parser';
 import { COutlineItem } from './solution-outline-item';
 import * as manifest from '../../../manifest';
+import { TestDataHandler } from '../../../__test__/test-data';
+import * as fsUtils from '../../../utils/fs-utils';
 
 describe('getMapFilePath', () => {
+    const testDataHandler = new TestDataHandler();
     let projectDir: string;
     let linkerDir: string;
     let cSolFile: string;
 
     beforeEach(async () => {
-        const tmpDir = os.tmpdir();
-        projectDir = fs.mkdtempSync(path.join(tmpDir, 'myProject'));
+        testDataHandler.rmTmpDir();
+        projectDir = path.join(testDataHandler.tmpDir, 'myProject');
         cSolFile = `${projectDir}/Blinky.csolution.yml`;
 
         linkerDir = path.join(projectDir, 'out', 'Blinky', 'Debug');
-        fs.mkdirSync(linkerDir, { recursive: true });
-
-        fs.writeFileSync(path.join(linkerDir, 'myFile1.axf.map'), '');
-        fs.writeFileSync(path.join(linkerDir, 'myFile2.axf.map'), '');
+        fsUtils.writeTextFile(path.join(linkerDir, 'myFile1.axf.map'));
+        fsUtils.writeTextFile(path.join(linkerDir, 'myFile2.axf.map'));
 
     });
 
-    afterEach(() => {
-        fs.rmSync(projectDir, { recursive: true, force: true });
+    afterAll(() => {
+        testDataHandler.dispose();
     });
 
     it('get linker map file if type map exists', async () => {
@@ -130,3 +129,4 @@ describe('Context utilities', () => {
     });
 
 });
+

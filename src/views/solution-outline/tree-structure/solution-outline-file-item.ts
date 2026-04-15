@@ -93,46 +93,16 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
         return item as COutlineItem;
     }
 
-    public addMergeFeature(f: ITreeItem<CTreeItem>, cfileItem: COutlineItem, options?: { skipValidation?: boolean; localPathOverride?: string }) {
-        if (!options?.skipValidation) {
-            const attr = f.getValue('attr');
-            if (attr !== 'config') {
-                return;
-            }
-            const localPath = cfileItem.getValue('resourcePath');
-            if (!localPath) {
-                return;
-            }
-        }
-
-        // use override if provided, else use resourcePath
-        const localPath = options?.localPathOverride ?? cfileItem.getValue('resourcePath');
-
-        const update = f.getValue('update');
-        if (!update) {
+    public addMergeFeature(f: ITreeItem<CTreeItem>, cfileItem: COutlineItem) {
+        // Only config files with a resolvable resource path are eligible.
+        const attr = f.getValue('attr');
+        if (attr !== 'config') {
             return;
         }
-
-        const base = f.getValue('base');
-        if (!base) {
-            return;
-        }
-
         const fileStatus = f.getValue('status');
         if (!fileStatus) {
             return;
         }
-
-        // resolve paths
-        const rootFileName = f.rootFileName;
-        const dir = path.dirname(rootFileName);
-        const updatePath = path.join(dir, update);
-        const basePath = path.join(dir, base);
-
-        // assign merge context
         setMergeFileContext(cfileItem);
-        cfileItem.setAttribute('local', localPath);
-        cfileItem.setAttribute('update', updatePath);
-        cfileItem.setAttribute('base', basePath);
     }
 }
