@@ -77,18 +77,17 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
             const pack = parsePackId(record.packId);
             const packUrl = packURL(record.packId);
             const packTitle = (
-                <span>
-                    {record.name}
-                    <a title='Open Pack URL' onClick={(e) => {
+                <>
+                    {record.name}{' '}
+                    <a title='Open software pack overview' onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         openFile(packUrl, true);
                     }} href={packUrl}>
-                        <CmsisCodicon name='link-external' />
+                        <CmsisCodicon name='link-external' style={{ fontSize: '1em', display: 'inline' }} />
                     </a>
-                </span>
+                </>
             );
-
             const referencedFrom = [
                 <div key='pack-name'>{packTitle}</div>,
                 ...(record.references?.map((ref, index) => {
