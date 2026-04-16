@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { readTextFile } from './fs-utils';
+import * as fs from 'node:fs';
+import * as readline from 'node:readline';
 
 export interface ConfigWizardAnnotationChecker {
     hasAnnotations(filePath: string): Promise<boolean>;
@@ -25,17 +26,35 @@ class ConfigWizardAnnotationCheckerImpl implements ConfigWizardAnnotationChecker
     private static readonly wizardStartMarkerRegex = /^\s*\/\/.*<<<\s*use configuration wizard in context menu\s*>>>.*$/i;
 
     public async hasAnnotations(filePath: string): Promise<boolean> {
-        const fileContent = readTextFile(filePath);
-        const lines = fileContent.split(/\r?\n/);
-
-        const maxLines = Math.min(ConfigWizardAnnotationCheckerImpl.MAX_LINES_TO_SCAN, lines.length);
-        for (let i = 0; i < maxLines; i++) {
-            if (ConfigWizardAnnotationCheckerImpl.wizardStartMarkerRegex.test(lines[i])) {
-                return true;
-            }
+        if (!fs.existsSync(filePath)) {
+            return false;
         }
 
-        return false;
+        const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
+        const lineReader = readline.createInterface({
+            input: stream,
+            crlfDelay: Infinity,
+        });
+
+        let lineCount = 0;
+
+        try {
+            for await (const line of lineReader) {
+                if (ConfigWizardAnnotationCheckerImpl.wizardStartMarkerRegex.test(line)) {
+                    return true;
+                }
+
+                lineCount += 1;
+                if (lineCount >= ConfigWizardAnnotationCheckerImpl.MAX_LINES_TO_SCAN) {
+                    return false;
+                }
+            }
+
+            return false;
+        } finally {
+            lineReader.close();
+            stream.destroy();
+        }
     }
 }
 

@@ -17,7 +17,7 @@
 import * as vscode from 'vscode';
 import { TreeItemCollapsibleState } from 'vscode';
 import { COutlineItem } from './tree-structure/solution-outline-item';
-import { PACKAGE_NAME } from '../../manifest';
+import { openSourceSmartCommandId } from './commands/open-command';
 
 export interface TreeViewProvider<A extends COutlineItem> {
     updateTree(tree?: A): void;
@@ -32,8 +32,6 @@ export interface ViewBadge {
     tooltip: string;
     value: number;
 }
-
-const openSourceSmartCommandId = `${PACKAGE_NAME}.openSourceFileSmart`;
 
 export function createItemCommand(element: COutlineItem): vscode.Command | undefined {
     const command = element.getAttribute('command');

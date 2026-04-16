@@ -26,6 +26,7 @@ import { existsSync } from 'fs';
 import type { ConfigWizardAnnotationChecker } from '../../../utils/config-wizard-checker';
 import { configWizardAnnotationChecker } from '../../../utils/config-wizard-checker';
 
+export const openSourceSmartCommandId = `${PACKAGE_NAME}.openSourceFileSmart`;
 
 export class OpenCommand {
     public static readonly openSolutionCommandId = `${PACKAGE_NAME}.openSolutionFile`;
@@ -34,7 +35,7 @@ export class OpenCommand {
     public static readonly openLayerCommandId = `${PACKAGE_NAME}.openLayerFile`;
     public static readonly openLinkerCommandId = `${PACKAGE_NAME}.openLinkerMapFile`;
     public static readonly openDocCommandId = `${PACKAGE_NAME}.openDocFile`;
-    public static readonly openSourceSmartCommandId = `${PACKAGE_NAME}.openSourceFileSmart`;
+    public static readonly openSourceSmartCommandId = openSourceSmartCommandId;
     public static readonly openHelpCommandId = `${PACKAGE_NAME}.openHelp`;
     public static readonly openZephyrTerminalCommandId = `${PACKAGE_NAME}.openZephyrTerminal`;
     private static readonly configWizardViewType = `${PACKAGE_NAME}.configWizard`;
@@ -57,33 +58,27 @@ export class OpenCommand {
         context.subscriptions.push(
             this.commandsProvider.registerCommand(OpenCommand.openSolutionCommandId, () =>
                 (this.solutionManager.loadState.solutionPath) ? this.openFile(this.solutionManager.loadState.solutionPath) : undefined, this),
-            this.commandsProvider.registerCommand(OpenCommand.openProjectCommandId, (node: COutlineItem) => {
-                this.commandHandler(OpenCommand.openProjectCommandId, node);
-            }, this),
-            this.commandsProvider.registerCommand(OpenCommand.openPrjConfCommandId, (node: COutlineItem) => {
-                this.commandHandler(OpenCommand.openPrjConfCommandId, node);
-            }, this),
-            this.commandsProvider.registerCommand(OpenCommand.openLayerCommandId, (node: COutlineItem) => {
-                this.commandHandler(OpenCommand.openLayerCommandId, node);
-            }, this),
-            this.commandsProvider.registerCommand(OpenCommand.openLinkerCommandId, (node: COutlineItem) => {
-                this.commandHandler(OpenCommand.openLinkerCommandId, node);
-            }, this),
-            this.commandsProvider.registerCommand(OpenCommand.openDocCommandId, (node: COutlineItem) => {
-                this.commandHandler(OpenCommand.openDocCommandId, node);
-            }, this),
-            this.commandsProvider.registerCommand(OpenCommand.openSourceSmartCommandId, async (uri: vscode.Uri) => {
-                await this.openSourceFile(uri);
-            }, this),
+            this.commandsProvider.registerCommand(OpenCommand.openProjectCommandId, (node: COutlineItem) =>
+                this.commandHandler(OpenCommand.openProjectCommandId, node), this),
+            this.commandsProvider.registerCommand(OpenCommand.openPrjConfCommandId, (node: COutlineItem) =>
+                this.commandHandler(OpenCommand.openPrjConfCommandId, node), this),
+            this.commandsProvider.registerCommand(OpenCommand.openLayerCommandId, (node: COutlineItem) =>
+                this.commandHandler(OpenCommand.openLayerCommandId, node), this),
+            this.commandsProvider.registerCommand(OpenCommand.openLinkerCommandId, (node: COutlineItem) =>
+                this.commandHandler(OpenCommand.openLinkerCommandId, node), this),
+            this.commandsProvider.registerCommand(OpenCommand.openDocCommandId, (node: COutlineItem) =>
+                this.commandHandler(OpenCommand.openDocCommandId, node), this),
+            this.commandsProvider.registerCommand(OpenCommand.openSourceSmartCommandId, (uri: vscode.Uri) =>
+                this.openSourceFile(uri), this),
             this.commandsProvider.registerCommand(OpenCommand.openZephyrTerminalCommandId, (node: COutlineItem) => {
                 this.openTerminal(node);
             }, this),
             this.commandsProvider.registerCommand(OpenCommand.openHelpCommandId, (section: string = 'index.html') => {
                 const nonSiblingPath = path.isAbsolute(section) || (path.normalize(section).startsWith('..'));
                 if (helpFilePath && existsSync(helpFilePath) && !nonSiblingPath) {
-                    this.openFile(path.join(helpFilePath, section), true);
+                    return this.openFile(path.join(helpFilePath, section), true);
                 } else {
-                    this.openFile(README_FILE_PATH, false);
+                    return this.openFile(README_FILE_PATH, false);
                 }
             }, this),
         );
@@ -114,15 +109,15 @@ export class OpenCommand {
         return node.getAttribute('resourcePath');
     }
 
-    private async openFile(path: string, openExternal?: boolean): Promise<void> {
+    private async openFile(filePath: string, openExternal?: boolean): Promise<void> {
         if (openExternal) {
-            this.openFileExternal.openFile(path);
-        } else if (path.toLowerCase().endsWith('.md')) {
-            await this.commandsProvider.executeCommand('markdown.showPreview', vscode.Uri.file(path));
-        } else if (await this.shouldOpenConfigWizard(path)) {
-            await this.commandsProvider.executeCommand('vscode.openWith', vscode.Uri.file(path), OpenCommand.configWizardViewType);
+            this.openFileExternal.openFile(filePath);
+        } else if (filePath.toLowerCase().endsWith('.md')) {
+            await this.commandsProvider.executeCommand('markdown.showPreview', vscode.Uri.file(filePath));
+        } else if (await this.shouldOpenConfigWizard(filePath)) {
+            await this.commandsProvider.executeCommand('vscode.openWith', vscode.Uri.file(filePath), OpenCommand.configWizardViewType);
         } else {
-            await this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(path));
+            await this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(filePath));
         }
     }
 
