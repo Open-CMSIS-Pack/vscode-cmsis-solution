@@ -112,6 +112,12 @@ jobs:
           NIGHTLY_VERSION="${NEXT_PATCH_VERSION}-${COMMIT_COUNT}-${SHORT_SHA}"
           echo "Setting version to ${NIGHTLY_VERSION}"
 
+          # Print badge to GitHub Actions summary
+          echo "### Nightly Build" >> $GITHUB_STEP_SUMMARY
+          # Replace dashes with double dashes for shields.io
+          NIGHTLY_VERSION_BADGE=${NIGHTLY_VERSION//-/--}
+          echo "![Nightly Version](https://img.shields.io/badge/version-${NIGHTLY_VERSION_BADGE}-blue)" >> $GITHUB_STEP_SUMMARY
+
           # Update package.json
           npm version "${NIGHTLY_VERSION}" --no-git-tag-version
 
