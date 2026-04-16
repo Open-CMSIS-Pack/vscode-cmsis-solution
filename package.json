@@ -1374,7 +1374,7 @@
           "enumDescriptions": [
             "Show only errors or fatal conditions",
             "Include build steps and warnings",
-            "Include command line invocation",
+            "Include command-line invocation",
             "Include internal process steps"
           ],
           "markdownDescription": "Control verbosity of the build and setup console messages in the Terminal view."
