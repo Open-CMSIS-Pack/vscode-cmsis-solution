@@ -18,7 +18,7 @@ import '../../../common/style/antd-overrides.css';
 import './component-pack-manager.css';
 import * as React from 'react';
 import { initialState, componentsReducer as componentsReducer } from '../state/reducer';
-import { ConfigProvider, theme, Row, Col, Button, Segmented, Space } from 'antd';
+import { ConfigProvider, theme, Row, Col, Button, Segmented } from 'antd';
 import { ComponentRowDataType, ComponentScope } from '../../data/component-tools';
 import { ComponentProps } from './component-props';
 import { filterTree } from '../helpers/components-packs-helpers';
@@ -26,8 +26,7 @@ import { flatTree } from '../../data/component-tree';
 import { ComponentsView } from './components-view';
 import { PacksView } from './packs-view';
 import { useVSCodeTheme } from '../../../hooks/use-vscode-theme';
-import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
-import { packURL } from '../../../../packs/pack-urls';
+import { PackTitleLink } from './pack-title-link';
 
 // Import the necessary components and types from Ant Design
 
@@ -107,8 +106,6 @@ export const ComponentPackManager = (props: ComponentProps) => {
         messageHandler.push({ type: 'APPLY_COMPONENT_SET' });
     };
 
-    const packsUrl = packURL(undefined);
-
     return (
         <React.StrictMode>
             <div className='components-packs-view-root'>
@@ -136,20 +133,11 @@ export const ComponentPackManager = (props: ComponentProps) => {
                                     options={[{ label: 'Components', value: 'components' }, { label: 'Software packs', value: 'packs' }]}
                                     value={activeView}
                                     onChange={onChangeActiveView} />
-                                <Space align='baseline' style={{ marginLeft: '8px' }}>
-                                    <a
-                                        title='View list of software packs'
-                                        aria-label='View list of software packs'
-                                        href={packsUrl}
-                                        onClick={(event) => {
-                                            event.preventDefault();
-                                            event.stopPropagation();
-                                            openFile(packsUrl, true);
-                                        }}
-                                    >
-                                        <CmsisCodicon name='link-external' style={{ fontSize: '1em' }} />
-                                    </a>
-                                </Space>
+                                <PackTitleLink
+                                    packId={undefined}
+                                    packName={undefined}
+                                    openFile={openFile}
+                                />
                             </Col>
                             <Col flex={'auto'}>
                                 <Segmented

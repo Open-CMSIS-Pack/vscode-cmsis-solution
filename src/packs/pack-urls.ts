@@ -18,7 +18,7 @@ import { extractPrefix, stripAffix } from '../utils/string-utils';
 
 export const KEIL_ARM_COM_PACKS = 'https://www.keil.arm.com/packs';
 
-export function packURL(packId: string | undefined, suffix?: string) {
+export function packURL(packId?: string, suffix?: string) {
     const vendor = extractPrefix(packId, '::').toLowerCase();
     const name = stripAffix(packId, '::', '@').toLowerCase();
     if (!name || !vendor) {

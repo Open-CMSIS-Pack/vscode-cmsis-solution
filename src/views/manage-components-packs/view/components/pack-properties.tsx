@@ -25,6 +25,7 @@ import { EditFilled, MinusSquareOutlined, PlusSquareOutlined } from '@ant-design
 import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
 import { TargetSetData } from '../../components-data';
 import { packURL } from '../../../../packs/pack-urls';
+import { PackTitleLink } from './pack-title-link';
 
 interface PackPropertiesDialogProperties {
     pack?: PackRowDataType;
@@ -208,7 +209,7 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                     <Card size="small">
                         <table className='manage-component-properties-table'>
                             <tbody>
-                                <tr><td>Used Pack:</td><td>{pack.packId}</td></tr>
+                                <tr><td>Used Pack:</td><td>{(!firstReferencePath && openFile) ? <PackTitleLink packId={pack.packId} packName={pack.packId} openFile={openFile} /> : pack.packId}</td></tr>
                                 <tr><td>Description:</td><td>{pack.description}</td></tr>
                                 {firstReferencePath ? <tr><td>Path:</td><td>{firstReferencePath}</td></tr> : null}
                             </tbody>

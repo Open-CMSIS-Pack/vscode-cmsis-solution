@@ -40,14 +40,14 @@ describe('PackTitleLink', () => {
         const { getByRole } = render(
             <PackTitleLink packId={packId} packName={packName} openFile={openFile} />
         );
-        expect(getByRole('link', { name: 'Open software pack overview' })).toHaveAttribute('href', packUrl);
+        expect(getByRole('link', { name: 'Open pack URL' })).toHaveAttribute('href', packUrl);
     });
 
     it('calls openFile with the pack URL and external=true on click', () => {
         const { getByRole } = render(
             <PackTitleLink packId={packId} packName={packName} openFile={openFile} />
         );
-        fireEvent.click(getByRole('link', { name: 'Open software pack overview' }));
+        fireEvent.click(getByRole('link', { name: 'Open pack URL' }));
         expect(openFile).toHaveBeenCalledTimes(1);
         expect(openFile).toHaveBeenCalledWith(packUrl, true);
     });
@@ -56,7 +56,7 @@ describe('PackTitleLink', () => {
         const { getByRole } = render(
             <PackTitleLink packId={packId} packName={packName} openFile={openFile} />
         );
-        const link = getByRole('link', { name: 'Open software pack overview' });
+        const link = getByRole('link', { name: 'Open pack URL' });
         const event = fireEvent.click(link);
         expect(event).toBe(false); // fireEvent.click returns false when preventDefault is called
     });
