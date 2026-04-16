@@ -95,7 +95,7 @@ describe('createCommand', () => {
         });
     });
 
-    it('returns vscode.open command for non-md files', () => {
+    it('returns smart source open command for non-md files', () => {
         const element = new COutlineItem('file');
         const filePath = '/some/path/file.txt';
         element.setAttribute('resourcePath', filePath);
@@ -103,7 +103,7 @@ describe('createCommand', () => {
         const result = createItemCommand(element);
 
         expect(result).toMatchObject({
-            command: 'vscode.open',
+            command: 'cmsis-csolution.openSourceFileSmart',
             title: 'Open',
             arguments: [
                 {

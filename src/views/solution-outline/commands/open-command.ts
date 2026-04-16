@@ -23,6 +23,8 @@ import { SolutionManager } from '../../../solutions/solution-manager';
 import { IOpenFileExternal } from '../../../open-file-external-if';
 import { contextDescriptorFromString } from '../../../solutions/descriptors/descriptors';
 import { existsSync } from 'fs';
+import type { ConfigWizardAnnotationChecker } from '../../../utils/config-wizard-checker';
+import { configWizardAnnotationChecker } from '../../../utils/config-wizard-checker';
 
 
 export class OpenCommand {
@@ -32,13 +34,17 @@ export class OpenCommand {
     public static readonly openLayerCommandId = `${PACKAGE_NAME}.openLayerFile`;
     public static readonly openLinkerCommandId = `${PACKAGE_NAME}.openLinkerMapFile`;
     public static readonly openDocCommandId = `${PACKAGE_NAME}.openDocFile`;
+    public static readonly openSourceSmartCommandId = `${PACKAGE_NAME}.openSourceFileSmart`;
     public static readonly openHelpCommandId = `${PACKAGE_NAME}.openHelp`;
     public static readonly openZephyrTerminalCommandId = `${PACKAGE_NAME}.openZephyrTerminal`;
+    private static readonly configWizardViewType = `${PACKAGE_NAME}.configWizard`;
+    private static readonly configWizardCandidateExtensions = new Set(['.h', '.c', '.cpp', '.dbgconf']);
 
     constructor(
         private readonly solutionManager: SolutionManager,
         private readonly commandsProvider: CommandsProvider,
         private readonly openFileExternal: IOpenFileExternal,
+        private readonly annotationChecker: ConfigWizardAnnotationChecker = configWizardAnnotationChecker,
     ) { }
 
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>) {
@@ -66,6 +72,9 @@ export class OpenCommand {
             this.commandsProvider.registerCommand(OpenCommand.openDocCommandId, (node: COutlineItem) => {
                 this.commandHandler(OpenCommand.openDocCommandId, node);
             }, this),
+            this.commandsProvider.registerCommand(OpenCommand.openSourceSmartCommandId, async (uri: vscode.Uri) => {
+                await this.openSourceFile(uri);
+            }, this),
             this.commandsProvider.registerCommand(OpenCommand.openZephyrTerminalCommandId, (node: COutlineItem) => {
                 this.openTerminal(node);
             }, this),
@@ -84,8 +93,16 @@ export class OpenCommand {
         const filePath = this.getFilePathForCommand(command, node);
         if (filePath) {
             const openExternal = command === OpenCommand.openDocCommandId;
-            this.openFile(filePath, openExternal);
+            await this.openFile(filePath, openExternal);
         }
+    }
+
+    private async openSourceFile(uri: vscode.Uri | undefined): Promise<void> {
+        if (!uri) {
+            return;
+        }
+
+        await this.openFile(uri.fsPath, false);
     }
 
     private getFilePathForCommand(command: string, node: COutlineItem): string | undefined {
@@ -97,13 +114,28 @@ export class OpenCommand {
         return node.getAttribute('resourcePath');
     }
 
-    private openFile(path: string, openExternal?: boolean): void {
+    private async openFile(path: string, openExternal?: boolean): Promise<void> {
         if (openExternal) {
             this.openFileExternal.openFile(path);
         } else if (path.toLowerCase().endsWith('.md')) {
-            this.commandsProvider.executeCommand('markdown.showPreview', vscode.Uri.file(path));
+            await this.commandsProvider.executeCommand('markdown.showPreview', vscode.Uri.file(path));
+        } else if (await this.shouldOpenConfigWizard(path)) {
+            await this.commandsProvider.executeCommand('vscode.openWith', vscode.Uri.file(path), OpenCommand.configWizardViewType);
         } else {
-            this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(path));
+            await this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(path));
+        }
+    }
+
+    private async shouldOpenConfigWizard(filePath: string): Promise<boolean> {
+        const extension = path.extname(filePath).toLowerCase();
+        if (!OpenCommand.configWizardCandidateExtensions.has(extension)) {
+            return false;
+        }
+
+        try {
+            return await this.annotationChecker.hasAnnotations(filePath);
+        } catch {
+            return false;
         }
     }
 
