@@ -17,6 +17,7 @@
 import * as vscode from 'vscode';
 import { TreeItemCollapsibleState } from 'vscode';
 import { COutlineItem } from './tree-structure/solution-outline-item';
+import { openSourceSmartCommandId } from './commands/open-command';
 
 export interface TreeViewProvider<A extends COutlineItem> {
     updateTree(tree?: A): void;
@@ -55,7 +56,7 @@ export function createItemCommand(element: COutlineItem): vscode.Command | undef
     const isMarkdown = uri.fsPath.toLowerCase().endsWith('.md');
 
     return {
-        command: isMarkdown ? 'markdown.showPreview' : 'vscode.open',
+        command: isMarkdown ? 'markdown.showPreview' : openSourceSmartCommandId,
         title: isMarkdown ? 'Open Preview' : 'Open',
         arguments: [uri],
     };
