@@ -84,20 +84,22 @@ export class OpenCommand {
         );
     }
 
-    private async commandHandler(command: string, node: COutlineItem) {
+    private commandHandler(command: string, node: COutlineItem): Promise<void> | undefined {
         const filePath = this.getFilePathForCommand(command, node);
         if (filePath) {
             const openExternal = command === OpenCommand.openDocCommandId;
-            await this.openFile(filePath, openExternal);
+            return this.openFile(filePath, openExternal);
         }
+
+        return undefined;
     }
 
-    private async openSourceFile(uri: vscode.Uri | undefined): Promise<void> {
+    private openSourceFile(uri: vscode.Uri | undefined): Promise<void> | undefined {
         if (!uri) {
-            return;
+            return undefined;
         }
 
-        await this.openFile(uri.fsPath, false);
+        return this.openFile(uri.fsPath, false);
     }
 
     private getFilePathForCommand(command: string, node: COutlineItem): string | undefined {
@@ -112,13 +114,18 @@ export class OpenCommand {
     private async openFile(filePath: string, openExternal?: boolean): Promise<void> {
         if (openExternal) {
             this.openFileExternal.openFile(filePath);
-        } else if (filePath.toLowerCase().endsWith('.md')) {
-            await this.commandsProvider.executeCommand('markdown.showPreview', vscode.Uri.file(filePath));
-        } else if (await this.shouldOpenConfigWizard(filePath)) {
-            await this.commandsProvider.executeCommand('vscode.openWith', vscode.Uri.file(filePath), OpenCommand.configWizardViewType);
-        } else {
-            await this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(filePath));
+            return;
         }
+
+        if (filePath.toLowerCase().endsWith('.md')) {
+            return this.commandsProvider.executeCommand('markdown.showPreview', vscode.Uri.file(filePath));
+        }
+
+        if (await this.shouldOpenConfigWizard(filePath)) {
+            return this.commandsProvider.executeCommand('vscode.openWith', vscode.Uri.file(filePath), OpenCommand.configWizardViewType);
+        }
+
+        return this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(filePath));
     }
 
     private async shouldOpenConfigWizard(filePath: string): Promise<boolean> {
