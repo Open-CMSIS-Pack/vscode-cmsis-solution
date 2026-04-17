@@ -144,7 +144,7 @@ describe('EventHub', () => {
             expect(completeListener).toHaveBeenCalledTimes(1);
             expect(cbuildCompleteListener).not.toHaveBeenCalled();
 
-            await eventHub.fireCbuildCompleted({ success: true, output: [] });
+            await eventHub.fireCbuildCompleted({ success: true, toolsOutputMessages: [] });
 
             expect(requestListener).toHaveBeenCalledTimes(1);
             expect(completeListener).toHaveBeenCalledTimes(1);
@@ -193,8 +193,8 @@ describe('EventHub', () => {
             eventHub.onDidCbuildCompleted(listener);
 
             await Promise.all([
-                eventHub.fireCbuildCompleted({ success: true, output: ['line 1'] }),
-                eventHub.fireCbuildCompleted({ success: false, output: ['line 2'] })
+                eventHub.fireCbuildCompleted({ success: true, toolsOutputMessages: ['line 1'] }),
+                eventHub.fireCbuildCompleted({ success: false, toolsOutputMessages: ['line 2'] })
             ]);
 
             expect(listener).toHaveBeenCalledTimes(2);
@@ -203,9 +203,9 @@ describe('EventHub', () => {
 
     describe('fireCbuildCompleted', () => {
         it.each<CbuildResultData>([
-            { success: true, output: ['ok'] },
-            { success: false, output: ['failed'] },
-            { success: true, output: undefined },
+            { success: true, toolsOutputMessages: ['ok'] },
+            { success: false, toolsOutputMessages: ['failed'] },
+            { success: true, toolsOutputMessages: undefined },
         ])('should fire event with cbuild result: %o', async (data) => {
             const listener = jest.fn();
             eventHub.onDidCbuildCompleted(listener);
@@ -222,7 +222,7 @@ describe('EventHub', () => {
             eventHub.onDidCbuildCompleted(listener1);
             eventHub.onDidCbuildCompleted(listener2);
 
-            const data: CbuildResultData = { success: true, output: ['done'] };
+            const data: CbuildResultData = { success: true, toolsOutputMessages: ['done'] };
             await eventHub.fireCbuildCompleted(data);
 
             expect(listener1).toHaveBeenCalledWith(data);

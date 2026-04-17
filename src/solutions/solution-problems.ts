@@ -141,6 +141,7 @@ export class SolutionProblemsImpl implements SolutionProblems {
     public async activate(context: vscode.ExtensionContext): Promise<void> {
         context.subscriptions.push(
             this.eventHub.onDidConvertCompleted(this.handleConvertCompleted, this),
+            this.eventHub.onDidCbuildCompleted(this.handleCbuildCompleted, this),
             this.solutionManager.onDidChangeLoadState(this.handleLoadStateChanged, this),
             this.diagnosticCollection,
         );
@@ -149,6 +150,10 @@ export class SolutionProblemsImpl implements SolutionProblems {
     private async handleConvertCompleted(data: ConvertResultData): Promise<void> {
         await enrichLogMessagesFromToolOutput(data.logMessages, data.toolsOutputMessages);
         await this.updateDiagnostics(data.logMessages);
+    }
+
+    private async handleCbuildCompleted(): Promise<void> {
+        // Cbuild completion handler (reserved for future use)
     }
 
     private handleLoadStateChanged(data: SolutionLoadStateChangeEvent): void {

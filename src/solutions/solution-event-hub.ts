@@ -38,21 +38,26 @@ export interface ConfigureSolutionData {
 }
 
 /**
+ * Base event data for cbuild setup completion result
+ */
+export interface CbuildCompletionData {
+    success: boolean;
+    severity: Severity;
+    toolsOutputMessages?: string[];
+}
+
+/**
  * Event data for solution conversion result
  */
-export interface ConvertResultData {
-    severity: Severity;
+export interface ConvertResultData extends CbuildCompletionData {
     detection: boolean;
     logMessages: LogMessages;
-    toolsOutputMessages?: string[];
 }
 
 /**
  * Event data for cbuild setup completion result
  */
-export interface CbuildResultData {
-    success: boolean;
-    output?: string[];
+export interface CbuildResultData extends CbuildCompletionData {
 }
 
 /**

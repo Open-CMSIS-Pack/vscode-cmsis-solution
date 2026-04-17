@@ -80,7 +80,7 @@ describe('CompileCommandsGenerator', () => {
         const [result, output] = await generator.runCbuildSetup();
         expect(result).toBe(true);
         expect(output).toEqual(expect.arrayContaining(['completed with exit code 0']));
-        expect(mockEventHub.fireCbuildCompleted).toHaveBeenCalledWith({ success: true, output: ['completed with exit code 0'] });
+        expect(mockEventHub.fireCbuildCompleted).toHaveBeenCalledWith({ success: true, severity: 'success', toolsOutputMessages: ['completed with exit code 0'] });
     }, 10000);
 
     it('prints an error message if the compilation database could not be generated', async () => {
@@ -91,6 +91,6 @@ describe('CompileCommandsGenerator', () => {
         const [result, output] = await generator.runCbuildSetup();
         expect(result).toBe(false);
         expect(output).toEqual(expect.arrayContaining(['failed with exit code 1']));
-        expect(mockEventHub.fireCbuildCompleted).toHaveBeenCalledWith({ success: false, output: ['failed with exit code 1'] });
+        expect(mockEventHub.fireCbuildCompleted).toHaveBeenCalledWith({ success: false, severity: 'error', toolsOutputMessages: ['failed with exit code 1'] });
     }, 10000);
 });

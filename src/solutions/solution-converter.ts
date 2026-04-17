@@ -208,6 +208,7 @@ export class SolutionConverterImpl implements SolutionConverter {
         ) + '\n\n');
         // notify conversion result and detection status asynchronously!
         this.eventHub.fireConvertCompleted({
+            success: convertResult.success,
             severity: severity,
             detection: detection,
             logMessages: logResult,

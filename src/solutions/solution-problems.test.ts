@@ -70,7 +70,7 @@ describe('SolutionProblems', () => {
 
         await solutionProblems.activate(context);
 
-        expect(context.subscriptions).toHaveLength(3);
+        expect(context.subscriptions).toHaveLength(4);
     });
 
     it('clears diagnostics when solution path changes', async () => {

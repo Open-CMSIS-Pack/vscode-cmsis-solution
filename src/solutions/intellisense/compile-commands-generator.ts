@@ -56,7 +56,8 @@ export class CompileCommandsGeneratorImpl implements CompileCommandsGenerator {
                     const returnCode = match?.[1] !== undefined ? Number(match[1]) :
                         event.exitCode !== undefined ? event.exitCode : -1;
                     const success = returnCode === 0;
-                    this.eventHub.fireCbuildCompleted({ success, output });
+                    const severity = success ? 'success' : 'error';
+                    this.eventHub.fireCbuildCompleted({ success, severity, toolsOutputMessages: output });
                     resolve([success, output]);
                 }
             });
