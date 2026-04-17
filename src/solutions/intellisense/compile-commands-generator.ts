@@ -18,6 +18,7 @@ import * as vscode from 'vscode';
 import { ExtensionContext } from 'vscode';
 import { BuildTaskDefinitionBuilder } from '../../tasks/build/build-task-definition-builder';
 import { BuildTaskProvider } from '../../tasks/build/build-task-provider';
+import { SolutionEventHub } from '../solution-event-hub';
 
 export interface CompileCommandsGenerator {
     runCbuildSetup(): Promise<[boolean, string[]?]>
@@ -27,6 +28,7 @@ export class CompileCommandsGeneratorImpl implements CompileCommandsGenerator {
     constructor(
         private readonly buildTaskProvider: BuildTaskProvider,
         private readonly buildTaskDefinitionBuilder: BuildTaskDefinitionBuilder,
+        private readonly eventHub: SolutionEventHub,
     ) {
     }
 
@@ -53,7 +55,9 @@ export class CompileCommandsGeneratorImpl implements CompileCommandsGenerator {
                     const match = this.outputRegex.exec(output.join('\n'));
                     const returnCode = match?.[1] !== undefined ? Number(match[1]) :
                         event.exitCode !== undefined ? event.exitCode : -1;
-                    resolve([returnCode === 0, output]);
+                    const success = returnCode === 0;
+                    this.eventHub.fireCbuildCompleted({ success, output });
+                    resolve([success, output]);
                 }
             });
         });

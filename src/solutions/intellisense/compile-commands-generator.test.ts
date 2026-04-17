@@ -21,6 +21,7 @@ import { CompileCommandsGeneratorImpl } from './compile-commands-generator';
 import { buildTaskDefinitionBuilderFactory, MockBuildTaskDefinitionBuilder } from '../../tasks/build/build-task-definition-builder.factories';
 import { BuildTaskDefinition } from '../../tasks/build/build-task-definition';
 import { BuildTaskProvider, BuildTaskProviderImpl } from '../../tasks/build/build-task-provider';
+import { SolutionEventHub } from '../solution-event-hub';
 
 jest.mock('which', () => jest.fn((cmd) => Promise.resolve(path.join('path', 'to', cmd))));
 
@@ -30,9 +31,13 @@ describe('CompileCommandsGenerator', () => {
     let buildTaskDefinitionBuilder: MockBuildTaskDefinitionBuilder;
     let mockExecution: vscode.TaskExecution;
     let exitCode: number;
+    let mockEventHub: jest.Mocked<SolutionEventHub>;
 
     beforeEach(async () => {
         exitCode = 0;
+        mockEventHub = {
+            fireCbuildCompleted: jest.fn().mockResolvedValue(undefined),
+        } as unknown as jest.Mocked<SolutionEventHub>;
 
         const buildTaskDefinition: BuildTaskDefinition = {
             type: BuildTaskProviderImpl.taskType,
@@ -62,6 +67,7 @@ describe('CompileCommandsGenerator', () => {
         generator = new CompileCommandsGeneratorImpl(
             mockBuildTaskProvider,
             buildTaskDefinitionBuilder,
+            mockEventHub,
         );
 
     });
@@ -74,6 +80,7 @@ describe('CompileCommandsGenerator', () => {
         const [result, output] = await generator.runCbuildSetup();
         expect(result).toBe(true);
         expect(output).toEqual(expect.arrayContaining(['completed with exit code 0']));
+        expect(mockEventHub.fireCbuildCompleted).toHaveBeenCalledWith({ success: true, output: ['completed with exit code 0'] });
     }, 10000);
 
     it('prints an error message if the compilation database could not be generated', async () => {
@@ -84,5 +91,6 @@ describe('CompileCommandsGenerator', () => {
         const [result, output] = await generator.runCbuildSetup();
         expect(result).toBe(false);
         expect(output).toEqual(expect.arrayContaining(['failed with exit code 1']));
+        expect(mockEventHub.fireCbuildCompleted).toHaveBeenCalledWith({ success: false, output: ['failed with exit code 1'] });
     }, 10000);
 });
