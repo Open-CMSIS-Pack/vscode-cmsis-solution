@@ -182,6 +182,40 @@ describe('PacksView', () => {
                 expect(openFileMock).toHaveBeenCalledWith(mockPack.overviewLink, false);
             }
         });
+
+        it('opens pack URL when the pack link icon is clicked for packs without references', () => {
+            const noReferenceState: ComponentsState = {
+                ...defaultState,
+                packs: [{
+                    ...mockPack,
+                    packId: 'My::Pack@1.2.3',
+                    name: 'Pack',
+                    references: []
+                }]
+            };
+
+            const localContainer = document.createElement('div');
+            React.act(() => {
+                createRoot(localContainer).render(
+                    <PacksView
+                        state={noReferenceState}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={defaultState.availablePacks}
+                    />
+                );
+            });
+
+            const packLink = localContainer.querySelector("a[aria-label='Open pack URL']") as HTMLAnchorElement | null;
+            expect(packLink).not.toBeNull();
+
+            if (packLink) {
+                React.act(() => {
+                    packLink.click();
+                });
+                expect(openFileMock).toHaveBeenCalledWith('https://www.keil.arm.com/packs/pack-my/', true);
+            }
+        });
     });
 
     describe('empty state', () => {

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { VSCodeButton, VSCodeCheckbox } from '@vscode/webview-ui-toolkit/react';
 import * as React from 'react';
 import { FileLocationPicker } from '../../../common/components/file-path-picker';
 import { TooltipQuestion } from '../../../common/components/tooltip-question';
@@ -29,7 +28,7 @@ import { ExampleDropdownTree } from './example-dropdown-tree';
 import { HardwareRow } from './hardware-row';
 import { ProjectConfiguration } from './project-configuration';
 import { validationError } from './validation-message';
-import { ConfigProvider, theme, Tooltip } from 'antd';
+import { Button, Checkbox, ConfigProvider, theme, Tooltip } from 'antd';
 import { useVSCodeTheme } from '../../../hooks/use-vscode-theme';
 import { SettingOutlined } from '@ant-design/icons';
 
@@ -47,12 +46,12 @@ export interface CreateSolutionProps {
 
 const SettingsLink = ({ setting, children }: { setting: string, children?: React.ReactNode }) => (
     <>
-        { children }
-        <a href={ 'vscode://settings/cmsis-csolution.' + setting }
+        {children}
+        <a href={'vscode://settings/cmsis-csolution.' + setting}
             className="preferences-link"
             title='Preferences: Open Settings'
         >
-            <SettingOutlined style={{ marginLeft: '4px' }}/>
+            <SettingOutlined style={{ marginLeft: '4px' }} />
         </a>
     </>
 );
@@ -217,7 +216,7 @@ export const CreateSolution = ({ creationActions, messageHandler }: CreateSoluti
                                         <>
                                             <span style={{ width: '100%' }}>Templates, Reference Applications, and Examples</span>
                                             <span className="checkbox-field">
-                                                <VSCodeCheckbox id={'create-solution-from-all-pack-versions'} checked={state.fromAllPackVersions} onChange={() => dispatch({ type: 'TOGGLE_ALL_PACK_VERSIONS' })} disabled={disabled} />
+                                                <Checkbox id={'create-solution-from-all-pack-versions'} checked={state.fromAllPackVersions} onChange={() => dispatch({ type: 'TOGGLE_ALL_PACK_VERSIONS' })} disabled={disabled} />
                                                 <label htmlFor="create-solution-from-all-pack-versions">All pack versions</label>
                                                 <TooltipQuestion title={'Show projects from all versions instead of latest pack version only'} />
                                             </span>
@@ -283,31 +282,31 @@ export const CreateSolution = ({ creationActions, messageHandler }: CreateSoluti
                                 <div className="form-row form-row--narrow">{validationError(validationErrors.solutionLocation)}</div>
                             )}
                             <div className="checkbox-field">
-                                <VSCodeCheckbox id={'create-solution-git-init-input'} checked={state.initGit} onChange={() => dispatch({ type: 'TOGGLE_INIT_GIT' })} disabled={disabled} />
+                                <Checkbox id={'create-solution-git-init-input'} checked={state.initGit} onChange={() => dispatch({ type: 'TOGGLE_INIT_GIT' })} disabled={disabled} />
                                 <label htmlFor="create-solution-git-init-input">Initialize Git repository</label>
                                 <TooltipQuestion title={'Set up your solution for Git version control, allowing you to track changes.'} />
                             </div>
                             <div className="checkbox-field">
-                                <VSCodeCheckbox id={'create-solution-open-modal-input'} checked={state.showOpenDialog} onChange={() => dispatch({ type: 'TOGGLE_OPEN_MODAL' })} disabled={disabled} />
+                                <Checkbox id={'create-solution-open-modal-input'} checked={state.showOpenDialog} onChange={() => dispatch({ type: 'TOGGLE_OPEN_MODAL' })} disabled={disabled} />
                                 <label htmlFor="create-solution-open-modal-input">Show project opening options</label>
                                 <TooltipQuestion title={'If selected, shows project opening options dialog box. If not selected, opens the project in a new window and new workspace by default.'} />
                             </div>
                         </fieldset>
                         <footer className="create-solution-footer">
                             <div className="create-solution-button-strip">
-                                <VSCodeButton
+                                <Button
                                     title="Cancel"
-                                    appearance="secondary"
+                                    type="default"
                                     disabled={state.createProgress !== 'idle'}
                                     onClick={() => {
                                         messageHandler.push({ type: 'WEBVIEW_CLOSE' });
                                     }}
                                 >
-                                Cancel
-                                </VSCodeButton>
-                                <VSCodeButton title="Create Solution" disabled={disabled || !ready} onClick={() => creationActions.createSolution(dispatch, state, messageHandler)}>
+                                    Cancel
+                                </Button>
+                                <Button title="Create Solution" type="primary" disabled={disabled || !ready} onClick={() => creationActions.createSolution(dispatch, state, messageHandler)}>
                                     {state.createProgress === 'checking' ? 'Checking…' : state.createProgress === 'creating' ? 'Creating…' : 'Create'}
-                                </VSCodeButton>
+                                </Button>
                             </div>
                         </footer>
                     </form>

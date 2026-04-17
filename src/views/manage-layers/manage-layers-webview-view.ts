@@ -18,7 +18,7 @@ import '../webpack-globals';
 import { MessageHandlerImpl } from '../message-handler';
 import * as Messages from './messages';
 
-// Const function created by webview iframe script
+// Acquire the VS Code webview API via vscode-messenger-webview.
 const api = acquireVsCodeApi();
 
 const messageHandler = new MessageHandlerImpl<Messages.IncomingMessage, Messages.OutgoingMessage>(

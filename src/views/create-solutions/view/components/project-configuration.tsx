@@ -17,10 +17,12 @@
 import * as React from 'react';
 import './project-configuration.css';
 import { DeviceHardwareOption, NewProject, ProcessorInfo, Trustzone, validTrustZone } from '../../cmsis-solution-types';
-import { VSCodeButton, VSCodeDropdown, VSCodeOption } from '@vscode/webview-ui-toolkit/react';
 import { CreateSolutionAction } from '../state/reducer';
 import { validationError } from './validation-message';
 import { FieldAndInteraction } from '../state/field-and-interaction';
+import { Button } from 'antd';
+import { CompactDropdown } from '../../../common/components/compact-dropdown';
+import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
 
 type ProjectConfigurationProps = {
     device: DeviceHardwareOption;
@@ -40,18 +42,18 @@ export const ProjectConfiguration = (props: ProjectConfigurationProps) => {
                 <div>Core</div>
                 <div>TrustZone</div>
             </div>
-            {projects.map((project, index) => <ProjectConfigurationRow key={index} index={index} rowInfo={project.value} error={errors[index]} device={device} dispatch={dispatch} removeDisabled={projects.length === 1}/>)}
-            <VSCodeButton
+            {projects.map((project, index) => <ProjectConfigurationRow key={index} index={index} rowInfo={project.value} error={errors[index]} device={device} dispatch={dispatch} removeDisabled={projects.length === 1} />)}
+            <Button
                 className='add-project-config-row button'
                 title='Add a new project configuration row'
                 onClick={() => dispatch({ type: 'MODIFY_PROJECT', request: { type: 'ADD_PROJECT' } })}
             >
-            Add Project
-            </VSCodeButton>
+                Add Project
+            </Button>
             {showTrustZoneText && (
                 <div className='trustzone-info'>
                     <span className="codicon codicon-info"></span>
-                        Some TrustZone devices will be shipped with secure firmware by the manufacturer.<br />Please check your device&apos;s specification before adding your own secure project.
+                    Some TrustZone devices will be shipped with secure firmware by the manufacturer.<br />Please check your device&apos;s specification before adding your own secure project.
                 </div>
             )}
         </React.Fragment>
@@ -76,28 +78,7 @@ const ProjectConfigurationRow = (props: ProjectConfigurationRowProps) => {
         ? ['secure', 'non-secure', 'off']
         : ['off'];
 
-    const coreDropdownOptions = device.processors.length === 1
-        ? [<VSCodeOption key={processor?.core} value={processor?.core}>{processor?.core}</VSCodeOption>]
-        : device.processors.map(processor => (
-            <VSCodeOption
-                key={processor.name}
-                value={processor.name}
-                onClick={(e) => dispatch({
-                    type: 'MODIFY_PROJECT',
-                    request: { type: 'UPDATE_PROJECT_CORE', index: index, processorName: (e.target as HTMLInputElement).value },
-                })}
-            >{processor.name}</VSCodeOption>
-        ));
-
-    const trustZoneDropdownOptions = trustzoneOptions.map(option =>
-        <VSCodeOption
-            key={`${rowInfo.name}-${option}`}
-            value={option}
-            onClick={() => dispatch({
-                type: 'MODIFY_PROJECT',
-                request: { type: 'UPDATE_PROJECT_TRUSTZONE', index: index, trustzone: option as Trustzone },
-            })}
-        >{option}</VSCodeOption>);
+    const coreDropdownOptions = device.processors.map(p => p.name);
 
     return (
         <div className='project-config-row layout-config-info'>
@@ -112,27 +93,43 @@ const ProjectConfigurationRow = (props: ProjectConfigurationRowProps) => {
                 title='Provide a descriptive name for each project contained in your solution'
             >
             </input>
-            <VSCodeDropdown
-                className='dropdownCore'
+            <CompactDropdown
                 disabled={coreDropdownOptions.length > 1 ? false : true}
                 title={coreDropdownOptions.length > 1 ? 'The Arm core that the project will run on, as determined by the cores on the selected microcontroller (MCU) device' : 'No additional core options to select from the dropdown'}
-                value={device.processors.length === 1 ? processor?.core : rowInfo.processorName}
-            >{coreDropdownOptions}</VSCodeDropdown>
-            <VSCodeDropdown
-                className='dropdownTrustzone'
+                selected={coreDropdownOptions.length === 1 ? processor?.core || '' : rowInfo.processorName}
+                available={coreDropdownOptions}
+                style={{ width: 'auto' }}
+                className='dropdownCore'
+                onChange={(option) => {
+                    dispatch({
+                        type: 'MODIFY_PROJECT',
+                        request: { type: 'UPDATE_PROJECT_CORE', index: index, processorName: option },
+                    });
+                }}
+            />
+            <CompactDropdown
                 disabled={!(trustzoneOptions.length > 1)}
-                title={trustZoneDropdownOptions.length > 1 ? 'TrustZone reduces the potential for attack by isolating the critical security firmware, assets and private information from the rest of the application' : 'No additional trustzone options to select from the dropdown'}
-                value={rowInfo.trustzone}
-            >{trustZoneDropdownOptions}</VSCodeDropdown>
-            <VSCodeButton
-                appearance="icon"
+                title={trustzoneOptions.length > 1 ? 'TrustZone reduces the potential for attack by isolating the critical security firmware, assets and private information from the rest of the application' : 'No additional trustzone options to select from the dropdown'}
+                selected={rowInfo.trustzone}
+                available={trustzoneOptions.map(option => option)}
+                style={{ width: 'auto' }}
+                className='dropdownTrustzone'
+                onChange={(option) => {
+                    dispatch({
+                        type: 'MODIFY_PROJECT',
+                        request: { type: 'UPDATE_PROJECT_TRUSTZONE', index: index, trustzone: option as Trustzone },
+                    });
+                }}
+            />
+            <Button
+                icon={<CmsisCodicon name='trash' />}
+                type="default"
+                variant="text"
                 aria-label="Delete"
                 disabled={removeDisabled}
                 onClick={() => dispatch({ type: 'MODIFY_PROJECT', request: { type: 'REMOVE_PROJECT', index: index } })}
                 title='Remove the current project configuration row'
-            >
-                <span className="codicon codicon-trash"></span>
-            </VSCodeButton>
+            />
             {validationError(error)}
         </div>
     );

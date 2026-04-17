@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { TextField } from '@vscode/webview-ui-toolkit';
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Simulate } from 'react-dom/test-utils';
@@ -40,13 +39,13 @@ describe('HardwareRow', () => {
     const getElements = () => ({
         boardDropdown: container.querySelector('#create-solution-board-target') as HTMLElement,
         deviceDropdown: container.querySelector('#create-solution-device-target') as HTMLElement,
-        targetType: container.querySelector('#create-solution-target-type') as TextField,
+        targetType: container.querySelector('#create-solution-target-type') as HTMLInputElement,
         hardwareRowHeaders: container.querySelector('#create-solution-hardware') as HTMLElement
 
     });
 
     const makeTargetCategories = <A,>(param: A) => {
-        return   {
+        return {
             header: 'Test Header',
             categories: [],
             items: ['A', 'B', 'C'].map(i => ({
@@ -61,7 +60,7 @@ describe('HardwareRow', () => {
     const devices: TreeViewCategory<DeviceHardwareOption>[] = ([makeTargetCategories(deviceHardwareOptionFactory())]);
     const hardwareLists: AsyncStatus<HardwareLists> = asyncLoaded({ boards, devices });
 
-    beforeEach(async() => {
+    beforeEach(async () => {
         container = document.createElement('div');
         jest.clearAllMocks();
         listener = jest.fn();
@@ -85,7 +84,7 @@ describe('HardwareRow', () => {
                 validationErrors={validationErrors}
                 webServicesEnabled={state.webServicesEnabled}
                 messageHandler={messageHandler}
-                dispatch={dispatch}/>
+                dispatch={dispatch} />
         ));
 
         const input = container.querySelector('#create-solution-target-type') as HTMLElement;
@@ -101,7 +100,7 @@ describe('HardwareRow', () => {
                 validationErrors={validationErrors}
                 webServicesEnabled={state.webServicesEnabled}
                 messageHandler={messageHandler}
-                dispatch={dispatch}/>
+                dispatch={dispatch} />
         ));
 
         const elements = getElements();
@@ -120,7 +119,7 @@ describe('HardwareRow', () => {
                 validationErrors={validationErrors}
                 webServicesEnabled={state.webServicesEnabled}
                 messageHandler={messageHandler}
-                dispatch={dispatch}/>
+                dispatch={dispatch} />
         ));
 
         const elements = getElements();
@@ -140,7 +139,7 @@ describe('HardwareRow', () => {
                 validationErrors={validationErrors}
                 webServicesEnabled={state.webServicesEnabled}
                 messageHandler={messageHandler}
-                dispatch={dispatch}/>
+                dispatch={dispatch} />
         ));
         const clearButton = container.querySelector('[title="clear-selection"]') as HTMLButtonElement;
 
@@ -160,7 +159,7 @@ describe('HardwareRow', () => {
                 validationErrors={validationErrors}
                 webServicesEnabled={state.webServicesEnabled}
                 messageHandler={messageHandler}
-                dispatch={dispatch}/>
+                dispatch={dispatch} />
         ));
 
         const clearButton = container.querySelector('[title="clear-selection"]');

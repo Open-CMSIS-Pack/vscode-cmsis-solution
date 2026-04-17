@@ -17,7 +17,6 @@
 import 'jest';
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { simulateChangeEvent } from '../../../../__test__/dom-events';
 import { refAppFactory } from '../../../../core-tools/core-tools-service.factories';
 import { cSolutionExampleFactory } from '../../../../solar-search/solar-search-client.factories';
@@ -25,33 +24,36 @@ import { MockMessageHandler } from '../../../__test__/mock-message-handler';
 import { boardHardwareOptionFactory, deviceHardwareOptionFactory } from '../../cmsis-solution-types.factories';
 import { IncomingMessage, OutgoingMessage } from '../../messages';
 import { CreationActions } from '../actions';
-import { CreateSolutionState } from '../state/reducer';
 import { CreateSolution } from './create-solution';
+import { act } from 'react';
+import { CreateSolutionState } from '../state/reducer';
 
 
 
-const targetDataWindowMessage: IncomingMessage = { type: 'TARGET_DATA', data: {
-    devices: [
-        {
-            header: 'Test Header',
-            categories: [],
-            items: ['A', 'B', 'C'].map(i => ({
-                label: `Item ${i}`,
-                value: deviceHardwareOptionFactory(),
-            }))
-        }
-    ],
-    boards: [
-        {
-            header: 'Test Header',
-            categories: [],
-            items: ['A', 'B', 'C'].map(i => ({
-                label: `Item ${i}`,
-                value: boardHardwareOptionFactory(),
-            }))
-        }
-    ]
-}, errors: [] };
+const targetDataWindowMessage: IncomingMessage = {
+    type: 'TARGET_DATA', data: {
+        devices: [
+            {
+                header: 'Test Header',
+                categories: [],
+                items: ['A', 'B', 'C'].map(i => ({
+                    label: `Item ${i}`,
+                    value: deviceHardwareOptionFactory(),
+                }))
+            }
+        ],
+        boards: [
+            {
+                header: 'Test Header',
+                categories: [],
+                items: ['A', 'B', 'C'].map(i => ({
+                    label: `Item ${i}`,
+                    value: boardHardwareOptionFactory(),
+                }))
+            }
+        ]
+    }, errors: []
+};
 
 describe('CreateSolution', () => {
     let container: Element;
@@ -60,8 +62,8 @@ describe('CreateSolution', () => {
     let creationActions: { [key in keyof CreationActions]: jest.Mock<ReturnType<CreationActions[key]>, Parameters<CreationActions[key]>> };
 
     const getElements = () => ({
-        createBtn: container.querySelector('vscode-button[title="Create Solution"]') as HTMLButtonElement,
-        cancelBtn: container.querySelector('vscode-button[title="Cancel"]') as HTMLButtonElement,
+        createBtn: container.querySelector('button[title="Create Solution"]') as HTMLButtonElement,
+        cancelBtn: container.querySelector('button[title="Cancel"]') as HTMLButtonElement,
         fInput: container.querySelector('#create-solution-solution-folder') as HTMLInputElement,
         boardDropdown: container.querySelector('#create-solution-board-target') as HTMLElement,
         deviceDropdown: container.querySelector('#create-solution-device-target') as HTMLElement,
@@ -79,6 +81,11 @@ describe('CreateSolution', () => {
         await act(async () => firstOption.click());
     };
 
+    const confirmTargetSelection = async () => {
+        const selectButton = container.querySelector('button[title="Select"]:not([disabled])') as HTMLButtonElement;
+        await act(async () => selectButton.click());
+    };
+
     const selectFirstTemplate = async () => {
         const firstTemplate = container.querySelector('.template') as HTMLElement;
         await act(async () => firstTemplate.click());
@@ -94,6 +101,7 @@ describe('CreateSolution', () => {
 
         await openDropdown(elements.boardDropdown);
         await selectFirstTarget();
+        await confirmTargetSelection();
 
         await openDropdown(elements.templateDropdown);
         await selectFirstTemplate();
@@ -119,6 +127,17 @@ describe('CreateSolution', () => {
                     break;
                 case 'GET_PLATFORM':
                     messageHandler.postWindowMessage({ type: 'PLATFORM', data: { name: 'vscode' } });
+                    break;
+                case 'DATA_GET_BOARD_INFO':
+                    messageHandler.postWindowMessage({
+                        type: 'HARDWARE_INFO',
+                        data: {
+                            memoryInfo: {},
+                            image: '',
+                            debugInterfacesList: [],
+                            boardInfo: boardHardwareOptionFactory(),
+                        },
+                    });
                     break;
             }
             messageHandler.postWindowMessage({ type: 'REQUEST_SUCCESSFUL', requestType: message.type });
@@ -153,10 +172,10 @@ describe('CreateSolution', () => {
     it('requests closure of the webview on the cancel button', async () => {
         await renderCreateSolution();
         const expectedMessage: OutgoingMessage = { type: 'WEBVIEW_CLOSE' };
-        const cancelBtn = Array.from(container.querySelectorAll('#create-solution-form vscode-button'))
+        const cancelBtn = Array.from(container.querySelectorAll('#create-solution-form button'))
             .find(button => button.innerHTML.includes('Cancel')) as HTMLButtonElement;
 
-        await act(async() => cancelBtn!.click());
+        await act(async () => cancelBtn!.click());
 
         expect(listener).toHaveBeenLastCalledWith(expectedMessage);
     });
@@ -178,7 +197,7 @@ describe('CreateSolution', () => {
         const example = cSolutionExampleFactory();
         messageHandler.postWindowMessage({
             type: 'BOARD_EXAMPLE_DATA',
-            data: [ example ],
+            data: [example],
         });
 
         await openDropdown(getElements().templateDropdown);
@@ -239,7 +258,7 @@ describe('CreateSolution', () => {
 
     it('requests the directory path when the browse button is clicked', async () => {
         await renderCreateSolution();
-        const browseBtn = container.querySelector('#create-solution-file-locator ~ vscode-button') as HTMLButtonElement;
+        const browseBtn = container.querySelector('#create-solution-file-locator ~ button') as HTMLButtonElement;
 
         await act(async () => browseBtn!.click());
 
@@ -275,7 +294,7 @@ describe('CreateSolution', () => {
         expect(errorMessageElement.innerHTML.includes('already exists at this location'));
     });
 
-    it ('auto selects a board if it is connected', async () => {
+    it('auto selects a board if it is connected', async () => {
         const connectedBoard = targetDataWindowMessage.data.boards[0].items[1].value;
         listener.mockImplementation(async (message: OutgoingMessage) => {
             switch (message.type) {
@@ -300,7 +319,7 @@ describe('CreateSolution', () => {
 
         messageHandler.postWindowMessage({
             type: 'BOARD_EXAMPLE_DATA',
-            data: [ example ],
+            data: [example],
         });
 
         const templateDropdown = getElements().templateDropdown;

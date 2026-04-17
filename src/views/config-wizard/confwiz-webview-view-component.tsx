@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from '@vscode/webview-ui-toolkit/react';
 import { Column, ColumnBodyOptions } from 'primereact/column';
 import { TreeNode } from 'primereact/treenode';
 import { TreeTable } from 'primereact/treetable';
@@ -32,8 +31,12 @@ import {
     setPanelActiveType,
     setWizardDataType
 } from './confwiz-webview-common';
+import { Input, Checkbox, ConfigProvider, theme } from 'antd';
 import { filterTree } from './../filterTree';
 import './confwiz-webview.css';
+import { CompactDropdown } from '../common/components/compact-dropdown';
+
+const { Search } = Input;
 
 // Render-only helper flag for dimming
 type DTreeNode = TreeNode & { dimmed?: boolean };
@@ -77,8 +80,8 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
     };
     protected get messenger(): Messenger {
         if (!this._messenger) {
-            const vscode = acquireVsCodeApi();
-            this._messenger = new Messenger(vscode);
+            const vscodeApi = acquireVsCodeApi();
+            this._messenger = new Messenger(vscodeApi);
             this._messenger.start();
         }
 
@@ -382,86 +385,81 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         const errorsText = this.getErrorsText(rootNode);
 
         const header = <div className='tree-table-header'>
-            <VSCodeTextField
+            <Search
                 className='tree-table-filter'
                 placeholder='Search annotations'
-                type='text'
+                allowClear
+                onClear={(): void => {
+                    this.setState({ filter: '' });
+                }}
                 onInput={(event): void => {
                     const element = event.target as HTMLInputElement;
                     this.setState({ filter: element.value });
                 }}
-            >
-                <span slot='start' className='codicon codicon-search'></span>
-            </VSCodeTextField>
+            />
         </div>;
 
         const filteredChildren = filterTree(rootNode.children, this.state.filter);
+        const isDarkTheme = document.body.classList.contains('vscode-dark');
 
-        return <div>
-            <TreeTable
-                value={filteredChildren}
-                header={header}
-                tableStyle={{ minWidth: '30rem' }}
-                expandedKeys={this.state.expandedKeys}
-                onToggle={(event: { value: Record<string, boolean> }) => {
-                    this.pendingRefocus = true;
-                    this.pendingRefocusKey = this.state.activeKey;
-                    this.setState({ expandedKeys: event.value });
-                }}
-                // Apply dimming to the row itself; no extra wrappers in cells (keeps expanders aligned)
-                rowClassName={(node: DTreeNode) => {
-                    const key = this.getNodeKey(node);
-                    const lastTouchedKey = this.state.lastTouchedKey ?? this.state.activeKey;
-                    const isLastTouched = key !== '' && key === lastTouchedKey;
-                    const isInactive = isLastTouched && (!this.state.panelIsActive || !this.state.hasUserFocus);
-                    const isActive = key !== '' && key === this.state.activeKey && this.state.panelIsActive && this.state.hasUserFocus;
-                    return {
-                        'tree-dimmed': !!node?.dimmed,
-                        'cw-row-active': isActive,
-                        'cw-row-inactive': isInactive,
-                    };
-                }}
-            >
-                <Column
-                    header='Option'
-                    className='tree-table-column-name'
-                    style={{ width: '50%' }}
-                    expander
-                    body={(data: TreeNode, _options: ColumnBodyOptions) => {
-                        return this.createTextName(data.data as TreeNodeElement);
-                    }}
-                />
-                <Column
-                    header='Value'
-                    style={{ width: '50%' }}
-                    body={(data: TreeNode, _options: ColumnBodyOptions) => {
-                        const treeNodeData = data.data as TreeNodeElement;
-                        const isDimmed = (data as DTreeNode).dimmed || false;
+        return (
+            <ConfigProvider
+                theme={{
+                    algorithm: isDarkTheme ? theme.darkAlgorithm : theme.defaultAlgorithm,
+                }}>
+                <div>
+                    <TreeTable
+                        value={filteredChildren}
+                        header={header}
+                        tableStyle={{ minWidth: '30rem' }}
+                        expandedKeys={this.state.expandedKeys}
+                        onToggle={(event: { value: Record<string, boolean> }) => {
+                            this.pendingRefocus = true;
+                            this.pendingRefocusKey = this.state.activeKey;
+                            this.setState({ expandedKeys: event.value });
+                        }}
+                        // Apply dimming to the row itself; no extra wrappers in cells (keeps expanders aligned)
+                        rowClassName={(node: DTreeNode) => {
+                            const key = this.getNodeKey(node);
+                            const lastTouchedKey = this.state.lastTouchedKey ?? this.state.activeKey;
+                            const isLastTouched = key !== '' && key === lastTouchedKey;
+                            const isInactive = isLastTouched && (!this.state.panelIsActive || !this.state.hasUserFocus);
+                            const isActive = key !== '' && key === this.state.activeKey && this.state.panelIsActive && this.state.hasUserFocus;
+                            return {
+                                'tree-dimmed': !!node?.dimmed,
+                                'cw-row-active': isActive,
+                                'cw-row-inactive': isInactive,
+                            };
+                        }}
+                    >
+                        <Column
+                            header='Option'
+                            className='tree-table-column-name'
+                            style={{ width: '50%' }}
+                            expander
+                            body={(data: TreeNode, _options: ColumnBodyOptions) => {
+                                return this.createTextName(data.data as TreeNodeElement);
+                            }}
+                        />
+                        <Column
+                            header='Value'
+                            style={{ width: '50%' }}
+                            body={(data: TreeNode, _options: ColumnBodyOptions) => {
+                                const treeNodeData = data.data as TreeNodeElement;
+                                const isDimmed = (data as DTreeNode).dimmed || false;
 
-                        // Only disable children of unchecked checkboxes, not the unchecked checkbox itself
-                        const isUncheckedCheckbox = this.isUncheckedCheckbox(treeNodeData);
-                        const shouldDisable = isDimmed && !isUncheckedCheckbox;
+                                // Only disable children of unchecked checkboxes, not the unchecked checkbox itself
+                                const isUncheckedCheckbox = this.isUncheckedCheckbox(treeNodeData);
+                                const shouldDisable = isDimmed && !isUncheckedCheckbox;
 
-                        return this.createGuiElement(treeNodeData, shouldDisable);
-                    }}
-                />
-            </TreeTable>
-            {errorsText}
-        </div>;
-    }
-
-    protected getComboDropItems(element: TreeNodeElement): React.JSX.Element[] {
-        if (element.dropItems == undefined) {
-            return [];
-        }
-
-        const options: React.JSX.Element[] = [];
-        for (const val of element.dropItems) {
-            const sel = (element.value.value == val) ? true : false;
-            options.push(<VSCodeOption value={val} selected={sel}>{val}</VSCodeOption>);
-        }
-
-        return options;
+                                return this.createGuiElement(treeNodeData, shouldDisable);
+                            }}
+                        />
+                    </TreeTable>
+                    {errorsText}
+                </div>
+            </ConfigProvider>
+        );
     }
 
     protected getInfoItems(element: TreeNodeElement): string {
@@ -475,7 +473,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
     }
 
     protected createCombobox(element: TreeNodeElement, shouldDisable: boolean = false): React.ReactElement {
-        const options = this.getComboDropItems(element);
+        // const options = this.getComboDropItems(element);
         const infos = this.getInfoItems(element);
         const key = this.getElementKey(element);
 
@@ -491,11 +489,11 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
 
         // If there's no matching option, inject a temporary "missing" option so the selection is visible
         if (isInvalid) {
-            options.unshift(
-                <VSCodeOption key="__missing__" value={selectedValue} selected>
-                    {`${selectedValue} (not in list)`}
-                </VSCodeOption>
-            );
+            // options.unshift(
+            //     <VSCodeOption key="__missing__" value={selectedValue} selected>
+            //         {`${selectedValue} (not in list)`}
+            //     </VSCodeOption>
+            // );
         }
 
         let tooltipMessage = infos;
@@ -509,24 +507,25 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
 
         return (
             <div ref={this.keyboardNav.registerValueRef(key)} onFocusCapture={() => this.handleUserFocus(key)}>
-                <VSCodeDropdown
-                    className={`tree-dropdown ${isInvalid || hasOverflow ? 'dropdown-invalid' : ''}`}
+                <CompactDropdown
                     disabled={element.value.readOnly || shouldDisable}
-                    value={selectedValue}
-                    onChange={(event) => {
-                        const selectElement = event.target as HTMLSelectElement;
-                        this.inputDropdown(selectElement, element);
-                    }}
-                    onKeyDown={(event) => {
-                        if (this.keyboardNav.onValueKeyDown(event, key)) {
-                            return;
-                        }
-                        this.onKeyDownFilter(event);
+                    selected={selectedValue}
+                    available={dropItems}
+                    style={{ width: '100%' }}
+                    onChange={(value) => {
+                        // const selectElement = event.target as HTMLSelectElement;
+                        // this.inputDropdown(selectElement, element);
+                        element.newValue.value = value;
+                        // Immediate local update for consistent behavior with checkbox and text field
+                        element.value.value = value;
+                        this.forceUpdate();
+                        // Toggle forceRender to trigger React re-render
+                        this.setState(prevState => ({ forceRender: !prevState.forceRender }));
+                        this.messenger.sendNotification(saveElement, HOST_EXTENSION, { documentPath: this.state.documentPath, element, noAnnotationsFound: false });
                     }}
                     title={tooltipMessage}
-                >
-                    {options}
-                </VSCodeDropdown>
+                    warning={isInvalid || hasOverflow ? tooltipMessage : undefined}
+                />
             </div>
         );
     }
@@ -553,11 +552,11 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
             : infos;
 
         const option = (
-            <VSCodeCheckbox
+            <Checkbox
                 className={isInconsistent ? 'checkbox-inconsistent' : undefined}
                 disabled={element.value.readOnly || shouldDisable}
-                onClick={(event) => {
-                    const inputElement = event.currentTarget as HTMLInputElement;
+                onChange={(event) => {
+                    const inputElement = event.target as HTMLInputElement;
                     this.toggleChecked(inputElement, element);
                 }}
                 onKeyDown={(event) => {
@@ -584,11 +583,15 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
     protected createEdit(element: TreeNodeElement, shouldDisable: boolean = false): React.ReactElement {
         const infos = this.getInfoItems(element);
         const key = this.getElementKey(element);
-        const option = <VSCodeTextField
+        const option = <Input
             value={element.value.value}
             disabled={element.value.readOnly || shouldDisable}
             readOnly={element.value.readOnly || shouldDisable}
             title={infos}
+            onChange={e => {
+                element.value.value = (e.target as HTMLInputElement).value;
+                this.forceUpdate();
+            }}
             onInput={(event) => {
                 const inputElement = event.target as HTMLInputElement;
                 // Update local state immediately for UI responsiveness
@@ -687,20 +690,11 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         this.messenger.sendNotification(saveElement, HOST_EXTENSION, { documentPath: this.state.documentPath, element, noAnnotationsFound: false });
     }
 
-    private onEditChange(edit: HTMLInputElement, element: TreeNodeElement) {
+    private onEditChange(edit: HTMLInputElement | HTMLTextAreaElement, element: TreeNodeElement) {
         // - element.newValue.value: used for backend save logic
         element.newValue.value = edit.value;
         // - element.value.value: used for immediate UI update (VSCodeTextField value property)
         element.value.value = edit.value;
-        this.messenger.sendNotification(saveElement, HOST_EXTENSION, { documentPath: this.state.documentPath, element, noAnnotationsFound: false });
-    }
-
-    private inputDropdown(selected: HTMLSelectElement, element: TreeNodeElement) {
-        element.newValue.value = selected.value;
-        // Immediate local update for consistent behavior with checkbox and text field
-        element.value.value = selected.value;
-        // Toggle forceRender to trigger React re-render
-        this.setState(prevState => ({ forceRender: !prevState.forceRender }));
         this.messenger.sendNotification(saveElement, HOST_EXTENSION, { documentPath: this.state.documentPath, element, noAnnotationsFound: false });
     }
 

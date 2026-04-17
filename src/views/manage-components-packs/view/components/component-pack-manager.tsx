@@ -26,6 +26,7 @@ import { flatTree } from '../../data/component-tree';
 import { ComponentsView } from './components-view';
 import { PacksView } from './packs-view';
 import { useVSCodeTheme } from '../../../hooks/use-vscode-theme';
+import { PackTitleLink } from './pack-title-link';
 
 // Import the necessary components and types from Ant Design
 
@@ -122,51 +123,58 @@ export const ComponentPackManager = (props: ComponentProps) => {
                         },
                         token: { fontSize: 13, sizeStep: 4, borderRadius: 3 }
                     }}>
-                    <Row className='components-view-actions'>
-                        <Col>
-                            <Button onClick={onApplyComponentSet} disabled={!state.isDirty} style={{ minWidth: '100px' }} type='primary'>Save</Button>
-                        </Col>
-                        <Col flex={'350px'}>
-                            <Segmented
-                                options={[{ label: 'Components', value: 'components' }, { label: 'Software packs', value: 'packs' }]}
-                                value={activeView}
-                                onChange={onChangeActiveView} />
-                        </Col>
-                        <Col flex={'auto'}>
-                            <Segmented
-                                options={[{ label: 'Packs in solution', value: ComponentScope.Solution }, { label: 'All installed packs', value: ComponentScope.All }]}
-                                value={state.componentScope}
-                                onChange={onChangeComponentRange} />
-                        </Col>
-                    </Row>
+                    <div style={{ minWidth: '790px', overflowX: 'auto' }}>
+                        <Row className='components-view-actions'>
+                            <Col>
+                                <Button onClick={onApplyComponentSet} disabled={!state.isDirty} style={{ minWidth: '100px' }} type='primary'>Save</Button>
+                            </Col>
+                            <Col flex={'350px'}>
+                                <Segmented
+                                    options={[{ label: 'Components', value: 'components' }, { label: 'Software packs', value: 'packs' }]}
+                                    value={activeView}
+                                    onChange={onChangeActiveView} />
+                                <PackTitleLink
+                                    packId={undefined}
+                                    packName={undefined}
+                                    openFile={openFile}
+                                />
+                            </Col>
+                            <Col flex={'auto'}>
+                                <Segmented
+                                    options={[{ label: 'Packs in solution', value: ComponentScope.Solution }, { label: 'All installed packs', value: ComponentScope.All }]}
+                                    value={state.componentScope}
+                                    onChange={onChangeComponentRange} />
+                            </Col>
+                        </Row>
 
-                    {activeView === 'components' &&
-                        <ComponentsView
-                            treeNodes={treeNodes}
-                            state={state}
-                            expandedRowKeys={expandedRowKeys}
-                            setExpandedRowKeys={setExpandedRowKeys}
-                            dropdownKey={dropdownKey}
-                            setDropdownKey={setDropdownKey}
-                            componentRefs={componentRefs}
-                            messageHandler={messageHandler}
-                            validationErrorComponents={validationErrorComponents}
-                            onChangeComponentValue={onChangeComponentValue}
-                            onChangeComponentVariant={onChangeComponentVariant}
-                            onChangeBundle={onChangeBundle}
-                            openFile={openFile}
-                            openDocFile={openDocFile}
-                            onSearch={onSearch}
-                        />
-                    }
-                    {activeView === 'packs' &&
-                        <PacksView
-                            state={state}
-                            openFile={openFile}
-                            messageHandler={messageHandler}
-                            availablePacks={state.availablePacks}
-                        />
-                    }
+                        {activeView === 'components' &&
+                            <ComponentsView
+                                treeNodes={treeNodes}
+                                state={state}
+                                expandedRowKeys={expandedRowKeys}
+                                setExpandedRowKeys={setExpandedRowKeys}
+                                dropdownKey={dropdownKey}
+                                setDropdownKey={setDropdownKey}
+                                componentRefs={componentRefs}
+                                messageHandler={messageHandler}
+                                validationErrorComponents={validationErrorComponents}
+                                onChangeComponentValue={onChangeComponentValue}
+                                onChangeComponentVariant={onChangeComponentVariant}
+                                onChangeBundle={onChangeBundle}
+                                openFile={openFile}
+                                openDocFile={openDocFile}
+                                onSearch={onSearch}
+                            />
+                        }
+                        {activeView === 'packs' &&
+                            <PacksView
+                                state={state}
+                                openFile={openFile}
+                                messageHandler={messageHandler}
+                                availablePacks={state.availablePacks}
+                            />
+                        }
+                    </div>
                 </ConfigProvider>
             </div>
         </React.StrictMode>

@@ -25,8 +25,10 @@ import { parsePackId } from '../../data/pack-parse';
 import { MessageHandler } from '../../../message-handler';
 import { IncomingMessage, OutgoingMessage } from '../../messages';
 import { PackPropertiesDialog } from './pack-properties';
+import { PackTitleLink } from './pack-title-link';
 import { ComponentPackTargetSelect } from './component-pack-target-select';
 import { buildAllOrigins } from '../helpers/components-packs-helpers';
+
 
 const { Search } = Input;
 
@@ -73,9 +75,9 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
 
         const renderPackColumn = (_value: string, record: PackRowDataType) => {
             const pack = parsePackId(record.packId);
-
+            const packTitle = <PackTitleLink packId={record.packId} packName={record.name} openFile={openFile} />;
             const referencedFrom = [
-                <div key='pack-name'>{record.name}</div>,
+                <div key='pack-name'>{packTitle}</div>,
                 ...(record.references?.map((ref, index) => {
                     const p = parsePackId(ref.pack);
                     const hasRelPath = Boolean(ref.relPath?.trim());
@@ -108,7 +110,9 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
                                 <span>{record.name}</span>
                             </Tooltip>
                         ) : (
-                            <Tooltip title={record.name}>{record.name}</Tooltip>
+                            <Tooltip title={record.name}>
+                                {packTitle}
+                            </Tooltip>
                         )}
                     </span>
                 </div>

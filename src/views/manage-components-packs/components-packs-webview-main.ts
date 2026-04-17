@@ -86,7 +86,9 @@ type ManageComponentsCommandPayload = {
 export class ComponentsPacksWebviewMain {
     private readonly webviewManager: WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>;
 
-    private currentProject: CurrentProject;
+    public static readonly WEBVIEW_COMMAND_ID = `${manifest.PACKAGE_NAME}.manageComponentsPacks`;
+
+    private project: CurrentProject;
 
     private componentTree!: CtRoot;
     private validations!: Results;
@@ -117,7 +119,6 @@ export class ComponentsPacksWebviewMain {
             new WebviewManager(context, MANAGE_COMPONENTS_WEBVIEW_OPTIONS, commandsProvider);
         this.manageComponentsActions.setCsolutionService(this.csolutionService);
         this.manageComponentsActions.setMessageProvider(this.messageProvider);
-        this.manageComponentsActions.setCurrentProject(this.currentProject);
         this.projectFileUpdater = new ProjectFileUpdaterImpl(this.solutionManager);
     }
 
@@ -133,10 +134,66 @@ export class ComponentsPacksWebviewMain {
     }
 
     private dispose(): void {
-        this.currentProject = undefined;
-        this.componentTree = { success: false, classes: [] };
-        this.validations = { success: false, result: 'UNDEFINED', validation: [] };
-        this.manageComponentsActions.setCurrentProject(this.currentProject);
+        this.disposeInternal().catch((error) => {
+            // Ensure any errors during dispose do not become unhandled promise rejections.
+            console.error('Error during ComponentsPacksWebviewMain.dispose:', error);
+        });
+    }
+
+    private async disposeInternal(): Promise<void> {
+        const discardView = () => {
+            this.currentProject = undefined;
+            this.componentTree = { success: false, classes: [] };
+            this.validations = { success: false, result: 'UNDEFINED', validation: [] };
+            this.usedItems = { components: [], packs: [], success: false };
+            this.cachedTargetSetData = undefined;
+            this.availablePacksCache = {};
+            this.unlinkRequests.clear();
+            this.isLoading = false;
+            this.scope = ComponentScope.Solution;
+        };
+
+        const hasBaseline = this.usedItems !== undefined;
+
+        if (hasBaseline && await this.isDirty()) {
+            const buttonOptions = [
+                { title: 'Save' },
+                { title: 'Don\'t Save' },
+                { title: 'Cancel', isCloseAffordance: true },
+            ];
+            const messageOptions: vscode.MessageOptions = { modal: true, detail: 'Your changes will be lost if you don\'t save them.\nPress cancel to continue editing.' };
+
+            const pick = (await vscode.window.showWarningMessage(
+                'Do you want to save the changes you made to the Solution?',
+                messageOptions,
+                ...buttonOptions,
+            )) || { title: 'Cancel' };
+
+            switch (pick.title) {
+                case 'Save':
+                    await this.handleApplyComponentSet();
+                    discardView();
+                    break;
+                case 'Cancel':
+                    this.webviewManager.createOrShowPanel();
+                    break;
+                case 'Don\'t Save':
+                default:
+                    discardView();
+                    break;
+            }
+        } else {
+            discardView();
+        }
+    }
+
+    set currentProject(project: CurrentProject | undefined) {
+        this.project = project;
+        this.manageComponentsActions.setCurrentProject(project);
+    }
+
+    get currentProject(): CurrentProject | undefined {
+        return this.project;
     }
 
     private resolveProjectPathFromContext(context: string): string | undefined {
@@ -218,7 +275,7 @@ export class ComponentsPacksWebviewMain {
 
         if (csolution && e.newState.solutionPath) {
             // in case of switching a solution we need to track the correct or first project from the solution to keep this.currentProject active
-            if (e.newState.solutionPath !== this.currentProject?.solutionPath) {
+            if (e.newState.solutionPath !== this.project?.solutionPath) {
                 this.currentProject = undefined;
             }
 
@@ -320,7 +377,6 @@ export class ComponentsPacksWebviewMain {
         if (csolution) {
             this.clearTargetSetCache();
             this.currentProject = { solutionPath: csolution.solutionPath, project: createProject(projectId) };
-            this.manageComponentsActions.setCurrentProject(this.currentProject);
             const actx = this.getActiveContext();
 
             const activeTs = csolution.getActiveTargetSetName() ?? '';
@@ -349,11 +405,16 @@ export class ComponentsPacksWebviewMain {
                     throw new Error(`Failed loading solution: ${solutionPath} due to previous errors`);
                 }
 
-                await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Fetching Packs Info...' });
+                await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Retrieving assigned items...' });
+                this.usedItems = await this.csolutionService.getUsedItems({ context: activeContext });
             }
-            this.usedItems = await this.csolutionService.getUsedItems({ context: activeContext });
             await this.webviewManager.sendMessage({ type: 'SET_UNLINKREQUESTS_STACK', unlinkRequests: Array.from(this.unlinkRequests) });
             await this.sendSolutionData();
+            if (reload) {
+                await this.sendDirtyState();
+            } else {
+                await this.sendDirtyState({ skipApply: true });
+            }
         } catch (error) {
             const messages = await this.csolutionService.getLogMessages();
 
@@ -396,7 +457,7 @@ export class ComponentsPacksWebviewMain {
     }
 
     private getSolutionDir(): string {
-        return dirname(this.currentProject?.solutionPath ?? '');
+        return dirname(this.project?.solutionPath ?? '');
     }
 
     private getTargetSetData(): TargetSetData[] {
@@ -449,10 +510,12 @@ export class ComponentsPacksWebviewMain {
     };
 
     private async handleRequestInitialData(): Promise<void> {
-        const projectId = this.getValidProjectId();
+        const cprojectPath = this.getValidProjectId();
         this.scope = ComponentScope.Solution;
-        if (projectId) {
-            await this.debounce_load(projectId, true);
+        if (cprojectPath) {
+            const reload = this.projectFromPath(this.currentProject?.project.projectId) !== this.projectFromPath(cprojectPath);
+
+            await this.debounce_load(cprojectPath, reload);
         }
     }
 
@@ -460,7 +523,7 @@ export class ComponentsPacksWebviewMain {
         if (isChangeComponentScopeMessage(message)) {
             this.scope = message.scope;
         }
-        await this.debounce_load(this.currentProject?.project.projectId ?? '', false);
+        await this.debounce_load(this.project?.project.projectId ?? '', false);
     }
 
     private async handleApplyComponentSet(): Promise<void> {
@@ -476,7 +539,7 @@ export class ComponentsPacksWebviewMain {
         const state = await this.csolutionService.apply({ context: activeContext });
         this.usedItems = await this.csolutionService.getUsedItems({ context: activeContext });
         const usedItemsForProjectFileUpdate = cloneDeep(this.usedItems);
-        const projectFileName = this.currentProject?.project.projectId ?? '';
+        const projectFileName = this.project?.project.projectId ?? '';
         const requestAll = this.scope === ComponentScope.All;
         this.componentTree = this.manageComponentsActions.mapComponentsFromService(await this.csolutionService.getComponentsTree({ context: activeContext, all: requestAll }));
         this.validations = await this.csolutionService.validateComponents({ context: activeContext });
@@ -666,7 +729,7 @@ export class ComponentsPacksWebviewMain {
             const packs = await this.csolutionService.getPacksInfo({ context: actx, all: requestAll });
             await this.webviewManager.sendMessage({
                 type: 'SET_PACKS_INFO',
-                packs: packsRowsFromInfo(packs, this.currentProject?.solutionPath ?? '')
+                packs: packsRowsFromInfo(packs, this.project?.solutionPath ?? '')
             });
             await this.sendDirtyState();
         } finally {
@@ -728,7 +791,7 @@ export class ComponentsPacksWebviewMain {
         this.validations = await this.csolutionService.validateComponents({ context: activeContext });
         const packs = packsRowsFromInfo(
             await this.csolutionService.getPacksInfo({ context: activeContext, all: requestAll }),
-            this.currentProject?.solutionPath ?? ''
+            this.project?.solutionPath ?? ''
         );
 
         componentTreeWalker(this.componentTree, (node, type) => {
@@ -831,7 +894,7 @@ export class ComponentsPacksWebviewMain {
         if (openExternal) {
             this.openFileExternal.openFile(filePath);
         } else {
-            const absoluteFilePath = path.resolve(path.dirname(this.currentProject?.solutionPath || './'), filePath);
+            const absoluteFilePath = path.resolve(path.dirname(this.project?.solutionPath || './'), filePath);
             const isMarkdown = absoluteFilePath.toLowerCase().endsWith('.md');
 
             if (isMarkdown) {
@@ -854,7 +917,7 @@ export class ComponentsPacksWebviewMain {
         const activeContexts = this.solutionManager.getCsolution()?.getContextDescriptors();
         const currentContext = activeContexts
             ?.find(ctx =>
-                normalizeForCompare(ctx.projectPath ?? '') === normalizeForCompare(this.currentProject?.project.projectId ?? '')
+                normalizeForCompare(ctx.projectPath ?? '') === normalizeForCompare(this.project?.project.projectId ?? '')
             );
         return currentContext?.displayName ?? '';
     }

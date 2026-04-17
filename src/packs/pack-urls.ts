@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2026 Arm Limited
+ * Copyright 2026 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,19 @@
  * limitations under the License.
  */
 
-.project-config-row {
-    display: grid;
-    padding-top: 8px;
-    padding-bottom: 8px;
-    gap: 8px;
-}
+import { extractPrefix, stripAffix } from '../utils/string-utils';
 
-.layout-header {
-    font-size: 13px;
-}
+export const KEIL_ARM_COM_PACKS = 'https://www.keil.arm.com/packs';
 
-.add-project-config-row {
-    margin-top: 5px;
-}
-
-.compact-dropdown-inner {
-    height: 100%;
+export function packURL(packId?: string, suffix?: string) {
+    const vendor = extractPrefix(packId, '::').toLowerCase();
+    const name = stripAffix(packId, '::', '@').toLowerCase();
+    if (!name || !vendor) {
+        return KEIL_ARM_COM_PACKS;
+    }
+    let url = `${KEIL_ARM_COM_PACKS}/${name}-${vendor}/`;
+    if (suffix) {
+        url += `${suffix}/`;
+    }
+    return url;
 }

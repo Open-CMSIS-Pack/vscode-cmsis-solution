@@ -19,6 +19,7 @@ import { ComponentRowDataType } from '../../../data/component-tools';
 import { Tooltip } from 'antd';
 import { validationIds } from './render-warning-cell';
 import { EditFilled } from '@ant-design/icons';
+import { PackTitleLink } from '../pack-title-link';
 
 /**
  * Renders the name cell with a tooltip that shows additional information about the component.
@@ -43,12 +44,13 @@ export const renderNameCell = (value: string, record: ComponentRowDataType, open
             : '';
 
     const vids = validationIds(record, undefined, 'name-col');
+    const packTitle = <PackTitleLink packId={record.data.pack} packName={record.data.pack} openFile={openFile} />;
 
     const tooltTipContent = (
         <div>
             <ul style={{ paddingLeft: '30px' }}>
                 <li>{record.api ? 'API' : 'component'}: {record.data.id}</li>
-                {record.data.pack && <li>from pack: {record.data.pack}</li>}
+                {record.data.pack && <li>from pack: {packTitle} </li>}
                 {allLeafs !== 0 && <li>selected: {selectedLeafs} of {allLeafs}</li>}
                 {selectedCount > 0 && (<li>in: <a title='Edit File' onClick={() => openFile(record.aggregate.options?.layer || '', false, 'components:')} ><EditFilled /></a> ./{record.aggregate.options?.layer}</li>)}
                 {vids.length > 0 && (

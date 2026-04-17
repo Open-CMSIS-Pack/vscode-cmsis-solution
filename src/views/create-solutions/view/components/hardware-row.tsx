@@ -216,7 +216,9 @@ const HardwareDropdown = <A extends BoardHardwareOption | DeviceHardwareOption>(
                     searchValue={treeViewSearch}
                     topLevelCategories={props.treeViewList}
                     itemPredicate={itemPredicate}
-                    onSelect={item => onSelect(item.value)}
+                    onSelect={item => {
+                        onSelect(item.value);
+                    }}
                     noEntriesMessage={noEntriesMessage}
                 ></SearchableTreeView>
             </div>
