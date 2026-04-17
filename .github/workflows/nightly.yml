@@ -83,6 +83,7 @@ jobs:
         run: npm run lint
 
       - name: Update version for nightly build
+        id: nightly_version
         run: |
           # Increment patch version by 1 (e.g. 1.64.1 -> 1.64.2)
           BASE_VERSION=$(node -p "require('./package.json').version.split('-')[0]")
@@ -111,6 +112,12 @@ jobs:
           # Create nightly version: 1.64.2-12-abc1234
           NIGHTLY_VERSION="${NEXT_PATCH_VERSION}-${COMMIT_COUNT}-${SHORT_SHA}"
           echo "Setting version to ${NIGHTLY_VERSION}"
+          echo "nightly_version=${NIGHTLY_VERSION}" >> $GITHUB_OUTPUT
+
+          # Print badge to GitHub Actions summary
+          echo "### Nightly Build Version" >> $GITHUB_STEP_SUMMARY
+          NIGHTLY_VERSION_BADGE=${NIGHTLY_VERSION//-/--}
+          echo "![Nightly Version](https://img.shields.io/badge/version-${NIGHTLY_VERSION_BADGE}-blue)" >> $GITHUB_STEP_SUMMARY
 
           # Update package.json
           npm version "${NIGHTLY_VERSION}" --no-git-tag-version
@@ -220,6 +227,10 @@ jobs:
           name: vscode-cmsis-solution-nightly-darwin-arm64
           path: ./*darwin-arm64*.vsix
           retention-days: 1
+
+      - name: Print nightly build snapshot
+        run: |
+          npx tsx scripts/get-package-deps.ts "${{ steps.nightly_version.outputs.nightly_version }}" >> "$GITHUB_STEP_SUMMARY"
 
   test:
     name: 'Test (windows-latest)'
