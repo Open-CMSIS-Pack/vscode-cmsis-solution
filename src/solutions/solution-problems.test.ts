@@ -245,7 +245,7 @@ describe('SolutionProblems', () => {
             logMessages: {
                 success: true,
                 errors: [],
-                warnings: ["mylayer.clayer.yml - file '/packs/Component/config.c' update required from component 'Arm::Device@2.3.4'"],
+                warnings: ["mylayer.clayer.yml - update required for file '/packs/Component/config.c' from component 'Arm::Device@2.3.4'"],
                 info: [],
             },
         });
@@ -272,7 +272,7 @@ describe('SolutionProblems', () => {
 
     it('creates merge diagnostic action for merge messages with component context', () => {
         const result = solutionProblems['createMergeDiagnosticAction'](
-            "file '/packs/Component/config.c' update required from component 'Arm::Device@2.3.4'",
+            "update required for file '/packs/Component/config.c' from component 'Arm::Device@2.3.4'",
             layerPath,
         );
 
@@ -325,7 +325,7 @@ describe('SolutionProblems', () => {
             logMessages: {
                 success: true,
                 errors: [],
-                warnings: ["mylayer.clayer.yml - file 'relative-config.c' update recommended"],
+                warnings: ["mylayer.clayer.yml - update recommended for file 'relative-config.c'"],
                 info: [],
             },
         });
@@ -342,31 +342,6 @@ describe('SolutionProblems', () => {
         expect(command).toBe(`command:${MERGE_FILE_COMMAND_ID}`);
         expect(JSON.parse(decodeURIComponent(args))).toEqual([layerPath]);
     });
-
-    it.each(['required', 'recommended', 'suggested', 'mandatory'] as const)(
-        'renders merge diagnostics for %s update levels',
-        async updateLevel => {
-            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
-            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
-
-            await eventHub.fireConvertCompleted({
-                severity: 'warning',
-                detection: false,
-                logMessages: {
-                    success: true,
-                    errors: [],
-                    warnings: [`mylayer.clayer.yml - file '/packs/Component/${updateLevel}.c' update ${updateLevel}`],
-                    info: [],
-                },
-            });
-            await waitTimeout();
-
-            const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
-            expect(diagnostics?.[0].message).toBe(
-                `update ${updateLevel} for config file '${updateLevel}.c' has a new version available for merge.`
-            );
-        }
-    );
 
     it.each(['required', 'recommended', 'suggested', 'mandatory'] as const)(
         'renders merge diagnostics for current toolbox wording with %s update levels',

@@ -105,11 +105,6 @@ export const MERGE_VIEW_LINK_LABEL = 'Open in Merge View';
 export type MergeUpdateLevel = 'required' | 'recommended' | 'suggested' | 'mandatory';
 const mergeMessagePatterns = [
     {
-        pattern: /file\s+'([^']+)'\s+update\s+(required|recommended|suggested|mandatory)/i,
-        getLocalPath: (match: RegExpExecArray) => match[1],
-        getUpdateLevel: (match: RegExpExecArray) => match[2],
-    },
-    {
         pattern: /update\s+(required|recommended|suggested|mandatory)\s+for\s+file\s+'([^']+)'/i,
         getLocalPath: (match: RegExpExecArray) => match[2],
         getUpdateLevel: (match: RegExpExecArray) => match[1],
