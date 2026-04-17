@@ -285,6 +285,22 @@ describe('SolutionProblems', () => {
         });
     });
 
+    it('creates merge diagnostic action for current toolbox message wording', () => {
+        const configPath = 'C:/CubeMX/CubeMX/RTE/CMSIS/RTX_Config.c';
+        const result = solutionProblems['createMergeDiagnosticAction'](
+            `update recommended for file '${configPath}' from component 'CMSIS:RTOS2:Keil RTX5&Source'.\nMerge content from update file, rename update file to base file and remove previous base file`,
+            layerPath,
+        );
+
+        expect(result).toEqual({
+            message: "update recommended for config file 'RTX_Config.c' from component 'CMSIS:RTOS2:Keil RTX5&Source'.",
+            code: {
+                value: 'Open in Merge View',
+                target: vscode.Uri.parse(`command:${MERGE_FILE_COMMAND_ID}?${encodeURIComponent(JSON.stringify([configPath]))}`),
+            },
+        });
+    });
+
     it('returns undefined merge diagnostic action for non-merge messages', () => {
         const result = solutionProblems['createMergeDiagnosticAction'](
             "component 'Arm::Device@2.3.4' is missing",
@@ -335,6 +351,31 @@ describe('SolutionProblems', () => {
                     success: true,
                     errors: [],
                     warnings: [`mylayer.clayer.yml - file '/packs/Component/${updateLevel}.c' update ${updateLevel}`],
+                    info: [],
+                },
+            });
+            await waitTimeout();
+
+            const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+            expect(diagnostics?.[0].message).toBe(
+                `update ${updateLevel} for config file '${updateLevel}.c' has a new version available for merge.`
+            );
+        }
+    );
+
+    it.each(['required', 'recommended', 'suggested', 'mandatory'] as const)(
+        'renders merge diagnostics for current toolbox wording with %s update levels',
+        async updateLevel => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireConvertCompleted({
+                severity: 'warning',
+                detection: false,
+                logMessages: {
+                    success: true,
+                    errors: [],
+                    warnings: [`mylayer.clayer.yml - update ${updateLevel} for file '/packs/Component/${updateLevel}.c'; merge content from update file, rename update file to base file and remove previous base file`],
                     info: [],
                 },
             });
