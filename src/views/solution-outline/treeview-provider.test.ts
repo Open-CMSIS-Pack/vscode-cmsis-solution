@@ -14,11 +14,28 @@
  * limitations under the License.
  */
 
+jest.mock('vscode');
+
 import path from 'path';
+import * as vscode from 'vscode';
 import { createItemCommand } from './treeview-provider';
 import { COutlineItem } from './tree-structure/solution-outline-item';
 
 describe('createItemCommand', () => {
+    beforeAll(() => {
+        vscode.Uri.file = (filePath: string) => ({
+            fsPath: filePath,
+            path: filePath,
+            scheme: 'file',
+            authority: '',
+            query: '',
+            fragment: '',
+            with: () => null as unknown,
+            toString: () => filePath,
+            toJSON: () => filePath,
+        } as unknown as vscode.Uri);
+    });
+
     it('uses explicit command from item attributes when provided', () => {
         const node = new COutlineItem('file');
         node.setAttribute('command', 'cmsis-csolution.someExplicitCommand');
@@ -26,8 +43,11 @@ describe('createItemCommand', () => {
 
         const command = createItemCommand(node);
 
-        expect(command?.command).toBe('cmsis-csolution.someExplicitCommand');
-        expect(command?.arguments).toEqual([node]);
+        expect(command).toEqual({
+            command: 'cmsis-csolution.someExplicitCommand',
+            title: 'Run explicit action',
+            arguments: [node],
+        });
     });
 
     it('does not create default command for project and layer nodes', () => {
@@ -50,7 +70,16 @@ describe('createItemCommand', () => {
 
         const command = createItemCommand(markdownNode);
 
-        expect(command?.command).toBe('markdown.showPreview');
+        expect(command).toMatchObject({
+            command: 'markdown.showPreview',
+            title: 'Open Preview',
+            arguments: [
+                {
+                    fsPath: path.join('tmp', 'notes.md'),
+                    path: path.join('tmp', 'notes.md'),
+                },
+            ],
+        });
     });
 
     it('routes non-markdown files through smart source open command', () => {
@@ -59,6 +88,15 @@ describe('createItemCommand', () => {
 
         const command = createItemCommand(sourceNode);
 
-        expect(command?.command).toBe('cmsis-csolution.openSourceFileSmart');
+        expect(command).toMatchObject({
+            command: 'cmsis-csolution.openSourceFileSmart',
+            title: 'Open',
+            arguments: [
+                {
+                    fsPath: path.join('tmp', 'device.h'),
+                    path: path.join('tmp', 'device.h'),
+                },
+            ],
+        });
     });
 });
