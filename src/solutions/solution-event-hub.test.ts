@@ -15,7 +15,7 @@
  */
 
 import * as vscode from 'vscode';
-import { SolutionEventHub, ConvertRequestData, ConvertResultData } from './solution-event-hub';
+import { SolutionEventHub, ConvertRequestData, ConvertResultData, CbuildResultData } from './solution-event-hub';
 import { Severity } from './constants';
 
 describe('EventHub', () => {
@@ -34,7 +34,7 @@ describe('EventHub', () => {
         it('should register emitters with context subscriptions', async () => {
             await eventHub.activate(mockContext);
 
-            expect(mockContext.subscriptions).toHaveLength(3);
+            expect(mockContext.subscriptions).toHaveLength(4);
         });
     });
 
@@ -122,9 +122,11 @@ describe('EventHub', () => {
         it('should not cross-fire events between different event types', async () => {
             const requestListener = jest.fn();
             const completeListener = jest.fn();
+            const cbuildCompleteListener = jest.fn();
 
             eventHub.onDidConvertRequested(requestListener);
             eventHub.onDidConvertCompleted(completeListener);
+            eventHub.onDidCbuildCompleted(cbuildCompleteListener);
 
             await eventHub.fireConvertRequest({
                 solutionPath: '/path/to/solution.csolution.yml',
@@ -134,11 +136,19 @@ describe('EventHub', () => {
 
             expect(requestListener).toHaveBeenCalledTimes(1);
             expect(completeListener).not.toHaveBeenCalled();
+            expect(cbuildCompleteListener).not.toHaveBeenCalled();
 
             await eventHub.fireConvertCompleted({ severity: 'success', detection: true, logMessages });
 
             expect(requestListener).toHaveBeenCalledTimes(1);
             expect(completeListener).toHaveBeenCalledTimes(1);
+            expect(cbuildCompleteListener).not.toHaveBeenCalled();
+
+            await eventHub.fireCbuildCompleted({ success: true, output: [] });
+
+            expect(requestListener).toHaveBeenCalledTimes(1);
+            expect(completeListener).toHaveBeenCalledTimes(1);
+            expect(cbuildCompleteListener).toHaveBeenCalledTimes(1);
         });
     });
 
@@ -176,6 +186,47 @@ describe('EventHub', () => {
             ]);
 
             expect(listener).toHaveBeenCalledTimes(2);
+        });
+
+        it('should handle concurrent fireCbuildCompleted calls', async () => {
+            const listener = jest.fn();
+            eventHub.onDidCbuildCompleted(listener);
+
+            await Promise.all([
+                eventHub.fireCbuildCompleted({ success: true, output: ['line 1'] }),
+                eventHub.fireCbuildCompleted({ success: false, output: ['line 2'] })
+            ]);
+
+            expect(listener).toHaveBeenCalledTimes(2);
+        });
+    });
+
+    describe('fireCbuildCompleted', () => {
+        it.each<CbuildResultData>([
+            { success: true, output: ['ok'] },
+            { success: false, output: ['failed'] },
+            { success: true, output: undefined },
+        ])('should fire event with cbuild result: %o', async (data) => {
+            const listener = jest.fn();
+            eventHub.onDidCbuildCompleted(listener);
+
+            await eventHub.fireCbuildCompleted(data);
+
+            expect(listener).toHaveBeenCalledTimes(1);
+            expect(listener).toHaveBeenCalledWith(data);
+        });
+
+        it('should notify multiple listeners', async () => {
+            const listener1 = jest.fn();
+            const listener2 = jest.fn();
+            eventHub.onDidCbuildCompleted(listener1);
+            eventHub.onDidCbuildCompleted(listener2);
+
+            const data: CbuildResultData = { success: true, output: ['done'] };
+            await eventHub.fireCbuildCompleted(data);
+
+            expect(listener1).toHaveBeenCalledWith(data);
+            expect(listener2).toHaveBeenCalledWith(data);
         });
     });
 

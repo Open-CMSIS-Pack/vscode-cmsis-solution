@@ -48,6 +48,14 @@ export interface ConvertResultData {
 }
 
 /**
+ * Event data for cbuild setup completion result
+ */
+export interface CbuildResultData {
+    success: boolean;
+    output?: string[];
+}
+
+/**
  * Centralized event hub for managing and coordinating solution-related events.
  * Provides bidirectional asynchronous event processing with type-safe event registration and firing.
  */
@@ -78,6 +86,14 @@ export interface SolutionEventHub {
      */
     readonly onDidConvertCompleted: vscode.Event<ConvertResultData>;
     /**
+     * Fire cbuild setup completion event
+     */
+    fireCbuildCompleted(data: CbuildResultData): Promise<void>;
+    /**
+     * Event fired when cbuild setup is completed
+     */
+    readonly onDidCbuildCompleted: vscode.Event<CbuildResultData>;
+    /**
      * Fire configure solution data ready event
      */
     fireConfigureSolutionDataReady(data: ConfigureSolutionData): Promise<void>;
@@ -95,12 +111,16 @@ class SolutionEventHubImpl {
     private readonly convertCompleteEmitter = new vscode.EventEmitter<ConvertResultData>();
     public readonly onDidConvertCompleted: vscode.Event<ConvertResultData> = this.convertCompleteEmitter.event;
 
+    private readonly cbuildCompleteEmitter = new vscode.EventEmitter<CbuildResultData>();
+    public readonly onDidCbuildCompleted: vscode.Event<CbuildResultData> = this.cbuildCompleteEmitter.event;
+
     private readonly configureSolutionDataEmitter = new vscode.EventEmitter<ConfigureSolutionData>();
     public readonly onDidConfigureSolutionDataReady: vscode.Event<ConfigureSolutionData> = this.configureSolutionDataEmitter.event;
 
     public async activate(context: vscode.ExtensionContext): Promise<void> {
         context.subscriptions.push(this.convertRequestEmitter);
         context.subscriptions.push(this.convertCompleteEmitter);
+        context.subscriptions.push(this.cbuildCompleteEmitter);
         context.subscriptions.push(this.configureSolutionDataEmitter);
     }
 
@@ -110,6 +130,10 @@ class SolutionEventHubImpl {
 
     public async fireConvertCompleted(data: ConvertResultData): Promise<void> {
         this.convertCompleteEmitter.fire(data);
+    }
+
+    public async fireCbuildCompleted(data: CbuildResultData): Promise<void> {
+        this.cbuildCompleteEmitter.fire(data);
     }
 
     public async fireConfigureSolutionDataReady(data: ConfigureSolutionData): Promise<void> {
