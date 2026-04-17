@@ -24,7 +24,7 @@ import { getFileNameFromPath } from '../utils/path-utils';
 import { stripTwoExtensions, stripVendor, stripVersion } from '../utils/string-utils';
 import { getWorkspaceFolder } from '../utils/vscode-utils';
 import { SolutionLoadStateChangeEvent, SolutionManager } from './solution-manager';
-import { ConvertResultData, SolutionEventHub } from './solution-event-hub';
+import { ConvertResultData, CbuildResultData, SolutionEventHub } from './solution-event-hub';
 
 export const toolsPrefixPatterns = {
     error: /^.*error (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
@@ -152,8 +152,15 @@ export class SolutionProblemsImpl implements SolutionProblems {
         await this.updateDiagnostics(data.logMessages);
     }
 
-    private async handleCbuildCompleted(): Promise<void> {
-        // Cbuild completion handler (reserved for future use)
+    private async handleCbuildCompleted(data: CbuildResultData): Promise<void> {
+        // Enrich diagnostics with cbuild-specific output messages
+        const logMessages: LogMessages = { success: true, errors: [], warnings: [], info: [] };
+        await enrichLogMessagesFromToolOutput(logMessages, data.toolsOutputMessages);
+        // Merge cbuild errors/warnings into existing diagnostics
+        const csolution = this.solutionManager.getCsolution();
+        if (csolution && (logMessages.errors?.length || logMessages.warnings?.length)) {
+            await this.updateDiagnostics(logMessages);
+        }
     }
 
     private handleLoadStateChanged(data: SolutionLoadStateChangeEvent): void {

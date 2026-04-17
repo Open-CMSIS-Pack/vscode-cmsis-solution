@@ -173,13 +173,6 @@ export class SolutionConverterImpl implements SolutionConverter {
 
         let logResult = undefined;
         if (!detection) {
-            if (convertResult.success) {
-                // check if compile commands need to be updated: call cbuild setup skipping csolution convert step
-                outputChannel.append('Setup database... ');
-                let cbuildOutput = undefined;
-                [convertResult.success, cbuildOutput] = await this.compileCommandsGenerator.runCbuildSetup();
-                toolsOutputMessages = toolsOutputMessages.concat(cbuildOutput ?? []);
-            }
             // rpc method: GetLogMessages
             outputChannel.append('Get log messages... ');
             logResult = await this.cmsisToolboxManager.runCsolutionRpc(
@@ -217,6 +210,14 @@ export class SolutionConverterImpl implements SolutionConverter {
         // compilers and variables detection handling:
         // apply select-compiler and discover layer configurations, reset state otherwise
         this.eventHub.fireConfigureSolutionDataReady({ availableCompilers, availableConfigurations });
+
+        // spawn cbuild setup asynchronously (fire-and-forget)
+        // cbuild completion will be signaled via onDidCbuildCompleted event
+        if (!detection && convertResult.success) {
+            // check if compile commands need to be updated: call cbuild setup skipping csolution convert step
+            outputChannel.append('Setup database... ');
+            this.compileCommandsGenerator.runCbuildSetup(); // no await
+        }
 
     }
 

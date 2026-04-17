@@ -208,6 +208,9 @@ describe('SolutionConverter', () => {
         expect(mockCsolutionService.convertSolution).toHaveBeenCalledTimes(1);
     });
     it('sends output to the output channel', async () => {
+        // Explicitly mock convertSolution to return success: true
+        mockCsolutionService.convertSolution.mockResolvedValue({ success: true });
+        mockCsolutionService.getLogMessages.mockResolvedValue({ errors: [], warnings: [], info: [], success: true });
         await fireAndWaitForConversion();
 
         const outputChannel = outputChannelProvider.mockGetCreatedChannelByName(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
@@ -216,9 +219,9 @@ describe('SolutionConverter', () => {
             expect.stringContaining('⚙️ Converting solution...'),
             expect.stringContaining('Check for missing packs...'),
             expect.stringContaining('Convert solution...'),
-            expect.stringContaining('Setup database...'),
             expect.stringContaining('Get log messages...'),
             expect.stringContaining('✅ Convert solution completed'),
+            expect.stringContaining('Setup database...'),
         ]);
         expect(completedListener).toHaveBeenCalledTimes(1);
     });
@@ -365,7 +368,7 @@ describe('SolutionConverter', () => {
 
     it('get cbuild west output and set diagnostics accordingly', async () => {
         mockCsolutionService.convertSolution.mockResolvedValue({ success: true });
-        mockCsolutionService.getLogMessages.mockResolvedValue({ success: true });
+        mockCsolutionService.getLogMessages.mockResolvedValue({ errors: [], warnings: [], info: [], success: true });
         let mockRunCbuildSetup = jest.spyOn(compileCommandsGenerator, 'runCbuildSetup').mockResolvedValue([true, [
             'warning cbuild: missing ZEPHYR_BASE environment variable',
             'error cbuild: exec: "west": executable file not found in $PATH',
@@ -377,23 +380,23 @@ describe('SolutionConverter', () => {
         jest.spyOn(vscodeUtils, 'getWorkspaceFolder').mockReturnValue('workspace/folder');
 
         await fireAndWaitForConversion();
-        await waitTimeout();
-        expect(mockRunCbuildSetup).toHaveBeenCalledTimes(1);
+
+        // Convert event should NOT have cbuild output (convert-only payload)
         expect(completedListener).toHaveBeenCalledTimes(1);
         expect(completedListener).toHaveBeenLastCalledWith(
             expect.objectContaining({
-                severity: 'error',
-                toolsOutputMessages: expect.arrayContaining([
-                    'warning cbuild: missing ZEPHYR_BASE environment variable',
-                    'error cbuild: exec: "west": executable file not found in $PATH',
-                ]),
+                severity: 'success',
+                toolsOutputMessages: [], // Convert-only, no cbuild output
             }),
         );
 
+        // Verify cbuild setup was called asynchronously (fire-and-forget pattern)
+        expect(mockRunCbuildSetup).toHaveBeenCalledTimes(1);
+
         // Remove settings.json
         completedListener.mockClear();
-        const settings = path.join(getWorkspaceFolder(), '.vscode', 'settings.json');
         mockRunCbuildSetup.mockClear();
+        const settings = path.join(getWorkspaceFolder(), '.vscode', 'settings.json');
         fsUtils.deleteFileIfExists(settings);
         await fireAndWaitForConversion();
         expect(mockRunCbuildSetup).toHaveBeenCalledTimes(1);
