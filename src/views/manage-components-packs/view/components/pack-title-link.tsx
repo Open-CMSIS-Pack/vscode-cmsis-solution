@@ -15,32 +15,39 @@
  */
 
 import React from 'react';
+import { Space } from 'antd';
 import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
 import { packURL } from '../../../../packs/pack-urls';
 
 interface PackTitleLinkProps {
-    packId: string;
-    packName: string;
+    packId?: string;
+    packName?: string;
     openFile: (link: string, external?: boolean) => void;
 }
 
-export const PackTitleLink: React.FC<PackTitleLinkProps> = ({ packId, packName, openFile }) => {
+export const PackTitleLink: React.FC<PackTitleLinkProps> = ({
+    packId,
+    packName,
+    openFile,
+}) => {
     const packUrl = packURL(packId);
     return (
         <>
-            {packName}{' '}
-            <a
-                title='Open software pack overview'
-                aria-label='Open software pack overview'
-                onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    openFile(packUrl, true);
-                }}
-                href={packUrl}
-            >
-                <CmsisCodicon name='link-external' style={{ fontSize: '1em', display: 'inline' }} />
-            </a>
+            {packName ?? ''}
+            <Space align='baseline' style={{ marginLeft: '8px' }}>
+                <a
+                    title={packUrl}
+                    aria-label='Open pack URL'
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openFile(packUrl, true);
+                    }}
+                    href={packUrl}
+                >
+                    <CmsisCodicon name='link-external' style={{ fontSize: '1em', display: 'inline' }} />
+                </a>
+            </Space>
         </>
     );
 };

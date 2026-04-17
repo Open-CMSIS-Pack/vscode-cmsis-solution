@@ -224,6 +224,37 @@ describe('ActiveSolutionTracker', () => {
         });
     });
 
+    describe('activated with solutions in the workspace and explicit previous close', () => {
+        beforeEach(async () => {
+            context.workspaceState.get.mockImplementation(
+                key => key === ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_STATE_KEY ? 'inactive'  : undefined
+            );
+
+            activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+            await waitForCondition(
+                async () => workspaceFoldersProvider.findFiles.mock.calls.length > 0,
+                'solution file search to complete in empty workspace',
+                200,
+            );
+        });
+
+        it('selects no solution as active', () => {
+            expect(activeSolutionTracker.solutions).toEqual([
+                SOLUTION_URI_BAR.fsPath,
+                SOLUTION_URI_FOO.fsPath,
+                SOLUTION_URI_DEFAULT.fsPath,
+            ]);
+
+            expect(activeSolutionTracker.activeSolution).toBeUndefined();
+            expect(changeActiveListener).not.toHaveBeenCalled();
+            expect(changeSolutionsListener).toHaveBeenCalled();
+        });
+
+        it('updates ACTIVE_SOLUTION_STATE to inactive', () => {
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith('setContext', ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_STATE, 'inactive');
+        });
+    });
+
     describe('activated with solutions in workspace subfolders only', () => {
         beforeEach(async () => {
             workspaceFoldersProvider.findFiles.mockResolvedValue([

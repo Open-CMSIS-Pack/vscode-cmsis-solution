@@ -206,7 +206,7 @@ describe('PacksView', () => {
                 );
             });
 
-            const packLink = localContainer.querySelector("a[title='Open software pack overview']") as HTMLAnchorElement | null;
+            const packLink = localContainer.querySelector("a[aria-label='Open pack URL']") as HTMLAnchorElement | null;
             expect(packLink).not.toBeNull();
 
             if (packLink) {

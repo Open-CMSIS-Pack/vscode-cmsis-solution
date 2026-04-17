@@ -88,12 +88,15 @@ export interface ActiveSolutionTracker {
     suspendWatch: boolean;
 }
 
+type SolutionState = 'active' | 'inactive' | 'none';
+
 export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
     public static readonly GLOB_PATTERN = '**/*.csolution.{yaml,yml}';
 
     public static readonly ACTIVE_SOLUTION_KEY = 'activeSolution';
-    public static readonly ACTIVE_SOLUTION_STATE = `${manifest.PACKAGE_NAME}.activeSolutionState`;
-    public static readonly ACTIVE_SOLUTION = `${manifest.PACKAGE_NAME}.activeSolution`;
+    public static readonly ACTIVE_SOLUTION_STATE_KEY = 'activeSolutionState';
+    public static readonly ACTIVE_SOLUTION_STATE = `${manifest.PACKAGE_NAME}.${ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_STATE_KEY}`;
+    public static readonly ACTIVE_SOLUTION = `${manifest.PACKAGE_NAME}.${ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_KEY}`;
 
     private readonly changeSolutionsEmitter = new vscode.EventEmitter<void>();
     public readonly onDidChangeSolutions: vscode.Event<void> = this.changeSolutionsEmitter.event;
@@ -192,13 +195,16 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
             this.changeSolutionsEmitter.fire();
         }
 
-        const previous = this._activeSolution || this.workspaceState?.get<string | undefined>(ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_KEY);
+        const previous = this._activeSolution || this.workspaceState?.get<string>(ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_KEY);
+        const previousState = this.workspaceState?.get<SolutionState>(ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_STATE_KEY);
 
         if (previous && this.solutions.includes(previous)) {
             this.activeSolution = previous;
-        } else {
+        } else if (previousState === undefined || previousState === 'active') {
             const defaultSolution = this._solutions?.find(s => path.dirname(s) === this.workspaceFoldersProvider.getWorkspaceFolder(s)?.uri?.fsPath);
             this.activeSolution = defaultSolution;
+        } else {
+            this.activeSolution = undefined;
         }
     }
 
@@ -210,9 +216,10 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
         return this._activeSolution;
     }
 
-    protected set activeSolutionState(state: 'active' | 'inactive' | 'none') {
-        const newState = this._solutions?.length > 0 ? state : 'none';
+    protected set activeSolutionState(state: SolutionState) {
+        const newState: SolutionState = this._solutions?.length > 0 ? state : 'none';
         this.commandsProvider.executeCommand('setContext', ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_STATE, newState);
+        this.workspaceState?.update(ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_STATE_KEY, newState);
     }
 
     public set activeSolution(newPath: string | undefined) {
