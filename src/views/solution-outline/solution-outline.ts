@@ -60,7 +60,10 @@ export class SolutionOutlineView {
         await this.updateTree(e.newState);
         if (this.solutionPath !== e.newState.solutionPath) {
             this.solutionPath = e.newState.solutionPath;
-            if (this.configurationProvider.getConfigVariableOrDefault<boolean>(CONFIG_AUTO_REVEAL_SOLUTION_OUTLINE, true)) {
+            if (
+                e.newState.solutionPath &&
+                this.configurationProvider.getConfigVariableOrDefault<boolean>(CONFIG_AUTO_REVEAL_SOLUTION_OUTLINE, true)
+            ) {
                 vscode.commands.executeCommand(`${SolutionOutlineView.treeViewId}.open`, { preserveFocus: true });
             }
         }
