@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { EventEmitter } from 'vscode';
+import * as vscode from 'vscode';
 import { TreeViewProvider } from './treeview-provider';
 import { SolutionOutlineView } from './solution-outline';
 import { SolutionLoadState } from '../../solutions/solution-manager';
@@ -26,15 +26,18 @@ import { globalStateFactory } from '../../vscode-api/global-state.factories';
 import { COutlineItem } from './tree-structure/solution-outline-item';
 import { csolutionFactory } from '../../solutions/csolution.factory';
 import { TreeViewFileDecorationProvider } from './treeview-decoration-provider';
+import { configurationProviderFactory, MockConfigurationProvider } from '../../vscode-api/configuration-provider.factories';
+import { CONFIG_AUTO_REVEAL_SOLUTION_OUTLINE } from '../../manifest';
 
 describe('SolutionOutlineView', () => {
     let mockTreeViewProvider: TreeViewProvider<COutlineItem>;
     let mockTreeViewFileDecorationProvider: TreeViewFileDecorationProvider;
-    let visibilityChangeEmitter: EventEmitter<Event>;
+    let visibilityChangeEmitter: vscode.EventEmitter<Event>;
     let globalStateProvider: GlobalState<CsolutionGlobalState>;
+    let configurationProvider: MockConfigurationProvider;
 
     beforeEach(async () => {
-        visibilityChangeEmitter = new EventEmitter();
+        visibilityChangeEmitter = new vscode.EventEmitter();
 
         mockTreeViewProvider = {
             updateTree: jest.fn(),
@@ -50,6 +53,7 @@ describe('SolutionOutlineView', () => {
         } as unknown as TreeViewFileDecorationProvider;
 
         globalStateProvider = globalStateFactory();
+        configurationProvider = configurationProviderFactory();
     });
 
 
@@ -58,7 +62,8 @@ describe('SolutionOutlineView', () => {
             solutionManagerFactory(),
             mockTreeViewProvider,
             globalStateProvider,
-            mockTreeViewFileDecorationProvider
+            mockTreeViewFileDecorationProvider,
+            configurationProvider
         );
         const context = extensionContextFactory();
 
@@ -73,7 +78,8 @@ describe('SolutionOutlineView', () => {
             solutionManagerFactory(),
             mockTreeViewProvider,
             globalStateProvider,
-            mockTreeViewFileDecorationProvider
+            mockTreeViewFileDecorationProvider,
+            configurationProvider
         );
         const context = extensionContextFactory();
 
@@ -95,7 +101,8 @@ describe('SolutionOutlineView', () => {
             mockSolutionManager,
             mockTreeViewProvider,
             globalStateProvider,
-            mockTreeViewFileDecorationProvider
+            mockTreeViewFileDecorationProvider,
+            configurationProvider
         );
         await view.activate(extensionContextFactory());
 
@@ -119,7 +126,8 @@ describe('SolutionOutlineView', () => {
             mockSolutionManager,
             mockTreeViewProvider,
             globalStateProvider,
-            mockTreeViewFileDecorationProvider
+            mockTreeViewFileDecorationProvider,
+            configurationProvider
         );
         await view.activate(extensionContextFactory());
 
@@ -143,7 +151,8 @@ describe('SolutionOutlineView', () => {
             mockSolutionManager,
             mockTreeViewProvider,
             globalStateProvider,
-            mockTreeViewFileDecorationProvider
+            mockTreeViewFileDecorationProvider,
+            configurationProvider
         );
         await view.activate(extensionContextFactory());
 
@@ -165,7 +174,8 @@ describe('SolutionOutlineView', () => {
             mockSolutionManager,
             mockTreeViewProvider,
             globalStateProvider,
-            mockTreeViewFileDecorationProvider
+            mockTreeViewFileDecorationProvider,
+            configurationProvider
         );
         await view.activate(extensionContextFactory());
 
@@ -188,7 +198,8 @@ describe('SolutionOutlineView', () => {
             mockSolutionManager,
             mockTreeViewProvider,
             globalStateProvider,
-            mockTreeViewFileDecorationProvider
+            mockTreeViewFileDecorationProvider,
+            configurationProvider
         );
         await view.activate(extensionContextFactory());
 
@@ -200,6 +211,63 @@ describe('SolutionOutlineView', () => {
         await waitForPromises();
 
         expect(mockTreeViewProvider.updateTree).toHaveBeenCalled();
+    });
+
+    it('reveals the solution outline when a new solution is loaded and auto reveal is enabled', async () => {
+        const executeCommandSpy = jest.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+        const solutionLoadedState = activeSolutionLoadStateFactory();
+        const mockSolutionManager = solutionManagerFactory({
+            loadState: solutionLoadedState,
+            getCsolution: jest.fn().mockReturnValue(csolutionFactory()),
+        });
+        const view = new SolutionOutlineView(
+            mockSolutionManager,
+            mockTreeViewProvider,
+            globalStateProvider,
+            mockTreeViewFileDecorationProvider,
+            configurationProvider
+        );
+
+        await view.activate(extensionContextFactory());
+        mockSolutionManager.onDidChangeLoadStateEmitter.fire({
+            previousState: { solutionPath: undefined },
+            newState: solutionLoadedState,
+        });
+        await waitForPromises();
+
+        expect(executeCommandSpy).toHaveBeenCalledWith(`${SolutionOutlineView.treeViewId}.open`, { preserveFocus: true });
+
+        executeCommandSpy.mockRestore();
+    });
+
+    it('does not reveal the solution outline when auto reveal is disabled', async () => {
+        const executeCommandSpy = jest.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+        const solutionLoadedState = activeSolutionLoadStateFactory();
+        const mockSolutionManager = solutionManagerFactory({
+            loadState: solutionLoadedState,
+            getCsolution: jest.fn().mockReturnValue(csolutionFactory()),
+        });
+        configurationProvider = configurationProviderFactory({
+            [CONFIG_AUTO_REVEAL_SOLUTION_OUTLINE]: false,
+        });
+        const view = new SolutionOutlineView(
+            mockSolutionManager,
+            mockTreeViewProvider,
+            globalStateProvider,
+            mockTreeViewFileDecorationProvider,
+            configurationProvider
+        );
+
+        await view.activate(extensionContextFactory());
+        mockSolutionManager.onDidChangeLoadStateEmitter.fire({
+            previousState: { solutionPath: undefined },
+            newState: solutionLoadedState,
+        });
+        await waitForPromises();
+
+        expect(executeCommandSpy).not.toHaveBeenCalledWith(`${SolutionOutlineView.treeViewId}.open`, { preserveFocus: true });
+
+        executeCommandSpy.mockRestore();
     });
 
 });

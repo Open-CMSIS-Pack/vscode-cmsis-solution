@@ -15,13 +15,14 @@
  */
 
 import * as vscode from 'vscode';
-import { PACKAGE_NAME } from '../../manifest';
+import { CONFIG_AUTO_REVEAL_SOLUTION_OUTLINE, PACKAGE_NAME } from '../../manifest';
 import { SolutionLoadState, SolutionLoadStateChangeEvent, SolutionManager } from '../../solutions/solution-manager';
 import { TreeViewProvider } from './treeview-provider';
 import { CsolutionGlobalState, GlobalState } from '../../vscode-api/global-state';
 import { SolutionOutlineTree } from './tree-structure/solution-outline-tree';
 import { COutlineItem } from './tree-structure/solution-outline-item';
 import { TreeViewFileDecorationProvider } from './treeview-decoration-provider';
+import { ConfigurationProvider } from '../../vscode-api/configuration-provider';
 
 
 export class SolutionOutlineView {
@@ -34,6 +35,7 @@ export class SolutionOutlineView {
         private readonly treeViewProvider: TreeViewProvider<COutlineItem>,
         private readonly globalStateProvider: GlobalState<CsolutionGlobalState>,
         private readonly treeViewFileDecorationProvider: TreeViewFileDecorationProvider,
+        private readonly configurationProvider: ConfigurationProvider,
     ) { }
 
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions' | 'globalState' | 'workspaceState'>): Promise<void> {
@@ -58,7 +60,12 @@ export class SolutionOutlineView {
         await this.updateTree(e.newState);
         if (this.solutionPath !== e.newState.solutionPath) {
             this.solutionPath = e.newState.solutionPath;
-            vscode.commands.executeCommand(`${SolutionOutlineView.treeViewId}.open`, { preserveFocus: true });
+            if (
+                e.newState.solutionPath &&
+                this.configurationProvider.getConfigVariableOrDefault<boolean>(CONFIG_AUTO_REVEAL_SOLUTION_OUTLINE, true)
+            ) {
+                vscode.commands.executeCommand(`${SolutionOutlineView.treeViewId}.open`, { preserveFocus: true });
+            }
         }
     }
 
