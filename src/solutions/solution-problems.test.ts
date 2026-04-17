@@ -301,6 +301,11 @@ describe('SolutionProblems', () => {
         });
     });
 
+    it('treats Windows-style merge paths as absolute', () => {
+        expect(solutionProblems['isAbsoluteFilePath']('C:/CubeMX/CubeMX/RTE/CMSIS/RTX_Config.c')).toBe(true);
+        expect(solutionProblems['isAbsoluteFilePath']('relative-config.c')).toBe(false);
+    });
+
     it('returns undefined merge diagnostic action for non-merge messages', () => {
         const result = solutionProblems['createMergeDiagnosticAction'](
             "component 'Arm::Device@2.3.4' is missing",

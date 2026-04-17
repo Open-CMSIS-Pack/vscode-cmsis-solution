@@ -355,6 +355,10 @@ export class SolutionProblemsImpl implements SolutionProblems {
         return vscode.Uri.parse(`command:${MERGE_FILE_COMMAND_ID}?${args}`);
     }
 
+    private isAbsoluteFilePath(filePath: string): boolean {
+        return path.isAbsolute(filePath) || path.win32.isAbsolute(filePath);
+    }
+
     private createMergeDiagnosticAction(message: string, diagnosticFilePath: string): { message: string; code: NonNullable<vscode.Diagnostic['code']> } | undefined {
         const merge = this.parseMergeMessage(message);
         if (!merge) {
@@ -362,7 +366,7 @@ export class SolutionProblemsImpl implements SolutionProblems {
         }
 
         const componentId = mergeComponentRegex.exec(message)?.[1];
-        const localPath = path.isAbsolute(merge.localPath) ? merge.localPath : diagnosticFilePath;
+        const localPath = this.isAbsoluteFilePath(merge.localPath) ? merge.localPath : diagnosticFilePath;
         const formattedMessage = this.createMergeDiagnosticMessage(localPath, merge.updateLevel, componentId);
 
         return {
