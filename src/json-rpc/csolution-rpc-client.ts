@@ -9,7 +9,7 @@ import * as manifest from '../manifest';
 import { ChildProcess, spawn } from 'node:child_process';
 import { MessageConnection } from 'vscode-jsonrpc';
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter } from 'vscode-jsonrpc/node';
-import { RpcMethods, RpcInterface } from './interface/rpc-interface';
+import { RpcMethods, RpcInterface, GetVersionResult } from './interface/rpc-interface';
 import { constructor } from '../generic/constructor';
 import { Optional } from '../generic/type-helper';
 import { debounce } from 'lodash';
@@ -43,7 +43,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     private readonly debouncedLoadPacks = debounce(super.loadPacks.bind(this), 1000);
     private csolutionBin = 'csolution';
     private exitPromise: Promise<void> | undefined;
-    private hasReportedVersionForSession = false;
+    private cachedVersion: GetVersionResult = { success: false };
     private readonly mutex: Mutex;
 
     constructor(
@@ -72,22 +72,21 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         return (response ?? {}) as TResponse;
     }
 
+    public async getVersion(): Promise<GetVersionResult> {
+        if (!this.cachedVersion.success) {
+            // Query daemon version once per launched session
+            this.cachedVersion = await super.getVersion();
+            console.log('csolution version:', this.cachedVersion);
+        }
+        return this.cachedVersion;
+    }
+
     public async loadPacks() {
         if (this.idxWatcher === undefined) {
             this.watchPackIdxFile();
         }
-
-        // Query daemon version once per launched session right before first LoadPacks.
-        if (!this.hasReportedVersionForSession) {
-            try {
-                const version = await super.getVersion();
-                console.log('csolution version:', version);
-            } catch (error) {
-                console.warn('Unable to query csolution version before loadPacks:', error);
-            } finally {
-                this.hasReportedVersionForSession = true;
-            }
-        }
+        // ensure version is cached
+        await this.getVersion();
 
         return super.loadPacks();
     }
@@ -145,7 +144,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         this.idxWatcher = undefined;
         this.connection?.dispose();
         this.connection = undefined;
-        this.hasReportedVersionForSession = false;
+        this.cachedVersion = { success: false };
     }
 
     private async launch(): Promise<boolean> {
