@@ -21,7 +21,7 @@ import { ActiveSolutionTracker } from './active-solution-tracker';
 import { CSolution } from './csolution';
 import { UPDATE_DEBUG_TASKS_COMMAND_ID } from '../debug/debug-launch-provider';
 import { Severity } from './constants';
-import { SolutionEventHub, ConvertResultData } from './solution-event-hub';
+import { SolutionEventHub, ConvertResultData, CbuildResultData } from './solution-event-hub';
 import { ExtensionApiProvider } from '../vscode-api/extension-api-provider';
 import { EnvironmentManagerApiV1 } from '@arm-software/vscode-environment-manager';
 import { ETextFileResult } from '../generic/text-file';
@@ -103,6 +103,7 @@ export class SolutionManagerImpl implements SolutionManager {
             this.activeSolutionTracker.onDidChangeActiveSolution(this.handleChangeActiveSolution, this),
             this.activeSolutionTracker.onActiveSolutionFilesChanged(this.handleActiveSolutionFilesChanged, this),
             this.eventHub.onDidConvertCompleted(this.handleSolutionConvertCompleted, this),
+            this.eventHub.onDidCbuildCompleted(this.handleCbuildCompleted, this),
             this.commandsProvider.registerCommand(SolutionManagerImpl.refreshCommandId, this.refresh, this),
             this.environmentManagerApiProvider.onActivate(environmentManagerApi => {
                 environmentManagerApi.onDidActivate(() => {
@@ -250,7 +251,13 @@ export class SolutionManagerImpl implements SolutionManager {
             await this.commandsProvider.executeCommandIfRegistered(UPDATE_DEBUG_TASKS_COMMAND_ID);
         }
         this.loadBuildFilesEmitter.fire([data.severity, data.detection]);
-        this.updatedCompileCommandsEmitter.fire();
+    }
+
+    private handleCbuildCompleted(_data: CbuildResultData): void {
+        if (this.csolution) {
+            // Cbuild setup completed: signal compile-commands update for ClangdManager
+            this.updatedCompileCommandsEmitter.fire();
+        }
     }
 
     public async loadSolutionBuildFiles() {

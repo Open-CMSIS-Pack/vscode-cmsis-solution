@@ -321,4 +321,22 @@ describe('SolutionManager', () => {
             }),
         );
     });
+
+    it('fires updatedCompileCommands when cbuild completes', async () => {
+        const updatedCompileCommandsListener = jest.fn();
+        solutionManager.onUpdatedCompileCommands(updatedCompileCommandsListener);
+
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(200);
+
+        // Reset mock to count only cbuild event
+        updatedCompileCommandsListener.mockClear();
+
+        // Fire cbuild completion event
+        const cbuildData = { success: true, severity: 'success' as const, toolsOutputMessages: [] };
+        eventHub.fireCbuildCompleted(cbuildData);
+
+        expect(updatedCompileCommandsListener).toHaveBeenCalledTimes(1);
+    });
 });
