@@ -602,16 +602,14 @@ describe('ComponentsPacksWebviewMain', () => {
             expect(stateMessages).toEqual(
                 expect.arrayContaining([
                     'Connecting to rpc daemon',
-                    'Loading Packs...',
                     'Loading Solution...',
                     'Retrieving assigned items...'
                 ])
             );
-            expect(stateMessages.indexOf('Connecting to rpc daemon')).toBeLessThan(stateMessages.indexOf('Loading Packs...'));
-            expect(stateMessages.indexOf('Loading Packs...')).toBeLessThan(stateMessages.indexOf('Loading Solution...'));
+            expect(stateMessages.indexOf('Connecting to rpc daemon')).toBeLessThan(stateMessages.indexOf('Loading Solution...'));
+            expect(stateMessages.indexOf('Loading Solution...')).toBeLessThan(stateMessages.indexOf('Retrieving assigned items...'));
 
-            expect(svc.getVersion).toHaveBeenCalled();
-            expect(svc.loadPacks).toHaveBeenCalled();
+            expect(svc.loadPacks).not.toHaveBeenCalled();
             expect(svc.loadSolution).toHaveBeenCalledWith({ solution: 'solPath', activeTarget: 'activeTs' });
             expect(svc.getUsedItems).toHaveBeenCalledWith({ context: 'activeCtx' });
             expect(svc.getPacksInfo).toHaveBeenCalledWith({ context: 'activeCtx', all: false });
@@ -634,7 +632,6 @@ describe('ComponentsPacksWebviewMain', () => {
             await (componentsPacksWebviewMain as any).loadSolution('solPath', 'activeTs', 'activeCtx', false);
 
             // Heavy operations not called
-            expect(svc.getVersion).not.toHaveBeenCalled();
             expect(svc.loadPacks).not.toHaveBeenCalled();
             expect(svc.loadSolution).not.toHaveBeenCalled();
 
@@ -652,7 +649,7 @@ describe('ComponentsPacksWebviewMain', () => {
 
         it('handles errors and sends error messages', async () => {
             const error = new Error('Boom failure');
-            const svc = setupCsolutionServiceMocks({
+            setupCsolutionServiceMocks({
                 getComponentsTree: jest.fn().mockRejectedValue(error),
                 getLogMessages: jest.fn().mockResolvedValue({
                     errors: ['E1'],
@@ -677,9 +674,6 @@ describe('ComponentsPacksWebviewMain', () => {
 
             // Ensure dirty flag cleared
             expect(calls.some(m => m.type === 'IS_DIRTY' && m.isDirty === false)).toBe(true);
-
-            // Heavy reload start still attempted before failure
-            expect(svc.getVersion).toHaveBeenCalled();
         });
     });
 

@@ -43,6 +43,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     private readonly debouncedLoadPacks = debounce(super.loadPacks.bind(this), 1000);
     private csolutionBin = 'csolution';
     private exitPromise: Promise<void> | undefined;
+    private hasReportedVersionForSession = false;
     private readonly mutex: Mutex;
 
     constructor(
@@ -75,6 +76,19 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         if (this.idxWatcher === undefined) {
             this.watchPackIdxFile();
         }
+
+        // Query daemon version once per launched session right before first LoadPacks.
+        if (!this.hasReportedVersionForSession) {
+            try {
+                const version = await super.getVersion();
+                console.log('csolution version:', version);
+            } catch (error) {
+                console.warn('Unable to query csolution version before loadPacks:', error);
+            } finally {
+                this.hasReportedVersionForSession = true;
+            }
+        }
+
         return super.loadPacks();
     }
 
@@ -131,6 +145,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         this.idxWatcher = undefined;
         this.connection?.dispose();
         this.connection = undefined;
+        this.hasReportedVersionForSession = false;
     }
 
     private async launch(): Promise<boolean> {

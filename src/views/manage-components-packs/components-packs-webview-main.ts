@@ -393,11 +393,6 @@ export class ComponentsPacksWebviewMain {
                 this.availablePacksCache = {};
                 this.unlinkRequests.clear();
                 await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Connecting to rpc daemon' });
-                const version = await this.csolutionService.getVersion();
-                console.log('csolution version:', version);
-
-                await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Loading Packs...' });
-                await this.csolutionService.loadPacks();
 
                 await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Loading Solution...' });
                 const solutionSuccess = await this.csolutionService.loadSolution({ solution: solutionPath, activeTarget: activeTargetSet });
