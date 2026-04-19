@@ -400,4 +400,88 @@ describe('SolutionProblems', () => {
         expect(code.value).toBe('Find in Files');
         expect(code.target.toString()).toContain('command:workbench.action.findInFiles');
     });
+
+    describe('handleCbuildCompleted', () => {
+        it('creates diagnostics from cbuild error output messages', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireCbuildCompleted({
+                success: false,
+                severity: 'error',
+                toolsOutputMessages: [
+                    'error cbuild: failed to generate compile_commands.json',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).toHaveBeenCalledTimes(1);
+            expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
+        });
+
+        it('creates diagnostics from cbuild warning output messages', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireCbuildCompleted({
+                success: true,
+                severity: 'warning',
+                toolsOutputMessages: [
+                    'warning cbuild: some optional step skipped',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).toHaveBeenCalledTimes(1);
+            expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
+        });
+
+        it('does not update diagnostics when toolsOutputMessages has no prefixed messages', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireCbuildCompleted({
+                success: true,
+                severity: 'success',
+                toolsOutputMessages: [
+                    'cbuild setup completed with exit code 0',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).not.toHaveBeenCalled();
+            expect(vscode.commands.executeCommand).not.toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
+        });
+
+        it('does not update diagnostics when toolsOutputMessages is empty', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireCbuildCompleted({
+                success: true,
+                severity: 'success',
+                toolsOutputMessages: [],
+            });
+            await waitTimeout();
+
+            expect(setSpy).not.toHaveBeenCalled();
+        });
+
+        it('does not update diagnostics when no csolution is loaded', async () => {
+            solutionManager.getCsolution.mockReturnValue(undefined);
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireCbuildCompleted({
+                success: false,
+                severity: 'error',
+                toolsOutputMessages: [
+                    'error cbuild: failed to generate compile_commands.json',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).not.toHaveBeenCalled();
+        });
+    });
 });
