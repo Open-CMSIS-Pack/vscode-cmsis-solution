@@ -114,6 +114,7 @@ describe('SolutionProblems', () => {
         const clearSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'clear');
 
         await eventHub.fireConvertCompleted({
+            success: true,
             severity: 'warning',
             detection: false,
             logMessages: {
@@ -135,6 +136,7 @@ describe('SolutionProblems', () => {
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
         await eventHub.fireConvertCompleted({
+            success: false,
             severity: 'error',
             detection: false,
             logMessages: {
@@ -155,6 +157,7 @@ describe('SolutionProblems', () => {
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
         await eventHub.fireConvertCompleted({
+            success: true,
             severity: 'success',
             detection: false,
             logMessages: {
@@ -215,6 +218,7 @@ describe('SolutionProblems', () => {
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
         await eventHub.fireConvertCompleted({
+            success: false,
             severity: 'error',
             detection: false,
             logMessages: {
@@ -240,6 +244,7 @@ describe('SolutionProblems', () => {
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
         await eventHub.fireConvertCompleted({
+            success: true,
             severity: 'warning',
             detection: false,
             logMessages: {
@@ -320,6 +325,7 @@ describe('SolutionProblems', () => {
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
         await eventHub.fireConvertCompleted({
+            success: true,
             severity: 'warning',
             detection: false,
             logMessages: {
@@ -350,6 +356,7 @@ describe('SolutionProblems', () => {
             const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
             await eventHub.fireConvertCompleted({
+                success: true,
                 severity: 'warning',
                 detection: false,
                 logMessages: {
@@ -373,6 +380,7 @@ describe('SolutionProblems', () => {
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
         await eventHub.fireConvertCompleted({
+            success: false,
             severity: 'error',
             detection: false,
             logMessages: {

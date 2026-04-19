@@ -35,6 +35,7 @@ import { CONFIG_ENVIRONMENT_VARIABLES } from '../manifest';
 
 
 const convertResultData: ConvertResultData = {
+    success: true,
     severity: 'success',
     detection: false,
     logMessages: { success: true, errors: [], warnings: [], info: [] },
