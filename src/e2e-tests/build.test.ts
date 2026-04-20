@@ -143,8 +143,26 @@ test.describe('CMSIS Solution Build Validation', () => {
 
                     await vsCodeDriver.page.openCmsisPanel();
                     await vsCodeDriver.page.getCommands().runCommandFromPalette('CMSIS: Open Solution in Workspace');
-                    const firstWorkspaceItem = vsCodeDriver.page.getLocator('.quick-input-list .monaco-list-row').first();
-                    await firstWorkspaceItem.click();
+                    const quickPickList = vsCodeDriver.page.getLocator('.quick-input-list');
+                    let quickPickVisible = true;
+                    try {
+                        await quickPickList.waitFor({ state: 'visible', timeout: DEFAULT_TIMEOUT_MS });
+                    } catch {
+                        quickPickVisible = false;
+                        log('info', 'Workspace quick-pick did not appear; assuming workspace opened directly');
+                    }
+
+                    if (quickPickVisible) {
+                        const quickPickRows = quickPickList.locator('.monaco-list-row');
+                        await expect.poll(async () => quickPickRows.count(), {
+                            timeout: DEFAULT_TIMEOUT_MS,
+                            intervals: [500, 1000, 2000]
+                        }).toBeGreaterThan(0);
+
+                        const firstWorkspaceItem = quickPickRows.first();
+                        await firstWorkspaceItem.waitFor({ state: 'visible', timeout: DEFAULT_TIMEOUT_MS });
+                        await firstWorkspaceItem.click();
+                    }
 
                     try {
                         // ==================== STEP 2: Wait for Tool Activation ====================
