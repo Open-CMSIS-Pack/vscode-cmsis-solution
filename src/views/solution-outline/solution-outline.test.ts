@@ -27,7 +27,7 @@ import { COutlineItem } from './tree-structure/solution-outline-item';
 import { csolutionFactory } from '../../solutions/csolution.factory';
 import { TreeViewFileDecorationProvider } from './treeview-decoration-provider';
 import { configurationProviderFactory, MockConfigurationProvider } from '../../vscode-api/configuration-provider.factories';
-import { CONFIG_AUTO_REVEAL_SOLUTION_OUTLINE } from '../../manifest';
+import { CONFIG_AUTO_SHOW_CMSIS_VIEW } from '../../manifest';
 
 describe('SolutionOutlineView', () => {
     let mockTreeViewProvider: TreeViewProvider<COutlineItem>;
@@ -248,7 +248,7 @@ describe('SolutionOutlineView', () => {
             getCsolution: jest.fn().mockReturnValue(csolutionFactory()),
         });
         configurationProvider = configurationProviderFactory({
-            [CONFIG_AUTO_REVEAL_SOLUTION_OUTLINE]: false,
+            [CONFIG_AUTO_SHOW_CMSIS_VIEW]: false,
         });
         const view = new SolutionOutlineView(
             mockSolutionManager,
