@@ -378,6 +378,15 @@ describe('ComponentsPacksWebviewMain', () => {
 
     describe('handleMessage', () => {
 
+        beforeEach(() => {
+            // Most handleMessage tests dispatch to handlers when the solution is fully ready.
+            // Set converted=true so the conversion guard does not block mutation messages.
+            (solutionManager as { loadState: SolutionLoadState }).loadState = {
+                ...solutionManager.loadState,
+                converted: true,
+            };
+        });
+
         it('dispatches REQUEST_INITIAL_DATA to handleRequestInitialData', async () => {
             const spy = jest.spyOn(componentsPacksWebviewMain as any, 'handleRequestInitialData').mockResolvedValue(undefined);
             await (componentsPacksWebviewMain as any).handleMessage({ type: 'REQUEST_INITIAL_DATA' });
@@ -1031,20 +1040,41 @@ describe('ComponentsPacksWebviewMain', () => {
             expect(debounceSpy).toHaveBeenCalledWith('projReloaded', true);
         });
 
-        it('returns early when transition is only converted false->true', async () => {
+        it('triggers reload when conversion completes (converted false->true)', async () => {
             webviewManager.isPanelActive = true;
             const debounceSpy = jest.spyOn(componentsPacksWebviewMain as any, 'debounce_load').mockResolvedValue(undefined);
-            const clearSpy = jest.spyOn(componentsPacksWebviewMain as any, 'clearComponents').mockResolvedValue(undefined);
-            webviewManager.sendMessage.mockClear();
+            const descriptors = [{ projectName: 'Proj1', projectPath: '/root/sol/proj.cproject.yml', displayName: 'Proj1::Debug' }];
+            jest.spyOn(solutionManager, 'getCsolution').mockReturnValue({
+                solutionPath: 'solution.csolution.yml',
+                getCprojectPath: () => '/root/sol/proj.cproject.yml',
+                getContextDescriptors: () => descriptors,
+                getActiveTargetSetName: jest.fn().mockReturnValue('Debug'),
+                getCproject: jest.fn().mockReturnValue(undefined),
+            } as any);
 
             await (componentsPacksWebviewMain as any).handleSolutionLoadChange({
                 previousState: { solutionPath: 'solution.csolution.yml', converted: false },
                 newState: { solutionPath: 'solution.csolution.yml', converted: true }
             });
 
+            expect(debounceSpy).toHaveBeenCalledTimes(1);
+        });
+
+        it('shows Converting solution... and blocks reload when converted becomes false', async () => {
+            webviewManager.isPanelActive = true;
+            const debounceSpy = jest.spyOn(componentsPacksWebviewMain as any, 'debounce_load').mockResolvedValue(undefined);
+            webviewManager.sendMessage.mockClear();
+
+            await (componentsPacksWebviewMain as any).handleSolutionLoadChange({
+                previousState: { solutionPath: 'solution.csolution.yml', converted: true },
+                newState: { solutionPath: 'solution.csolution.yml', converted: false }
+            });
+
             expect(debounceSpy).not.toHaveBeenCalled();
-            expect(clearSpy).not.toHaveBeenCalled();
-            expect(webviewManager.sendMessage).not.toHaveBeenCalled();
+            expect(webviewManager.sendMessage).toHaveBeenCalledWith({
+                type: 'SET_SOLUTION_STATE',
+                stateMessage: 'Converting solution...'
+            });
         });
 
         it('clears and reports an error when no valid project is available', async () => {
@@ -1505,6 +1535,7 @@ describe('ComponentsPacksWebviewMain', () => {
         });
     });
     it('dispatches RESOLVE_COMPONENTS to resolveComponents', async () => {
+        (solutionManager as { loadState: SolutionLoadState }).loadState = { ...solutionManager.loadState, converted: true };
         const spy = jest.spyOn(componentsPacksWebviewMain as any, 'resolveComponents').mockResolvedValue(undefined);
         await (componentsPacksWebviewMain as any).handleMessage({ type: 'RESOLVE_COMPONENTS' } as any);
         expect(spy).toHaveBeenCalledTimes(1);

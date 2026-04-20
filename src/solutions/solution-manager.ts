@@ -24,7 +24,6 @@ import { Severity } from './constants';
 import { SolutionEventHub, ConvertResultData, CbuildResultData } from './solution-event-hub';
 import { ExtensionApiProvider } from '../vscode-api/extension-api-provider';
 import { EnvironmentManagerApiV1 } from '@arm-software/vscode-environment-manager';
-import { ETextFileResult } from '../generic/text-file';
 import { debounce } from 'lodash';
 import { SolutionRpcData } from './solution-rpc-data';
 import { EnvironmentManager } from '../desktop/env-manager';
@@ -200,7 +199,8 @@ export class SolutionManagerImpl implements SolutionManager {
             ...this.loadState,
             converted: false
         };
-        this.setLoadState(newState, false);
+        // Emit so subscribers (e.g. webviews) can show a 'Converting solution...' busy state
+        this.setLoadState(newState, true);
 
         this.eventHub.fireConvertRequest({
             solutionPath: this.csolution.solutionPath,
@@ -262,13 +262,14 @@ export class SolutionManagerImpl implements SolutionManager {
 
     public async loadSolutionBuildFiles() {
         if (this.loadState.solutionPath && this.csolution) {
-            const result = await this.csolution.loadBuildFiles();
+            await this.csolution.loadBuildFiles();
             const newState: SolutionLoadState = {
                 ...this.loadState,
                 activated: true,
                 converted: true,
             };
-            this.setLoadState(newState, result !== ETextFileResult.Unchanged);
+            // Always emit so subscribers are notified when conversion completes
+            this.setLoadState(newState, true);
         }
     }
 

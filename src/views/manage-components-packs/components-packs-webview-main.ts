@@ -268,11 +268,13 @@ export class ComponentsPacksWebviewMain {
             return;
         }
 
-        const csolution = this.solutionManager.getCsolution();
-        if (e.newState.converted == true && e.previousState.converted == false) {
+        // If conversion is in progress, show a busy indicator and wait for the converted=true event
+        if (e.newState.converted === false && e.newState.solutionPath) {
+            await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Converting solution...' });
             return;
         }
 
+        const csolution = this.solutionManager.getCsolution();
         if (csolution && e.newState.solutionPath) {
             // in case of switching a solution we need to track the correct or first project from the solution to keep this.currentProject active
             if (e.newState.solutionPath !== this.project?.solutionPath) {
@@ -387,6 +389,12 @@ export class ComponentsPacksWebviewMain {
 
     private async loadSolution(solutionPath: string, activeTargetSet: string, activeContext: string, reload: boolean): Promise<void> {
         await this.webviewManager.sendMessage({ type: 'SET_ERROR_MESSAGES', messages: [] });
+
+        // Abort if conversion is still in progress; handleSolutionLoadChange will trigger reload on converted=true
+        if (this.solutionManager.loadState.converted === false) {
+            await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Converting solution...' });
+            return;
+        }
 
         try {
             if (reload) {
@@ -646,6 +654,13 @@ export class ComponentsPacksWebviewMain {
     }
 
     private async handleMessage(message: Messages.OutgoingMessage): Promise<void> {
+        // Block mutation messages while conversion is in progress; allow read-only/navigation messages through
+        if (message.type !== 'REQUEST_INITIAL_DATA' &&
+            message.type !== 'OPEN_FILE' &&
+            this.solutionManager.loadState.converted !== true) {
+            return;
+        }
+
         const csolution = this.solutionManager.getCsolution();
         if (csolution) {
             switch (message.type) {
