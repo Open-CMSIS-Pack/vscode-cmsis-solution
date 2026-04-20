@@ -405,6 +405,7 @@ describe('SolutionProblems', () => {
         it('creates diagnostics from cbuild error output messages', async () => {
             await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
             const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+            const clearSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'clear');
 
             await eventHub.fireCbuildCompleted({
                 success: false,
@@ -416,12 +417,14 @@ describe('SolutionProblems', () => {
             await waitTimeout();
 
             expect(setSpy).toHaveBeenCalledTimes(1);
+            expect(clearSpy).not.toHaveBeenCalled();
             expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
         });
 
         it('creates diagnostics from cbuild warning output messages', async () => {
             await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
             const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+            const clearSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'clear');
 
             await eventHub.fireCbuildCompleted({
                 success: true,
@@ -433,6 +436,7 @@ describe('SolutionProblems', () => {
             await waitTimeout();
 
             expect(setSpy).toHaveBeenCalledTimes(1);
+            expect(clearSpy).not.toHaveBeenCalled();
             expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
         });
 

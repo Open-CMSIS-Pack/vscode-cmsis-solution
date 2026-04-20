@@ -154,43 +154,24 @@ export class SolutionProblemsImpl implements SolutionProblems {
     }
 
     private async handleConvertCompleted(data: ConvertResultData): Promise<void> {
-        await enrichLogMessagesFromToolOutput(data.logMessages, data.toolsOutputMessages);
-        await this.updateDiagnostics(data.logMessages);
+        // Intentionally clear only on convert: convert is the canonical refresh point.
+        // cbuild follows convert and should add diagnostics without wiping convert findings.
+        this.clearDiagnostics();
+        await this.enrichAndUpdateDiagnostics(data.logMessages, data.toolsOutputMessages);
     }
 
     private async handleCbuildCompleted(data: CbuildResultData): Promise<void> {
-        // Enrich diagnostics with cbuild-specific output messages
+        // Do not clear diagnostics here. cbuild diagnostics are additive after convert.
+        // This preserves existing convert diagnostics and avoids churn from redundant clears.
         const logMessages: LogMessages = { success: true, errors: [], warnings: [], info: [] };
-        await enrichLogMessagesFromToolOutput(logMessages, data.toolsOutputMessages);
-        // Merge cbuild errors/warnings into existing diagnostics
-        const csolution = this.solutionManager.getCsolution();
-        if (csolution && (logMessages.errors?.length || logMessages.warnings?.length)) {
-            await this.mergeDiagnostics(logMessages);
-        }
+        await this.enrichAndUpdateDiagnostics(logMessages, data.toolsOutputMessages);
     }
 
-    private async mergeDiagnostics(logMessages: LogMessages): Promise<void> {
-        const existingDiagnostics = new Map<string, { uri: vscode.Uri; diagnostics: vscode.Diagnostic[] }>();
-        this.diagnosticCollection.forEach((uri, diagnostics) => {
-            existingDiagnostics.set(uri.toString(), { uri, diagnostics: [...diagnostics] });
-        });
-
+    private async enrichAndUpdateDiagnostics(logMessages: LogMessages, toolsOutputMessages?: string[]): Promise<void> {
+        await enrichLogMessagesFromToolOutput(logMessages, toolsOutputMessages);
         await this.updateDiagnostics(logMessages);
-
-        const mergedDiagnostics = new Map<string, { uri: vscode.Uri; diagnostics: vscode.Diagnostic[] }>(existingDiagnostics);
-        this.diagnosticCollection.forEach((uri, diagnostics) => {
-            const key = uri.toString();
-            const existing = mergedDiagnostics.get(key);
-            mergedDiagnostics.set(key, {
-                uri,
-                diagnostics: existing ? [...existing.diagnostics, ...diagnostics] : [...diagnostics],
-            });
-        });
-
-        this.diagnosticCollection.set(
-            Array.from(mergedDiagnostics.values(), ({ uri, diagnostics }) => [uri, diagnostics] as [vscode.Uri, vscode.Diagnostic[]]),
-        );
     }
+
     private handleLoadStateChanged(data: SolutionLoadStateChangeEvent): void {
         if (data.previousState.solutionPath !== data.newState.solutionPath) {
             this.clearDiagnostics();
@@ -269,8 +250,8 @@ export class SolutionProblemsImpl implements SolutionProblems {
     }
 
     private async updateDiagnostics(messages: LogMessages): Promise<void> {
-        // clear previous diagnostics
-        this.clearDiagnostics();
+        // Diagnostics lifecycle is controlled by event handlers.
+        // handleConvertCompleted clears; handleCbuildCompleted appends.
         let diagnostics = false;
 
         // iterate through log messages and set diagnostics
