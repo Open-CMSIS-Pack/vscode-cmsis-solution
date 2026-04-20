@@ -20,6 +20,7 @@ import { ExtensionContext } from 'vscode';
 import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID } from '../manifest';
 import * as fsUtils from '../utils/fs-utils';
 import * as vscodeUtils from '../utils/vscode-utils';
+import { ProblemDiagnosticActionResolver } from './problem-diagnostic-action-resolver';
 import { solutionManagerFactory, MockSolutionManager } from './solution-manager.factories';
 import { SolutionEventHub } from './solution-event-hub';
 import { enrichLogMessagesFromToolOutput, SolutionProblemsImpl } from './solution-problems';
@@ -49,12 +50,14 @@ describe('SolutionProblems', () => {
     let solutionManager: MockSolutionManager;
     let eventHub: SolutionEventHub;
     let solutionProblems: SolutionProblemsImpl;
+    let diagnosticActionResolver: ProblemDiagnosticActionResolver;
 
     beforeEach(() => {
         solutionManager = solutionManagerFactory();
         solutionManager.getCsolution.mockReturnValue(buildCsolution() as unknown as ReturnType<MockSolutionManager['getCsolution']>);
         eventHub = new SolutionEventHub();
         solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub);
+        diagnosticActionResolver = new ProblemDiagnosticActionResolver();
 
         (vscode.workspace.openTextDocument as jest.Mock).mockResolvedValue({
             lineCount: 200,
@@ -263,7 +266,7 @@ describe('SolutionProblems', () => {
     });
 
     it('creates a merge command uri with encoded local path', () => {
-        const result = solutionProblems['createMergeCommandUri']('/packs/Component/config.c');
+        const result = diagnosticActionResolver.createMergeCommandUri('/packs/Component/config.c');
         const [command, args] = result.toString().split('?');
 
         expect(command).toBe(`command:${MERGE_FILE_COMMAND_ID}`);
@@ -271,7 +274,7 @@ describe('SolutionProblems', () => {
     });
 
     it('creates merge diagnostic action for merge messages with component context', () => {
-        const result = solutionProblems['createMergeDiagnosticAction'](
+        const result = diagnosticActionResolver.createMergeDiagnosticAction(
             "update required for file '/packs/Component/config.c' from component 'Arm::Device@2.3.4'",
             layerPath,
         );
@@ -287,7 +290,7 @@ describe('SolutionProblems', () => {
 
     it('creates merge diagnostic action for current toolbox message wording', () => {
         const configPath = 'C:/CubeMX/CubeMX/RTE/CMSIS/RTX_Config.c';
-        const result = solutionProblems['createMergeDiagnosticAction'](
+        const result = diagnosticActionResolver.createMergeDiagnosticAction(
             `update recommended for file '${configPath}' from component 'CMSIS:RTOS2:Keil RTX5&Source'.\nMerge content from update file, rename update file to base file and remove previous base file`,
             layerPath,
         );
@@ -302,12 +305,12 @@ describe('SolutionProblems', () => {
     });
 
     it('treats Windows-style merge paths as absolute', () => {
-        expect(solutionProblems['isAbsoluteFilePath']('C:/CubeMX/CubeMX/RTE/CMSIS/RTX_Config.c')).toBe(true);
-        expect(solutionProblems['isAbsoluteFilePath']('relative-config.c')).toBe(false);
+        expect(diagnosticActionResolver.isAbsoluteFilePath('C:/CubeMX/CubeMX/RTE/CMSIS/RTX_Config.c')).toBe(true);
+        expect(diagnosticActionResolver.isAbsoluteFilePath('relative-config.c')).toBe(false);
     });
 
     it('returns undefined merge diagnostic action for non-merge messages', () => {
-        const result = solutionProblems['createMergeDiagnosticAction'](
+        const result = diagnosticActionResolver.createMergeDiagnosticAction(
             "component 'Arm::Device@2.3.4' is missing",
             layerPath,
         );
