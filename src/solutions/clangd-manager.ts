@@ -92,7 +92,7 @@ export class ClangdManager {
 
     public async activate(context: ExtensionContext): Promise<void> {
         this.context = context;
-        this.solutionManager.onUpdatedCompileCommands(this.loadedBuildFiles, this, context.subscriptions);
+        this.solutionManager.onUpdatedCompileCommands(this.updateGlobalContext, this, context.subscriptions);
         this.configurationProvider.onChangeConfiguration(this.debouncedUpdateClangdConfig, CONFIG_CLANGD_GENERATE_SETUP);
         this.commandsProvider.registerCommand(ClangdManager.setClangdContextCommandId, this.setGlobalContext, this);
         this.commandsProvider.registerCommand(ClangdManager.unsetClangdContextCommandId, this.unsetGlobalContext, this);
@@ -181,7 +181,7 @@ export class ClangdManager {
         this.context?.workspaceState.update(clangDActiveContextKey, state);
     }
 
-    private loadedBuildFiles() {
+    private updateGlobalContext() {
         const csolution = this.solutionManager.getCsolution();
         const solutionPath = csolution?.solutionPath;
         if (!solutionPath) {
