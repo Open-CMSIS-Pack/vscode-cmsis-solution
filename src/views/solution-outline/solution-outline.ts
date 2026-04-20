@@ -15,7 +15,7 @@
  */
 
 import * as vscode from 'vscode';
-import { CONFIG_AUTO_REVEAL_SOLUTION_OUTLINE, PACKAGE_NAME } from '../../manifest';
+import { CONFIG_AUTO_SHOW_CMSIS_VIEW, PACKAGE_NAME } from '../../manifest';
 import { SolutionLoadState, SolutionLoadStateChangeEvent, SolutionManager } from '../../solutions/solution-manager';
 import { TreeViewProvider } from './treeview-provider';
 import { CsolutionGlobalState, GlobalState } from '../../vscode-api/global-state';
@@ -62,7 +62,7 @@ export class SolutionOutlineView {
             this.solutionPath = e.newState.solutionPath;
             if (
                 e.newState.solutionPath &&
-                this.configurationProvider.getConfigVariableOrDefault<boolean>(CONFIG_AUTO_REVEAL_SOLUTION_OUTLINE, true)
+                this.configurationProvider.getConfigVariableOrDefault<boolean>(CONFIG_AUTO_SHOW_CMSIS_VIEW, true)
             ) {
                 vscode.commands.executeCommand(`${SolutionOutlineView.treeViewId}.open`, { preserveFocus: true });
             }
