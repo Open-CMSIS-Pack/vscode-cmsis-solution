@@ -141,6 +141,11 @@ test.describe('CMSIS Solution Build Validation', () => {
                     expect(vsCodeDriver.testWorkspaceDirectory).toBeDefined();
                     expect(vsCodeDriver.testWorkspaceDirectory).not.toBe(sourceWorkspace);
 
+                    await vsCodeDriver.page.openCmsisPanel();
+                    await vsCodeDriver.page.getCommands().runCommandFromPalette('CMSIS: Open Solution in Workspace');
+                    const firstWorkspaceItem = vsCodeDriver.page.getLocator('.quick-input-list .monaco-list-row').first();
+                    await firstWorkspaceItem.click();
+
                     try {
                         // ==================== STEP 2: Wait for Tool Activation ====================
                         log('info', '⏳ Waiting for Arm Environment Manager to activate tools...');
