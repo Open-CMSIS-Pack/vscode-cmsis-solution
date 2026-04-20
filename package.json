@@ -1354,7 +1354,7 @@
         "cmsis-csolution.autoRevealSolutionOutline": {
           "type": "boolean",
           "default": true,
-          "title": "Show CMSIS View On Load",
+          "title": "Show CMSIS View",
           "description": "Automatically shows the CMSIS Outline view in the Side Bar when a CMSIS solution is loaded."
         },
         "cmsis-csolution.probe-id": {
