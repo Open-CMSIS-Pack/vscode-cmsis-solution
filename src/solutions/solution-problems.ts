@@ -165,10 +165,32 @@ export class SolutionProblemsImpl implements SolutionProblems {
         // Merge cbuild errors/warnings into existing diagnostics
         const csolution = this.solutionManager.getCsolution();
         if (csolution && (logMessages.errors?.length || logMessages.warnings?.length)) {
-            await this.updateDiagnostics(logMessages);
+            await this.mergeDiagnostics(logMessages);
         }
     }
 
+    private async mergeDiagnostics(logMessages: LogMessages): Promise<void> {
+        const existingDiagnostics = new Map<string, { uri: vscode.Uri; diagnostics: vscode.Diagnostic[] }>();
+        this.diagnosticCollection.forEach((uri, diagnostics) => {
+            existingDiagnostics.set(uri.toString(), { uri, diagnostics: [...diagnostics] });
+        });
+
+        await this.updateDiagnostics(logMessages);
+
+        const mergedDiagnostics = new Map<string, { uri: vscode.Uri; diagnostics: vscode.Diagnostic[] }>(existingDiagnostics);
+        this.diagnosticCollection.forEach((uri, diagnostics) => {
+            const key = uri.toString();
+            const existing = mergedDiagnostics.get(key);
+            mergedDiagnostics.set(key, {
+                uri,
+                diagnostics: existing ? [...existing.diagnostics, ...diagnostics] : [...diagnostics],
+            });
+        });
+
+        this.diagnosticCollection.set(
+            Array.from(mergedDiagnostics.values(), ({ uri, diagnostics }) => [uri, diagnostics] as [vscode.Uri, vscode.Diagnostic[]]),
+        );
+    }
     private handleLoadStateChanged(data: SolutionLoadStateChangeEvent): void {
         if (data.previousState.solutionPath !== data.newState.solutionPath) {
             this.clearDiagnostics();
