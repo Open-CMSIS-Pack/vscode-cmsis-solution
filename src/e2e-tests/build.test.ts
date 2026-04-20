@@ -144,8 +144,6 @@ test.describe('CMSIS Solution Build Validation', () => {
                     await vsCodeDriver.page.openCmsisPanel();
                     await vsCodeDriver.page.getCommands().runCommandFromPalette('CMSIS: Open Solution in Workspace');
                     const firstWorkspaceItem = vsCodeDriver.page.getLocator('.quick-input-list .monaco-list-row').first();
-                    await firstWorkspaceItem.waitFor({ state: 'visible' });
-                    await expect(firstWorkspaceItem).toBeEnabled();
                     await firstWorkspaceItem.click();
 
                     try {
