@@ -1351,11 +1351,11 @@
           "default": true,
           "markdownDescription": "Create or update `launch.json` and `tasks.json` with the Debug Adapter configuration of the CMSIS solution project. When disabled, the files `launch.json` and `tasks.json` are no longer modified. (Note: also available in Manage Solution Settings dialog)."
         },
-        "cmsis-csolution.autoRevealSolutionOutline": {
+        "cmsis-csolution.autoRevealCMSISView": {
           "type": "boolean",
           "default": true,
           "title": "Show CMSIS View",
-          "description": "Automatically shows the CMSIS Outline view in the Side Bar when a CMSIS solution is loaded."
+          "description": "Automatically shows the CMSIS view in the Side Bar when a CMSIS solution is loaded."
         },
         "cmsis-csolution.probe-id": {
           "type": "string",
