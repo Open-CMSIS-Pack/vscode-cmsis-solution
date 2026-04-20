@@ -1,3 +1,5 @@
+#!npx tsx
+
 /**
  * Copyright 2026 Arm Limited
  *
@@ -19,7 +21,7 @@
 /*
  * Script to extract version info from manifest_*.yml files in ./tools/cmsis-toolbox
  * and print a dependency graph in the format used in the GitHub Actions summary.
- * Usage: npx tsx scripts/print-toolbox-deps.ts <nightlyVersion>
+ * Usage: npx tsx scripts/get-package-deps.ts <nightlyVersion>
  */
 import fs from 'fs';
 import path from 'path';
@@ -49,9 +51,21 @@ const TOOLBOX_CHILDREN = [
 ];
 
 function findManifestFiles(dir: string): string[] {
-  return fs.readdirSync(dir)
-    .filter(f => MANIFEST_PATTERN.test(f))
-    .map(f => path.join(dir, f));
+  if (!fs.existsSync(dir)) {
+    console.error(`Toolbox directory not found: ${dir}`);
+    process.exit(1);
+  }
+
+  try {
+    return fs.readdirSync(dir)
+      .filter(f => MANIFEST_PATTERN.test(f))
+      .map(f => path.join(dir, f));
+  }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Failed to read toolbox directory "${dir}": ${message}`);
+    process.exit(1);
+  }
 }
 
 function parseManifest(file: string): Record<string, string> {
@@ -101,15 +115,16 @@ function mergeVersions(manifests: Record<string, string>[]): Record<string, stri
 function printDependencyGraph(versions: Record<string, string>, uv2csolutionVersion: string | undefined, nightlyVersion: string) {
   console.log('```text');
   console.log(`vscode-cmsis-solution ${nightlyVersion}`);
-  console.log(`  └── cmsis-toolbox v${versions['cmsis-toolbox'] ?? 'unknown'}`);
+
+  console.log(`  ├── cmsis-toolbox v${versions['cmsis-toolbox'] ?? 'unknown'}`);
   for (let i = 0; i < TOOLBOX_CHILDREN.length; ++i) {
     const tool = TOOLBOX_CHILDREN[i];
     const ver = versions[tool] ?? 'unknown';
     const isLast = i === TOOLBOX_CHILDREN.length - 1;
-    const prefix = isLast ? '  │    └──' : '  │    ├──';
+    const prefix = isLast ? '  │   └──' : '  │   ├──';
     console.log(`${prefix} ${tool} v${ver}`);
   }
-  console.log(`  └─── uv2csolution v${uv2csolutionVersion ?? 'unknown'}`);
+  console.log(`  └── uv2csolution v${uv2csolutionVersion ?? 'unknown'}`);
   console.log('```');
 }
 
