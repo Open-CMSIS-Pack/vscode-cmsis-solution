@@ -103,7 +103,13 @@ export const enrichLogMessagesFromToolOutput = async (logMessages: LogMessages, 
 
 export const MERGE_VIEW_LINK_LABEL = 'Open in Merge View';
 export type MergeUpdateLevel = 'required' | 'recommended' | 'suggested' | 'mandatory';
-const mergeMessageRegex = /file\s+'([^']+)'\s+update\s+(required|recommended|suggested|mandatory)/i;
+const mergeMessagePatterns = [
+    {
+        pattern: /update\s+(required|recommended|suggested|mandatory)\s+for\s+file\s+'([^']+)'/i,
+        getLocalPath: (match: RegExpExecArray) => match[2],
+        getUpdateLevel: (match: RegExpExecArray) => match[1],
+    },
+] as const;
 const mergeComponentRegex = /(?:for|from)\s+component\s+'([^']+)'/i;
 export interface MergeMessageMatch {
     localPath: string;
@@ -311,17 +317,21 @@ export class SolutionProblemsImpl implements SolutionProblems {
     }
 
     private parseMergeMessage(line: string): MergeMessageMatch | undefined {
-        const match = mergeMessageRegex.exec(line);
-        if (!match || match.index === undefined) {
-            return undefined;
+        for (const item of mergeMessagePatterns) {
+            const match = item.pattern.exec(line);
+            if (!match || match.index === undefined) {
+                continue;
+            }
+
+            return {
+                localPath: item.getLocalPath(match),
+                updateLevel: item.getUpdateLevel(match).toLowerCase() as MergeUpdateLevel,
+                matchStart: match.index,
+                matchLength: match[0].length,
+            };
         }
 
-        return {
-            localPath: match[1],
-            updateLevel: match[2].toLowerCase() as MergeUpdateLevel,
-            matchStart: match.index,
-            matchLength: match[0].length,
-        };
+        return undefined;
     }
 
     private createMergeDiagnosticMessage(localPath: string, updateLevel: MergeUpdateLevel, componentId: string | undefined): string {
@@ -340,6 +350,10 @@ export class SolutionProblemsImpl implements SolutionProblems {
         return vscode.Uri.parse(`command:${MERGE_FILE_COMMAND_ID}?${args}`);
     }
 
+    private isAbsoluteFilePath(filePath: string): boolean {
+        return path.isAbsolute(filePath) || path.win32.isAbsolute(filePath);
+    }
+
     private createMergeDiagnosticAction(message: string, diagnosticFilePath: string): { message: string; code: NonNullable<vscode.Diagnostic['code']> } | undefined {
         const merge = this.parseMergeMessage(message);
         if (!merge) {
@@ -347,7 +361,7 @@ export class SolutionProblemsImpl implements SolutionProblems {
         }
 
         const componentId = mergeComponentRegex.exec(message)?.[1];
-        const localPath = path.isAbsolute(merge.localPath) ? merge.localPath : diagnosticFilePath;
+        const localPath = this.isAbsoluteFilePath(merge.localPath) ? merge.localPath : diagnosticFilePath;
         const formattedMessage = this.createMergeDiagnosticMessage(localPath, merge.updateLevel, componentId);
 
         return {

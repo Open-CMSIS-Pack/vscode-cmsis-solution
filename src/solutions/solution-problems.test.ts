@@ -245,7 +245,7 @@ describe('SolutionProblems', () => {
             logMessages: {
                 success: true,
                 errors: [],
-                warnings: ["mylayer.clayer.yml - file '/packs/Component/config.c' update required from component 'Arm::Device@2.3.4'"],
+                warnings: ["mylayer.clayer.yml - update required for file '/packs/Component/config.c' from component 'Arm::Device@2.3.4'"],
                 info: [],
             },
         });
@@ -272,7 +272,7 @@ describe('SolutionProblems', () => {
 
     it('creates merge diagnostic action for merge messages with component context', () => {
         const result = solutionProblems['createMergeDiagnosticAction'](
-            "file '/packs/Component/config.c' update required from component 'Arm::Device@2.3.4'",
+            "update required for file '/packs/Component/config.c' from component 'Arm::Device@2.3.4'",
             layerPath,
         );
 
@@ -283,6 +283,27 @@ describe('SolutionProblems', () => {
                 target: vscode.Uri.parse(`command:${MERGE_FILE_COMMAND_ID}?${encodeURIComponent(JSON.stringify(['/packs/Component/config.c']))}`),
             },
         });
+    });
+
+    it('creates merge diagnostic action for current toolbox message wording', () => {
+        const configPath = 'C:/CubeMX/CubeMX/RTE/CMSIS/RTX_Config.c';
+        const result = solutionProblems['createMergeDiagnosticAction'](
+            `update recommended for file '${configPath}' from component 'CMSIS:RTOS2:Keil RTX5&Source'.\nMerge content from update file, rename update file to base file and remove previous base file`,
+            layerPath,
+        );
+
+        expect(result).toEqual({
+            message: "update recommended for config file 'RTX_Config.c' from component 'CMSIS:RTOS2:Keil RTX5&Source'.",
+            code: {
+                value: 'Open in Merge View',
+                target: vscode.Uri.parse(`command:${MERGE_FILE_COMMAND_ID}?${encodeURIComponent(JSON.stringify([configPath]))}`),
+            },
+        });
+    });
+
+    it('treats Windows-style merge paths as absolute', () => {
+        expect(solutionProblems['isAbsoluteFilePath']('C:/CubeMX/CubeMX/RTE/CMSIS/RTX_Config.c')).toBe(true);
+        expect(solutionProblems['isAbsoluteFilePath']('relative-config.c')).toBe(false);
     });
 
     it('returns undefined merge diagnostic action for non-merge messages', () => {
@@ -304,7 +325,7 @@ describe('SolutionProblems', () => {
             logMessages: {
                 success: true,
                 errors: [],
-                warnings: ["mylayer.clayer.yml - file 'relative-config.c' update recommended"],
+                warnings: ["mylayer.clayer.yml - update recommended for file 'relative-config.c'"],
                 info: [],
             },
         });
@@ -323,7 +344,7 @@ describe('SolutionProblems', () => {
     });
 
     it.each(['required', 'recommended', 'suggested', 'mandatory'] as const)(
-        'renders merge diagnostics for %s update levels',
+        'renders merge diagnostics for current toolbox wording with %s update levels',
         async updateLevel => {
             await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
             const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
@@ -334,7 +355,7 @@ describe('SolutionProblems', () => {
                 logMessages: {
                     success: true,
                     errors: [],
-                    warnings: [`mylayer.clayer.yml - file '/packs/Component/${updateLevel}.c' update ${updateLevel}`],
+                    warnings: [`mylayer.clayer.yml - update ${updateLevel} for file '/packs/Component/${updateLevel}.c'; merge content from update file, rename update file to base file and remove previous base file`],
                     info: [],
                 },
             });

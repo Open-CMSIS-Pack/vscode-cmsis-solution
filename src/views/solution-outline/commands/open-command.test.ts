@@ -30,15 +30,20 @@ import type { CTreeItem } from '../../../generic/tree-item';
 import type { CSolution } from '../../../solutions/csolution';
 import { README_FILE_PATH } from '../../../manifest';
 import { faker } from '@faker-js/faker';
+import { ConfigWizardAnnotationChecker } from '../../../utils/config-wizard-checker';
 
 describe('OpenCommand', () => {
     let commandsProvider: MockCommandsProvider;
     const mockOpenFileExternal: IOpenFileExternal = openFileExternalFactory();
+    let mockAnnotationChecker: ConfigWizardAnnotationChecker;
     let testFolder: string;
     let testFile: string;
 
     beforeEach(async () => {
         commandsProvider = commandsProviderFactory();
+        mockAnnotationChecker = {
+            hasAnnotations: jest.fn().mockResolvedValue(false),
+        };
         testFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'jest-'));
         testFile = `${testFolder}/jtest.txt`;
         fs.writeFileSync(testFile, 'test content');
@@ -50,12 +55,12 @@ describe('OpenCommand', () => {
     });
 
     it('registers the command on activation', async () => {
-        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
+        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
 
         await openCommand.activate(extensionContextFactory());
 
         const expectedCommands = [OpenCommand.openSolutionCommandId, OpenCommand.openProjectCommandId, OpenCommand.openPrjConfCommandId,
-            OpenCommand.openLayerCommandId, OpenCommand.openLinkerCommandId, OpenCommand.openDocCommandId, OpenCommand.openHelpCommandId,
+            OpenCommand.openLayerCommandId, OpenCommand.openLinkerCommandId, OpenCommand.openDocCommandId, OpenCommand.openSourceSmartCommandId, OpenCommand.openHelpCommandId,
             OpenCommand.openZephyrTerminalCommandId];
 
         expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(expectedCommands.length);
@@ -69,7 +74,7 @@ describe('OpenCommand', () => {
         const mockSolutionManager = solutionManagerFactory({
             loadState: activeSolutionLoadStateFactory({ solutionPath: solutionPath }),
         });
-        const openCommand = new OpenCommand(mockSolutionManager, commandsProvider, mockOpenFileExternal);
+        const openCommand = new OpenCommand(mockSolutionManager, commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
         await openCommand.activate(extensionContextFactory());
 
         await commandsProvider.mockRunRegistered(OpenCommand.openSolutionCommandId, solutionPath);
@@ -78,7 +83,7 @@ describe('OpenCommand', () => {
     });
 
     it('opens and shows the cproject file from the path', async () => {
-        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
+        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
         await openCommand.activate(extensionContextFactory());
         const TEST_PROJECT_PATH = path.join('some', 'path', 'to', 'Test.cproject.yml');
 
@@ -93,7 +98,7 @@ describe('OpenCommand', () => {
     });
 
     it('opens and shows the clayer file from the path', async () => {
-        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
+        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
         await openCommand.activate(extensionContextFactory());
         const TEST_LAYER_PATH = path.join('some', 'path', 'to', 'Test.clayer.yml');
 
@@ -108,7 +113,7 @@ describe('OpenCommand', () => {
     });
 
     it('opens and shows the linker map file from the path', async () => {
-        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
+        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
         await openCommand.activate(extensionContextFactory());
         const TEST_LINKER_PATH = path.join('some', 'path', 'to', 'myFile.axf.map');
 
@@ -123,7 +128,7 @@ describe('OpenCommand', () => {
     });
 
     it('opens and shows the prj.conf file for West project', async () => {
-        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
+        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
         await openCommand.activate(extensionContextFactory());
         const TEST_PRJ_CONF_PATH = path.join('some', 'path', 'to', 'zephyr-app', 'prj.conf');
 
@@ -138,7 +143,7 @@ describe('OpenCommand', () => {
     });
 
     it('opens and shows a doc file from the path', async () => {
-        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
+        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
         await openCommand.activate(extensionContextFactory());
 
         const fileItem = new COutlineItem('file');
@@ -209,7 +214,7 @@ describe('OpenCommand', () => {
         jest.spyOn(vscode.extensions, 'getExtension').mockReturnValue({ extensionPath } as unknown as vscode.Extension<void>);
         jest.spyOn(fs, 'existsSync').mockReturnValue(true);
 
-        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
+        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
         await openCommand.activate(extensionContextFactory());
 
         jest.spyOn(mockOpenFileExternal, 'openFile');
@@ -228,7 +233,7 @@ describe('OpenCommand', () => {
         const mockSolutionManager = solutionManagerFactory();
         jest.spyOn(mockSolutionManager, 'getCsolution').mockReturnValue({ cbuildYmlRoot: mockCbuildMap } as Partial<CSolution> as CSolution);
 
-        const openCommand = new OpenCommand(mockSolutionManager, commandsProvider, mockOpenFileExternal);
+        const openCommand = new OpenCommand(mockSolutionManager, commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
         await openCommand.activate(extensionContextFactory());
 
         const node = new COutlineItem('project');
@@ -241,5 +246,58 @@ describe('OpenCommand', () => {
             cwd: path.join('build'),
         });
         expect(mockTerminal.show).toHaveBeenCalled();
+    });
+
+    it('opens candidate source file in configuration wizard when annotations are found', async () => {
+        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+        await openCommand.activate(extensionContextFactory());
+        (mockAnnotationChecker.hasAnnotations as jest.Mock).mockResolvedValue(true);
+
+        const uri = Uri.file(path.join(testFolder, 'config.h'));
+        await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
+
+        const lastCall = commandsProvider.executeCommand.mock.lastCall;
+        expect(lastCall?.[0]).toBe('vscode.openWith');
+        expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+        expect(lastCall?.[2]).toBe('cmsis-csolution.configWizard');
+    });
+
+    it('opens candidate source file in text editor when annotations are missing', async () => {
+        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+        await openCommand.activate(extensionContextFactory());
+        (mockAnnotationChecker.hasAnnotations as jest.Mock).mockResolvedValue(false);
+
+        const uri = Uri.file(path.join(testFolder, 'config.h'));
+        await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
+
+        const lastCall = commandsProvider.executeCommand.mock.lastCall;
+        expect(lastCall?.[0]).toBe('vscode.open');
+        expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+    });
+
+    it('falls back to text editor when annotation detection fails', async () => {
+        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+        await openCommand.activate(extensionContextFactory());
+        (mockAnnotationChecker.hasAnnotations as jest.Mock).mockRejectedValue(new Error('parse failure'));
+
+        const uri = Uri.file(path.join(testFolder, 'config.h'));
+        await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
+
+        const lastCall = commandsProvider.executeCommand.mock.lastCall;
+        expect(lastCall?.[0]).toBe('vscode.open');
+        expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+    });
+
+    it('opens non-candidate source file in text editor without annotation checks', async () => {
+        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+        await openCommand.activate(extensionContextFactory());
+
+        const uri = Uri.file(path.join(testFolder, 'build.txt'));
+        await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
+
+        expect(mockAnnotationChecker.hasAnnotations).not.toHaveBeenCalled();
+        const lastCall = commandsProvider.executeCommand.mock.lastCall;
+        expect(lastCall?.[0]).toBe('vscode.open');
+        expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
     });
 });
