@@ -36,7 +36,7 @@ import * as vscode from 'vscode';
 import { extensionContextFactory } from '../../../vscode-api/extension-context.factories';
 import { commandsProviderFactory, MockCommandsProvider } from '../../../vscode-api/commands-provider.factories';
 import { MergeCommand } from './merge-command';
-import { activeSolutionTrackerFactory, MockActiveSolutionTracker } from '../../../solutions/active-solution-tracker.factories';
+import * as manifest from '../../../manifest';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 import * as child_process from 'child_process';
 import * as os from 'os';
@@ -48,7 +48,6 @@ jest.mock('os');
 
 describe('MergeCommand', () => {
     let commandsProvider: MockCommandsProvider;
-    let activeSolutionTracker: MockActiveSolutionTracker;
     let command: MergeCommand;
     const testDataHandler = new TestDataHandler();
     let tmpDir: string;
@@ -80,8 +79,7 @@ describe('MergeCommand', () => {
         fsUtils.writeTextFile(path.join(tmpDir, 'component.c.base@1.0.0'), '// base\n');
 
         commandsProvider = commandsProviderFactory();
-        activeSolutionTracker = activeSolutionTrackerFactory();
-        command = new MergeCommand(commandsProvider, activeSolutionTracker);
+        command = new MergeCommand(commandsProvider);
 
         componentNode = new COutlineItem('component');
         componentNode.setTag('component');
@@ -358,7 +356,7 @@ describe('MergeCommand', () => {
             expect(warningSpy).toHaveBeenCalledWith('Merge exited with code 1. Conflicts may exist.');
             expect(deleteFileIfExistsSpy).not.toHaveBeenCalled();
             expect(renameFileSpy).not.toHaveBeenCalled();
-            expect(activeSolutionTracker.triggerReload).not.toHaveBeenCalled();
+            expect(commandsProvider.executeCommand).not.toHaveBeenCalledWith(manifest.REFRESH_COMMAND_ID);
         });
 
         it('handles merge errors gracefully', async () => {
@@ -436,7 +434,7 @@ describe('MergeCommand', () => {
             expect(deleteFileIfExistsSpy).toHaveBeenCalledWith(base);
             expect(renameFileSpy).toHaveBeenCalledWith(update, expectedBase);
             expect(renameFileSpy).toHaveBeenCalledWith(merged, local);
-            expect(activeSolutionTracker.triggerReload).toHaveBeenCalledTimes(1);
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith(manifest.REFRESH_COMMAND_ID);
         });
     });
 });

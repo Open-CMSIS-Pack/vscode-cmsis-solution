@@ -17,12 +17,12 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ExtensionContext } from 'vscode';
-import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID } from '../manifest';
+import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
 import * as fsUtils from '../utils/fs-utils';
 import * as vscodeUtils from '../utils/vscode-utils';
 import { solutionManagerFactory, MockSolutionManager } from './solution-manager.factories';
 import { SolutionEventHub } from './solution-event-hub';
-import { enrichLogMessagesFromToolOutput, SolutionProblemsImpl } from './solution-problems';
+import { enrichLogMessagesFromToolOutput, SolutionProblemsImpl, hasToolError, hasToolWarning, getToolsSeverity, getSeverity } from './solution-problems';
 import { waitTimeout } from '../__test__/test-waits';
 
 const solutionPath = '/work/app.csolution.yml';
@@ -70,7 +70,7 @@ describe('SolutionProblems', () => {
 
         await solutionProblems.activate(context);
 
-        expect(context.subscriptions).toHaveLength(3);
+        expect(context.subscriptions).toHaveLength(4);
     });
 
     it('clears diagnostics when solution path changes', async () => {
@@ -114,6 +114,7 @@ describe('SolutionProblems', () => {
         const clearSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'clear');
 
         await eventHub.fireConvertCompleted({
+            success: true,
             severity: 'warning',
             detection: false,
             logMessages: {
@@ -135,6 +136,7 @@ describe('SolutionProblems', () => {
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
         await eventHub.fireConvertCompleted({
+            success: false,
             severity: 'error',
             detection: false,
             logMessages: {
@@ -155,6 +157,7 @@ describe('SolutionProblems', () => {
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
         await eventHub.fireConvertCompleted({
+            success: true,
             severity: 'success',
             detection: false,
             logMessages: {
@@ -215,6 +218,7 @@ describe('SolutionProblems', () => {
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
         await eventHub.fireConvertCompleted({
+            success: false,
             severity: 'error',
             detection: false,
             logMessages: {
@@ -240,6 +244,7 @@ describe('SolutionProblems', () => {
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
         await eventHub.fireConvertCompleted({
+            success: true,
             severity: 'warning',
             detection: false,
             logMessages: {
@@ -262,57 +267,40 @@ describe('SolutionProblems', () => {
         expect(JSON.parse(decodeURIComponent(args))).toEqual(['/packs/Component/config.c']);
     });
 
-    it('creates a merge command uri with encoded local path', () => {
-        const result = solutionProblems['createMergeCommandUri']('/packs/Component/config.c');
-        const [command, args] = result.toString().split('?');
+    it('attaches run generator command uri only when parsed diagnostic has no location', async () => {
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
-        expect(command).toBe(`command:${MERGE_FILE_COMMAND_ID}`);
-        expect(JSON.parse(decodeURIComponent(args))).toEqual(['/packs/Component/config.c']);
-    });
-
-    it('creates merge diagnostic action for merge messages with component context', () => {
-        const result = solutionProblems['createMergeDiagnosticAction'](
-            "update required for file '/packs/Component/config.c' from component 'Arm::Device@2.3.4'",
-            layerPath,
-        );
-
-        expect(result).toEqual({
-            message: "update required for config file 'config.c' from component 'Device'.",
-            code: {
-                value: 'Open in Merge View',
-                target: vscode.Uri.parse(`command:${MERGE_FILE_COMMAND_ID}?${encodeURIComponent(JSON.stringify(['/packs/Component/config.c']))}`),
+        await eventHub.fireConvertCompleted({
+            success: false,
+            severity: 'error',
+            detection: false,
+            logMessages: {
+                success: false,
+                errors: [
+                    "mylayer.clayer.yml - cgen file was not found, run generator 'CubeMX2' for context 'CubeMX2.Debug+STM32C531CBT6'",
+                    "mylayer.clayer.yml:10:2 - cgen file was not found, run generator 'CubeMX2' for context 'CubeMX2.Debug+STM32C531CBT6'",
+                ],
+                warnings: [],
+                info: [],
             },
         });
-    });
+        await waitTimeout();
 
-    it('creates merge diagnostic action for current toolbox message wording', () => {
-        const configPath = 'C:/CubeMX/CubeMX/RTE/CMSIS/RTX_Config.c';
-        const result = solutionProblems['createMergeDiagnosticAction'](
-            `update recommended for file '${configPath}' from component 'CMSIS:RTOS2:Keil RTX5&Source'.\nMerge content from update file, rename update file to base file and remove previous base file`,
-            layerPath,
+        const setCalls = setSpy.mock.calls as unknown as Array<[vscode.Uri, readonly vscode.Diagnostic[] | undefined]>;
+        const diagnostics = setCalls.flatMap(([, diagnosticEntries]) => diagnosticEntries ?? []);
+        const runGeneratorDiagnostics = diagnostics.filter(
+            d => typeof d.code === 'object' && d.code !== null && 'value' in d.code && d.code.value === 'Run Generator'
         );
+        const diagnosticWithoutCode = diagnostics.find(d => d.code === undefined);
 
-        expect(result).toEqual({
-            message: "update recommended for config file 'RTX_Config.c' from component 'CMSIS:RTOS2:Keil RTX5&Source'.",
-            code: {
-                value: 'Open in Merge View',
-                target: vscode.Uri.parse(`command:${MERGE_FILE_COMMAND_ID}?${encodeURIComponent(JSON.stringify([configPath]))}`),
-            },
-        });
-    });
+        expect(runGeneratorDiagnostics).toHaveLength(1);
+        expect(diagnosticWithoutCode).toBeDefined();
 
-    it('treats Windows-style merge paths as absolute', () => {
-        expect(solutionProblems['isAbsoluteFilePath']('C:/CubeMX/CubeMX/RTE/CMSIS/RTX_Config.c')).toBe(true);
-        expect(solutionProblems['isAbsoluteFilePath']('relative-config.c')).toBe(false);
-    });
-
-    it('returns undefined merge diagnostic action for non-merge messages', () => {
-        const result = solutionProblems['createMergeDiagnosticAction'](
-            "component 'Arm::Device@2.3.4' is missing",
-            layerPath,
-        );
-
-        expect(result).toBeUndefined();
+        const code = runGeneratorDiagnostics[0].code as { value: string; target: vscode.Uri };
+        const [command, args] = code.target.toString().split('?');
+        expect(command).toBe(`command:${RUN_GENERATOR_COMMAND_ID}`);
+        expect(JSON.parse(decodeURIComponent(args))).toEqual([{ generator: 'CubeMX2', context: 'CubeMX2.Debug+STM32C531CBT6' }]);
     });
 
     it('falls back to the diagnostic file path for relative merge paths', async () => {
@@ -320,6 +308,7 @@ describe('SolutionProblems', () => {
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
         await eventHub.fireConvertCompleted({
+            success: true,
             severity: 'warning',
             detection: false,
             logMessages: {
@@ -343,13 +332,14 @@ describe('SolutionProblems', () => {
         expect(JSON.parse(decodeURIComponent(args))).toEqual([layerPath]);
     });
 
-    it.each(['required', 'recommended', 'suggested', 'mandatory'] as const)(
+    it.each(['required', 'recommended', 'suggested'] as const)(
         'renders merge diagnostics for current toolbox wording with %s update levels',
         async updateLevel => {
             await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
             const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
             await eventHub.fireConvertCompleted({
+                success: true,
                 severity: 'warning',
                 detection: false,
                 logMessages: {
@@ -373,6 +363,7 @@ describe('SolutionProblems', () => {
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
         await eventHub.fireConvertCompleted({
+            success: false,
             severity: 'error',
             detection: false,
             logMessages: {
@@ -391,5 +382,195 @@ describe('SolutionProblems', () => {
         expect(diagnostic?.message).toBe("component 'Arm::Device@2.3.4' is missing");
         expect(code.value).toBe('Find in Files');
         expect(code.target.toString()).toContain('command:workbench.action.findInFiles');
+    });
+
+    describe('handleCbuildCompleted', () => {
+        it('creates diagnostics from cbuild error output messages', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+            const clearSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'clear');
+
+            await eventHub.fireCbuildCompleted({
+                success: false,
+                severity: 'error',
+                toolsOutputMessages: [
+                    'error cbuild: failed to generate compile_commands.json',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).toHaveBeenCalledTimes(1);
+            expect(clearSpy).not.toHaveBeenCalled();
+            expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
+        });
+
+        it('creates diagnostics from cbuild warning output messages', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+            const clearSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'clear');
+
+            await eventHub.fireCbuildCompleted({
+                success: true,
+                severity: 'warning',
+                toolsOutputMessages: [
+                    'warning cbuild: some optional step skipped',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).toHaveBeenCalledTimes(1);
+            expect(clearSpy).not.toHaveBeenCalled();
+            expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
+        });
+
+        it('does not update diagnostics when toolsOutputMessages has no prefixed messages', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireCbuildCompleted({
+                success: true,
+                severity: 'success',
+                toolsOutputMessages: [
+                    'cbuild setup completed with exit code 0',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).not.toHaveBeenCalled();
+            expect(vscode.commands.executeCommand).not.toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
+        });
+
+        it('does not update diagnostics when toolsOutputMessages is empty', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireCbuildCompleted({
+                success: true,
+                severity: 'success',
+                toolsOutputMessages: [],
+            });
+            await waitTimeout();
+
+            expect(setSpy).not.toHaveBeenCalled();
+        });
+
+        it('does not update diagnostics when no csolution is loaded', async () => {
+            solutionManager.getCsolution.mockReturnValue(undefined);
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireCbuildCompleted({
+                success: false,
+                severity: 'error',
+                toolsOutputMessages: [
+                    'error cbuild: failed to generate compile_commands.json',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('Severity utility functions', () => {
+        const errorLine = 'error cbuild: compilation failed';
+        const warningLine = 'warning cbuild: deprecated option';
+        const infoLine = 'some info message';
+
+        describe('hasToolError', () => {
+            it('returns true when lines contain error pattern', () => {
+                expect(hasToolError([errorLine])).toBe(true);
+            });
+
+            it('returns false when lines do not contain error pattern', () => {
+                expect(hasToolError([warningLine, infoLine])).toBe(false);
+            });
+
+            it('returns false when lines is undefined', () => {
+                expect(hasToolError(undefined)).toBe(false);
+            });
+
+            it('returns false when lines is empty', () => {
+                expect(hasToolError([])).toBe(false);
+            });
+        });
+
+        describe('hasToolWarning', () => {
+            it('returns true when lines contain warning pattern', () => {
+                expect(hasToolWarning([warningLine])).toBe(true);
+            });
+
+            it('returns false when lines do not contain warning pattern', () => {
+                expect(hasToolWarning([errorLine, infoLine])).toBe(false);
+            });
+
+            it('returns false when lines is undefined', () => {
+                expect(hasToolWarning(undefined)).toBe(false);
+            });
+
+            it('returns false when lines is empty', () => {
+                expect(hasToolWarning([])).toBe(false);
+            });
+        });
+
+        describe('getToolsSeverity', () => {
+            it('returns error when lines contain error pattern', () => {
+                expect(getToolsSeverity([errorLine])).toBe('error');
+            });
+
+            it('returns warning when lines contain warning pattern but no error', () => {
+                expect(getToolsSeverity([warningLine])).toBe('warning');
+            });
+
+            it('returns success when lines do not contain error or warning patterns', () => {
+                expect(getToolsSeverity([infoLine])).toBe('success');
+            });
+
+            it('returns success when lines is undefined', () => {
+                expect(getToolsSeverity(undefined)).toBe('success');
+            });
+
+            it('prioritizes error over warning', () => {
+                expect(getToolsSeverity([warningLine, errorLine])).toBe('error');
+            });
+        });
+
+        describe('getSeverity', () => {
+            it('returns error when messages.success is false', () => {
+                expect(getSeverity({ success: false, errors: [], warnings: [], info: [] })).toBe('error');
+            });
+
+            it('returns error when messages have errors', () => {
+                expect(getSeverity({ success: true, errors: ['error message'], warnings: [], info: [] })).toBe('error');
+            });
+
+            it('returns error when lines contain error pattern', () => {
+                expect(getSeverity({ success: true, errors: [], warnings: [], info: [] }, [errorLine])).toBe('error');
+            });
+
+            it('returns warning when messages have warnings but no errors', () => {
+                expect(getSeverity({ success: true, errors: [], warnings: ['warning message'], info: [] })).toBe('warning');
+            });
+
+            it('returns warning when lines contain warning pattern but no messages.errors', () => {
+                expect(getSeverity({ success: true, errors: [], warnings: [], info: [] }, [warningLine])).toBe('warning');
+            });
+
+            it('returns info when messages have info but no errors or warnings', () => {
+                expect(getSeverity({ success: true, errors: [], warnings: [], info: ['info message'] })).toBe('info');
+            });
+
+            it('returns success when no errors, warnings, or info', () => {
+                expect(getSeverity({ success: true, errors: [], warnings: [], info: [] })).toBe('success');
+            });
+
+            it('prioritizes message errors over message warnings', () => {
+                expect(getSeverity({ success: true, errors: ['error'], warnings: ['warning'], info: [] })).toBe('error');
+            });
+
+            it('prioritizes message warnings over info', () => {
+                expect(getSeverity({ success: true, errors: [], warnings: ['warning'], info: ['info'] })).toBe('warning');
+            });
+        });
     });
 });

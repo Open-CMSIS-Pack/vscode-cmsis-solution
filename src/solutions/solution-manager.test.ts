@@ -18,6 +18,7 @@ import 'jest';
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { SolutionLoadState, SolutionManagerImpl } from './solution-manager';
+import * as manifest from '../manifest';
 import { EventEmitter, Event, ExtensionContext, ConfigurationChangeEvent, } from 'vscode';
 import { ActiveSolutionTracker, SolutionDetails, } from './active-solution-tracker';
 import { waitTimeout } from '../__test__/test-waits';
@@ -35,6 +36,7 @@ import { CONFIG_ENVIRONMENT_VARIABLES } from '../manifest';
 
 
 const convertResultData: ConvertResultData = {
+    success: true,
     severity: 'success',
     detection: false,
     logMessages: { success: true, errors: [], warnings: [], info: [] },
@@ -46,7 +48,6 @@ describe('SolutionManager', () => {
         onDidChangeActiveSolution: Event<void>;
         onActiveSolutionFilesChanged: Event<void>;
         getSolutionDetails: jest.Mock;
-        triggerReload: jest.Mock;
         suspendWatch: boolean;
     };
     let changeActiveSolutionEmitter: EventEmitter<void>;
@@ -66,6 +67,7 @@ describe('SolutionManager', () => {
     let testSolutionPath: string;
     let csolutionService: jest.Mocked<ReturnType<typeof csolutionServiceFactory>>;
     let rpcData: SolutionRpcData;
+    let cbuildSetupRequestedListener: jest.Mock;
 
     const testDataHandler = new TestDataHandler();
 
@@ -101,11 +103,12 @@ describe('SolutionManager', () => {
                     displayName: path.basename(solutionPath),
                 }),
             ),
-            triggerReload: jest.fn(() => changeSolutionFilesEmitter.fire()),
             suspendWatch: false,
         };
 
         eventHub = new SolutionEventHub();
+        cbuildSetupRequestedListener = jest.fn();
+        eventHub.onDidCbuildSetupRequested(cbuildSetupRequestedListener);
         convertMock = jest.fn(() => {
             setTimeout(() => {
                 eventHub.fireConvertCompleted(convertResultData);
@@ -144,7 +147,7 @@ describe('SolutionManager', () => {
         loadStateChangeListener = jest.fn();
         solutionManager.onDidChangeLoadState(loadStateChangeListener);
         loadBuildFilesListener = jest.fn();
-        solutionManager.onLoadedBuildFiles(loadBuildFilesListener);
+        solutionManager.onDidSetupCompleted(loadBuildFilesListener);
         await solutionManager.activate({
             subscriptions: [],
         } as unknown as ExtensionContext);
@@ -154,7 +157,7 @@ describe('SolutionManager', () => {
     it('register the command on activation', async () => {
         expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(1);
         expect(commandsProvider.registerCommand).toHaveBeenCalledWith(
-            SolutionManagerImpl.refreshCommandId,
+            manifest.REFRESH_COMMAND_ID,
             expect.any(Function),
             expect.anything(),
         );
@@ -167,7 +170,7 @@ describe('SolutionManager', () => {
         await waitTimeout(100);
 
         await commandsProvider.mockRunRegistered(
-            SolutionManagerImpl.refreshCommandId,
+            manifest.REFRESH_COMMAND_ID,
         );
 
         await waitTimeout(100);
@@ -320,5 +323,94 @@ describe('SolutionManager', () => {
                 lockAbort: false,
             }),
         );
+    });
+
+    it('fires updatedCompileCommands when cbuild completes', async () => {
+        const updatedCompileCommandsListener = jest.fn();
+        solutionManager.onUpdatedCompileCommands(updatedCompileCommandsListener);
+
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(200);
+
+        // Reset mock to count only cbuild event
+        updatedCompileCommandsListener.mockClear();
+
+        // Fire cbuild completion event
+        const cbuildData = { success: true, severity: 'success' as const, toolsOutputMessages: [] };
+        eventHub.fireCbuildCompleted(cbuildData);
+
+        expect(updatedCompileCommandsListener).toHaveBeenCalledTimes(1);
+    });
+
+    it('fires setup completed event with detection=false when cbuild completes with warning', async () => {
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(200);
+
+        // Reset mock to count only cbuild event
+        loadBuildFilesListener.mockClear();
+
+        const cbuildData = { success: true, severity: 'warning' as const, toolsOutputMessages: [] };
+        eventHub.fireCbuildCompleted(cbuildData);
+
+        expect(loadBuildFilesListener).toHaveBeenCalledTimes(1);
+        expect(loadBuildFilesListener).toHaveBeenCalledWith(['warning', false]);
+    });
+
+    it('fires setup completed event with detection=false when cbuild completes with error', async () => {
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(200);
+
+        // Reset mock to count only cbuild event
+        loadBuildFilesListener.mockClear();
+
+        const cbuildData = { success: false, severity: 'error' as const, toolsOutputMessages: [] };
+        eventHub.fireCbuildCompleted(cbuildData);
+
+        expect(loadBuildFilesListener).toHaveBeenCalledTimes(1);
+        expect(loadBuildFilesListener).toHaveBeenCalledWith(['error', false]);
+    });
+
+    it('does not fire setup completed event when cbuild completes with success', async () => {
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(200);
+
+        // Reset mock to count only cbuild event
+        loadBuildFilesListener.mockClear();
+
+        const cbuildData = { success: true, severity: 'success' as const, toolsOutputMessages: [] };
+        eventHub.fireCbuildCompleted(cbuildData);
+
+        expect(loadBuildFilesListener).not.toHaveBeenCalled();
+    });
+
+    it('requests cbuild setup when conversion completes without detection and without error', async () => {
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(200);
+
+        expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not request cbuild setup when conversion completes with detection=true', async () => {
+        convertMock.mockImplementationOnce(() => {
+            setTimeout(() => {
+                eventHub.fireConvertCompleted({
+                    success: true,
+                    severity: 'success',
+                    detection: true,
+                    logMessages: { success: true, errors: [], warnings: [], info: [] },
+                });
+            }, 1);
+        });
+
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(200);
+
+        expect(cbuildSetupRequestedListener).not.toHaveBeenCalled();
     });
 });

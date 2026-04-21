@@ -52,7 +52,7 @@ export class StatusBar {
         context.subscriptions.push(
             vscode.commands.registerCommand(StatusBar.commandType, () => this.runOnClick()),
             this.cmsisToolboxManager.onRunCmsisTool(([start, packs]) => this.updateIconStatus(statusBarItem, start, packs)),
-            this.solutionManager.onLoadedBuildFiles(([severity, detection]) => this.updateCbuildSetupStatus(statusBarItem, severity, detection)),
+            this.solutionManager.onDidSetupCompleted(([severity, detection]) => this.updateCbuildSetupStatus(statusBarItem, severity, detection)),
             this.solutionManager.onDidChangeLoadState((event) => this.handleLoadStateChange(statusBarItem, event)),
             statusBarItem,
         );

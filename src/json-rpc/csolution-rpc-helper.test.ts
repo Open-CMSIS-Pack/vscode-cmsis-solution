@@ -207,6 +207,66 @@ describe('csolution-rpc-client', () => {
         });
     });
 
+    describe('csolution-rpc-client getVersion cache', () => {
+        let service: AnyService;
+
+        beforeEach(() => {
+            service = createService();
+            service.cachedVersion = { success: false };
+        });
+
+        it('caches version after first request and reuses it', async () => {
+            const transceiveSpy = jest.spyOn(service as any, 'transceive')
+                .mockResolvedValue({ success: true, version: '1.2.3', apiVersion: '0.0.9' });
+
+            const first = await service.getVersion();
+            const second = await service.getVersion();
+
+            expect(first).toEqual({ success: true, version: '1.2.3', apiVersion: '0.0.9' });
+            expect(second).toEqual({ success: true, version: '1.2.3', apiVersion: '0.0.9' });
+            expect(transceiveSpy).toHaveBeenCalledTimes(1);
+            expect(transceiveSpy).toHaveBeenCalledWith('GetVersion', undefined);
+        });
+
+        it('resets cached version on terminate and fetches again on next getVersion', async () => {
+            const transceiveSpy = jest.spyOn(service as any, 'transceive')
+                .mockResolvedValue({ success: true, version: '1.2.3', apiVersion: '0.0.9' });
+
+            await service.getVersion();
+            expect(transceiveSpy).toHaveBeenCalledTimes(1);
+
+            // Simulate daemon termination lifecycle.
+            service.onTerminate();
+            expect(service.cachedVersion).toEqual({ success: false });
+
+            await service.getVersion();
+            expect(transceiveSpy).toHaveBeenCalledTimes(2);
+        });
+
+        it('primes version cache in loadPacks before LoadPacks RPC', async () => {
+            service.idxWatcher = { close: jest.fn() };
+            const sequence: string[] = [];
+
+            const transceiveSpy = jest.spyOn(service as any, 'transceive').mockImplementation(async (...args: unknown[]) => {
+                const method = String(args[0]);
+                sequence.push(method);
+                if (method === 'GetVersion') {
+                    return { success: true, version: '1.2.3', apiVersion: '0.0.9' };
+                }
+                if (method === 'LoadPacks') {
+                    return { success: true };
+                }
+                return { success: false };
+            });
+
+            await service.loadPacks();
+
+            expect(transceiveSpy).toHaveBeenCalledWith('GetVersion', undefined);
+            expect(transceiveSpy).toHaveBeenCalledWith('LoadPacks', undefined);
+            expect(sequence.indexOf('GetVersion')).toBeLessThan(sequence.indexOf('LoadPacks'));
+        });
+    });
+
 
     describe('csolution-rpc-client watchPackIdxFile', () => {
         let service: AnyService;

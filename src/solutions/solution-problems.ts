@@ -17,19 +17,50 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { constructor } from '../generic/constructor';
-import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID } from '../manifest';
 import { LogMessages } from '../json-rpc/csolution-rpc-client';
+import { Severity } from './constants';
 import * as fsUtils from '../utils/fs-utils';
 import { getFileNameFromPath } from '../utils/path-utils';
-import { stripTwoExtensions, stripVendor, stripVersion } from '../utils/string-utils';
+import { stripTwoExtensions } from '../utils/string-utils';
 import { getWorkspaceFolder } from '../utils/vscode-utils';
+import { ProblemDiagnosticActionResolver } from './problem-diagnostic-action-resolver';
 import { SolutionLoadStateChangeEvent, SolutionManager } from './solution-manager';
-import { ConvertResultData, SolutionEventHub } from './solution-event-hub';
+import { ConvertResultData, CbuildResultData, SolutionEventHub } from './solution-event-hub';
 
 export const toolsPrefixPatterns = {
     error: /^.*error (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
     warning: /^.*warning (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
 };
+
+export const hasToolError = (lines?: string[]): boolean => {
+    return lines?.find(line => toolsPrefixPatterns.error.test(line)) !== undefined;
+};
+
+export const hasToolWarning = (lines?: string[]): boolean => {
+    return lines?.find(line => toolsPrefixPatterns.warning.test(line)) !== undefined;
+};
+
+export const getToolsSeverity = (lines?: string[]): Severity => {
+    if (hasToolError(lines)) {
+        return 'error';
+    }
+    if (hasToolWarning(lines)) {
+        return 'warning';
+    }
+    return 'success';
+};
+
+export const getSeverity = (messages: LogMessages, lines?: string[]): Severity => {
+    if (!messages.success || (messages.errors && messages.errors.length > 0) || hasToolError(lines)) {
+        return 'error';
+    } else if ((messages.warnings && messages.warnings.length > 0) || hasToolWarning(lines)) {
+        return 'warning';
+    } else if (messages.info && messages.info.length > 0) {
+        return 'info';
+    }
+    return 'success';
+};
+
 
 export const envVarWestPatterns = [
     /^missing ([A-Za-z_][A-Za-z0-9_]*) environment variable$/,
@@ -101,23 +132,6 @@ export const enrichLogMessagesFromToolOutput = async (logMessages: LogMessages, 
     warnings.forEach(w => pushUniquely(logWarnings, w));
 };
 
-export const MERGE_VIEW_LINK_LABEL = 'Open in Merge View';
-export type MergeUpdateLevel = 'required' | 'recommended' | 'suggested' | 'mandatory';
-const mergeMessagePatterns = [
-    {
-        pattern: /update\s+(required|recommended|suggested|mandatory)\s+for\s+file\s+'([^']+)'/i,
-        getLocalPath: (match: RegExpExecArray) => match[2],
-        getUpdateLevel: (match: RegExpExecArray) => match[1],
-    },
-] as const;
-const mergeComponentRegex = /(?:for|from)\s+component\s+'([^']+)'/i;
-export interface MergeMessageMatch {
-    localPath: string;
-    updateLevel: MergeUpdateLevel;
-    matchStart: number;
-    matchLength: number;
-}
-
 export interface SolutionProblems {
     activate(context: vscode.ExtensionContext): Promise<void>;
 }
@@ -125,18 +139,11 @@ export interface SolutionProblems {
 export class SolutionProblemsImpl implements SolutionProblems {
 
     private readonly diagnosticCollection: vscode.DiagnosticCollection = vscode.languages.createDiagnosticCollection('csolution');
+    private readonly diagnosticActionResolver = new ProblemDiagnosticActionResolver();
     /**
     *  source files for diagnostics mapping
     */
     private readonly sourceFiles: Map<string, string> = new Map<string, string>();
-
-    private readonly queryActionPatterns: ReadonlyArray<{ pattern: RegExp; action: 'components-packs' | 'find-in-files' }> = [
-        { pattern: /dependency validation for context '([^']+)' failed:/, action: 'components-packs' },
-        { pattern: /\/([^/\s']+\.[^/\s']+)/, action: 'find-in-files' },
-        { pattern: /'([^']+)'/, action: 'find-in-files' },
-        { pattern: /([A-Za-z0-9_.-]+::[A-Za-z0-9_.-]+(@[A-Za-z0-9_.-]+)*)/, action: 'find-in-files' },
-        { pattern: /([A-Za-z0-9_.-]+@[A-Za-z0-9_.-]*)/, action: 'find-in-files' },
-    ];
 
     constructor(
         private readonly solutionManager: SolutionManager,
@@ -147,14 +154,29 @@ export class SolutionProblemsImpl implements SolutionProblems {
     public async activate(context: vscode.ExtensionContext): Promise<void> {
         context.subscriptions.push(
             this.eventHub.onDidConvertCompleted(this.handleConvertCompleted, this),
+            this.eventHub.onDidCbuildCompleted(this.handleCbuildCompleted, this),
             this.solutionManager.onDidChangeLoadState(this.handleLoadStateChanged, this),
             this.diagnosticCollection,
         );
     }
 
     private async handleConvertCompleted(data: ConvertResultData): Promise<void> {
-        await enrichLogMessagesFromToolOutput(data.logMessages, data.toolsOutputMessages);
-        await this.updateDiagnostics(data.logMessages);
+        // Intentionally clear only on convert: convert is the canonical refresh point.
+        // cbuild follows convert and should add diagnostics without wiping convert findings.
+        this.clearDiagnostics();
+        await this.enrichAndUpdateDiagnostics(data.logMessages, data.toolsOutputMessages);
+    }
+
+    private async handleCbuildCompleted(data: CbuildResultData): Promise<void> {
+        // Do not clear diagnostics here. cbuild diagnostics are additive after convert.
+        // This preserves existing convert diagnostics and avoids churn from redundant clears.
+        const logMessages: LogMessages = { success: true, errors: [], warnings: [], info: [] };
+        await this.enrichAndUpdateDiagnostics(logMessages, data.toolsOutputMessages);
+    }
+
+    private async enrichAndUpdateDiagnostics(logMessages: LogMessages, toolsOutputMessages?: string[]): Promise<void> {
+        await enrichLogMessagesFromToolOutput(logMessages, toolsOutputMessages);
+        await this.updateDiagnostics(logMessages);
     }
 
     private handleLoadStateChanged(data: SolutionLoadStateChangeEvent): void {
@@ -207,17 +229,18 @@ export class SolutionProblemsImpl implements SolutionProblems {
         if (!file) {
             return false;
         }
-        const mergeAction = this.createMergeDiagnosticAction(messageText, file);
+        const action = this.diagnosticActionResolver.resolve({
+            message: messageText,
+            diagnosticFilePath: file,
+            hasLocation: line !== undefined || column !== undefined,
+        });
         const range = await this.createDiagnosticRange(file, filename, line, column);
 
-        const entry = new vscode.Diagnostic(range, mergeAction?.message ?? messageText, severity);
+        const entry = new vscode.Diagnostic(range, action?.message ?? messageText, severity);
         entry.source = 'csolution';
 
-        if (mergeAction) {
-            entry.code = mergeAction.code;
-        } else if (!line && !column) {
-            // add 'Find in Files' action only if no line/column info is available
-            entry.code = this.createDiagnosticActionCode(messageText);
+        if (action?.code) {
+            entry.code = action.code;
         }
 
         // append diagnostic entry
@@ -235,8 +258,8 @@ export class SolutionProblemsImpl implements SolutionProblems {
     }
 
     private async updateDiagnostics(messages: LogMessages): Promise<void> {
-        // clear previous diagnostics
-        this.clearDiagnostics();
+        // Diagnostics lifecycle is controlled by event handlers.
+        // handleConvertCompleted clears; handleCbuildCompleted appends.
         let diagnostics = false;
 
         // iterate through log messages and set diagnostics
@@ -304,112 +327,6 @@ export class SolutionProblemsImpl implements SolutionProblems {
     private isMessageExcluded(message: string): boolean {
         // exclude non relevant messages
         return this.excludePatterns.some(pattern => pattern.test(message));
-    }
-
-    private findQueryActionInMessage(message: string): { query: string; action: 'components-packs' | 'find-in-files' } | undefined {
-        for (const item of this.queryActionPatterns) {
-            const match = message.match(item.pattern);
-            if (match?.[1]) {
-                return { query: match[1], action: item.action };
-            }
-        }
-        return undefined;
-    }
-
-    private parseMergeMessage(line: string): MergeMessageMatch | undefined {
-        for (const item of mergeMessagePatterns) {
-            const match = item.pattern.exec(line);
-            if (!match || match.index === undefined) {
-                continue;
-            }
-
-            return {
-                localPath: item.getLocalPath(match),
-                updateLevel: item.getUpdateLevel(match).toLowerCase() as MergeUpdateLevel,
-                matchStart: match.index,
-                matchLength: match[0].length,
-            };
-        }
-
-        return undefined;
-    }
-
-    private createMergeDiagnosticMessage(localPath: string, updateLevel: MergeUpdateLevel, componentId: string | undefined): string {
-        const fileName = path.basename(localPath);
-        if (componentId === undefined) {
-            return `update ${updateLevel} for config file '${fileName}' has a new version available for merge.`;
-        }
-
-        const componentIdNoVersion = stripVersion(componentId);
-        const componentDisplayName = stripVendor(componentIdNoVersion);
-        return `update ${updateLevel} for config file '${fileName}' from component '${componentDisplayName}'.`;
-    }
-
-    private createMergeCommandUri(localPath: string): vscode.Uri {
-        const args = this.encodeCommandArgs([localPath]);
-        return vscode.Uri.parse(`command:${MERGE_FILE_COMMAND_ID}?${args}`);
-    }
-
-    private isAbsoluteFilePath(filePath: string): boolean {
-        return path.isAbsolute(filePath) || path.win32.isAbsolute(filePath);
-    }
-
-    private createMergeDiagnosticAction(message: string, diagnosticFilePath: string): { message: string; code: NonNullable<vscode.Diagnostic['code']> } | undefined {
-        const merge = this.parseMergeMessage(message);
-        if (!merge) {
-            return undefined;
-        }
-
-        const componentId = mergeComponentRegex.exec(message)?.[1];
-        const localPath = this.isAbsoluteFilePath(merge.localPath) ? merge.localPath : diagnosticFilePath;
-        const formattedMessage = this.createMergeDiagnosticMessage(localPath, merge.updateLevel, componentId);
-
-        return {
-            message: formattedMessage,
-            code: {
-                value: MERGE_VIEW_LINK_LABEL,
-                target: this.createMergeCommandUri(localPath),
-            },
-        };
-    }
-
-    private encodeFindInFilesArgs(query: string): string {
-        const args = {
-            query: query,
-            filesToInclude: '*.yml,*.yaml', // limit search to yml files
-            filesToExclude: '*.cbuild-idx.yml,*.cbuild.yml,*.cbuild-run.yml', // exclude generated or intermediate files
-            isRegex: false,
-            isCaseSensitive: false,
-            matchWholeWord: false,
-            triggerSearch: true,
-            focusResults: true,
-        };
-        return encodeURIComponent(JSON.stringify(args));
-    }
-
-    private encodeCommandArgs(args: unknown[]): string {
-        return encodeURIComponent(JSON.stringify(args));
-    }
-
-    private createDiagnosticActionCode(message: string): vscode.Diagnostic['code'] | undefined {
-        const queryAction = this.findQueryActionInMessage(message);
-        if (!queryAction) {
-            return undefined;
-        }
-
-        if (queryAction.action === 'components-packs') {
-            const args = this.encodeCommandArgs([{ type: 'context', value: queryAction.query }]);
-            return {
-                value: 'Manage Components',
-                target: vscode.Uri.parse(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}?${args}`)
-            };
-        }
-
-        const args = this.encodeFindInFilesArgs(queryAction.query);
-        return {
-            value: 'Find in Files',
-            target: vscode.Uri.parse(`command:workbench.action.findInFiles?${args}`)
-        };
     }
 
 }
