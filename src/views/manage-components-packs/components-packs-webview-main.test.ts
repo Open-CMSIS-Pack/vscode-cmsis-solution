@@ -458,6 +458,19 @@ describe('ComponentsPacksWebviewMain', () => {
             expect(result).toBe(msg);
         });
 
+        it('blocks mutation messages while conversion is in progress', async () => {
+            (solutionManager as { loadState: SolutionLoadState }).loadState = {
+                ...solutionManager.loadState,
+                converted: false,
+            };
+
+            const spy = jest.spyOn(componentsPacksWebviewMain as any, 'handleApplyComponentSet').mockResolvedValue(undefined);
+
+            await (componentsPacksWebviewMain as any).handleMessage({ type: 'APPLY_COMPONENT_SET' });
+
+            expect(spy).not.toHaveBeenCalled();
+        });
+
         it('clears components when no csolution exists', async () => {
             // Arrange: ensure componentTree exists so clearComponents will attempt to send
             (componentsPacksWebviewMain as any).componentTree = { success: true, classes: [{}] };
@@ -692,6 +705,24 @@ describe('ComponentsPacksWebviewMain', () => {
 
             // Ensure dirty flag cleared
             expect(calls.some(m => m.type === 'IS_DIRTY' && m.isDirty === false)).toBe(true);
+        });
+
+        it('shows Converting solution... and returns early when converted is false', async () => {
+            const svc = setupCsolutionServiceMocks();
+            (solutionManager as { loadState: SolutionLoadState }).loadState = {
+                ...solutionManager.loadState,
+                converted: false,
+            };
+            webviewManager.sendMessage.mockClear();
+
+            await (componentsPacksWebviewMain as any).loadSolution('activeCtx', true);
+
+            expect(webviewManager.sendMessage).toHaveBeenCalledWith({
+                type: 'SET_SOLUTION_STATE',
+                stateMessage: 'Converting solution...'
+            });
+            expect(svc.getUsedItems).not.toHaveBeenCalled();
+            expect(svc.getComponentsTree).not.toHaveBeenCalled();
         });
     });
 
