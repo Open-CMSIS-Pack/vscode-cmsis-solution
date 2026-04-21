@@ -30,7 +30,8 @@ import { openFileExternalFactory } from '../../open-file-external.factories';
 import { ETextFileResult } from '../../generic/text-file';
 import { SolutionData } from './view/state/manage-solution-state';
 import { ManageSolutionController } from './manage-solution-controller';
-import { ApplyParams, BoardInfo, BoardList, ContextInfo, ConvertSolutionParams, ConvertSolutionResult, CsolutionService, CtRoot, DeviceInfo, DeviceList, DiscoverLayersInfo, DraftProjectsInfo, GetBoardInfoParams, GetBoardListParams, GetComponentsTreeParams, GetContextInfoParams, GetDeviceInfoParams, GetDeviceListParams, GetDraftProjectsParams, GetPacksInfoParams, GetUsedItemsParams, GetVariablesParams, GetVersionResult, ListMissingPacksResult, LoadSolutionParams, LogMessages, PacksInfo, ResolveParams, Results, SelectBundleParams, SelectComponentParams, SelectPackParams, SelectVariantParams, SuccessResult, UsedItems, ValidateComponentsParams, VariablesResult } from '../../json-rpc/csolution-rpc-client';
+import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
+import { csolutionServiceFactory } from '../../json-rpc/csolution-rpc-client.factory';
 
 export type ManageSolutionWebviewMainFactoryOptions = {
     solutionManager?: SolutionManager;
@@ -81,90 +82,7 @@ export function manageSolutionWebviewMainFactory(options?: ManageSolutionWebview
         options?.commandsProvider ?? commandsProviderFactory(),
         options?.openFileExternal ?? openFileExternalFactory(),
         options?.configurationProvider ?? configurationProviderFactory(),
-        options?.csolutionService ?? jest.mocked<CsolutionService>({
-            getDeviceList: async function (_args: GetDeviceListParams): Promise<DeviceList> { throw new Error('Function not implemented.'); },
-            activate: function (_context: Pick<vscode.ExtensionContext, 'subscriptions'>): Promise<void> {
-                return Promise.resolve();
-            },
-            getCsolutionBin: function (): string {
-                throw new Error('Function not implemented.');
-            },
-            waitForExit: function (): Promise<void> {
-                throw new Error('Function not implemented.');
-            },
-            getVariables: function (_args: GetVariablesParams): Promise<VariablesResult> {
-                throw new Error('Function not implemented.');
-            },
-            getVersion: function (): Promise<GetVersionResult> {
-                throw new Error('Function not implemented.');
-            },
-            shutdown: function (): Promise<SuccessResult> {
-                throw new Error('Function not implemented.');
-            },
-            apply: function (_args: ApplyParams): Promise<SuccessResult> {
-                throw new Error('Function not implemented.');
-            },
-            resolve: function (_args: ResolveParams): Promise<SuccessResult> {
-                throw new Error('Function not implemented.');
-            },
-            loadPacks: function (): Promise<SuccessResult> {
-                throw new Error('Function not implemented.');
-            },
-            loadSolution: function (_args: LoadSolutionParams): Promise<SuccessResult> {
-                throw new Error('Function not implemented.');
-            },
-            getPacksInfo: function (_args: GetPacksInfoParams): Promise<PacksInfo> {
-                throw new Error('Function not implemented.');
-            },
-            selectPack: function (_args: SelectPackParams): Promise<SuccessResult> {
-                throw new Error('Function not implemented.');
-            },
-            getUsedItems: function (_args: GetUsedItemsParams): Promise<UsedItems> {
-                throw new Error('Function not implemented.');
-            },
-            getContextInfo: function (_args: GetContextInfoParams): Promise<ContextInfo> {
-                throw new Error('Function not implemented.');
-            },
-            getDeviceInfo: function (_args: GetDeviceInfoParams): Promise<DeviceInfo> {
-                throw new Error('Function not implemented.');
-            },
-            getBoardList: function (_args: GetBoardListParams): Promise<BoardList> {
-                throw new Error('Function not implemented.');
-            },
-            getBoardInfo: function (_args: GetBoardInfoParams): Promise<BoardInfo> {
-                throw new Error('Function not implemented.');
-            },
-            getComponentsTree: function (_args: GetComponentsTreeParams): Promise<CtRoot> {
-                throw new Error('Function not implemented.');
-            },
-            selectComponent: function (_args: SelectComponentParams): Promise<SuccessResult> {
-                throw new Error('Function not implemented.');
-            },
-            selectVariant: function (_args: SelectVariantParams): Promise<SuccessResult> {
-                throw new Error('Function not implemented.');
-            },
-            selectBundle: function (_args: SelectBundleParams): Promise<SuccessResult> {
-                throw new Error('Function not implemented.');
-            },
-            validateComponents: function (_args: ValidateComponentsParams): Promise<Results> {
-                throw new Error('Function not implemented.');
-            },
-            getLogMessages: function (): Promise<LogMessages> {
-                throw new Error('Function not implemented.');
-            },
-            getDraftProjects: function (_args: GetDraftProjectsParams): Promise<DraftProjectsInfo> {
-                throw new Error('Function not implemented.');
-            },
-            convertSolution: function (_args: ConvertSolutionParams): Promise<ConvertSolutionResult> {
-                throw new Error('Function not implemented.');
-            },
-            discoverLayers: function (_args: LoadSolutionParams): Promise<DiscoverLayersInfo> {
-                throw new Error('Function not implemented.');
-            },
-            listMissingPacks: function (_args: LoadSolutionParams): Promise<ListMissingPacksResult> {
-                throw new Error('Function not implemented.');
-            }
-        }),
+        options?.csolutionService ?? csolutionServiceFactory(),
         options?.onEdit,
         (options?.webviewManager ?? getMockWebViewManager<OutgoingMessage>()) as unknown as WebviewManager<IncomingMessage, OutgoingMessage>);
 
