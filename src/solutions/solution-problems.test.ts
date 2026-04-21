@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ExtensionContext } from 'vscode';
-import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID } from '../manifest';
+import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
 import * as fsUtils from '../utils/fs-utils';
 import * as vscodeUtils from '../utils/vscode-utils';
 import { ProblemDiagnosticActionResolver } from './problem-diagnostic-action-resolver';
@@ -329,7 +329,7 @@ describe('SolutionProblems', () => {
         expect(relativeArgs).toEqual([layerPath]);
     });
 
-    it('returns undefined merge diagnostic action for non-merge messages', () => {
+    it('returns generic find in files action for non-merge messages', () => {
         const result = diagnosticActionResolver.resolve(
             {
                 message: "component 'Arm::Device@2.3.4' is missing",
@@ -352,7 +352,42 @@ describe('SolutionProblems', () => {
         const [command, args] = code.target.toString().split('?');
 
         expect(code.value).toBe('Run Generator');
-        expect(command).toContain('command:cmsis-csolution.runGenerator');
+        expect(command).toBe(`command:${RUN_GENERATOR_COMMAND_ID}`);
+        expect(JSON.parse(decodeURIComponent(args))).toEqual([{ generator: 'CubeMX2', context: 'CubeMX2.Debug+STM32C531CBT6' }]);
+    });
+
+    it('attaches run generator command uri only when parsed diagnostic has no location', async () => {
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+        await eventHub.fireConvertCompleted({
+            severity: 'error',
+            detection: false,
+            logMessages: {
+                success: false,
+                errors: [
+                    "mylayer.clayer.yml - cgen file was not found, run generator 'CubeMX2' for context 'CubeMX2.Debug+STM32C531CBT6'",
+                    "mylayer.clayer.yml:10:2 - cgen file was not found, run generator 'CubeMX2' for context 'CubeMX2.Debug+STM32C531CBT6'",
+                ],
+                warnings: [],
+                info: [],
+            },
+        });
+        await waitTimeout();
+
+        const setCalls = setSpy.mock.calls as unknown as Array<[vscode.Uri, readonly vscode.Diagnostic[] | undefined]>;
+        const diagnostics = setCalls.flatMap(([, diagnosticEntries]) => diagnosticEntries ?? []);
+        const runGeneratorDiagnostics = diagnostics.filter(
+            d => typeof d.code === 'object' && d.code !== null && 'value' in d.code && d.code.value === 'Run Generator'
+        );
+        const diagnosticWithoutCode = diagnostics.find(d => d.code === undefined);
+
+        expect(runGeneratorDiagnostics).toHaveLength(1);
+        expect(diagnosticWithoutCode).toBeDefined();
+
+        const code = runGeneratorDiagnostics[0].code as { value: string; target: vscode.Uri };
+        const [command, args] = code.target.toString().split('?');
+        expect(command).toBe(`command:${RUN_GENERATOR_COMMAND_ID}`);
         expect(JSON.parse(decodeURIComponent(args))).toEqual([{ generator: 'CubeMX2', context: 'CubeMX2.Debug+STM32C531CBT6' }]);
     });
 
@@ -404,7 +439,7 @@ describe('SolutionProblems', () => {
         expect(JSON.parse(decodeURIComponent(args))).toEqual([layerPath]);
     });
 
-    it.each(['required', 'recommended', 'suggested', 'mandatory'] as const)(
+    it.each(['required', 'recommended', 'suggested'] as const)(
         'renders merge diagnostics for current toolbox wording with %s update levels',
         async updateLevel => {
             await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);

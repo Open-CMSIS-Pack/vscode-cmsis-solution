@@ -19,9 +19,8 @@ import * as vscode from 'vscode';
 import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
 import { stripVendor, stripVersion } from '../utils/string-utils';
 
-export const MERGE_VIEW_LINK_LABEL = 'Open in Merge View';
 
-type MergeUpdateLevel = 'required' | 'recommended' | 'suggested' | 'mandatory';
+type MergeUpdateLevel =  'recommended' | 'suggested' | 'required';
 
 interface MergeMessageMatch {
     localPath: string;
@@ -52,7 +51,7 @@ type ProblemActionDescriptor =
 
 const mergeMessagePatterns = [
     {
-        pattern: /update\s+(required|recommended|suggested|mandatory)\s+for\s+file\s+'([^']+)'/i,
+        pattern: /update\s+(recommended|suggested|required)\s+for\s+file\s+'([^']+)'/i,
         getLocalPath: (match: RegExpExecArray) => match[2],
         getUpdateLevel: (match: RegExpExecArray) => match[1],
     },
@@ -93,7 +92,7 @@ export class ProblemDiagnosticActionResolver {
             return {
                 message: this.createMergeDiagnosticMessage(descriptor.localPath, descriptor.updateLevel, descriptor.componentId),
                 code: {
-                    value: MERGE_VIEW_LINK_LABEL,
+                    value: 'Open in Merge View',
                     target: this.createMergeCommandUri(descriptor.localPath),
                 },
             };
