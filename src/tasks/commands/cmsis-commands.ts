@@ -76,7 +76,7 @@ export class CmsisCommands {
         await this.setExecStateBasedOnCSol();
 
         context.subscriptions.push(
-            this.solutionManager.onLoadedBuildFiles(async () => {
+            this.solutionManager.onDidSetupCompleted(async () => {
                 await this.setExecStateBasedOnCSol();
             }),
 

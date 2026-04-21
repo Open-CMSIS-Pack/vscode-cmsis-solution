@@ -102,7 +102,7 @@ describe('StatusBar', () => {
                 { solutionPath: 'sol' },
                 { solutionPath: '' }
             );
-            solutionManager.onLoadedBuildFilesEmitter.fire(['success', false]);
+            solutionManager.onDidSetupCompletedEmitter.fire(['success', false]);
             cmsisToolboxManager.mockTriggerOnRunCmsisTool(true, false);
             expect(statusBarItem.show).toHaveBeenCalledTimes(3);
             expect(statusBarItem.text).toBe('$(sync~spin) target@set');
@@ -114,7 +114,7 @@ describe('StatusBar', () => {
             expect(statusBarItem.tooltip.valueOf()).toEqual('**solution/test**\n - project.build\n');
 
             // cbuild setup completed and files loaded successfully
-            solutionManager.onLoadedBuildFilesEmitter.fire(['success', false]);
+            solutionManager.onDidSetupCompletedEmitter.fire(['success', false]);
             expect(statusBarItem.show).toHaveBeenCalledTimes(5);
             expect(statusBarItem.backgroundColor).toStrictEqual(themeProvider.getThemeColor('statusBarItem.background'));
 
@@ -125,7 +125,7 @@ describe('StatusBar', () => {
             (vscode.commands.executeCommand as jest.Mock).mockClear();
 
             // cbuild setup completed with error
-            solutionManager.onLoadedBuildFilesEmitter.fire(['error', false]);
+            solutionManager.onDidSetupCompletedEmitter.fire(['error', false]);
             expect(statusBarItem.show).toHaveBeenCalledTimes(6);
             expect(statusBarItem.backgroundColor).toStrictEqual(themeProvider.getThemeColor('statusBarItem.errorBackground'));
 

@@ -145,7 +145,7 @@ describe('SolutionManager', () => {
         loadStateChangeListener = jest.fn();
         solutionManager.onDidChangeLoadState(loadStateChangeListener);
         loadBuildFilesListener = jest.fn();
-        solutionManager.onLoadedBuildFiles(loadBuildFilesListener);
+        solutionManager.onDidSetupCompleted(loadBuildFilesListener);
         await solutionManager.activate({
             subscriptions: [],
         } as unknown as ExtensionContext);
@@ -339,5 +339,49 @@ describe('SolutionManager', () => {
         eventHub.fireCbuildCompleted(cbuildData);
 
         expect(updatedCompileCommandsListener).toHaveBeenCalledTimes(1);
+    });
+
+    it('fires setup completed event with detection=false when cbuild completes with warning', async () => {
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(200);
+
+        // Reset mock to count only cbuild event
+        loadBuildFilesListener.mockClear();
+
+        const cbuildData = { success: true, severity: 'warning' as const, toolsOutputMessages: [] };
+        eventHub.fireCbuildCompleted(cbuildData);
+
+        expect(loadBuildFilesListener).toHaveBeenCalledTimes(1);
+        expect(loadBuildFilesListener).toHaveBeenCalledWith(['warning', false]);
+    });
+
+    it('fires setup completed event with detection=false when cbuild completes with error', async () => {
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(200);
+
+        // Reset mock to count only cbuild event
+        loadBuildFilesListener.mockClear();
+
+        const cbuildData = { success: false, severity: 'error' as const, toolsOutputMessages: [] };
+        eventHub.fireCbuildCompleted(cbuildData);
+
+        expect(loadBuildFilesListener).toHaveBeenCalledTimes(1);
+        expect(loadBuildFilesListener).toHaveBeenCalledWith(['error', false]);
+    });
+
+    it('does not fire setup completed event when cbuild completes with success', async () => {
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(200);
+
+        // Reset mock to count only cbuild event
+        loadBuildFilesListener.mockClear();
+
+        const cbuildData = { success: true, severity: 'success' as const, toolsOutputMessages: [] };
+        eventHub.fireCbuildCompleted(cbuildData);
+
+        expect(loadBuildFilesListener).not.toHaveBeenCalled();
     });
 });

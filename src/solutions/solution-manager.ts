@@ -61,7 +61,7 @@ export interface SolutionManager {
 
     readonly onDidChangeLoadState: vscode.Event<SolutionLoadStateChangeEvent>;
 
-    readonly onLoadedBuildFiles: vscode.Event<[Severity, boolean]>;
+    readonly onDidSetupCompleted: vscode.Event<[Severity, boolean]>;
 
     readonly onUpdatedCompileCommands: vscode.Event<void>;
 
@@ -77,8 +77,8 @@ export class SolutionManagerImpl implements SolutionManager {
     private readonly loadStateChangeEmitter = new vscode.EventEmitter<SolutionLoadStateChangeEvent>();
     public readonly onDidChangeLoadState = this.loadStateChangeEmitter.event;
 
-    private readonly loadBuildFilesEmitter = new vscode.EventEmitter<[Severity, boolean]>();
-    public readonly onLoadedBuildFiles = this.loadBuildFilesEmitter.event;
+    private readonly setupCompletedEmitter = new vscode.EventEmitter<[Severity, boolean]>();
+    public readonly onDidSetupCompleted = this.setupCompletedEmitter.event;
 
     private readonly updatedCompileCommandsEmitter = new vscode.EventEmitter<void>();
     public readonly onUpdatedCompileCommands = this.updatedCompileCommandsEmitter.event;
@@ -116,7 +116,7 @@ export class SolutionManagerImpl implements SolutionManager {
                 this.debouncedHandleEnvironmentChange();
             }, undefined, context.subscriptions),
             this.loadStateChangeEmitter,
-            this.loadBuildFilesEmitter,
+            this.setupCompletedEmitter,
             this.updatedCompileCommandsEmitter,
         );
     }
@@ -254,13 +254,18 @@ export class SolutionManagerImpl implements SolutionManager {
         if (data.severity != 'error') {
             await this.commandsProvider.executeCommandIfRegistered(UPDATE_DEBUG_TASKS_COMMAND_ID);
         }
-        this.loadBuildFilesEmitter.fire([data.severity, data.detection]);
+        this.setupCompletedEmitter.fire([data.severity, data.detection]);
     }
 
-    private handleCbuildCompleted(_data: CbuildResultData): void {
+    private handleCbuildCompleted(data: CbuildResultData): void {
         if (this.csolution) {
             // Cbuild setup completed: signal compile-commands update for ClangdManager
             this.updatedCompileCommandsEmitter.fire();
+            // update statusbar in case of errors
+            // note: we can only get here if convert succeeded
+            if (data.severity === 'error' || data.severity === 'warning') {
+                this.setupCompletedEmitter.fire([data.severity, false]);
+            }
         }
     }
 
