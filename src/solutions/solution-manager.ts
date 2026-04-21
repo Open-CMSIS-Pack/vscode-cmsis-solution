@@ -248,11 +248,14 @@ export class SolutionManagerImpl implements SolutionManager {
         }
         await this.updateRpcData(); // refresh RPC data
         await this.loadSolutionBuildFiles();
-
-        if (data.severity != 'error') {
-            await this.commandsProvider.executeCommandIfRegistered(UPDATE_DEBUG_TASKS_COMMAND_ID);
-        }
         this.setupCompletedEmitter.fire([data.severity, data.detection]);
+
+        if (data.severity != 'error' && !data.detection) {
+            this.commandsProvider.executeCommandIfRegistered(UPDATE_DEBUG_TASKS_COMMAND_ID);
+            // spawn cbuild setup asynchronously (fire-and-forget)
+            // cbuild completion will be signaled via onDidCbuildCompleted event
+            void this.eventHub.requestCbuildSetup();
+        }
     }
 
     private handleCbuildCompleted(data: CbuildResultData): void {

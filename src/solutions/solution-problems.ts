@@ -18,6 +18,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { constructor } from '../generic/constructor';
 import { LogMessages } from '../json-rpc/csolution-rpc-client';
+import { Severity } from './constants';
 import * as fsUtils from '../utils/fs-utils';
 import { getFileNameFromPath } from '../utils/path-utils';
 import { stripTwoExtensions } from '../utils/string-utils';
@@ -30,6 +31,36 @@ export const toolsPrefixPatterns = {
     error: /^.*error (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
     warning: /^.*warning (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
 };
+
+export const hasToolError = (lines?: string[]): boolean => {
+    return lines?.find(line => toolsPrefixPatterns.error.test(line)) !== undefined;
+};
+
+export const hasToolWarning = (lines?: string[]): boolean => {
+    return lines?.find(line => toolsPrefixPatterns.warning.test(line)) !== undefined;
+};
+
+export const getToolsSeverity = (lines?: string[]): Severity => {
+    if (hasToolError(lines)) {
+        return 'error';
+    }
+    if (hasToolWarning(lines)) {
+        return 'warning';
+    }
+    return 'success';
+};
+
+export const getSeverity = (messages: LogMessages, lines?: string[]): Severity => {
+    if (!messages.success || (messages.errors && messages.errors.length > 0) || hasToolError(lines)) {
+        return 'error';
+    } else if ((messages.warnings && messages.warnings.length > 0) || hasToolWarning(lines)) {
+        return 'warning';
+    } else if (messages.info && messages.info.length > 0) {
+        return 'info';
+    }
+    return 'success';
+};
+
 
 export const envVarWestPatterns = [
     /^missing ([A-Za-z_][A-Za-z0-9_]*) environment variable$/,

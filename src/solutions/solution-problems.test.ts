@@ -22,7 +22,7 @@ import * as fsUtils from '../utils/fs-utils';
 import * as vscodeUtils from '../utils/vscode-utils';
 import { solutionManagerFactory, MockSolutionManager } from './solution-manager.factories';
 import { SolutionEventHub } from './solution-event-hub';
-import { enrichLogMessagesFromToolOutput, SolutionProblemsImpl } from './solution-problems';
+import { enrichLogMessagesFromToolOutput, SolutionProblemsImpl, hasToolError, hasToolWarning, getToolsSeverity, getSeverity } from './solution-problems';
 import { waitTimeout } from '../__test__/test-waits';
 
 const solutionPath = '/work/app.csolution.yml';
@@ -272,6 +272,7 @@ describe('SolutionProblems', () => {
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
         await eventHub.fireConvertCompleted({
+            success: false,
             severity: 'error',
             detection: false,
             logMessages: {
@@ -468,6 +469,108 @@ describe('SolutionProblems', () => {
             await waitTimeout();
 
             expect(setSpy).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('Severity utility functions', () => {
+        const errorLine = 'error cbuild: compilation failed';
+        const warningLine = 'warning cbuild: deprecated option';
+        const infoLine = 'some info message';
+
+        describe('hasToolError', () => {
+            it('returns true when lines contain error pattern', () => {
+                expect(hasToolError([errorLine])).toBe(true);
+            });
+
+            it('returns false when lines do not contain error pattern', () => {
+                expect(hasToolError([warningLine, infoLine])).toBe(false);
+            });
+
+            it('returns false when lines is undefined', () => {
+                expect(hasToolError(undefined)).toBe(false);
+            });
+
+            it('returns false when lines is empty', () => {
+                expect(hasToolError([])).toBe(false);
+            });
+        });
+
+        describe('hasToolWarning', () => {
+            it('returns true when lines contain warning pattern', () => {
+                expect(hasToolWarning([warningLine])).toBe(true);
+            });
+
+            it('returns false when lines do not contain warning pattern', () => {
+                expect(hasToolWarning([errorLine, infoLine])).toBe(false);
+            });
+
+            it('returns false when lines is undefined', () => {
+                expect(hasToolWarning(undefined)).toBe(false);
+            });
+
+            it('returns false when lines is empty', () => {
+                expect(hasToolWarning([])).toBe(false);
+            });
+        });
+
+        describe('getToolsSeverity', () => {
+            it('returns error when lines contain error pattern', () => {
+                expect(getToolsSeverity([errorLine])).toBe('error');
+            });
+
+            it('returns warning when lines contain warning pattern but no error', () => {
+                expect(getToolsSeverity([warningLine])).toBe('warning');
+            });
+
+            it('returns success when lines do not contain error or warning patterns', () => {
+                expect(getToolsSeverity([infoLine])).toBe('success');
+            });
+
+            it('returns success when lines is undefined', () => {
+                expect(getToolsSeverity(undefined)).toBe('success');
+            });
+
+            it('prioritizes error over warning', () => {
+                expect(getToolsSeverity([warningLine, errorLine])).toBe('error');
+            });
+        });
+
+        describe('getSeverity', () => {
+            it('returns error when messages.success is false', () => {
+                expect(getSeverity({ success: false, errors: [], warnings: [], info: [] })).toBe('error');
+            });
+
+            it('returns error when messages have errors', () => {
+                expect(getSeverity({ success: true, errors: ['error message'], warnings: [], info: [] })).toBe('error');
+            });
+
+            it('returns error when lines contain error pattern', () => {
+                expect(getSeverity({ success: true, errors: [], warnings: [], info: [] }, [errorLine])).toBe('error');
+            });
+
+            it('returns warning when messages have warnings but no errors', () => {
+                expect(getSeverity({ success: true, errors: [], warnings: ['warning message'], info: [] })).toBe('warning');
+            });
+
+            it('returns warning when lines contain warning pattern but no messages.errors', () => {
+                expect(getSeverity({ success: true, errors: [], warnings: [], info: [] }, [warningLine])).toBe('warning');
+            });
+
+            it('returns info when messages have info but no errors or warnings', () => {
+                expect(getSeverity({ success: true, errors: [], warnings: [], info: ['info message'] })).toBe('info');
+            });
+
+            it('returns success when no errors, warnings, or info', () => {
+                expect(getSeverity({ success: true, errors: [], warnings: [], info: [] })).toBe('success');
+            });
+
+            it('prioritizes message errors over message warnings', () => {
+                expect(getSeverity({ success: true, errors: ['error'], warnings: ['warning'], info: [] })).toBe('error');
+            });
+
+            it('prioritizes message warnings over info', () => {
+                expect(getSeverity({ success: true, errors: [], warnings: ['warning'], info: ['info'] })).toBe('warning');
+            });
         });
     });
 });

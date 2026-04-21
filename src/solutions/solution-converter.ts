@@ -19,12 +19,10 @@ import * as manifest from '../manifest';
 import { ConfigurationProvider } from '../vscode-api/configuration-provider';
 import { OutputChannelProvider } from '../vscode-api/output-channel-provider';
 import { CmsisToolboxManager } from './cmsis-toolbox';
-import { CompileCommandsGenerator } from './intellisense/compile-commands-generator';
 import { Mutex } from 'async-mutex';
 import * as rpc from '../json-rpc/csolution-rpc-client';
 import { ConvertRequestData, SolutionEventHub } from './solution-event-hub';
-import { Severity } from './constants';
-import { toolsPrefixPatterns } from './solution-problems';
+import { getSeverity } from './solution-problems';
 
 
 export interface SolutionConverter {
@@ -42,7 +40,6 @@ export class SolutionConverterImpl implements SolutionConverter {
         private readonly configProvider: ConfigurationProvider,
         private readonly outputChannelProvider: OutputChannelProvider,
         private readonly cmsisToolboxManager: CmsisToolboxManager,
-        private readonly compileCommandsGenerator: CompileCommandsGenerator,
     ) {
     }
 
@@ -187,7 +184,7 @@ export class SolutionConverterImpl implements SolutionConverter {
             return;
         }
         logResult = { errors: [], warnings: [], info: [], ...logResult, success: convertResult.success };
-        const severity = this.getSeverity(logResult, toolsOutputMessages);
+        const severity = getSeverity(logResult, toolsOutputMessages);
 
         // print result to output channel
         outputChannel.append('\n' + (
@@ -210,15 +207,6 @@ export class SolutionConverterImpl implements SolutionConverter {
         // compilers and variables detection handling:
         // apply select-compiler and discover layer configurations, reset state otherwise
         this.eventHub.fireConfigureSolutionDataReady({ availableCompilers, availableConfigurations });
-
-        // spawn cbuild setup asynchronously (fire-and-forget)
-        // cbuild completion will be signaled via onDidCbuildCompleted event
-        if (!detection && convertResult.success) {
-            // check if compile commands need to be updated: call cbuild setup skipping csolution convert step
-            outputChannel.appendLine('Launching cbuild setup in Terminal to generate IntelliSense database');
-            this.compileCommandsGenerator.runCbuildSetup(); // no await
-        }
-
     }
 
     private async printErrorsWarnings(messages?: rpc.LogMessages): Promise<void> {
@@ -269,15 +257,5 @@ export class SolutionConverterImpl implements SolutionConverter {
         ) as rpc.DiscoverLayersInfo;
         return result;
     }
-
-    private getSeverity(messages: rpc.LogMessages, lines?: string[]): Severity {
-        if (!messages.success || (messages.errors && messages.errors.length > 0) || lines?.find(line => toolsPrefixPatterns.error.test(line))) {
-            return 'error';
-        } else if ((messages.warnings && messages.warnings.length > 0) || lines?.find(line => toolsPrefixPatterns.warning.test(line))) {
-            return 'warning';
-        } else if (messages.info && messages.info.length > 0) {
-            return 'info';
-        }
-        return 'success';
-    }
 }
+

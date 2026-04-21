@@ -93,6 +93,14 @@ export interface SolutionEventHub {
      */
     readonly onDidCbuildCompleted: vscode.Event<CbuildResultData>;
     /**
+     * Fire cbuild setup request event
+     */
+    requestCbuildSetup(): Promise<void>;
+    /**
+     * Event fired when cbuild setup is requested
+     */
+    readonly onDidCbuildSetupRequested: vscode.Event<void>;
+    /**
      * Fire configure solution data ready event
      */
     fireConfigureSolutionDataReady(data: ConfigureSolutionData): Promise<void>;
@@ -113,6 +121,9 @@ class SolutionEventHubImpl {
     private readonly cbuildCompleteEmitter = new vscode.EventEmitter<CbuildResultData>();
     public readonly onDidCbuildCompleted: vscode.Event<CbuildResultData> = this.cbuildCompleteEmitter.event;
 
+    private readonly cbuildSetupRequestEmitter = new vscode.EventEmitter<void>();
+    public readonly onDidCbuildSetupRequested: vscode.Event<void> = this.cbuildSetupRequestEmitter.event;
+
     private readonly configureSolutionDataEmitter = new vscode.EventEmitter<ConfigureSolutionData>();
     public readonly onDidConfigureSolutionDataReady: vscode.Event<ConfigureSolutionData> = this.configureSolutionDataEmitter.event;
 
@@ -120,6 +131,7 @@ class SolutionEventHubImpl {
         context.subscriptions.push(this.convertRequestEmitter);
         context.subscriptions.push(this.convertCompleteEmitter);
         context.subscriptions.push(this.cbuildCompleteEmitter);
+        context.subscriptions.push(this.cbuildSetupRequestEmitter);
         context.subscriptions.push(this.configureSolutionDataEmitter);
     }
 
@@ -133,6 +145,10 @@ class SolutionEventHubImpl {
 
     public async fireCbuildCompleted(data: CbuildResultData): Promise<void> {
         this.cbuildCompleteEmitter.fire(data);
+    }
+
+    public async requestCbuildSetup(): Promise<void> {
+        this.cbuildSetupRequestEmitter.fire();
     }
 
     public async fireConfigureSolutionDataReady(data: ConfigureSolutionData): Promise<void> {

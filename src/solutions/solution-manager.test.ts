@@ -67,6 +67,7 @@ describe('SolutionManager', () => {
     let testSolutionPath: string;
     let csolutionService: jest.Mocked<ReturnType<typeof csolutionServiceFactory>>;
     let rpcData: SolutionRpcData;
+    let cbuildSetupRequestedListener: jest.Mock;
 
     const testDataHandler = new TestDataHandler();
 
@@ -106,6 +107,8 @@ describe('SolutionManager', () => {
         };
 
         eventHub = new SolutionEventHub();
+        cbuildSetupRequestedListener = jest.fn();
+        eventHub.onDidCbuildSetupRequested(cbuildSetupRequestedListener);
         convertMock = jest.fn(() => {
             setTimeout(() => {
                 eventHub.fireConvertCompleted(convertResultData);
@@ -382,5 +385,32 @@ describe('SolutionManager', () => {
         eventHub.fireCbuildCompleted(cbuildData);
 
         expect(loadBuildFilesListener).not.toHaveBeenCalled();
+    });
+
+    it('requests cbuild setup when conversion completes without detection and without error', async () => {
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(200);
+
+        expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not request cbuild setup when conversion completes with detection=true', async () => {
+        convertMock.mockImplementationOnce(() => {
+            setTimeout(() => {
+                eventHub.fireConvertCompleted({
+                    success: true,
+                    severity: 'success',
+                    detection: true,
+                    logMessages: { success: true, errors: [], warnings: [], info: [] },
+                });
+            }, 1);
+        });
+
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(200);
+
+        expect(cbuildSetupRequestedListener).not.toHaveBeenCalled();
     });
 });

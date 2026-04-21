@@ -34,7 +34,7 @@ describe('EventHub', () => {
         it('should register emitters with context subscriptions', async () => {
             await eventHub.activate(mockContext);
 
-            expect(mockContext.subscriptions).toHaveLength(4);
+            expect(mockContext.subscriptions).toHaveLength(5);
         });
     });
 
@@ -123,10 +123,12 @@ describe('EventHub', () => {
             const requestListener = jest.fn();
             const completeListener = jest.fn();
             const cbuildCompleteListener = jest.fn();
+            const cbuildSetupRequestListener = jest.fn();
 
             eventHub.onDidConvertRequested(requestListener);
             eventHub.onDidConvertCompleted(completeListener);
             eventHub.onDidCbuildCompleted(cbuildCompleteListener);
+            eventHub.onDidCbuildSetupRequested(cbuildSetupRequestListener);
 
             await eventHub.fireConvertRequest({
                 solutionPath: '/path/to/solution.csolution.yml',
@@ -137,18 +139,28 @@ describe('EventHub', () => {
             expect(requestListener).toHaveBeenCalledTimes(1);
             expect(completeListener).not.toHaveBeenCalled();
             expect(cbuildCompleteListener).not.toHaveBeenCalled();
+            expect(cbuildSetupRequestListener).not.toHaveBeenCalled();
 
             await eventHub.fireConvertCompleted({ success: true, severity: 'success', detection: true, logMessages });
 
             expect(requestListener).toHaveBeenCalledTimes(1);
             expect(completeListener).toHaveBeenCalledTimes(1);
             expect(cbuildCompleteListener).not.toHaveBeenCalled();
+            expect(cbuildSetupRequestListener).not.toHaveBeenCalled();
 
             await eventHub.fireCbuildCompleted({ success: true, severity: 'success', toolsOutputMessages: [] });
 
             expect(requestListener).toHaveBeenCalledTimes(1);
             expect(completeListener).toHaveBeenCalledTimes(1);
             expect(cbuildCompleteListener).toHaveBeenCalledTimes(1);
+            expect(cbuildSetupRequestListener).not.toHaveBeenCalled();
+
+            await eventHub.requestCbuildSetup();
+
+            expect(requestListener).toHaveBeenCalledTimes(1);
+            expect(completeListener).toHaveBeenCalledTimes(1);
+            expect(cbuildCompleteListener).toHaveBeenCalledTimes(1);
+            expect(cbuildSetupRequestListener).toHaveBeenCalledTimes(1);
         });
     });
 
@@ -227,6 +239,29 @@ describe('EventHub', () => {
 
             expect(listener1).toHaveBeenCalledWith(data);
             expect(listener2).toHaveBeenCalledWith(data);
+        });
+    });
+
+    describe('requestCbuildSetup', () => {
+        it('should fire cbuild setup requested event', async () => {
+            const listener = jest.fn();
+            eventHub.onDidCbuildSetupRequested(listener);
+
+            await eventHub.requestCbuildSetup();
+
+            expect(listener).toHaveBeenCalledTimes(1);
+        });
+
+        it('should notify multiple listeners', async () => {
+            const listener1 = jest.fn();
+            const listener2 = jest.fn();
+            eventHub.onDidCbuildSetupRequested(listener1);
+            eventHub.onDidCbuildSetupRequested(listener2);
+
+            await eventHub.requestCbuildSetup();
+
+            expect(listener1).toHaveBeenCalledTimes(1);
+            expect(listener2).toHaveBeenCalledTimes(1);
         });
     });
 
