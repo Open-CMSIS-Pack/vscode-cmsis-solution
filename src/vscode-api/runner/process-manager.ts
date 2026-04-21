@@ -107,7 +107,7 @@ export class ProcessManagerImpl implements ProcessManager {
                     reject({ code: childProcess.exitCode, error: error });
                 });
 
-                childProcess.on('exit', code => {
+                childProcess.on('close', code => {
                     if (code === 0) {
                         resolve({ code: 0 });
                     } else {

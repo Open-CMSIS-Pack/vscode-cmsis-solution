@@ -59,6 +59,7 @@ const mergeMessagePatterns = [
 
 const mergeComponentRegex = /(?:for|from)\s+component\s+'([^']+)'/i;
 const generatorMissingPatterns: readonly RegExp[] = [
+    /run\s+generator\s+'([^']+)'\s+for\s+context\s+'([^']+)'/i,
     /cgen file was not found,\s*run generator '([^']+)' for context '([^']+)'/i,
     /(?:cgen\s+file\s+.*\s+)?run generator '([^']+)' for context '([^']+)'/i,
 ];
@@ -192,8 +193,10 @@ export class ProblemDiagnosticActionResolver {
     }
 
     private parseGeneratorRequest(message: string): { generator: string; context: string } | undefined {
+        const normalizedMessage = this.normalizeMessageForPatternMatching(message);
+
         for (const pattern of generatorMissingPatterns) {
-            const match = message.match(pattern);
+            const match = normalizedMessage.match(pattern);
             if (!match) {
                 continue;
             }
@@ -203,6 +206,10 @@ export class ProblemDiagnosticActionResolver {
         }
 
         return undefined;
+    }
+
+    private normalizeMessageForPatternMatching(message: string): string {
+        return message.replace(/\s+/g, ' ').trim();
     }
 
     private parseMergeMessage(message: string): MergeMessageMatch | undefined {
