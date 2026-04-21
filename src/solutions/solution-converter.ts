@@ -116,7 +116,7 @@ export class SolutionConverterImpl implements SolutionConverter {
 
         let toolsOutputMessages: string[] = [];
 
-        outputChannel.appendLine('⚙️ Converting solution...');
+        outputChannel.appendLine('\n⚙️ Converting solution...');
         let missingPacksResult = undefined;
         if (this.isDownloadPacksEnabled()) {
             // rpc method: ListMissingPacks
@@ -198,7 +198,7 @@ export class SolutionConverterImpl implements SolutionConverter {
                     severity == 'warning' ?
                         '🟨 Convert solution completed with warnings' :
                         '✅ Convert solution completed'
-        ) + '\n\n');
+        ) + '\n');
         // notify conversion result and detection status asynchronously!
         this.eventHub.fireConvertCompleted({
             success: convertResult.success,
@@ -215,7 +215,7 @@ export class SolutionConverterImpl implements SolutionConverter {
         // cbuild completion will be signaled via onDidCbuildCompleted event
         if (!detection && convertResult.success) {
             // check if compile commands need to be updated: call cbuild setup skipping csolution convert step
-            outputChannel.append('Setup database... ');
+            outputChannel.appendLine('Launching cbuild setup in Terminal to generate IntelliSense database');
             this.compileCommandsGenerator.runCbuildSetup(); // no await
         }
 

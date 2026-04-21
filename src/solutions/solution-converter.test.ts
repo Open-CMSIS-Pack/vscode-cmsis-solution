@@ -221,7 +221,7 @@ describe('SolutionConverter', () => {
             expect.stringContaining('Convert solution...'),
             expect.stringContaining('Get log messages...'),
             expect.stringContaining('✅ Convert solution completed'),
-            expect.stringContaining('Setup database...'),
+            expect.stringContaining('Launching cbuild setup in Terminal'),
         ]);
         expect(completedListener).toHaveBeenCalledTimes(1);
     });
