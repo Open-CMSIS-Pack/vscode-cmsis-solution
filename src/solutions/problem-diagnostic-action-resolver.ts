@@ -44,6 +44,12 @@ export interface ProblemDiagnosticActionResult {
     code?: NonNullable<vscode.Diagnostic['code']>;
 }
 
+type ProblemActionDescriptor =
+    | { kind: 'merge'; localPath: string; updateLevel: MergeUpdateLevel; componentId?: string }
+    | { kind: 'run-generator'; generator: string; context: string }
+    | { kind: 'manage-components'; query: string }
+    | { kind: 'find-in-files'; query: string };
+
 const mergeMessagePatterns = [
     {
         pattern: /update\s+(required|recommended|suggested|mandatory)\s+for\s+file\s+'([^']+)'/i,
@@ -53,7 +59,10 @@ const mergeMessagePatterns = [
 ] as const;
 
 const mergeComponentRegex = /(?:for|from)\s+component\s+'([^']+)'/i;
-const generatorMissingPattern = /cgen file was not found,\s*run generator '([^']+)' for context '([^']+)'/i;
+const generatorMissingPatterns: readonly RegExp[] = [
+    /cgen file was not found,\s*run generator '([^']+)' for context '([^']+)'/i,
+    /(?:cgen\s+file\s+.*\s+)?run generator '([^']+)' for context '([^']+)'/i,
+];
 
 const queryActionPatterns: ReadonlyArray<{ pattern: RegExp; action: 'components-packs' | 'find-in-files' }> = [
     { pattern: /dependency validation for context '([^']+)' failed:/, action: 'components-packs' },
@@ -65,63 +74,93 @@ const queryActionPatterns: ReadonlyArray<{ pattern: RegExp; action: 'components-
 
 export class ProblemDiagnosticActionResolver {
     public resolve(context: ProblemDiagnosticActionContext): ProblemDiagnosticActionResult | undefined {
+        const descriptor = this.resolveDescriptor(context);
+        if (!descriptor) {
+            return undefined;
+        }
+        return this.toDiagnosticAction(descriptor);
+    }
+
+    private resolveDescriptor(context: ProblemDiagnosticActionContext): ProblemActionDescriptor | undefined {
         return this.resolveMergeAction(context)
             ?? this.resolveGeneratorMissingAction(context)
             ?? this.resolveManageComponentsAction(context)
             ?? this.resolveGenericSearchAction(context);
     }
 
-    public createMergeDiagnosticAction(message: string, diagnosticFilePath: string): ProblemDiagnosticActionResult | undefined {
-        const merge = this.parseMergeMessage(message);
+    private toDiagnosticAction(descriptor: ProblemActionDescriptor): ProblemDiagnosticActionResult {
+        if (descriptor.kind === 'merge') {
+            return {
+                message: this.createMergeDiagnosticMessage(descriptor.localPath, descriptor.updateLevel, descriptor.componentId),
+                code: {
+                    value: MERGE_VIEW_LINK_LABEL,
+                    target: this.createMergeCommandUri(descriptor.localPath),
+                },
+            };
+        }
+
+        if (descriptor.kind === 'run-generator') {
+            return {
+                code: {
+                    value: 'Run Generator',
+                    target: this.createRunGeneratorCommandUri(descriptor.generator, descriptor.context),
+                },
+            };
+        }
+
+        if (descriptor.kind === 'manage-components') {
+            const args = this.encodeCommandArgs([{ type: 'context', value: descriptor.query }]);
+            return {
+                code: {
+                    value: 'Manage Components',
+                    target: vscode.Uri.parse(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}?${args}`),
+                },
+            };
+        }
+
+        const args = this.encodeFindInFilesArgs(descriptor.query);
+        return {
+            code: {
+                value: 'Find in Files',
+                target: vscode.Uri.parse(`command:workbench.action.findInFiles?${args}`),
+            },
+        };
+    }
+
+    private resolveMergeAction(context: ProblemDiagnosticActionContext): ProblemActionDescriptor | undefined {
+        const merge = this.parseMergeMessage(context.message);
         if (!merge) {
             return undefined;
         }
 
-        const componentId = mergeComponentRegex.exec(message)?.[1];
-        const localPath = this.isAbsoluteFilePath(merge.localPath) ? merge.localPath : diagnosticFilePath;
-
+        const componentId = mergeComponentRegex.exec(context.message)?.[1];
+        const localPath = this.isAbsoluteFilePath(merge.localPath) ? merge.localPath : context.diagnosticFilePath;
         return {
-            message: this.createMergeDiagnosticMessage(localPath, merge.updateLevel, componentId),
-            code: {
-                value: MERGE_VIEW_LINK_LABEL,
-                target: this.createMergeCommandUri(localPath),
-            },
+            kind: 'merge',
+            localPath,
+            updateLevel: merge.updateLevel,
+            componentId,
         };
     }
 
-    public createMergeCommandUri(localPath: string): vscode.Uri {
-        const args = this.encodeCommandArgs([localPath]);
-        return vscode.Uri.parse(`command:${MERGE_FILE_COMMAND_ID}?${args}`);
-    }
-
-    public isAbsoluteFilePath(filePath: string): boolean {
-        return path.isAbsolute(filePath) || path.win32.isAbsolute(filePath);
-    }
-
-    private resolveMergeAction(context: ProblemDiagnosticActionContext): ProblemDiagnosticActionResult | undefined {
-        return this.createMergeDiagnosticAction(context.message, context.diagnosticFilePath);
-    }
-
-    private resolveGeneratorMissingAction(context: ProblemDiagnosticActionContext): ProblemDiagnosticActionResult | undefined {
+    private resolveGeneratorMissingAction(context: ProblemDiagnosticActionContext): ProblemActionDescriptor | undefined {
         if (context.hasLocation) {
             return undefined;
         }
 
-        const match = context.message.match(generatorMissingPattern);
-        if (!match) {
+        const request = this.parseGeneratorRequest(context.message);
+        if (!request) {
             return undefined;
         }
 
-        const [, generator, generatorContext] = match;
         return {
-            code: {
-                value: 'Run Generator',
-                target: this.createRunGeneratorCommandUri(generator, generatorContext),
-            },
+            kind: 'run-generator',
+            generator: request.generator,
+            context: request.context,
         };
     }
 
-    private resolveManageComponentsAction(context: ProblemDiagnosticActionContext): ProblemDiagnosticActionResult | undefined {
+    private resolveManageComponentsAction(context: ProblemDiagnosticActionContext): ProblemActionDescriptor | undefined {
         if (context.hasLocation) {
             return undefined;
         }
@@ -131,16 +170,13 @@ export class ProblemDiagnosticActionResolver {
             return undefined;
         }
 
-        const args = this.encodeCommandArgs([{ type: 'context', value: queryAction.query }]);
         return {
-            code: {
-                value: 'Manage Components',
-                target: vscode.Uri.parse(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}?${args}`),
-            },
+            kind: 'manage-components',
+            query: queryAction.query,
         };
     }
 
-    private resolveGenericSearchAction(context: ProblemDiagnosticActionContext): ProblemDiagnosticActionResult | undefined {
+    private resolveGenericSearchAction(context: ProblemDiagnosticActionContext): ProblemActionDescriptor | undefined {
         if (context.hasLocation) {
             return undefined;
         }
@@ -150,13 +186,24 @@ export class ProblemDiagnosticActionResolver {
             return undefined;
         }
 
-        const args = this.encodeFindInFilesArgs(queryAction.query);
         return {
-            code: {
-                value: 'Find in Files',
-                target: vscode.Uri.parse(`command:workbench.action.findInFiles?${args}`),
-            },
+            kind: 'find-in-files',
+            query: queryAction.query,
         };
+    }
+
+    private parseGeneratorRequest(message: string): { generator: string; context: string } | undefined {
+        for (const pattern of generatorMissingPatterns) {
+            const match = message.match(pattern);
+            if (!match) {
+                continue;
+            }
+
+            const [, generator, context] = match;
+            return { generator, context };
+        }
+
+        return undefined;
     }
 
     private parseMergeMessage(message: string): MergeMessageMatch | undefined {
@@ -201,9 +248,18 @@ export class ProblemDiagnosticActionResolver {
         return `update ${updateLevel} for config file '${fileName}' from component '${componentDisplayName}'.`;
     }
 
+    private createMergeCommandUri(localPath: string): vscode.Uri {
+        const args = this.encodeCommandArgs([localPath]);
+        return vscode.Uri.parse(`command:${MERGE_FILE_COMMAND_ID}?${args}`);
+    }
+
     private createRunGeneratorCommandUri(generator: string, context: string): vscode.Uri {
         const args = this.encodeCommandArgs([{ generator, context }]);
         return vscode.Uri.parse(`command:${RUN_GENERATOR_COMMAND_ID}?${args}`);
+    }
+
+    private isAbsoluteFilePath(filePath: string): boolean {
+        return path.isAbsolute(filePath) || path.win32.isAbsolute(filePath);
     }
 
     private encodeFindInFilesArgs(query: string): string {

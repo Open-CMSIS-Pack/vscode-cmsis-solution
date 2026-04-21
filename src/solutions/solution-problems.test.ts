@@ -266,18 +266,23 @@ describe('SolutionProblems', () => {
     });
 
     it('creates a merge command uri with encoded local path', () => {
-        const result = diagnosticActionResolver.createMergeCommandUri('/packs/Component/config.c');
-        const [command, args] = result.toString().split('?');
+        const result = diagnosticActionResolver.resolve({
+            message: "update required for file '/packs/Component/config.c' from component 'Arm::Device@2.3.4'",
+            diagnosticFilePath: layerPath,
+            hasLocation: false,
+        });
+        const [command, args] = (result?.code as { target: vscode.Uri }).target.toString().split('?');
 
         expect(command).toBe(`command:${MERGE_FILE_COMMAND_ID}`);
         expect(JSON.parse(decodeURIComponent(args))).toEqual(['/packs/Component/config.c']);
     });
 
     it('creates merge diagnostic action for merge messages with component context', () => {
-        const result = diagnosticActionResolver.createMergeDiagnosticAction(
-            "update required for file '/packs/Component/config.c' from component 'Arm::Device@2.3.4'",
-            layerPath,
-        );
+        const result = diagnosticActionResolver.resolve({
+            message: "update required for file '/packs/Component/config.c' from component 'Arm::Device@2.3.4'",
+            diagnosticFilePath: layerPath,
+            hasLocation: false,
+        });
 
         expect(result).toEqual({
             message: "update required for config file 'config.c' from component 'Device'.",
@@ -290,10 +295,11 @@ describe('SolutionProblems', () => {
 
     it('creates merge diagnostic action for current toolbox message wording', () => {
         const configPath = 'C:/CubeMX/CubeMX/RTE/CMSIS/RTX_Config.c';
-        const result = diagnosticActionResolver.createMergeDiagnosticAction(
-            `update recommended for file '${configPath}' from component 'CMSIS:RTOS2:Keil RTX5&Source'.\nMerge content from update file, rename update file to base file and remove previous base file`,
-            layerPath,
-        );
+        const result = diagnosticActionResolver.resolve({
+            message: `update recommended for file '${configPath}' from component 'CMSIS:RTOS2:Keil RTX5&Source'.\nMerge content from update file, rename update file to base file and remove previous base file`,
+            diagnosticFilePath: layerPath,
+            hasLocation: false,
+        });
 
         expect(result).toEqual({
             message: "update recommended for config file 'RTX_Config.c' from component 'CMSIS:RTOS2:Keil RTX5&Source'.",
@@ -305,15 +311,67 @@ describe('SolutionProblems', () => {
     });
 
     it('treats Windows-style merge paths as absolute', () => {
-        expect(diagnosticActionResolver.isAbsoluteFilePath('C:/CubeMX/CubeMX/RTE/CMSIS/RTX_Config.c')).toBe(true);
-        expect(diagnosticActionResolver.isAbsoluteFilePath('relative-config.c')).toBe(false);
+        const absolute = diagnosticActionResolver.resolve({
+            message: "update required for file 'C:/CubeMX/CubeMX/RTE/CMSIS/RTX_Config.c' from component 'Arm::Device@2.3.4'",
+            diagnosticFilePath: layerPath,
+            hasLocation: false,
+        });
+        const relative = diagnosticActionResolver.resolve({
+            message: "update required for file 'relative-config.c' from component 'Arm::Device@2.3.4'",
+            diagnosticFilePath: layerPath,
+            hasLocation: false,
+        });
+
+        const absoluteArgs = JSON.parse(decodeURIComponent((absolute?.code as { target: vscode.Uri }).target.toString().split('?')[1]));
+        const relativeArgs = JSON.parse(decodeURIComponent((relative?.code as { target: vscode.Uri }).target.toString().split('?')[1]));
+
+        expect(absoluteArgs).toEqual(['C:/CubeMX/CubeMX/RTE/CMSIS/RTX_Config.c']);
+        expect(relativeArgs).toEqual([layerPath]);
     });
 
     it('returns undefined merge diagnostic action for non-merge messages', () => {
-        const result = diagnosticActionResolver.createMergeDiagnosticAction(
-            "component 'Arm::Device@2.3.4' is missing",
-            layerPath,
+        const result = diagnosticActionResolver.resolve(
+            {
+                message: "component 'Arm::Device@2.3.4' is missing",
+                diagnosticFilePath: layerPath,
+                hasLocation: false,
+            },
         );
+
+        expect((result?.code as { value: string }).value).toBe('Find in Files');
+    });
+
+    it('creates run generator action for canonical generator error wording', () => {
+        const result = diagnosticActionResolver.resolve({
+            message: "cgen file was not found, run generator 'CubeMX2' for context 'CubeMX2.Debug+STM32C531CBT6'",
+            diagnosticFilePath: layerPath,
+            hasLocation: false,
+        });
+
+        const code = result?.code as { value: string; target: vscode.Uri };
+        const [command, args] = code.target.toString().split('?');
+
+        expect(code.value).toBe('Run Generator');
+        expect(command).toContain('command:cmsis-csolution.runGenerator');
+        expect(JSON.parse(decodeURIComponent(args))).toEqual([{ generator: 'CubeMX2', context: 'CubeMX2.Debug+STM32C531CBT6' }]);
+    });
+
+    it('creates run generator action for alternate generator error wording', () => {
+        const result = diagnosticActionResolver.resolve({
+            message: "run generator 'CubeMX2' for context 'CubeMX2.Debug+STM32C531CBT6' to generate missing cgen artifacts",
+            diagnosticFilePath: layerPath,
+            hasLocation: false,
+        });
+
+        expect((result?.code as { value: string }).value).toBe('Run Generator');
+    });
+
+    it('does not offer run generator action when line or column is present', () => {
+        const result = diagnosticActionResolver.resolve({
+            message: "cgen file was not found, run generator 'CubeMX2' for context 'CubeMX2.Debug+STM32C531CBT6'",
+            diagnosticFilePath: layerPath,
+            hasLocation: true,
+        });
 
         expect(result).toBeUndefined();
     });
