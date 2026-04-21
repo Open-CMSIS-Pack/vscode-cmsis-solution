@@ -597,9 +597,13 @@ describe('ComponentsPacksWebviewMain', () => {
 
         it('performs full reload sequence when reload=true', async () => {
             const svc = setupCsolutionServiceMocks();
+            (componentsPacksWebviewMain as any).currentProject = {
+                solutionPath: 'solPath',
+                project: { projectId: 'proj.cproject.yml', projectName: 'proj' }
+            };
             (componentsPacksWebviewMain as any).getActiveContext = jest.fn().mockReturnValue('activeCtx');
 
-            await (componentsPacksWebviewMain as any).loadSolution('solPath', 'activeTs', 'activeCtx', true);
+            await (componentsPacksWebviewMain as any).loadSolution('activeCtx', true);
 
             // Ordering-sensitive state messages (exclude the final undefined clear + others at end)
             const stateMessages = webviewManager.sendMessage.mock.calls
@@ -610,16 +614,11 @@ describe('ComponentsPacksWebviewMain', () => {
             // Expect the progressive messages in order (final undefined may appear anywhere in array depending on Promise.all)
             expect(stateMessages).toEqual(
                 expect.arrayContaining([
-                    'Connecting to rpc daemon',
-                    'Loading Solution...',
-                    'Retrieving assigned items...'
+                    'Loading Solution data...'
                 ])
             );
-            expect(stateMessages.indexOf('Connecting to rpc daemon')).toBeLessThan(stateMessages.indexOf('Loading Solution...'));
-            expect(stateMessages.indexOf('Loading Solution...')).toBeLessThan(stateMessages.indexOf('Retrieving assigned items...'));
 
             expect(svc.loadPacks).not.toHaveBeenCalled();
-            expect(svc.loadSolution).toHaveBeenCalledWith({ solution: 'solPath', activeTarget: 'activeTs' });
             expect(svc.getUsedItems).toHaveBeenCalledWith({ context: 'activeCtx' });
             expect(svc.getPacksInfo).toHaveBeenCalledWith({ context: 'activeCtx', all: false });
             expect(svc.getComponentsTree).toHaveBeenCalledWith({ context: 'activeCtx', all: false });
@@ -636,18 +635,24 @@ describe('ComponentsPacksWebviewMain', () => {
 
         it('skips heavy reload steps when reload=false', async () => {
             const svc = setupCsolutionServiceMocks();
+            (componentsPacksWebviewMain as any).currentProject = {
+                solutionPath: 'solPath',
+                project: { projectId: 'proj.cproject.yml', projectName: 'proj' }
+            };
+            (componentsPacksWebviewMain as any).getActiveContext = jest.fn().mockReturnValue('activeCtx');
 
             (componentsPacksWebviewMain as any).usedItems = usedItemsReturn;
-            await (componentsPacksWebviewMain as any).loadSolution('solPath', 'activeTs', 'activeCtx', false);
+            await (componentsPacksWebviewMain as any).loadSolution('activeCtx', false);
 
             // Heavy operations not called
             expect(svc.loadPacks).not.toHaveBeenCalled();
             expect(svc.loadSolution).not.toHaveBeenCalled();
 
-            // Still refresh tree, usedItems and validations
+            // Still refresh tree and validations
             expect(svc.getComponentsTree).toHaveBeenCalledTimes(1);
             expect(svc.validateComponents).toHaveBeenCalledTimes(1);
-            expect(svc.getUsedItems).toHaveBeenCalled();
+            // sendDirtyState({ skipApply: true }) still calls isDirty(), which refreshes used items once.
+            expect(svc.getUsedItems).toHaveBeenCalledWith({ context: 'activeCtx' });
 
             const compTreeMsg = webviewManager.sendMessage.mock.calls.map(c => c[0]).find(m => m.type === 'SOLUTION_LOADED');
             expect(compTreeMsg?.componentTree).toBe(componentTreeReturn);
@@ -658,6 +663,10 @@ describe('ComponentsPacksWebviewMain', () => {
 
         it('handles errors and sends error messages', async () => {
             const error = new Error('Boom failure');
+            (componentsPacksWebviewMain as any).currentProject = {
+                solutionPath: 'solPath',
+                project: { projectId: 'proj.cproject.yml', projectName: 'proj' }
+            };
             setupCsolutionServiceMocks({
                 getComponentsTree: jest.fn().mockRejectedValue(error),
                 getLogMessages: jest.fn().mockResolvedValue({
@@ -667,7 +676,7 @@ describe('ComponentsPacksWebviewMain', () => {
                 })
             });
 
-            await (componentsPacksWebviewMain as any).loadSolution('solPath', 'activeTs', 'ctx', true);
+            await (componentsPacksWebviewMain as any).loadSolution('ctx', true);
 
             // Expect error sequence: SET_COMPONENT_TREE with cleared data & SET_ERROR_MESSAGES with merged messages
             const calls = webviewManager.sendMessage.mock.calls.map(c => c[0]);
@@ -1187,35 +1196,35 @@ describe('ComponentsPacksWebviewMain', () => {
             await (componentsPacksWebviewMain as any).load('proj/board.cproject.yml', true);
 
             expect(clearSpy).toHaveBeenCalled();
-            expect(loadSolutionSpy).toHaveBeenCalledWith('/solutions/app.csolution.yml', 'Debug', 'ctxProj', true);
+            expect(loadSolutionSpy).toHaveBeenCalledWith('ctxProj', true);
             expect(sendSelectedProjectSpy).toHaveBeenCalledWith('proj/board.cproject.yml');
             expect((componentsPacksWebviewMain as any).project.project.projectName).toBe('board');
         });
     });
 
     describe('loadSolution failure handling', () => {
-        it('throws when csolution load fails and surfaces rpc log messages', async () => {
+        it('surfaces rpc log messages when loading solution data fails', async () => {
             webviewManager.sendMessage.mockClear();
             (componentsPacksWebviewMain as any).currentProject = { solutionPath: path.join('root', 'solution.csolution.yml'), project: { projectId: 'proj', projectName: 'proj' } };
             (componentsPacksWebviewMain as any).csolutionService = {
                 getVersion: jest.fn().mockResolvedValue('1.0.0'),
                 loadPacks: jest.fn().mockResolvedValue(undefined),
-                loadSolution: jest.fn().mockResolvedValue({ success: false }),
-                getUsedItems: jest.fn(),
+                loadSolution: jest.fn().mockResolvedValue({ success: true }),
+                getUsedItems: jest.fn().mockRejectedValue(new Error('Boom failure')),
                 getPacksInfo: jest.fn().mockResolvedValue({ packs: [] }),
                 getComponentsTree: jest.fn(),
                 validateComponents: jest.fn(),
                 getLogMessages: jest.fn().mockResolvedValue({ errors: ['E'], warnings: ['W'], info: ['I'] })
             };
 
-            await (componentsPacksWebviewMain as any).loadSolution('solPath', 'ts', 'ctx', true);
+            await (componentsPacksWebviewMain as any).loadSolution('ctx', true);
 
             const errorMessages = webviewManager.sendMessage.mock.calls
                 .map(c => c[0])
                 .filter(m => m.type === 'SET_ERROR_MESSAGES');
             const lastErrorMessage = errorMessages.at(-1);
             expect(lastErrorMessage).toBeDefined();
-            expect(lastErrorMessage?.messages.map((m: any) => m.message)).toEqual(expect.arrayContaining(['Failed loading solution: solPath due to previous errors', 'E', 'W', 'I']));
+            expect(lastErrorMessage?.messages.map((m: any) => m.message)).toEqual(expect.arrayContaining(['Boom failure', 'E', 'W', 'I']));
         });
     });
 

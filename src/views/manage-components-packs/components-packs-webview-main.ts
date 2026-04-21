@@ -381,13 +381,12 @@ export class ComponentsPacksWebviewMain {
             this.currentProject = { solutionPath: csolution.solutionPath, project: createProject(projectId) };
             const actx = this.getActiveContext();
 
-            const activeTs = csolution.getActiveTargetSetName() ?? '';
-            await this.loadSolution(csolution.solutionPath, activeTs, actx, reload);
+            await this.loadSolution(actx, reload);
             await this.sendSelectedProject(backToForwardSlashes(projectId));
         }
     }
 
-    private async loadSolution(solutionPath: string, activeTargetSet: string, activeContext: string, reload: boolean): Promise<void> {
+    private async loadSolution(activeContext: string, reload: boolean): Promise<void> {
         await this.webviewManager.sendMessage({ type: 'SET_ERROR_MESSAGES', messages: [] });
 
         // Abort if conversion is still in progress; handleSolutionLoadChange will trigger reload on converted=true
@@ -400,15 +399,7 @@ export class ComponentsPacksWebviewMain {
             if (reload) {
                 this.availablePacksCache = {};
                 this.unlinkRequests.clear();
-                await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Connecting to rpc daemon' });
-
-                await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Loading Solution...' });
-                const solutionSuccess = await this.csolutionService.loadSolution({ solution: solutionPath, activeTarget: activeTargetSet });
-                if (!solutionSuccess.success) {
-                    throw new Error(`Failed loading solution: ${solutionPath} due to previous errors`);
-                }
-
-                await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Retrieving assigned items...' });
+                await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Loading Solution data...' });
                 this.usedItems = await this.csolutionService.getUsedItems({ context: activeContext });
             }
             await this.webviewManager.sendMessage({ type: 'SET_UNLINKREQUESTS_STACK', unlinkRequests: Array.from(this.unlinkRequests) });

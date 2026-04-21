@@ -147,7 +147,7 @@ export class SolutionManagerImpl implements SolutionManager {
         if (!this.isSolutionActivated()) {
             return;
         }
-        if (await this.loadSolution()) {
+        if (await this.loadSolution(true)) { // some RPC data can change (e.g. different CMSIS_PACK_ROOT)
             this.requestConvert(false, true, false);
         }
     }
@@ -163,7 +163,7 @@ export class SolutionManagerImpl implements SolutionManager {
 
         if (solutionPath) {
             this.setLoadState(newState, false);
-            if (await this.loadSolution()) {
+            if (await this.loadSolution(true)) { // first load, read RPC data for fast update of the views
                 // trigger solution convert without RTE update
                 this.requestConvert(false, false, true);
             }
@@ -176,7 +176,7 @@ export class SolutionManagerImpl implements SolutionManager {
         if (!this.loadState.solutionPath) {
             return;
         }
-        if (await this.loadSolution()) {
+        if (await this.loadSolution(false)) { // no update RTE before convert
             this.requestConvert(true, false, false);
         }
     }
@@ -217,7 +217,7 @@ export class SolutionManagerImpl implements SolutionManager {
         }
     }
 
-    private async loadSolution(): Promise<boolean> {
+    private async loadSolution(updateRpcData: boolean): Promise<boolean> {
         if (this.loadingSolution || !this.loadState.solutionPath) {
             return false;
         }
@@ -226,12 +226,15 @@ export class SolutionManagerImpl implements SolutionManager {
             this.csolution = new CSolution();
             await this.csolution.load(this.loadState.solutionPath);
 
+            // read if RPC data if requested
+            if (updateRpcData) {
+                await this.updateRpcData();
+            }
             // Create new state object with loaded flag
             const newState: SolutionLoadState = {
                 ...this.loadState,
                 loaded: true
             };
-            await this.updateRpcData();
             this.setLoadState(newState, true);
         } catch (error) {
             console.error(`Failed to load ${this.loadState.solutionPath}`, error);
@@ -245,6 +248,7 @@ export class SolutionManagerImpl implements SolutionManager {
         if (!this.csolution) {
             return;
         }
+        await this.updateRpcData(); // refresh RPC data
         await this.loadSolutionBuildFiles();
 
         if (data.severity != 'error') {
