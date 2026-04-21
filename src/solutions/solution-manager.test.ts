@@ -18,6 +18,7 @@ import 'jest';
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { SolutionLoadState, SolutionManagerImpl } from './solution-manager';
+import * as manifest from '../manifest';
 import { EventEmitter, Event, ExtensionContext, ConfigurationChangeEvent, } from 'vscode';
 import { ActiveSolutionTracker, SolutionDetails, } from './active-solution-tracker';
 import { waitTimeout } from '../__test__/test-waits';
@@ -47,7 +48,6 @@ describe('SolutionManager', () => {
         onDidChangeActiveSolution: Event<void>;
         onActiveSolutionFilesChanged: Event<void>;
         getSolutionDetails: jest.Mock;
-        triggerReload: jest.Mock;
         suspendWatch: boolean;
     };
     let changeActiveSolutionEmitter: EventEmitter<void>;
@@ -102,7 +102,6 @@ describe('SolutionManager', () => {
                     displayName: path.basename(solutionPath),
                 }),
             ),
-            triggerReload: jest.fn(() => changeSolutionFilesEmitter.fire()),
             suspendWatch: false,
         };
 
@@ -155,7 +154,7 @@ describe('SolutionManager', () => {
     it('register the command on activation', async () => {
         expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(1);
         expect(commandsProvider.registerCommand).toHaveBeenCalledWith(
-            SolutionManagerImpl.refreshCommandId,
+            manifest.REFRESH_COMMAND_ID,
             expect.any(Function),
             expect.anything(),
         );
@@ -168,7 +167,7 @@ describe('SolutionManager', () => {
         await waitTimeout(100);
 
         await commandsProvider.mockRunRegistered(
-            SolutionManagerImpl.refreshCommandId,
+            manifest.REFRESH_COMMAND_ID,
         );
 
         await waitTimeout(100);

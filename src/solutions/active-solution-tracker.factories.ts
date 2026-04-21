@@ -69,7 +69,6 @@ export const activeSolutionTrackerFactory = makeFactory<MockActiveSolutionTracke
     solutions: () => [],
     activate: () => jest.fn(),
     getSolutionDetails: () => jest.fn(),
-    triggerReload: (r) => jest.fn(() => r.onActiveSolutionFilesChangedEmitter?.fire()),
     suspendWatch: () => false,
     mockFireActiveSolutionFilesChanged: (r) => () => r.onActiveSolutionFilesChangedEmitter?.fire(),
 });

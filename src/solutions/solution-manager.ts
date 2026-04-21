@@ -72,8 +72,6 @@ export interface SolutionManager {
 }
 
 export class SolutionManagerImpl implements SolutionManager {
-    public static readonly refreshCommandId = `${manifest.PACKAGE_NAME}.refresh`;
-
     private readonly loadStateChangeEmitter = new vscode.EventEmitter<SolutionLoadStateChangeEvent>();
     public readonly onDidChangeLoadState = this.loadStateChangeEmitter.event;
 
@@ -103,7 +101,7 @@ export class SolutionManagerImpl implements SolutionManager {
             this.activeSolutionTracker.onActiveSolutionFilesChanged(this.handleActiveSolutionFilesChanged, this),
             this.eventHub.onDidConvertCompleted(this.handleSolutionConvertCompleted, this),
             this.eventHub.onDidCbuildCompleted(this.handleCbuildCompleted, this),
-            this.commandsProvider.registerCommand(SolutionManagerImpl.refreshCommandId, this.refresh, this),
+            this.commandsProvider.registerCommand(manifest.REFRESH_COMMAND_ID, this.refresh, this),
             this.environmentManagerApiProvider.onActivate(environmentManagerApi => {
                 environmentManagerApi.onDidActivate(() => {
                     if (!this.isSolutionActivated()) {
