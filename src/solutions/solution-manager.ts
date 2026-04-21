@@ -224,7 +224,7 @@ export class SolutionManagerImpl implements SolutionManager {
             this.csolution = new CSolution();
             await this.csolution.load(this.loadState.solutionPath);
 
-            // read if RPC data if requested
+            // update RPC data if requested
             if (updateRpcData) {
                 await this.updateRpcData();
             }
