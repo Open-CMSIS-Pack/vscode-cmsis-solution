@@ -220,6 +220,7 @@ export class VsCodeDriver {
         const runningApp = requireRunning(this.state);
 
         try {
+            await runningApp.pageDriver.getCommands().runCommandFromPalette('CMSIS: Close Solution');
             await runningApp.pageDriver.getCommands().runCommandFromPalette('View: Close All Editors');
             await runningApp.pageDriver.getCommands().runCommandFromPalette('Notifications: Clear All Notifications');
             await runningApp.pageDriver.getCommands().runCommandFromPalette('View: Kill All Terminals');
