@@ -83,8 +83,6 @@ export interface ActiveSolutionTracker {
 
     getSolutionDetails(solutionPath: string): SolutionDetails;
 
-    triggerReload(): void;
-
     suspendWatch: boolean;
 }
 
@@ -297,7 +295,7 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
         return this.configurationProvider.getConfigVariable<string>(manifest.CONFIG_EXCLUDE) || undefined;
     }
 
-    public triggerReload(): void {
+    private triggerReload(): void {
         this.activeSolutionFilesChangedEmitter.fire();
     }
 

@@ -69,7 +69,7 @@ describe('ClangdManagerTest', () => {
           Add:
             - '-DDEBUG'
         ---
-        If:  
+        If:
           PathMatch: 'Release'
         CompileFlags:
           CompilationDatabase: >-

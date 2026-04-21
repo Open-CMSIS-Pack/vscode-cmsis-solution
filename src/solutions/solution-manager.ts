@@ -21,10 +21,9 @@ import { ActiveSolutionTracker } from './active-solution-tracker';
 import { CSolution } from './csolution';
 import { UPDATE_DEBUG_TASKS_COMMAND_ID } from '../debug/debug-launch-provider';
 import { Severity } from './constants';
-import { SolutionEventHub, ConvertResultData } from './solution-event-hub';
+import { SolutionEventHub, ConvertResultData, CbuildResultData } from './solution-event-hub';
 import { ExtensionApiProvider } from '../vscode-api/extension-api-provider';
 import { EnvironmentManagerApiV1 } from '@arm-software/vscode-environment-manager';
-import { ETextFileResult } from '../generic/text-file';
 import { debounce } from 'lodash';
 import { SolutionRpcData } from './solution-rpc-data';
 import { EnvironmentManager } from '../desktop/env-manager';
@@ -62,7 +61,7 @@ export interface SolutionManager {
 
     readonly onDidChangeLoadState: vscode.Event<SolutionLoadStateChangeEvent>;
 
-    readonly onLoadedBuildFiles: vscode.Event<[Severity, boolean]>;
+    readonly onDidSetupCompleted: vscode.Event<[Severity, boolean]>;
 
     readonly onUpdatedCompileCommands: vscode.Event<void>;
 
@@ -73,13 +72,11 @@ export interface SolutionManager {
 }
 
 export class SolutionManagerImpl implements SolutionManager {
-    public static readonly refreshCommandId = `${manifest.PACKAGE_NAME}.refresh`;
-
     private readonly loadStateChangeEmitter = new vscode.EventEmitter<SolutionLoadStateChangeEvent>();
     public readonly onDidChangeLoadState = this.loadStateChangeEmitter.event;
 
-    private readonly loadBuildFilesEmitter = new vscode.EventEmitter<[Severity, boolean]>();
-    public readonly onLoadedBuildFiles = this.loadBuildFilesEmitter.event;
+    private readonly setupCompletedEmitter = new vscode.EventEmitter<[Severity, boolean]>();
+    public readonly onDidSetupCompleted = this.setupCompletedEmitter.event;
 
     private readonly updatedCompileCommandsEmitter = new vscode.EventEmitter<void>();
     public readonly onUpdatedCompileCommands = this.updatedCompileCommandsEmitter.event;
@@ -103,7 +100,8 @@ export class SolutionManagerImpl implements SolutionManager {
             this.activeSolutionTracker.onDidChangeActiveSolution(this.handleChangeActiveSolution, this),
             this.activeSolutionTracker.onActiveSolutionFilesChanged(this.handleActiveSolutionFilesChanged, this),
             this.eventHub.onDidConvertCompleted(this.handleSolutionConvertCompleted, this),
-            this.commandsProvider.registerCommand(SolutionManagerImpl.refreshCommandId, this.refresh, this),
+            this.eventHub.onDidCbuildCompleted(this.handleCbuildCompleted, this),
+            this.commandsProvider.registerCommand(manifest.REFRESH_COMMAND_ID, this.refresh, this),
             this.environmentManagerApiProvider.onActivate(environmentManagerApi => {
                 environmentManagerApi.onDidActivate(() => {
                     if (!this.isSolutionActivated()) {
@@ -116,7 +114,7 @@ export class SolutionManagerImpl implements SolutionManager {
                 this.debouncedHandleEnvironmentChange();
             }, undefined, context.subscriptions),
             this.loadStateChangeEmitter,
-            this.loadBuildFilesEmitter,
+            this.setupCompletedEmitter,
             this.updatedCompileCommandsEmitter,
         );
     }
@@ -147,7 +145,7 @@ export class SolutionManagerImpl implements SolutionManager {
         if (!this.isSolutionActivated()) {
             return;
         }
-        if (await this.loadSolution()) {
+        if (await this.loadSolution(true)) { // some RPC data can change (e.g. different CMSIS_PACK_ROOT)
             this.requestConvert(false, true, false);
         }
     }
@@ -163,7 +161,7 @@ export class SolutionManagerImpl implements SolutionManager {
 
         if (solutionPath) {
             this.setLoadState(newState, false);
-            if (await this.loadSolution()) {
+            if (await this.loadSolution(true)) { // first load, read RPC data for fast update of the views
                 // trigger solution convert without RTE update
                 this.requestConvert(false, false, true);
             }
@@ -176,7 +174,7 @@ export class SolutionManagerImpl implements SolutionManager {
         if (!this.loadState.solutionPath) {
             return;
         }
-        if (await this.loadSolution()) {
+        if (await this.loadSolution(false)) { // no update RTE before convert
             this.requestConvert(true, false, false);
         }
     }
@@ -199,7 +197,8 @@ export class SolutionManagerImpl implements SolutionManager {
             ...this.loadState,
             converted: false
         };
-        this.setLoadState(newState, false);
+        // Emit so subscribers (e.g. webviews) can show a 'Converting solution...' busy state
+        this.setLoadState(newState, true);
 
         this.eventHub.fireConvertRequest({
             solutionPath: this.csolution.solutionPath,
@@ -216,7 +215,7 @@ export class SolutionManagerImpl implements SolutionManager {
         }
     }
 
-    private async loadSolution(): Promise<boolean> {
+    private async loadSolution(updateRpcData: boolean): Promise<boolean> {
         if (this.loadingSolution || !this.loadState.solutionPath) {
             return false;
         }
@@ -225,12 +224,15 @@ export class SolutionManagerImpl implements SolutionManager {
             this.csolution = new CSolution();
             await this.csolution.load(this.loadState.solutionPath);
 
+            // update RPC data if requested
+            if (updateRpcData) {
+                await this.updateRpcData();
+            }
             // Create new state object with loaded flag
             const newState: SolutionLoadState = {
                 ...this.loadState,
                 loaded: true
             };
-            await this.updateRpcData();
             this.setLoadState(newState, true);
         } catch (error) {
             console.error(`Failed to load ${this.loadState.solutionPath}`, error);
@@ -244,24 +246,40 @@ export class SolutionManagerImpl implements SolutionManager {
         if (!this.csolution) {
             return;
         }
+        await this.updateRpcData(); // refresh RPC data
         await this.loadSolutionBuildFiles();
+        this.setupCompletedEmitter.fire([data.severity, data.detection]);
 
-        if (data.severity != 'error') {
-            await this.commandsProvider.executeCommandIfRegistered(UPDATE_DEBUG_TASKS_COMMAND_ID);
+        if (data.severity != 'error' && !data.detection) {
+            this.commandsProvider.executeCommandIfRegistered(UPDATE_DEBUG_TASKS_COMMAND_ID);
+            // spawn cbuild setup asynchronously (fire-and-forget)
+            // cbuild completion will be signaled via onDidCbuildCompleted event
+            void this.eventHub.requestCbuildSetup();
         }
-        this.loadBuildFilesEmitter.fire([data.severity, data.detection]);
-        this.updatedCompileCommandsEmitter.fire();
+    }
+
+    private handleCbuildCompleted(data: CbuildResultData): void {
+        if (this.csolution) {
+            // Cbuild setup completed: signal compile-commands update for ClangdManager
+            this.updatedCompileCommandsEmitter.fire();
+            // update statusbar in case of errors
+            // note: we can only get here if convert succeeded
+            if (data.severity === 'error' || data.severity === 'warning') {
+                this.setupCompletedEmitter.fire([data.severity, false]);
+            }
+        }
     }
 
     public async loadSolutionBuildFiles() {
         if (this.loadState.solutionPath && this.csolution) {
-            const result = await this.csolution.loadBuildFiles();
+            await this.csolution.loadBuildFiles();
             const newState: SolutionLoadState = {
                 ...this.loadState,
                 activated: true,
                 converted: true,
             };
-            this.setLoadState(newState, result !== ETextFileResult.Unchanged);
+            // Always emit so subscribers are notified when conversion completes
+            this.setLoadState(newState, true);
         }
     }
 

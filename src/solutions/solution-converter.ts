@@ -19,12 +19,10 @@ import * as manifest from '../manifest';
 import { ConfigurationProvider } from '../vscode-api/configuration-provider';
 import { OutputChannelProvider } from '../vscode-api/output-channel-provider';
 import { CmsisToolboxManager } from './cmsis-toolbox';
-import { CompileCommandsGenerator } from './intellisense/compile-commands-generator';
 import { Mutex } from 'async-mutex';
 import * as rpc from '../json-rpc/csolution-rpc-client';
 import { ConvertRequestData, SolutionEventHub } from './solution-event-hub';
-import { Severity } from './constants';
-import { toolsPrefixPatterns } from './solution-problems';
+import { getSeverity } from './solution-problems';
 
 
 export interface SolutionConverter {
@@ -42,7 +40,6 @@ export class SolutionConverterImpl implements SolutionConverter {
         private readonly configProvider: ConfigurationProvider,
         private readonly outputChannelProvider: OutputChannelProvider,
         private readonly cmsisToolboxManager: CmsisToolboxManager,
-        private readonly compileCommandsGenerator: CompileCommandsGenerator,
     ) {
     }
 
@@ -116,7 +113,7 @@ export class SolutionConverterImpl implements SolutionConverter {
 
         let toolsOutputMessages: string[] = [];
 
-        outputChannel.appendLine('⚙️ Converting solution...');
+        outputChannel.appendLine('\n⚙️ Converting solution...');
         let missingPacksResult = undefined;
         if (this.isDownloadPacksEnabled()) {
             // rpc method: ListMissingPacks
@@ -173,13 +170,6 @@ export class SolutionConverterImpl implements SolutionConverter {
 
         let logResult = undefined;
         if (!detection) {
-            if (convertResult.success) {
-                // check if compile commands need to be updated: call cbuild setup skipping csolution convert step
-                outputChannel.append('Setup database... ');
-                let cbuildOutput = undefined;
-                [convertResult.success, cbuildOutput] = await this.compileCommandsGenerator.runCbuildSetup();
-                toolsOutputMessages = toolsOutputMessages.concat(cbuildOutput ?? []);
-            }
             // rpc method: GetLogMessages
             outputChannel.append('Get log messages... ');
             logResult = await this.cmsisToolboxManager.runCsolutionRpc(
@@ -194,7 +184,7 @@ export class SolutionConverterImpl implements SolutionConverter {
             return;
         }
         logResult = { errors: [], warnings: [], info: [], ...logResult, success: convertResult.success };
-        const severity = this.getSeverity(logResult, toolsOutputMessages);
+        const severity = getSeverity(logResult, toolsOutputMessages);
 
         // print result to output channel
         outputChannel.append('\n' + (
@@ -205,9 +195,10 @@ export class SolutionConverterImpl implements SolutionConverter {
                     severity == 'warning' ?
                         '🟨 Convert solution completed with warnings' :
                         '✅ Convert solution completed'
-        ) + '\n\n');
+        ) + '\n');
         // notify conversion result and detection status asynchronously!
         this.eventHub.fireConvertCompleted({
+            success: convertResult.success,
             severity: severity,
             detection: detection,
             logMessages: logResult,
@@ -216,7 +207,6 @@ export class SolutionConverterImpl implements SolutionConverter {
         // compilers and variables detection handling:
         // apply select-compiler and discover layer configurations, reset state otherwise
         this.eventHub.fireConfigureSolutionDataReady({ availableCompilers, availableConfigurations });
-
     }
 
     private async printErrorsWarnings(messages?: rpc.LogMessages): Promise<void> {
@@ -267,15 +257,5 @@ export class SolutionConverterImpl implements SolutionConverter {
         ) as rpc.DiscoverLayersInfo;
         return result;
     }
-
-    private getSeverity(messages: rpc.LogMessages, lines?: string[]): Severity {
-        if (!messages.success || (messages.errors && messages.errors.length > 0) || lines?.find(line => toolsPrefixPatterns.error.test(line))) {
-            return 'error';
-        } else if ((messages.warnings && messages.warnings.length > 0) || lines?.find(line => toolsPrefixPatterns.warning.test(line))) {
-            return 'warning';
-        } else if (messages.info && messages.info.length > 0) {
-            return 'info';
-        }
-        return 'success';
-    }
 }
+

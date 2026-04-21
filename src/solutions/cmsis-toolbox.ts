@@ -180,8 +180,11 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
             console.log(msg);
             onOutput(msg);
         }
-        // set 'packs' event flag when installing packs via 'cpackget add' command
-        this.runCmsisToolEmitter.fire([true, tool === 'cpackget' && args.includes('add')]);
+
+        if (tool !== 'cbuild') { // do not notify cbuild is started
+            // set 'packs' event flag when installing packs via 'cpackget add' command
+            this.runCmsisToolEmitter.fire([true, tool === 'cpackget' && args.includes('add')]);
+        }
 
         const [cmdMsg, returnCode] = await this.runCmd(
             toolCmd,

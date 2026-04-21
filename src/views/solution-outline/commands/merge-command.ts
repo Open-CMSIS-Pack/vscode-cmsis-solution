@@ -16,12 +16,11 @@
 
 import * as vscode from 'vscode';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
-import { PACKAGE_NAME } from '../../../manifest';
+import { PACKAGE_NAME, REFRESH_COMMAND_ID } from '../../../manifest';
 import { exec, ExecException, execSync } from 'child_process';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 import path from 'path';
 import * as os from 'os';
-import { ActiveSolutionTracker } from '../../../solutions/active-solution-tracker';
 import semver from 'semver';
 import { extractVersion } from '../../../utils/string-utils';
 import * as fsUtils from '../../../utils/fs-utils';
@@ -32,7 +31,6 @@ export class MergeCommand {
 
     constructor(
         private readonly commandsProvider: CommandsProvider,
-        private readonly activeSolutionTracker: ActiveSolutionTracker,
     ) { }
 
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>) {
@@ -121,7 +119,7 @@ export class MergeCommand {
             }
 
             if (exitCode === 0 && mergedMTimeAfter > mergedMTimeBefore) {
-                this.performPostMergeOperations(local, update, base, merged);
+                await this.performPostMergeOperations(local, update, base, merged);
             }
 
         } catch (err) {
@@ -149,7 +147,7 @@ export class MergeCommand {
         return { local, update, base };
     }
 
-    private performPostMergeOperations(local: string, update: string, base: string, merged: string): void {
+    private async performPostMergeOperations(local: string, update: string, base: string, merged: string): Promise<void> {
         // create .bak file of local file
         const backupPath = `${local}.bak`;
         fsUtils.copyFile(local, backupPath);
@@ -170,7 +168,7 @@ export class MergeCommand {
         fsUtils.renameFile(merged, local);
 
         // refresh tree view to update file status
-        this.activeSolutionTracker.triggerReload();
+        await this.commandsProvider.executeCommand(REFRESH_COMMAND_ID);
     }
 
     private getVSCodeExecutablePath(): string | undefined {

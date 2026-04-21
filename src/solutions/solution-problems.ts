@@ -18,18 +18,49 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { constructor } from '../generic/constructor';
 import { LogMessages } from '../json-rpc/csolution-rpc-client';
+import { Severity } from './constants';
 import * as fsUtils from '../utils/fs-utils';
 import { getFileNameFromPath } from '../utils/path-utils';
 import { stripTwoExtensions } from '../utils/string-utils';
 import { getWorkspaceFolder } from '../utils/vscode-utils';
 import { ProblemDiagnosticActionResolver } from './problem-diagnostic-action-resolver';
 import { SolutionLoadStateChangeEvent, SolutionManager } from './solution-manager';
-import { ConvertResultData, SolutionEventHub } from './solution-event-hub';
+import { ConvertResultData, CbuildResultData, SolutionEventHub } from './solution-event-hub';
 
 export const toolsPrefixPatterns = {
     error: /^.*error (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
     warning: /^.*warning (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
 };
+
+export const hasToolError = (lines?: string[]): boolean => {
+    return lines?.find(line => toolsPrefixPatterns.error.test(line)) !== undefined;
+};
+
+export const hasToolWarning = (lines?: string[]): boolean => {
+    return lines?.find(line => toolsPrefixPatterns.warning.test(line)) !== undefined;
+};
+
+export const getToolsSeverity = (lines?: string[]): Severity => {
+    if (hasToolError(lines)) {
+        return 'error';
+    }
+    if (hasToolWarning(lines)) {
+        return 'warning';
+    }
+    return 'success';
+};
+
+export const getSeverity = (messages: LogMessages, lines?: string[]): Severity => {
+    if (!messages.success || (messages.errors && messages.errors.length > 0) || hasToolError(lines)) {
+        return 'error';
+    } else if ((messages.warnings && messages.warnings.length > 0) || hasToolWarning(lines)) {
+        return 'warning';
+    } else if (messages.info && messages.info.length > 0) {
+        return 'info';
+    }
+    return 'success';
+};
+
 
 export const envVarWestPatterns = [
     /^missing ([A-Za-z_][A-Za-z0-9_]*) environment variable$/,
@@ -123,14 +154,29 @@ export class SolutionProblemsImpl implements SolutionProblems {
     public async activate(context: vscode.ExtensionContext): Promise<void> {
         context.subscriptions.push(
             this.eventHub.onDidConvertCompleted(this.handleConvertCompleted, this),
+            this.eventHub.onDidCbuildCompleted(this.handleCbuildCompleted, this),
             this.solutionManager.onDidChangeLoadState(this.handleLoadStateChanged, this),
             this.diagnosticCollection,
         );
     }
 
     private async handleConvertCompleted(data: ConvertResultData): Promise<void> {
-        await enrichLogMessagesFromToolOutput(data.logMessages, data.toolsOutputMessages);
-        await this.updateDiagnostics(data.logMessages);
+        // Intentionally clear only on convert: convert is the canonical refresh point.
+        // cbuild follows convert and should add diagnostics without wiping convert findings.
+        this.clearDiagnostics();
+        await this.enrichAndUpdateDiagnostics(data.logMessages, data.toolsOutputMessages);
+    }
+
+    private async handleCbuildCompleted(data: CbuildResultData): Promise<void> {
+        // Do not clear diagnostics here. cbuild diagnostics are additive after convert.
+        // This preserves existing convert diagnostics and avoids churn from redundant clears.
+        const logMessages: LogMessages = { success: true, errors: [], warnings: [], info: [] };
+        await this.enrichAndUpdateDiagnostics(logMessages, data.toolsOutputMessages);
+    }
+
+    private async enrichAndUpdateDiagnostics(logMessages: LogMessages, toolsOutputMessages?: string[]): Promise<void> {
+        await enrichLogMessagesFromToolOutput(logMessages, toolsOutputMessages);
+        await this.updateDiagnostics(logMessages);
     }
 
     private handleLoadStateChanged(data: SolutionLoadStateChangeEvent): void {
@@ -212,8 +258,8 @@ export class SolutionProblemsImpl implements SolutionProblems {
     }
 
     private async updateDiagnostics(messages: LogMessages): Promise<void> {
-        // clear previous diagnostics
-        this.clearDiagnostics();
+        // Diagnostics lifecycle is controlled by event handlers.
+        // handleConvertCompleted clears; handleCbuildCompleted appends.
         let diagnostics = false;
 
         // iterate through log messages and set diagnostics

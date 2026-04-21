@@ -24,7 +24,6 @@ import { MockConfigurationProvider, configurationProviderFactory } from '../vsco
 import { MockProcessManager, processManagerFactory } from '../vscode-api/runner/process-manager.factories';
 import { MockSolutionManager, solutionManagerFactory } from './solution-manager.factories';
 import { CmsisToolboxManager, CmsisToolboxManagerImpl } from './cmsis-toolbox';
-import { CompileCommandsGenerator } from './intellisense/compile-commands-generator';
 import { HandleBuildEnoent } from '../tasks/build/handle-enoent';
 import { VcpkgManager } from '../vcpkg/vcpkg-manager';
 import { vcpkgManagerFactory } from './../vcpkg/vcpkg-manager.factories';
@@ -32,10 +31,6 @@ import { initUtils } from './../util';
 import { CSolution } from './csolution';
 import { csolutionServiceFactory } from '../json-rpc/csolution-rpc-client.factory';
 import { ConvertSolutionParams } from '../json-rpc/csolution-rpc-client';
-import { CbuildFile } from './files/cbuild-file';
-import * as vscodeUtils from '../utils/vscode-utils';
-import { getWorkspaceFolder } from '../utils/vscode-utils';
-import * as fsUtils from '../utils/fs-utils';
 import { ConvertRequestData, SolutionEventHub } from './solution-event-hub';
 import { waitTimeout } from '../__test__/test-waits';
 import { SolutionProblemsImpl } from './solution-problems';
@@ -66,7 +61,6 @@ describe('SolutionConverter', () => {
     let converter: SolutionConverterImpl;
     let outputChannelProvider: MockOutputChannelProvider;
     let processManager: MockProcessManager;
-    let compileCommandsGenerator: CompileCommandsGenerator;
     let cmsisToolboxManager: CmsisToolboxManager;
     let mockHandleBuildEnoent: jest.MockedFunction<HandleBuildEnoent>;
     let mockCsolutionService: jest.Mocked<ReturnType<typeof csolutionServiceFactory>>;
@@ -130,9 +124,6 @@ describe('SolutionConverter', () => {
             mockHandleBuildEnoent,
             mockCsolutionService,
         );
-        compileCommandsGenerator = {
-            runCbuildSetup: jest.fn().mockResolvedValue([true, []]),
-        } as unknown as jest.Mocked<CompileCommandsGenerator>;
 
         mockCSolution = jest.mocked<CSolution>(new CSolution());
         solutionManager.getCsolution.mockReturnValue(mockCSolution);
@@ -142,7 +133,6 @@ describe('SolutionConverter', () => {
             mockConfigurationProvider,
             outputChannelProvider,
             cmsisToolboxManager,
-            compileCommandsGenerator,
         );
         solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub);
 
@@ -208,6 +198,9 @@ describe('SolutionConverter', () => {
         expect(mockCsolutionService.convertSolution).toHaveBeenCalledTimes(1);
     });
     it('sends output to the output channel', async () => {
+        // Explicitly mock convertSolution to return success: true
+        mockCsolutionService.convertSolution.mockResolvedValue({ success: true });
+        mockCsolutionService.getLogMessages.mockResolvedValue({ errors: [], warnings: [], info: [], success: true });
         await fireAndWaitForConversion();
 
         const outputChannel = outputChannelProvider.mockGetCreatedChannelByName(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
@@ -216,7 +209,6 @@ describe('SolutionConverter', () => {
             expect.stringContaining('⚙️ Converting solution...'),
             expect.stringContaining('Check for missing packs...'),
             expect.stringContaining('Convert solution...'),
-            expect.stringContaining('Setup database...'),
             expect.stringContaining('Get log messages...'),
             expect.stringContaining('✅ Convert solution completed'),
         ]);
@@ -260,7 +252,6 @@ describe('SolutionConverter', () => {
     });
 
     it('run solution convert and download missing packs', async () => {
-        const mockRunCbuildSetup = jest.spyOn(compileCommandsGenerator, 'runCbuildSetup').mockResolvedValue([true, []]);
         const mockRunCmsisTool = jest.spyOn(cmsisToolboxManager, 'runCmsisTool').mockResolvedValue([0, undefined]);
         mockCsolutionService.listMissingPacks.mockResolvedValue({
             success: true, packs: [
@@ -274,7 +265,6 @@ describe('SolutionConverter', () => {
             expect.arrayContaining(['add', 'VendorA::PackA@1.0.0']), expect.any(Function), undefined, undefined, true);
         expect(mockRunCmsisTool).toHaveBeenNthCalledWith(2, 'cpackget',
             expect.arrayContaining(['add', 'VendorB::PackB@2.0.0']), expect.any(Function), undefined, undefined, true);
-        expect(mockRunCbuildSetup).toHaveBeenCalledTimes(1);
 
         expect(completedListener).toHaveBeenCalledTimes(1);
     });
@@ -337,19 +327,6 @@ describe('SolutionConverter', () => {
         );
     });
 
-    it('run solution convert and check whether to update compile commands', async () => {
-        const mockRunCbuildSetup = jest.spyOn(compileCommandsGenerator, 'runCbuildSetup').mockResolvedValue([true,[]]);
-        mockCSolution.getContextDescriptors = jest.fn().mockReturnValue([{ displayName: 'context' }]);
-        mockCSolution.cbuilds = [];
-        mockCSolution.cbuilds.some = jest.fn().mockReturnValue(false);
-        mockCSolution.cbuildIdxFile.cbuildFiles.get = jest.fn().mockReturnValue({ outDir: './out' } as CbuildFile);
-
-        await fireAndWaitForConversion();
-
-        expect(mockRunCbuildSetup).toHaveBeenCalledTimes(1);
-        expect(completedListener).toHaveBeenCalledTimes(1);
-    });
-
     it('get log messages and set diagnostics accordingly', async () => {
         mockCsolutionService.convertSolution.mockResolvedValue({ success: false });
         mockCsolutionService.getLogMessages.mockResolvedValue({
@@ -360,51 +337,6 @@ describe('SolutionConverter', () => {
         });
         await fireAndWaitForConversion();
 
-        expect(completedListener).toHaveBeenCalledTimes(1);
-    });
-
-    it('get cbuild west output and set diagnostics accordingly', async () => {
-        mockCsolutionService.convertSolution.mockResolvedValue({ success: true });
-        mockCsolutionService.getLogMessages.mockResolvedValue({ success: true });
-        let mockRunCbuildSetup = jest.spyOn(compileCommandsGenerator, 'runCbuildSetup').mockResolvedValue([true, [
-            'warning cbuild: missing ZEPHYR_BASE environment variable',
-            'error cbuild: exec: "west": executable file not found in $PATH',
-        ]]);
-        mockCSolution.getContextDescriptors = jest.fn().mockReturnValue([{ displayName: 'context' }]);
-        mockCSolution.cbuilds = [];
-        mockCSolution.cbuilds.some = jest.fn().mockReturnValue(false);
-        mockCSolution.cbuildIdxFile.cbuildFiles.get = jest.fn().mockReturnValue({ outDir: './out' } as CbuildFile);
-        jest.spyOn(vscodeUtils, 'getWorkspaceFolder').mockReturnValue('workspace/folder');
-
-        await fireAndWaitForConversion();
-        await waitTimeout();
-        expect(mockRunCbuildSetup).toHaveBeenCalledTimes(1);
-        expect(completedListener).toHaveBeenCalledTimes(1);
-        expect(completedListener).toHaveBeenLastCalledWith(
-            expect.objectContaining({
-                severity: 'error',
-                toolsOutputMessages: expect.arrayContaining([
-                    'warning cbuild: missing ZEPHYR_BASE environment variable',
-                    'error cbuild: exec: "west": executable file not found in $PATH',
-                ]),
-            }),
-        );
-
-        // Remove settings.json
-        completedListener.mockClear();
-        const settings = path.join(getWorkspaceFolder(), '.vscode', 'settings.json');
-        mockRunCbuildSetup.mockClear();
-        fsUtils.deleteFileIfExists(settings);
-        await fireAndWaitForConversion();
-        expect(mockRunCbuildSetup).toHaveBeenCalledTimes(1);
-        expect(completedListener).toHaveBeenCalledTimes(1);
-
-        // No errors/warnings
-        completedListener.mockClear();
-        mockRunCbuildSetup = jest.spyOn(compileCommandsGenerator, 'runCbuildSetup').mockResolvedValue([true, []]);
-        mockRunCbuildSetup.mockClear();
-        await fireAndWaitForConversion();
-        expect(mockRunCbuildSetup).toHaveBeenCalledTimes(1);
         expect(completedListener).toHaveBeenCalledTimes(1);
     });
 

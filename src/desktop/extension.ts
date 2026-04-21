@@ -32,7 +32,7 @@ import { getCreateSolutionFromDataManager } from '../solutions/create-solution-f
 import { DebugHardwareCommands } from '../solutions/hardware/debug-hardware-commands';
 import { TargetPackCommandImpl } from '../solutions/hardware/target-pack-command';
 import { ArmclangDefineGetter } from '../solutions/intellisense/armclang-define-getter';
-import { CompileCommandsGeneratorImpl } from '../solutions/intellisense/compile-commands-generator';
+import { CompileCommandsGenerator } from '../solutions/intellisense/compile-commands-generator';
 import { CompileCommandsParser } from '../solutions/intellisense/compile-commands-parser';
 import { SolutionLanguageFeaturesProvider } from '../solutions/language-features/solution-language-features-provider';
 import { ConvertMdkToCsolutionCommand } from '../solutions/mdk-conversion/convert-mdk-command';
@@ -170,14 +170,13 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
 
     const buildTaskProvider = new BuildTaskProviderImpl(buildRunner);
     const buildTaskDefinitionBuilder = new BuildTaskDefinitionBuilderImpl(solutionManager, configurationProvider);
-    const compileCommandsGenerator = new CompileCommandsGeneratorImpl(buildTaskProvider, buildTaskDefinitionBuilder);
+    const compileCommandsGenerator = new CompileCommandsGenerator(buildTaskProvider, buildTaskDefinitionBuilder, eventHub, outputChannelProvider);
 
     const solutionConverterImpl = new SolutionConverterImpl(
         eventHub,
         configurationProvider,
         outputChannelProvider,
         cmsisToolboxManager,
-        compileCommandsGenerator,
     );
 
     const solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub);
@@ -221,7 +220,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const fileDecorationProviderManager = new FileDecorationProviderManagerImpl();
     const treeViewProviderImpl = new TreeViewProviderImpl(SolutionOutlineView.treeViewId);
     const treeViewFileDecorationProvider = new TreeViewFileDecorationProvider(fileDecorationProviderManager, themeProvider);
-    const mergeCommand = new MergeCommand(commandsProvider, activeSolutionTracker);
+    const mergeCommand = new MergeCommand(commandsProvider);
     const buildCommand = new BuildCommand(buildTaskProvider, commandsProvider, buildTaskDefinitionBuilder);
     const runGeneratorCommand = new GeneratorCommand(commandsProvider, solutionManager, outputChannelProvider, cmsisToolboxManager);
     const armclangDefineGetter = new ArmclangDefineGetter(processManager, workspaceFsProvider);
@@ -265,6 +264,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         runGeneratorCommand.activate(context),
         convertMdkToCsolution.activate(context),
         solutionConverterImpl.activate(context),
+        compileCommandsGenerator.activate(context),
         solutionProblems.activate(context),
         clangdManager.activate(context),
         componentsManager.activate(context),

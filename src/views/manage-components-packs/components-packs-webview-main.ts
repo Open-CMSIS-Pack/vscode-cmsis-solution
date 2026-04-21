@@ -268,11 +268,13 @@ export class ComponentsPacksWebviewMain {
             return;
         }
 
-        const csolution = this.solutionManager.getCsolution();
-        if (e.newState.converted == true && e.previousState.converted == false) {
+        // If conversion is in progress, show a busy indicator and wait for the converted=true event
+        if (e.newState.converted === false && e.newState.solutionPath) {
+            await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Converting solution...' });
             return;
         }
 
+        const csolution = this.solutionManager.getCsolution();
         if (csolution && e.newState.solutionPath) {
             // in case of switching a solution we need to track the correct or first project from the solution to keep this.currentProject active
             if (e.newState.solutionPath !== this.project?.solutionPath) {
@@ -379,33 +381,25 @@ export class ComponentsPacksWebviewMain {
             this.currentProject = { solutionPath: csolution.solutionPath, project: createProject(projectId) };
             const actx = this.getActiveContext();
 
-            const activeTs = csolution.getActiveTargetSetName() ?? '';
-            await this.loadSolution(csolution.solutionPath, activeTs, actx, reload);
+            await this.loadSolution(actx, reload);
             await this.sendSelectedProject(backToForwardSlashes(projectId));
         }
     }
 
-    private async loadSolution(solutionPath: string, activeTargetSet: string, activeContext: string, reload: boolean): Promise<void> {
+    private async loadSolution(activeContext: string, reload: boolean): Promise<void> {
         await this.webviewManager.sendMessage({ type: 'SET_ERROR_MESSAGES', messages: [] });
+
+        // Abort if conversion is still in progress; handleSolutionLoadChange will trigger reload on converted=true
+        if (this.solutionManager.loadState.converted === false) {
+            await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Converting solution...' });
+            return;
+        }
 
         try {
             if (reload) {
                 this.availablePacksCache = {};
                 this.unlinkRequests.clear();
-                await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Connecting to rpc daemon' });
-                const version = await this.csolutionService.getVersion();
-                console.log('csolution version:', version);
-
-                await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Loading Packs...' });
-                await this.csolutionService.loadPacks();
-
-                await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Loading Solution...' });
-                const solutionSuccess = await this.csolutionService.loadSolution({ solution: solutionPath, activeTarget: activeTargetSet });
-                if (!solutionSuccess.success) {
-                    throw new Error(`Failed loading solution: ${solutionPath} due to previous errors`);
-                }
-
-                await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Retrieving assigned items...' });
+                await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Loading Solution data...' });
                 this.usedItems = await this.csolutionService.getUsedItems({ context: activeContext });
             }
             await this.webviewManager.sendMessage({ type: 'SET_UNLINKREQUESTS_STACK', unlinkRequests: Array.from(this.unlinkRequests) });
@@ -651,6 +645,13 @@ export class ComponentsPacksWebviewMain {
     }
 
     private async handleMessage(message: Messages.OutgoingMessage): Promise<void> {
+        // Block mutation messages while conversion is in progress; allow read-only/navigation messages through
+        if (message.type !== 'REQUEST_INITIAL_DATA' &&
+            message.type !== 'OPEN_FILE' &&
+            this.solutionManager.loadState.converted !== true) {
+            return;
+        }
+
         const csolution = this.solutionManager.getCsolution();
         if (csolution) {
             switch (message.type) {

@@ -16,36 +16,46 @@
 
 import * as vscode from 'vscode';
 import { ExtensionContext } from 'vscode';
+import * as manifest from '../../manifest';
 import { BuildTaskDefinitionBuilder } from '../../tasks/build/build-task-definition-builder';
 import { BuildTaskProvider } from '../../tasks/build/build-task-provider';
+import { SolutionEventHub } from '../solution-event-hub';
+import { getToolsSeverity } from '../solution-problems';
+import { OutputChannelProvider } from '../../vscode-api/output-channel-provider';
 
-export interface CompileCommandsGenerator {
-    runCbuildSetup(): Promise<[boolean, string[]?]>
-}
-
-export class CompileCommandsGeneratorImpl implements CompileCommandsGenerator {
+export class CompileCommandsGenerator {
     constructor(
         private readonly buildTaskProvider: BuildTaskProvider,
         private readonly buildTaskDefinitionBuilder: BuildTaskDefinitionBuilder,
+        private readonly eventHub: SolutionEventHub,
+        private readonly outputChannelProvider: OutputChannelProvider,
     ) {
     }
 
     public activate(context: ExtensionContext) {
-        context.subscriptions.push();
+        context.subscriptions.push(
+            this.eventHub.onDidCbuildSetupRequested(() => {
+                // fire-and-forget: completion is reported via onDidCbuildCompleted
+                void this.runCbuildSetup();
+            }),
+        );
     }
 
     private readonly outputRegex = /\b(?:completed|failed)\s+with\s+exit\s+code\s*([+-]?\d+)\b/i;
 
-    public async runCbuildSetup(): Promise<[boolean, string[]?]> {
+    private async runCbuildSetup(): Promise<void> {
         const definition = await this.buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode('setup');
         const task = this.buildTaskProvider.createTask(definition);
         const revealKind = definition.west ? vscode.TaskRevealKind?.Always : vscode.TaskRevealKind?.Silent;
         task.presentationOptions = {
             ...(revealKind !== undefined ? { reveal: revealKind } : {})
         };
+        this.outputChannelProvider
+            .getOrCreate(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL)
+            .appendLine('Launching cbuild setup in Terminal to generate IntelliSense database');
         const execution = await vscode.tasks.executeTask(task);
 
-        return await new Promise<[boolean, string[]?]>((resolve) => {
+        return await new Promise<void>((resolve) => {
             const disposable = vscode.tasks.onDidEndTaskProcess((event) => {
                 if (event.execution === execution) {
                     disposable.dispose();
@@ -53,7 +63,10 @@ export class CompileCommandsGeneratorImpl implements CompileCommandsGenerator {
                     const match = this.outputRegex.exec(output.join('\n'));
                     const returnCode = match?.[1] !== undefined ? Number(match[1]) :
                         event.exitCode !== undefined ? event.exitCode : -1;
-                    resolve([returnCode === 0, output]);
+                    const success = returnCode === 0;
+                    const severity = success ? getToolsSeverity(output) : 'error';
+                    this.eventHub.fireCbuildCompleted({ success, severity, toolsOutputMessages: output });
+                    resolve();
                 }
             });
         });
