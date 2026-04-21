@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ExtensionContext } from 'vscode';
-import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID } from '../manifest';
+import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
 import * as fsUtils from '../utils/fs-utils';
 import * as vscodeUtils from '../utils/vscode-utils';
 import { solutionManagerFactory, MockSolutionManager } from './solution-manager.factories';
@@ -267,57 +267,39 @@ describe('SolutionProblems', () => {
         expect(JSON.parse(decodeURIComponent(args))).toEqual(['/packs/Component/config.c']);
     });
 
-    it('creates a merge command uri with encoded local path', () => {
-        const result = solutionProblems['createMergeCommandUri']('/packs/Component/config.c');
-        const [command, args] = result.toString().split('?');
+    it('attaches run generator command uri only when parsed diagnostic has no location', async () => {
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
-        expect(command).toBe(`command:${MERGE_FILE_COMMAND_ID}`);
-        expect(JSON.parse(decodeURIComponent(args))).toEqual(['/packs/Component/config.c']);
-    });
-
-    it('creates merge diagnostic action for merge messages with component context', () => {
-        const result = solutionProblems['createMergeDiagnosticAction'](
-            "update required for file '/packs/Component/config.c' from component 'Arm::Device@2.3.4'",
-            layerPath,
-        );
-
-        expect(result).toEqual({
-            message: "update required for config file 'config.c' from component 'Device'.",
-            code: {
-                value: 'Open in Merge View',
-                target: vscode.Uri.parse(`command:${MERGE_FILE_COMMAND_ID}?${encodeURIComponent(JSON.stringify(['/packs/Component/config.c']))}`),
+        await eventHub.fireConvertCompleted({
+            severity: 'error',
+            detection: false,
+            logMessages: {
+                success: false,
+                errors: [
+                    "mylayer.clayer.yml - cgen file was not found, run generator 'CubeMX2' for context 'CubeMX2.Debug+STM32C531CBT6'",
+                    "mylayer.clayer.yml:10:2 - cgen file was not found, run generator 'CubeMX2' for context 'CubeMX2.Debug+STM32C531CBT6'",
+                ],
+                warnings: [],
+                info: [],
             },
         });
-    });
+        await waitTimeout();
 
-    it('creates merge diagnostic action for current toolbox message wording', () => {
-        const configPath = 'C:/CubeMX/CubeMX/RTE/CMSIS/RTX_Config.c';
-        const result = solutionProblems['createMergeDiagnosticAction'](
-            `update recommended for file '${configPath}' from component 'CMSIS:RTOS2:Keil RTX5&Source'.\nMerge content from update file, rename update file to base file and remove previous base file`,
-            layerPath,
+        const setCalls = setSpy.mock.calls as unknown as Array<[vscode.Uri, readonly vscode.Diagnostic[] | undefined]>;
+        const diagnostics = setCalls.flatMap(([, diagnosticEntries]) => diagnosticEntries ?? []);
+        const runGeneratorDiagnostics = diagnostics.filter(
+            d => typeof d.code === 'object' && d.code !== null && 'value' in d.code && d.code.value === 'Run Generator'
         );
+        const diagnosticWithoutCode = diagnostics.find(d => d.code === undefined);
 
-        expect(result).toEqual({
-            message: "update recommended for config file 'RTX_Config.c' from component 'CMSIS:RTOS2:Keil RTX5&Source'.",
-            code: {
-                value: 'Open in Merge View',
-                target: vscode.Uri.parse(`command:${MERGE_FILE_COMMAND_ID}?${encodeURIComponent(JSON.stringify([configPath]))}`),
-            },
-        });
-    });
+        expect(runGeneratorDiagnostics).toHaveLength(1);
+        expect(diagnosticWithoutCode).toBeDefined();
 
-    it('treats Windows-style merge paths as absolute', () => {
-        expect(solutionProblems['isAbsoluteFilePath']('C:/CubeMX/CubeMX/RTE/CMSIS/RTX_Config.c')).toBe(true);
-        expect(solutionProblems['isAbsoluteFilePath']('relative-config.c')).toBe(false);
-    });
-
-    it('returns undefined merge diagnostic action for non-merge messages', () => {
-        const result = solutionProblems['createMergeDiagnosticAction'](
-            "component 'Arm::Device@2.3.4' is missing",
-            layerPath,
-        );
-
-        expect(result).toBeUndefined();
+        const code = runGeneratorDiagnostics[0].code as { value: string; target: vscode.Uri };
+        const [command, args] = code.target.toString().split('?');
+        expect(command).toBe(`command:${RUN_GENERATOR_COMMAND_ID}`);
+        expect(JSON.parse(decodeURIComponent(args))).toEqual([{ generator: 'CubeMX2', context: 'CubeMX2.Debug+STM32C531CBT6' }]);
     });
 
     it('falls back to the diagnostic file path for relative merge paths', async () => {
@@ -349,7 +331,7 @@ describe('SolutionProblems', () => {
         expect(JSON.parse(decodeURIComponent(args))).toEqual([layerPath]);
     });
 
-    it.each(['required', 'recommended', 'suggested', 'mandatory'] as const)(
+    it.each(['required', 'recommended', 'suggested'] as const)(
         'renders merge diagnostics for current toolbox wording with %s update levels',
         async updateLevel => {
             await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);

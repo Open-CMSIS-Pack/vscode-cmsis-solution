@@ -15,15 +15,20 @@
  */
 
 import * as vscode from 'vscode';
-import { PACKAGE_NAME, CMSIS_SOLUTION_OUTPUT_CHANNEL } from '../../manifest';
+import { CMSIS_SOLUTION_OUTPUT_CHANNEL, RUN_GENERATOR_COMMAND_ID } from '../../manifest';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
 import { COutlineItem } from '../../views/solution-outline/tree-structure/solution-outline-item';
 import { OutputChannelProvider } from '../../vscode-api/output-channel-provider';
 import { CmsisToolboxManager } from '../../solutions/cmsis-toolbox';
 import { SolutionManager } from '../../solutions/solution-manager';
 
+interface RunGeneratorRequest {
+    generator: string;
+    context: string;
+}
+
 export class GeneratorCommand {
-    public static readonly runGeneratorCommandType = `${PACKAGE_NAME}.runGenerator`;
+    public static readonly runGeneratorCommandType = RUN_GENERATOR_COMMAND_ID;
 
     public constructor(
         private readonly commandsProvider: CommandsProvider,
@@ -35,14 +40,39 @@ export class GeneratorCommand {
     public async activate(context: vscode.ExtensionContext): Promise<void> {
         context.subscriptions.push(
 
-            this.commandsProvider.registerCommand(GeneratorCommand.runGeneratorCommandType, async (node: COutlineItem) => {
-                if (node.getAttribute('type') === 'component-gen') {
-                    await this.handleRunGenerator(node.getAttribute('generator') ?? '', node.getAttribute('cbuild-context') ?? '');
+            this.commandsProvider.registerCommand(GeneratorCommand.runGeneratorCommandType, async (input: unknown) => {
+                const request = this.getRunGeneratorRequest(input);
+                if (request) {
+                    await this.handleRunGenerator(request.generator, request.context);
                 } else {
                     console.error(`Tried to execute ${GeneratorCommand.runGeneratorCommandType} without a generator component`);
                 }
             }, this),
         );
+    }
+
+    private getRunGeneratorRequest(input: unknown): RunGeneratorRequest | undefined {
+        const maybeNode = input as Partial<COutlineItem> & { getAttribute?: (name: string) => string | undefined };
+        if (typeof maybeNode?.getAttribute === 'function') {
+            if (maybeNode.getAttribute('type') !== 'component-gen') {
+                return undefined;
+            }
+
+            return {
+                generator: maybeNode.getAttribute('generator') ?? '',
+                context: maybeNode.getAttribute('cbuild-context') ?? '',
+            };
+        }
+
+        const maybeRequest = input as Partial<RunGeneratorRequest> | undefined;
+        if (typeof maybeRequest?.generator !== 'string' || typeof maybeRequest.context !== 'string') {
+            return undefined;
+        }
+
+        return {
+            generator: maybeRequest.generator,
+            context: maybeRequest.context,
+        };
     }
 
     public async handleRunGenerator(generator: string, context: string): Promise<void> {

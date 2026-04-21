@@ -94,4 +94,86 @@ describe('GeneratorCommand', () => {
         expect(mockGetCreatedChannelByName?.show).toHaveBeenCalled();
         expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to launch Generator gen-fail!');
     });
+
+    it('does not show output channel on success', async () => {
+        solutionManager.getCsolution.mockReturnValue(csolutionFactory({ solutionPath: 'mock/path.csolution.yml' }));
+        cmsisToolboxManager.runCmsisTool.mockResolvedValue([0, undefined]);
+
+        await generatorCommand.handleRunGenerator('gen-ok', 'release');
+
+        const channel = outputChannelProvider.mockGetCreatedChannelByName(CMSIS_SOLUTION_OUTPUT_CHANNEL);
+        expect(channel?.show).not.toHaveBeenCalled();
+    });
+
+    it('appends the start message to the output channel', async () => {
+        solutionManager.getCsolution.mockReturnValue(csolutionFactory({ solutionPath: 'mock/path.csolution.yml' }));
+
+        await generatorCommand.handleRunGenerator('my-gen', 'debug');
+
+        const channel = outputChannelProvider.mockGetCreatedChannelByName(CMSIS_SOLUTION_OUTPUT_CHANNEL);
+        expect(channel?.mockAppendedStrings).toContain('Starting generator my-gen for context debug...');
+    });
+
+    describe('command dispatch', () => {
+        beforeEach(async () => {
+            await generatorCommand.activate(context as unknown as vscode.ExtensionContext);
+            solutionManager.getCsolution.mockReturnValue(csolutionFactory({ solutionPath: 'mock/path.csolution.yml' }));
+        });
+
+        it('dispatches handleRunGenerator when input is a component-gen COutlineItem-like node', async () => {
+            const node = {
+                getAttribute: (name: string) => ({ type: 'component-gen', generator: 'STM32CubeMX', 'cbuild-context': '.debug+target' }[name]),
+            };
+
+            await commandsProvider.mockRunRegistered(GeneratorCommand.runGeneratorCommandType, node);
+
+            expect(cmsisToolboxManager.runCmsisTool).toHaveBeenCalledWith(
+                'csolution',
+                expect.arrayContaining(['-g', 'STM32CubeMX', '-c', '.debug+target']),
+                expect.any(Function),
+                undefined,
+                undefined,
+                true
+            );
+        });
+
+        it('does not dispatch when input is a COutlineItem-like node with wrong type', async () => {
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+            const node = {
+                getAttribute: (name: string) => ({ type: 'component', generator: 'STM32CubeMX', 'cbuild-context': '.debug+target' }[name]),
+            };
+
+            await commandsProvider.mockRunRegistered(GeneratorCommand.runGeneratorCommandType, node);
+
+            expect(cmsisToolboxManager.runCmsisTool).not.toHaveBeenCalled();
+            expect(consoleSpy).toHaveBeenCalled();
+            consoleSpy.mockRestore();
+        });
+
+        it('dispatches handleRunGenerator when input is a plain RunGeneratorRequest object', async () => {
+            await commandsProvider.mockRunRegistered(GeneratorCommand.runGeneratorCommandType, {
+                generator: 'plain-gen',
+                context: 'test+board',
+            });
+
+            expect(cmsisToolboxManager.runCmsisTool).toHaveBeenCalledWith(
+                'csolution',
+                expect.arrayContaining(['-g', 'plain-gen', '-c', 'test+board']),
+                expect.any(Function),
+                undefined,
+                undefined,
+                true
+            );
+        });
+
+        it('logs an error and does not dispatch when input is invalid', async () => {
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+            await commandsProvider.mockRunRegistered(GeneratorCommand.runGeneratorCommandType, undefined);
+
+            expect(cmsisToolboxManager.runCmsisTool).not.toHaveBeenCalled();
+            expect(consoleSpy).toHaveBeenCalled();
+            consoleSpy.mockRestore();
+        });
+    });
 });
