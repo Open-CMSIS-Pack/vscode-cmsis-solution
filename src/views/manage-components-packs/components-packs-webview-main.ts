@@ -827,7 +827,16 @@ export class ComponentsPacksWebviewMain {
 
     private async resolveComponents(): Promise<void> {
         const activeContext = this.getActiveContext();
-        await this.csolutionService.resolve({ context: activeContext });
+        const selectedTarget = this.getSelectedTargetSetData();
+        const selectedLayerPath = selectedTarget?.type === 'layer' ? selectedTarget.path : '';
+        await this.csolutionService.resolve({
+            context: activeContext,
+            options: {
+                layer: selectedLayerPath,
+                explicitVersion: '',
+                explicitVendor: false,
+            },
+        });
         await this.sendSolutionData();
         await this.sendDirtyState();
     };
