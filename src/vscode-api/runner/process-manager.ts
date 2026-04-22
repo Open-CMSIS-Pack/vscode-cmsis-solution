@@ -107,7 +107,7 @@ export class ProcessManagerImpl implements ProcessManager {
                     reject({ code: childProcess.exitCode, error: error });
                 });
 
-/*
+                /*
 In Node child processes, 'exit' and' close' events mean different lifecycle points:
 
 'exit'
@@ -127,7 +127,7 @@ exit first, then close.
 Practical rule:
 
 Use exit when you only care that the process terminated.
-Use close when you care about complete I/O completion (most 
+Use close when you care about complete I/O completion (most
 command-runner cases).
 
 We do care about output,  therefore 'close' is used here.
