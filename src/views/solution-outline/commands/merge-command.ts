@@ -108,6 +108,7 @@ export class MergeCommand {
 
         // get the modification time of the merged file before merge
         const mergedMTimeBefore = fsUtils.getFileModificationTime(merged);
+        let exitHandled = false;
 
         try {
             this.mergeSessionCoordinator.startSession({
@@ -120,6 +121,7 @@ export class MergeCommand {
             const command = this.buildMergeCommand(codePath, local, update, base, merged);
             const exitCode = await this.doOpen3WayMerge(command);
             await this.mergeSessionCoordinator.onMergeProcessExit(exitCode);
+            exitHandled = true;
 
             if (exitCode !== 0) {
                 console.warn(`Merge exited with code ${exitCode}. Conflicts may exist.`);
@@ -129,6 +131,10 @@ export class MergeCommand {
             console.error('Merge operations failed:', err);
             const details = err instanceof Error ? err.message : String(err);
             vscode.window.showErrorMessage(`Merge operation failed: ${details}`);
+        } finally {
+            if (!exitHandled) {
+                this.mergeSessionCoordinator.cancelSession();
+            }
         }
     }
 

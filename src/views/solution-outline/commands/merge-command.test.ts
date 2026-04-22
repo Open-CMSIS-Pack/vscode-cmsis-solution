@@ -83,6 +83,7 @@ describe('MergeCommand', () => {
         mergeSessionCoordinator = {
             activate: jest.fn().mockResolvedValue(),
             startSession: jest.fn(),
+            cancelSession: jest.fn(),
             onMergeProcessExit: jest.fn().mockResolvedValue(),
         };
         command = new MergeCommand(commandsProvider, mergeSessionCoordinator);
@@ -361,6 +362,7 @@ describe('MergeCommand', () => {
             expect(warningSpy).toHaveBeenCalledWith('Merge exited with code 1. Conflicts may exist.');
             expect(mergeSessionCoordinator.startSession).toHaveBeenCalledTimes(1);
             expect(mergeSessionCoordinator.onMergeProcessExit).toHaveBeenCalledWith(1);
+            expect(mergeSessionCoordinator.cancelSession).not.toHaveBeenCalled();
         });
 
         it('handles merge errors gracefully', async () => {
@@ -377,6 +379,7 @@ describe('MergeCommand', () => {
             await command['runVSCodeMerge'](fileNode);
             expect(errorSpy).toHaveBeenCalledWith('Merge operations failed:', expect.any(Error));
             expect(showErrorMessageSpy).toHaveBeenCalledWith('Merge operation failed: unexpected');
+            expect(mergeSessionCoordinator.cancelSession).toHaveBeenCalledTimes(1);
         });
 
         it('shows a merge failure message when merge command validation throws', async () => {
@@ -402,6 +405,7 @@ describe('MergeCommand', () => {
             await command['runVSCodeMerge'](node);
 
             expect(showErrorMessageSpy).toHaveBeenCalledWith('Merge operation failed: Invalid update file: contains unsupported shell-sensitive characters.');
+            expect(mergeSessionCoordinator.cancelSession).toHaveBeenCalledTimes(1);
         });
 
         it('starts merge session and notifies coordinator when merge exits successfully', async () => {
@@ -435,6 +439,7 @@ describe('MergeCommand', () => {
                 mergedMTimeBefore: 1000,
             });
             expect(mergeSessionCoordinator.onMergeProcessExit).toHaveBeenCalledWith(0);
+            expect(mergeSessionCoordinator.cancelSession).not.toHaveBeenCalled();
         });
     });
 });

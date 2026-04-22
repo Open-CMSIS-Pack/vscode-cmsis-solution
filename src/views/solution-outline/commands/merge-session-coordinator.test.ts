@@ -52,7 +52,7 @@ describe('MergeSessionCoordinator', () => {
         testDataHandler.dispose();
     });
 
-    it('finalizes merge on save and refreshes solution', async () => {
+    it('refreshes on save without destructive file operations', async () => {
         const local = path.join(tmpDir, 'component.c');
         const update = path.join(tmpDir, 'component.c.update@1.0.0');
         const base = path.join(tmpDir, 'component.c.base@1.0.0');
@@ -69,12 +69,12 @@ describe('MergeSessionCoordinator', () => {
             handleDidSaveTextDocument: (document: vscode.TextDocument) => Promise<void>
         }).handleDidSaveTextDocument({ uri: { fsPath: merged } } as vscode.TextDocument);
 
-        const newBase = path.join(tmpDir, 'component.c.base@1.0.0');
-        expect(fsUtils.fileExists(`${local}.bak`)).toBeTruthy();
         expect(fsUtils.fileExists(local)).toBeTruthy();
-        expect(fsUtils.readTextFile(local)).toContain('// merged');
-        expect(fsUtils.fileExists(merged)).toBeFalsy();
-        expect(fsUtils.fileExists(newBase)).toBeTruthy();
+        expect(fsUtils.readTextFile(local)).toContain('// local');
+        expect(fsUtils.fileExists(merged)).toBeTruthy();
+        expect(fsUtils.fileExists(base)).toBeTruthy();
+        expect(fsUtils.fileExists(update)).toBeTruthy();
+        expect(fsUtils.fileExists(`${local}.bak`)).toBeFalsy();
 
         expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
     });
@@ -95,6 +95,28 @@ describe('MergeSessionCoordinator', () => {
         await (coordinator as unknown as {
             handleDidSaveTextDocument: (document: vscode.TextDocument) => Promise<void>
         }).handleDidSaveTextDocument({ uri: { fsPath: path.join(tmpDir, 'other.c') } } as vscode.TextDocument);
+
+        expect(solutionManager.refresh).not.toHaveBeenCalled();
+        expect(fsUtils.fileExists(merged)).toBeTruthy();
+    });
+
+    it('does not refresh on save after session is canceled', async () => {
+        const local = path.join(tmpDir, 'component.c');
+        const update = path.join(tmpDir, 'component.c.update@1.0.0');
+        const base = path.join(tmpDir, 'component.c.base@1.0.0');
+        const merged = `${local}.merged`;
+
+        fsUtils.writeTextFile(local, '// local\n');
+        fsUtils.writeTextFile(update, '// update\n');
+        fsUtils.writeTextFile(base, '// base\n');
+        fsUtils.writeTextFile(merged, '// merged\n');
+
+        coordinator.startSession({ local, update, base, merged, mergedMTimeBefore: 0 });
+        coordinator.cancelSession();
+
+        await (coordinator as unknown as {
+            handleDidSaveTextDocument: (document: vscode.TextDocument) => Promise<void>
+        }).handleDidSaveTextDocument({ uri: { fsPath: merged } } as vscode.TextDocument);
 
         expect(solutionManager.refresh).not.toHaveBeenCalled();
         expect(fsUtils.fileExists(merged)).toBeTruthy();

@@ -31,6 +31,7 @@ export interface MergeSessionFiles {
 export interface MergeSessionCoordinator {
     activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>): Promise<void>;
     startSession(files: MergeSessionFiles): void;
+    cancelSession(): void;
     onMergeProcessExit(exitCode: number): Promise<void>;
 }
 
@@ -53,11 +54,18 @@ export class MergeSessionCoordinatorImpl implements MergeSessionCoordinator {
         this.activeSession = files;
     }
 
-    public async onMergeProcessExit(exitCode: number): Promise<void> {
-        if (exitCode === 0) {
-            await this.tryFinalize();
-        }
+    public cancelSession(): void {
         this.activeSession = undefined;
+    }
+
+    public async onMergeProcessExit(exitCode: number): Promise<void> {
+        try {
+            if (exitCode === 0) {
+                await this.tryFinalizeOnExit();
+            }
+        } finally {
+            this.activeSession = undefined;
+        }
     }
 
     private async handleDidSaveTextDocument(document: vscode.TextDocument): Promise<void> {
@@ -67,10 +75,12 @@ export class MergeSessionCoordinatorImpl implements MergeSessionCoordinator {
         if (!pathsEqual(document.uri.fsPath, this.activeSession.merged)) {
             return;
         }
-        await this.tryFinalize();
+        // Keep save handling non-destructive while the merge editor is still open.
+        // The actual file rename/delete operations are performed on merge process exit.
+        await this.solutionManager.refresh();
     }
 
-    private async tryFinalize(): Promise<void> {
+    private async tryFinalizeOnExit(): Promise<void> {
         if (!this.activeSession || this.finalizing) {
             return;
         }
