@@ -16,7 +16,7 @@
 
 import * as vscode from 'vscode';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
-import { PACKAGE_NAME, REFRESH_COMMAND_ID } from '../../../manifest';
+import { PACKAGE_NAME } from '../../../manifest';
 import { exec, ExecException, execSync } from 'child_process';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 import path from 'path';
@@ -24,6 +24,7 @@ import * as os from 'os';
 import semver from 'semver';
 import { extractVersion } from '../../../utils/string-utils';
 import * as fsUtils from '../../../utils/fs-utils';
+import { MergeSessionCoordinator } from './merge-session-coordinator';
 
 export class MergeCommand {
     public static readonly mergeFile = `${PACKAGE_NAME}.mergeFile`;
@@ -31,9 +32,11 @@ export class MergeCommand {
 
     constructor(
         private readonly commandsProvider: CommandsProvider,
+        private readonly mergeSessionCoordinator: MergeSessionCoordinator,
     ) { }
 
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>) {
+        await this.mergeSessionCoordinator.activate(context);
         context.subscriptions.push(
             this.commandsProvider.registerCommand(MergeCommand.mergeFile, this.handleMergeCommand, this),
         );
@@ -107,19 +110,19 @@ export class MergeCommand {
         const mergedMTimeBefore = fsUtils.getFileModificationTime(merged);
 
         try {
+            this.mergeSessionCoordinator.startSession({
+                local,
+                update,
+                base,
+                merged,
+                mergedMTimeBefore,
+            });
             const command = this.buildMergeCommand(codePath, local, update, base, merged);
             const exitCode = await this.doOpen3WayMerge(command);
-
-            // get the modification time after merge
-            const mergedMTimeAfter = fsUtils.getFileModificationTime(merged);
+            await this.mergeSessionCoordinator.onMergeProcessExit(exitCode);
 
             if (exitCode !== 0) {
                 console.warn(`Merge exited with code ${exitCode}. Conflicts may exist.`);
-                return;
-            }
-
-            if (exitCode === 0 && mergedMTimeAfter > mergedMTimeBefore) {
-                await this.performPostMergeOperations(local, update, base, merged);
             }
 
         } catch (err) {
@@ -145,30 +148,6 @@ export class MergeCommand {
         }
 
         return { local, update, base };
-    }
-
-    private async performPostMergeOperations(local: string, update: string, base: string, merged: string): Promise<void> {
-        // create .bak file of local file
-        const backupPath = `${local}.bak`;
-        fsUtils.copyFile(local, backupPath);
-
-        // delete local file
-        fsUtils.deleteFileIfExists(local);
-
-        // delete base file
-        fsUtils.deleteFileIfExists(base);
-
-        // rename update file to base file
-        const newBaseFileName = path.basename(update).replaceAll('update', 'base');
-        const baseDirPath = path.dirname(update);
-        const newBase = path.join(baseDirPath, newBaseFileName);
-        fsUtils.renameFile(update, newBase);
-
-        // rename merged file to local file
-        fsUtils.renameFile(merged, local);
-
-        // refresh tree view to update file status
-        await this.commandsProvider.executeCommand(REFRESH_COMMAND_ID);
     }
 
     private getVSCodeExecutablePath(): string | undefined {

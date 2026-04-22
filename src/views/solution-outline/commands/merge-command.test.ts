@@ -36,12 +36,12 @@ import * as vscode from 'vscode';
 import { extensionContextFactory } from '../../../vscode-api/extension-context.factories';
 import { commandsProviderFactory, MockCommandsProvider } from '../../../vscode-api/commands-provider.factories';
 import { MergeCommand } from './merge-command';
-import * as manifest from '../../../manifest';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 import * as child_process from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
 import * as fsUtils from '../../../utils/fs-utils';
+import { MergeSessionCoordinator } from './merge-session-coordinator';
 
 jest.mock('child_process');
 jest.mock('os');
@@ -49,6 +49,7 @@ jest.mock('os');
 describe('MergeCommand', () => {
     let commandsProvider: MockCommandsProvider;
     let command: MergeCommand;
+    let mergeSessionCoordinator: jest.Mocked<MergeSessionCoordinator>;
     const testDataHandler = new TestDataHandler();
     let tmpDir: string;
 
@@ -79,7 +80,12 @@ describe('MergeCommand', () => {
         fsUtils.writeTextFile(path.join(tmpDir, 'component.c.base@1.0.0'), '// base\n');
 
         commandsProvider = commandsProviderFactory();
-        command = new MergeCommand(commandsProvider);
+        mergeSessionCoordinator = {
+            activate: jest.fn().mockResolvedValue(),
+            startSession: jest.fn(),
+            onMergeProcessExit: jest.fn().mockResolvedValue(),
+        };
+        command = new MergeCommand(commandsProvider, mergeSessionCoordinator);
 
         componentNode = new COutlineItem('component');
         componentNode.setTag('component');
@@ -98,6 +104,7 @@ describe('MergeCommand', () => {
         it('registers the command on activation', async () => {
             await command.activate(extensionContextFactory());
 
+            expect(mergeSessionCoordinator.activate).toHaveBeenCalledTimes(1);
             expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(1);
             expect(commandsProvider.registerCommand).toHaveBeenCalledWith(MergeCommand.mergeFile, expect.any(Function), expect.anything());
         });
@@ -337,13 +344,11 @@ describe('MergeCommand', () => {
     });
 
     describe('merge execution flow', () => {
-        it('warns and skips post-merge file operations on non-zero merge exit code', async () => {
+        it('warns and delegates process exit handling on non-zero merge exit code', async () => {
             const commandPrivate = command as unknown as {
                 getVSCodeExecutablePath: () => string | undefined;
                 doOpen3WayMerge: (cmd: string) => Promise<number>;
             };
-            const deleteFileIfExistsSpy = jest.spyOn(fsUtils, 'deleteFileIfExists');
-            const renameFileSpy = jest.spyOn(fsUtils, 'renameFile');
             jest.spyOn(fsUtils, 'copyFile').mockImplementation(() => { });
             jest.spyOn(fsUtils, 'getFileModificationTime').mockReturnValue(1000);
             jest.spyOn(commandPrivate, 'getVSCodeExecutablePath').mockReturnValue('/usr/bin/code');
@@ -354,9 +359,8 @@ describe('MergeCommand', () => {
             await command['runVSCodeMerge'](fileNode);
 
             expect(warningSpy).toHaveBeenCalledWith('Merge exited with code 1. Conflicts may exist.');
-            expect(deleteFileIfExistsSpy).not.toHaveBeenCalled();
-            expect(renameFileSpy).not.toHaveBeenCalled();
-            expect(commandsProvider.executeCommand).not.toHaveBeenCalledWith(manifest.REFRESH_COMMAND_ID);
+            expect(mergeSessionCoordinator.startSession).toHaveBeenCalledTimes(1);
+            expect(mergeSessionCoordinator.onMergeProcessExit).toHaveBeenCalledWith(1);
         });
 
         it('handles merge errors gracefully', async () => {
@@ -400,12 +404,11 @@ describe('MergeCommand', () => {
             expect(showErrorMessageSpy).toHaveBeenCalledWith('Merge operation failed: Invalid update file: contains unsupported shell-sensitive characters.');
         });
 
-        it('performs post-merge file operations and triggers reload when merged file changes', async () => {
+        it('starts merge session and notifies coordinator when merge exits successfully', async () => {
             const local = path.join(tmpDir, 'component.c');
             const update = path.join(tmpDir, 'component.c.update@1.0.0');
             const base = path.join(tmpDir, 'component.c.base@1.0.0');
             const merged = `${local}.merged`;
-            const expectedBase = path.join(path.dirname(update), path.basename(update).replaceAll('update', 'base'));
             const node = new COutlineItem('file');
             node.setTag('file');
             node.setAttribute('label', 'Component X');
@@ -417,24 +420,21 @@ describe('MergeCommand', () => {
                 doOpen3WayMerge: (cmd: string) => Promise<number>;
             };
             const copyFileSpy = jest.spyOn(fsUtils, 'copyFile').mockImplementation(() => { });
-            const getFileModificationTimeSpy = jest.spyOn(fsUtils, 'getFileModificationTime')
-                .mockReturnValueOnce(1000)
-                .mockReturnValueOnce(2000);
-            const deleteFileIfExistsSpy = jest.spyOn(fsUtils, 'deleteFileIfExists').mockImplementation(() => { });
-            const renameFileSpy = jest.spyOn(fsUtils, 'renameFile').mockImplementation(() => { });
+            jest.spyOn(fsUtils, 'getFileModificationTime').mockReturnValue(1000);
             jest.spyOn(commandPrivate, 'getVSCodeExecutablePath').mockReturnValue('/usr/bin/code');
             jest.spyOn(commandPrivate, 'doOpen3WayMerge').mockResolvedValue(0);
 
             await command['runVSCodeMerge'](node);
 
             expect(copyFileSpy).toHaveBeenCalledWith(local, merged);
-            expect(copyFileSpy).toHaveBeenCalledWith(local, `${local}.bak`);
-            expect(getFileModificationTimeSpy).toHaveBeenCalledTimes(2);
-            expect(deleteFileIfExistsSpy).toHaveBeenCalledWith(local);
-            expect(deleteFileIfExistsSpy).toHaveBeenCalledWith(base);
-            expect(renameFileSpy).toHaveBeenCalledWith(update, expectedBase);
-            expect(renameFileSpy).toHaveBeenCalledWith(merged, local);
-            expect(commandsProvider.executeCommand).toHaveBeenCalledWith(manifest.REFRESH_COMMAND_ID);
+            expect(mergeSessionCoordinator.startSession).toHaveBeenCalledWith({
+                local,
+                update,
+                base,
+                merged,
+                mergedMTimeBefore: 1000,
+            });
+            expect(mergeSessionCoordinator.onMergeProcessExit).toHaveBeenCalledWith(0);
         });
     });
 });
