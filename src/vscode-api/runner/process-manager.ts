@@ -107,7 +107,32 @@ export class ProcessManagerImpl implements ProcessManager {
                     reject({ code: childProcess.exitCode, error: error });
                 });
 
-                childProcess.on('exit', code => {
+                /*
+In Node child processes, 'exit' and' close' events mean different lifecycle points:
+
+'exit'
+
+Emitted when the child process itself has ended.
+Gives you exit code and signal.
+May happen before all stdout and stderr data has been fully flushed/closed.
+
+'close'
+
+Emitted when the process has ended and all stdio streams are closed.
+Also provides code and signal.
+This is usually the safer event if you need to be sure all output handling is finished.
+Typical ordering:
+exit first, then close.
+
+Practical rule:
+
+Use exit when you only care that the process terminated.
+Use close when you care about complete I/O completion (most
+command-runner cases).
+
+We do care about output,  therefore 'close' is used here.
+*/
+                childProcess.on('close', code => {
                     if (code === 0) {
                         resolve({ code: 0 });
                     } else {
