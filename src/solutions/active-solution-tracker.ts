@@ -267,11 +267,14 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
         }
         const inputFsPath = await this.getCsolutionFile(inputSolutionPath);
 
-        // request can come before debounced activation triggers refresh
-        if (this._solutions.length === 0) {
-            this._solutions = await this.getSolutionPaths();
-        }
-        return this.solutions.includes(inputFsPath) ? inputFsPath : undefined;
+        // A request can arrive before the debounced activation path triggers refresh.
+        // Avoid updating the cached solutions list here so the normal refresh path can
+        // still detect changes and notify onDidChangeSolutions listeners.
+        const solutions = this._solutions.length === 0
+            ? await this.getSolutionPaths()
+            : this.solutions;
+
+        return solutions.includes(inputFsPath) ? inputFsPath : undefined;
     }
 
     private async getCsolutionFile(inputSolutionPath: string): Promise<string> {
