@@ -1621,7 +1621,35 @@ describe('ComponentsPacksWebviewMain', () => {
             await (componentsPacksWebviewMain as any).resolveComponents();
 
             expect(resolveMock).toHaveBeenCalledTimes(1);
-            expect(resolveMock).toHaveBeenCalledWith({ context: 'ctx1' });
+            expect(resolveMock).toHaveBeenCalledWith({
+                context: 'ctx1',
+                options: {
+                    layer: '',
+                    explicitVersion: '',
+                    explicitVendor: false,
+                },
+            });
+        });
+
+        it('passes selected layer path to resolve options when selected target is a layer', async () => {
+            (componentsPacksWebviewMain as any).selectedContext = {
+                label: 'Layer: App',
+                key: 'layer-key',
+                path: 'layers/app.clayer.yml',
+                relativePath: 'layers/app.clayer.yml',
+                type: 'layer',
+            };
+
+            await (componentsPacksWebviewMain as any).resolveComponents();
+
+            expect(resolveMock).toHaveBeenCalledWith({
+                context: 'ctx1',
+                options: {
+                    layer: 'layers/app.clayer.yml',
+                    explicitVersion: '',
+                    explicitVendor: false,
+                },
+            });
         });
 
         it('calls getComponentsTree with active context and scope', async () => {
