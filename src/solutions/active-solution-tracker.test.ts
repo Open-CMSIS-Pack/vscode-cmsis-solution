@@ -118,6 +118,13 @@ describe('ActiveSolutionTracker', () => {
     });
 
     it('sets the given solution as active before the initial refresh completes', async () => {
+        let resolveExtensionActivation: () => void;
+        const extensionActivation = new Promise<void>(resolve => {
+            resolveExtensionActivation = resolve;
+        });
+
+        context.extension.activate.mockReturnValue(extensionActivation);
+
         const activeSolutionChanged = waitForEvent(activeSolutionTracker.onDidChangeActiveSolution);
 
         activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
@@ -125,8 +132,9 @@ describe('ActiveSolutionTracker', () => {
         await activeSolutionChanged;
 
         expect(activeSolutionTracker.activeSolution).toEqual(SOLUTION_URI_FOO.fsPath);
-        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledTimes(1);
         expect(changeActiveListener).toHaveBeenCalledTimes(1);
+
+        resolveExtensionActivation!();
     });
 
     it('updates when the configured glob pattern changes', async () => {
