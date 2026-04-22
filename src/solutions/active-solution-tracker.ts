@@ -271,7 +271,7 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
         // Update the cached solutions list immediately
         // to prevent activation of default solution
         if (this._solutions.length === 0) {
-            this._solutions = await this.getSolutionPaths()
+            this._solutions = await this.getSolutionPaths();
         }
         return this.solutions.includes(inputFsPath) ? inputFsPath : undefined;
     }
