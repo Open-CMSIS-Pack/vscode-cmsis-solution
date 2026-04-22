@@ -266,6 +266,11 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
             return;
         }
         const inputFsPath = await this.getCsolutionFile(inputSolutionPath);
+
+        // request can come before debounced activation triggers refresh
+        if (this._solutions.length === 0) {
+            this._solutions = await this.getSolutionPaths();
+        }
         return this.solutions.includes(inputFsPath) ? inputFsPath : undefined;
     }
 

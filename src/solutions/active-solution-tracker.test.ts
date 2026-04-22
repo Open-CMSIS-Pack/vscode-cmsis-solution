@@ -117,6 +117,18 @@ describe('ActiveSolutionTracker', () => {
         expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledWith(ActiveSolutionTrackerImpl.GLOB_PATTERN, testGlobPattern);
     });
 
+    it('sets the given solution as active before the initial refresh completes', async () => {
+        const activeSolutionChanged = waitForEvent(activeSolutionTracker.onDidChangeActiveSolution);
+
+        activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+        await commandsProvider.mockRunRegistered(COMMAND_ACTIVATE_SOLUTION, SOLUTION_URI_FOO.fsPath);
+        await activeSolutionChanged;
+
+        expect(activeSolutionTracker.activeSolution).toEqual(SOLUTION_URI_FOO.fsPath);
+        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledTimes(1);
+        expect(changeActiveListener).toHaveBeenCalledTimes(1);
+    });
+
     it('updates when the configured glob pattern changes', async () => {
         activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
         await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);;
