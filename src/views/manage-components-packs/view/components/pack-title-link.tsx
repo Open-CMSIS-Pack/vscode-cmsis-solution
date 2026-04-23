@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { Space } from 'antd';
+import { Button, Space } from 'antd';
 import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
 import { packURL } from '../../../../packs/pack-urls';
 
@@ -35,7 +35,9 @@ export const PackTitleLink: React.FC<PackTitleLinkProps> = ({
         <>
             {packName ?? ''}
             <Space align='baseline' style={{ marginLeft: '8px' }}>
-                <a
+                <Button
+                    type="text"
+                    style={{ padding: '0px 12px' }}
                     title={packUrl}
                     aria-label='Open pack URL'
                     onClick={(e) => {
@@ -43,10 +45,9 @@ export const PackTitleLink: React.FC<PackTitleLinkProps> = ({
                         e.stopPropagation();
                         openFile(packUrl, true);
                     }}
-                    href={packUrl}
                 >
                     <CmsisCodicon name='link-external' style={{ fontSize: '1em', display: 'inline' }} />
-                </a>
+                </Button>
             </Space>
         </>
     );
