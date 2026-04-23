@@ -16,9 +16,10 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { SolutionManager } from '../../../solutions/solution-manager';
+import { REFRESH_COMMAND_ID } from '../../../manifest';
 import * as fsUtils from '../../../utils/fs-utils';
 import { pathsEqual } from '../../../utils/path-utils';
+import type { CommandsProvider } from '../../../vscode-api/commands-provider';
 
 export interface MergeSessionFiles {
     local: string;
@@ -40,7 +41,7 @@ export class MergeSessionCoordinatorImpl implements MergeSessionCoordinator {
     private finalizing = false;
 
     constructor(
-        private readonly solutionManager: Pick<SolutionManager, 'refresh'>,
+        private readonly commandsProvider: Pick<CommandsProvider, 'executeCommand'>,
     ) {
     }
 
@@ -77,7 +78,7 @@ export class MergeSessionCoordinatorImpl implements MergeSessionCoordinator {
         }
         // Keep save handling non-destructive while the merge editor is still open.
         // The actual file rename/delete operations are performed on merge process exit.
-        await this.solutionManager.refresh();
+        void this.commandsProvider.executeCommand(REFRESH_COMMAND_ID);
     }
 
     private async tryFinalizeOnExit(): Promise<void> {
@@ -95,7 +96,9 @@ export class MergeSessionCoordinatorImpl implements MergeSessionCoordinator {
         try {
             this.performPostMergeOperations(session);
             this.activeSession = undefined;
-            await this.solutionManager.refresh();
+            // Await is required here so merge finalization is not reported complete
+            // before the refresh command has finished processing.
+            await this.commandsProvider.executeCommand(REFRESH_COMMAND_ID);
         } finally {
             this.finalizing = false;
         }

@@ -21,11 +21,13 @@ import * as vscode from 'vscode';
 import { TestDataHandler } from '../../../__test__/test-data';
 import { MergeSessionCoordinatorImpl } from './merge-session-coordinator';
 import * as fsUtils from '../../../utils/fs-utils';
+import { commandsProviderFactory, MockCommandsProvider } from '../../../vscode-api/commands-provider.factories';
+import { REFRESH_COMMAND_ID } from '../../../manifest';
 
 describe('MergeSessionCoordinator', () => {
     const testDataHandler = new TestDataHandler();
     let tmpDir: string;
-    let solutionManager: { refresh: jest.Mock<Promise<void>, []> };
+    let commandsProvider: MockCommandsProvider;
     let coordinator: MergeSessionCoordinatorImpl;
     let saveEmitter: vscode.EventEmitter<vscode.TextDocument>;
 
@@ -39,11 +41,10 @@ describe('MergeSessionCoordinator', () => {
         saveEmitter = new vscode.EventEmitter<vscode.TextDocument>();
         (vscode.workspace as unknown as { onDidSaveTextDocument: vscode.Event<vscode.TextDocument> }).onDidSaveTextDocument = saveEmitter.event;
 
-        solutionManager = {
-            refresh: jest.fn().mockResolvedValue(),
-        };
+        commandsProvider = commandsProviderFactory();
+        commandsProvider.executeCommand.mockResolvedValue(undefined);
 
-        coordinator = new MergeSessionCoordinatorImpl(solutionManager);
+        coordinator = new MergeSessionCoordinatorImpl(commandsProvider);
 
         await coordinator.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
     });
@@ -76,7 +77,8 @@ describe('MergeSessionCoordinator', () => {
         expect(fsUtils.fileExists(update)).toBeTruthy();
         expect(fsUtils.fileExists(`${local}.bak`)).toBeFalsy();
 
-        expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+        expect(commandsProvider.executeCommand).toHaveBeenCalledTimes(1);
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith(REFRESH_COMMAND_ID);
     });
 
     it('ignores save events for unrelated files', async () => {
@@ -96,7 +98,7 @@ describe('MergeSessionCoordinator', () => {
             handleDidSaveTextDocument: (document: vscode.TextDocument) => Promise<void>
         }).handleDidSaveTextDocument({ uri: { fsPath: path.join(tmpDir, 'other.c') } } as vscode.TextDocument);
 
-        expect(solutionManager.refresh).not.toHaveBeenCalled();
+        expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
         expect(fsUtils.fileExists(merged)).toBeTruthy();
     });
 
@@ -118,7 +120,7 @@ describe('MergeSessionCoordinator', () => {
             handleDidSaveTextDocument: (document: vscode.TextDocument) => Promise<void>
         }).handleDidSaveTextDocument({ uri: { fsPath: merged } } as vscode.TextDocument);
 
-        expect(solutionManager.refresh).not.toHaveBeenCalled();
+        expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
         expect(fsUtils.fileExists(merged)).toBeTruthy();
     });
 
@@ -138,6 +140,7 @@ describe('MergeSessionCoordinator', () => {
 
         expect(fsUtils.fileExists(local)).toBeTruthy();
         expect(fsUtils.readTextFile(local)).toContain('// merged');
-        expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+        expect(commandsProvider.executeCommand).toHaveBeenCalledTimes(1);
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith(REFRESH_COMMAND_ID);
     });
 });
