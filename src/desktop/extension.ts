@@ -240,7 +240,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
             supportsMultipleEditorsPerDocument: false,
         }
     ));
-    context.subscriptions.push(registerManageSolutionCommand(commandsProvider, solutionManager));
+    context.subscriptions.push(registerManageSolutionCommand(commandsProvider, solutionManager, configurationProvider));
     const getBinaryFile = new BinaryFileLocator(solutionManager, commandsProvider);
     const compileCommandsParser = new CompileCommandsParser(workspaceFsProvider);
     const clangdManager = new ClangdManager(solutionManager, configurationProvider, armclangDefineGetter, compileCommandsParser, workspaceFsProvider, commandsProvider);

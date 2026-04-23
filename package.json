@@ -1357,6 +1357,11 @@
           "title": "Show CMSIS View",
           "description": "Automatically shows the CMSIS view in the Side Bar when a CMSIS solution is loaded."
         },
+        "cmsis-csolution.manageSolutionSingleEditor": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When enabled, only one editor mode is kept open for the same `.csolution.yml`: opening the Manage Solution UI closes its text editor tab, and opening text mode closes the Manage Solution UI tab."
+        },
         "cmsis-csolution.probe-id": {
           "type": "string",
           "default": "",
