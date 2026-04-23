@@ -81,6 +81,29 @@ describe('MergeSessionCoordinator', () => {
         expect(commandsProvider.executeCommand).toHaveBeenCalledWith(REFRESH_COMMAND_ID);
     });
 
+    it('emits merge-applied event on merged file save', async () => {
+        const local = path.join(tmpDir, 'component.c');
+        const update = path.join(tmpDir, 'component.c.update@1.0.0');
+        const base = path.join(tmpDir, 'component.c.base@1.0.0');
+        const merged = `${local}.merged`;
+
+        fsUtils.writeTextFile(local, '// local\n');
+        fsUtils.writeTextFile(update, '// update\n');
+        fsUtils.writeTextFile(base, '// base\n');
+        fsUtils.writeTextFile(merged, '// merged\n');
+
+        const listener = jest.fn();
+        const disposable = coordinator.onMergeApplied(listener);
+        coordinator.startSession({ local, update, base, merged, mergedMTimeBefore: 0 });
+
+        await (coordinator as unknown as {
+            handleDidSaveTextDocument: (document: vscode.TextDocument) => Promise<void>
+        }).handleDidSaveTextDocument({ uri: { fsPath: merged } } as vscode.TextDocument);
+
+        expect(listener).toHaveBeenCalledTimes(1);
+        disposable.dispose();
+    });
+
     it('ignores save events for unrelated files', async () => {
         const local = path.join(tmpDir, 'component.c');
         const update = path.join(tmpDir, 'component.c.update@1.0.0');
@@ -142,5 +165,23 @@ describe('MergeSessionCoordinator', () => {
         expect(fsUtils.readTextFile(local)).toContain('// merged');
         expect(commandsProvider.executeCommand).toHaveBeenCalledTimes(1);
         expect(commandsProvider.executeCommand).toHaveBeenCalledWith(REFRESH_COMMAND_ID);
+    });
+
+    it('finalizes on merge process exit when update file is already absent but base exists', async () => {
+        const local = path.join(tmpDir, 'component.c');
+        const update = path.join(tmpDir, 'component.c.update@1.0.0');
+        const base = path.join(tmpDir, 'component.c.base@1.0.0');
+        const merged = `${local}.merged`;
+
+        fsUtils.writeTextFile(local, '// local\n');
+        fsUtils.writeTextFile(base, '// base\n');
+        fsUtils.writeTextFile(merged, '// merged\n');
+
+        coordinator.startSession({ local, update, base, merged, mergedMTimeBefore: 0 });
+        await expect(coordinator.onMergeProcessExit(0)).resolves.toEqual({ applied: true });
+
+        expect(fsUtils.fileExists(local)).toBeTruthy();
+        expect(fsUtils.readTextFile(local)).toContain('// merged');
+        expect(fsUtils.fileExists(base)).toBeTruthy();
     });
 });

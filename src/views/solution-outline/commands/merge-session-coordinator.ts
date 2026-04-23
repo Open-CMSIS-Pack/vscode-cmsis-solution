@@ -29,16 +29,23 @@ export interface MergeSessionFiles {
     mergedMTimeBefore: number;
 }
 
+export interface MergeProcessExitResult {
+    applied: boolean;
+}
+
 export interface MergeSessionCoordinator {
     activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>): Promise<void>;
+    onMergeApplied(listener: () => void): vscode.Disposable;
     startSession(files: MergeSessionFiles): void;
     cancelSession(): void;
-    onMergeProcessExit(exitCode: number): Promise<void>;
+    onMergeProcessExit(exitCode: number): Promise<MergeProcessExitResult>;
 }
 
 export class MergeSessionCoordinatorImpl implements MergeSessionCoordinator {
     private activeSession?: MergeSessionFiles;
     private finalizing = false;
+    private mergeAppliedNotified = false;
+    private readonly mergeAppliedEmitter = new vscode.EventEmitter<void>();
 
     constructor(
         private readonly commandsProvider: Pick<CommandsProvider, 'executeCommand'>,
@@ -48,25 +55,36 @@ export class MergeSessionCoordinatorImpl implements MergeSessionCoordinator {
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>): Promise<void> {
         context.subscriptions.push(
             vscode.workspace.onDidSaveTextDocument(this.handleDidSaveTextDocument, this),
+            this.mergeAppliedEmitter,
         );
+    }
+
+    public onMergeApplied(listener: () => void): vscode.Disposable {
+        return this.mergeAppliedEmitter.event(listener);
     }
 
     public startSession(files: MergeSessionFiles): void {
         this.activeSession = files;
+        this.mergeAppliedNotified = false;
     }
 
     public cancelSession(): void {
         this.activeSession = undefined;
+        this.mergeAppliedNotified = false;
     }
 
-    public async onMergeProcessExit(exitCode: number): Promise<void> {
+    public async onMergeProcessExit(exitCode: number): Promise<MergeProcessExitResult> {
+        let applied = false;
         try {
             if (exitCode === 0) {
-                await this.tryFinalizeOnExit();
+                applied = await this.tryFinalizeOnExit();
             }
         } finally {
             this.activeSession = undefined;
+            this.mergeAppliedNotified = false;
         }
+
+        return { applied };
     }
 
     private async handleDidSaveTextDocument(document: vscode.TextDocument): Promise<void> {
@@ -78,18 +96,24 @@ export class MergeSessionCoordinatorImpl implements MergeSessionCoordinator {
         }
         // Keep save handling non-destructive while the merge editor is still open.
         // The actual file rename/delete operations are performed on merge process exit.
+        const mergedMTimeAfter = fsUtils.getFileModificationTime(this.activeSession.merged);
+        if (!this.mergeAppliedNotified && mergedMTimeAfter > this.activeSession.mergedMTimeBefore) {
+            this.mergeAppliedNotified = true;
+            this.mergeAppliedEmitter.fire();
+        }
+
         void this.commandsProvider.executeCommand(REFRESH_COMMAND_ID);
     }
 
-    private async tryFinalizeOnExit(): Promise<void> {
+    private async tryFinalizeOnExit(): Promise<boolean> {
         if (!this.activeSession || this.finalizing) {
-            return;
+            return false;
         }
 
         const session = this.activeSession;
         const mergedMTimeAfter = fsUtils.getFileModificationTime(session.merged);
         if (mergedMTimeAfter <= session.mergedMTimeBefore) {
-            return;
+            return false;
         }
 
         this.finalizing = true;
@@ -99,6 +123,7 @@ export class MergeSessionCoordinatorImpl implements MergeSessionCoordinator {
             // Await is required here so merge finalization is not reported complete
             // before the refresh command has finished processing.
             await this.commandsProvider.executeCommand(REFRESH_COMMAND_ID);
+            return true;
         } finally {
             this.finalizing = false;
         }
@@ -108,11 +133,17 @@ export class MergeSessionCoordinatorImpl implements MergeSessionCoordinator {
         const backupPath = `${session.local}.bak`;
         fsUtils.copyFile(session.local, backupPath);
         fsUtils.deleteFileIfExists(session.local);
-        fsUtils.deleteFileIfExists(session.base);
 
         const newBaseFileName = path.basename(session.update).replaceAll('update', 'base');
         const newBase = path.join(path.dirname(session.update), newBaseFileName);
-        fsUtils.renameFile(session.update, newBase);
+
+        if (fsUtils.fileExists(session.update)) {
+            fsUtils.deleteFileIfExists(session.base);
+            fsUtils.renameFile(session.update, newBase);
+        } else if (!fsUtils.fileExists(newBase)) {
+            throw new Error(`Required update file is missing to finalize merge: ${session.update}`);
+        }
+
         fsUtils.renameFile(session.merged, session.local);
     }
 }

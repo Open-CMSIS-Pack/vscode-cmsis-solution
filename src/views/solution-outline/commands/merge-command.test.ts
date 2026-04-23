@@ -17,6 +17,7 @@
 jest.mock('vscode', () => ({
     window: {
         showErrorMessage: jest.fn(),
+        showInformationMessage: jest.fn(),
         showWarningMessage: jest.fn(),
     }
 }));
@@ -32,7 +33,6 @@ jest.mock('path', () => {
 });
 
 import { TestDataHandler } from '../../../__test__/test-data';
-import * as vscode from 'vscode';
 import { extensionContextFactory } from '../../../vscode-api/extension-context.factories';
 import { commandsProviderFactory, MockCommandsProvider } from '../../../vscode-api/commands-provider.factories';
 import { MergeCommand } from './merge-command';
@@ -42,6 +42,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fsUtils from '../../../utils/fs-utils';
 import { MergeSessionCoordinator } from './merge-session-coordinator';
+import { messageProviderFactory, MockMessageProvider } from '../../../vscode-api/message-provider.factories';
 
 jest.mock('child_process');
 jest.mock('os');
@@ -50,6 +51,7 @@ describe('MergeCommand', () => {
     let commandsProvider: MockCommandsProvider;
     let command: MergeCommand;
     let mergeSessionCoordinator: jest.Mocked<MergeSessionCoordinator>;
+    let messageProvider: MockMessageProvider;
     const testDataHandler = new TestDataHandler();
     let tmpDir: string;
 
@@ -82,11 +84,13 @@ describe('MergeCommand', () => {
         commandsProvider = commandsProviderFactory();
         mergeSessionCoordinator = {
             activate: jest.fn().mockResolvedValue(),
+            onMergeApplied: jest.fn().mockReturnValue({ dispose: jest.fn() }),
             startSession: jest.fn(),
             cancelSession: jest.fn(),
-            onMergeProcessExit: jest.fn().mockResolvedValue(),
+            onMergeProcessExit: jest.fn().mockResolvedValue({ applied: false }),
         };
-        command = new MergeCommand(commandsProvider, mergeSessionCoordinator);
+        messageProvider = messageProviderFactory();
+        command = new MergeCommand(commandsProvider, mergeSessionCoordinator, messageProvider);
 
         componentNode = new COutlineItem('component');
         componentNode.setTag('component');
@@ -106,8 +110,21 @@ describe('MergeCommand', () => {
             await command.activate(extensionContextFactory());
 
             expect(mergeSessionCoordinator.activate).toHaveBeenCalledTimes(1);
+            expect(mergeSessionCoordinator.onMergeApplied).toHaveBeenCalledTimes(1);
             expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(1);
             expect(commandsProvider.registerCommand).toHaveBeenCalledWith(MergeCommand.mergeFile, expect.any(Function), expect.anything());
+        });
+
+        it('shows success info when coordinator emits merge-applied event', async () => {
+            await command.activate(extensionContextFactory());
+
+            const listener = mergeSessionCoordinator.onMergeApplied.mock.calls[0]?.[0] as (() => void) | undefined;
+            expect(listener).toBeDefined();
+            listener?.();
+
+            expect(messageProvider.showInformationMessage).toHaveBeenCalledWith(
+                'Merge applied successfully. Merge View can be closed.',
+            );
         });
 
         it('forwards string command argument to the merge handler', async () => {
@@ -136,22 +153,18 @@ describe('MergeCommand', () => {
         });
 
         it('shows error for unsupported command argument type', async () => {
-            const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
-
             await command.activate(extensionContextFactory());
             await commandsProvider.mockRunRegistered(MergeCommand.mergeFile, undefined);
 
-            expect(showErrorMessageSpy).toHaveBeenCalledWith('Cannot open merge view: unsupported command argument.');
+            expect(messageProvider.showErrorMessage).toHaveBeenCalledWith('Cannot open merge view: unsupported command argument.');
         });
     });
 
     describe('merge file discovery', () => {
         it('shows error if merge path is missing when invoked from path', async () => {
-            const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
-
             await command['runVSCodeMergeFromPath']('');
 
-            expect(showErrorMessageSpy).toHaveBeenCalledWith('Cannot open merge view: merge file path is missing.');
+            expect(messageProvider.showErrorMessage).toHaveBeenCalledWith('Cannot open merge view: merge file path is missing.');
         });
 
         it('normalizes the merge path before opening merge view from path', async () => {
@@ -167,17 +180,15 @@ describe('MergeCommand', () => {
         });
 
         it('shows error if node is not passed', async () => {
-            const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
             // @ts-expect-error - testing behavior when `runVSCodeMerge` receives null
             await command['runVSCodeMerge'](null);
-            expect(showErrorMessageSpy).toHaveBeenCalledWith('File data is not available for merge operation.');
+            expect(messageProvider.showErrorMessage).toHaveBeenCalledWith('File data is not available for merge operation.');
         });
 
         it('shows error if required local file is missing', async () => {
-            const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
             const node = new COutlineItem('file');
             await command['runVSCodeMerge'](node);
-            expect(showErrorMessageSpy).toHaveBeenCalledWith('Required local file is missing to perform merge.');
+            expect(messageProvider.showErrorMessage).toHaveBeenCalledWith('Required local file is missing to perform merge.');
         });
 
         it('finds update and base files using the highest matching semver sibling', () => {
@@ -338,9 +349,8 @@ describe('MergeCommand', () => {
                 throw new Error('not found');
             });
 
-            const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
             await command['runVSCodeMerge'](fileNode);
-            expect(showErrorMessageSpy).toHaveBeenCalledWith('Visual Studio Code executable not found. Please ensure it is installed and available in your PATH.');
+            expect(messageProvider.showErrorMessage).toHaveBeenCalledWith('Visual Studio Code executable not found. Please ensure it is installed and available in your PATH.');
         });
     });
 
@@ -375,10 +385,9 @@ describe('MergeCommand', () => {
             mockedExec.mockImplementation((_cmd, _cb) => { throw new Error('unexpected'); });
 
             const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
-            const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
             await command['runVSCodeMerge'](fileNode);
             expect(errorSpy).toHaveBeenCalledWith('Merge operations failed:', expect.any(Error));
-            expect(showErrorMessageSpy).toHaveBeenCalledWith('Merge operation failed: unexpected');
+            expect(messageProvider.showErrorMessage).toHaveBeenCalledWith('Merge operation failed: unexpected');
             expect(mergeSessionCoordinator.cancelSession).toHaveBeenCalledTimes(1);
         });
 
@@ -400,11 +409,9 @@ describe('MergeCommand', () => {
             jest.spyOn(fsUtils, 'copyFile').mockImplementation(() => { });
             jest.spyOn(fsUtils, 'getFileModificationTime').mockReturnValue(1000);
 
-            const showErrorMessageSpy = jest.spyOn(vscode.window, 'showErrorMessage');
-
             await command['runVSCodeMerge'](node);
 
-            expect(showErrorMessageSpy).toHaveBeenCalledWith('Merge operation failed: Invalid update file: contains unsupported shell-sensitive characters.');
+            expect(messageProvider.showErrorMessage).toHaveBeenCalledWith('Merge operation failed: Invalid update file: contains unsupported shell-sensitive characters.');
             expect(mergeSessionCoordinator.cancelSession).toHaveBeenCalledTimes(1);
         });
 
@@ -441,5 +448,6 @@ describe('MergeCommand', () => {
             expect(mergeSessionCoordinator.onMergeProcessExit).toHaveBeenCalledWith(0);
             expect(mergeSessionCoordinator.cancelSession).not.toHaveBeenCalled();
         });
+
     });
 });

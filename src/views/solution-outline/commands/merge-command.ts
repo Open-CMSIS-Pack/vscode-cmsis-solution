@@ -25,19 +25,25 @@ import semver from 'semver';
 import { extractVersion } from '../../../utils/string-utils';
 import * as fsUtils from '../../../utils/fs-utils';
 import { MergeSessionCoordinator } from './merge-session-coordinator';
+import type { MessageProvider } from '../../../vscode-api/message-provider';
 
 export class MergeCommand {
     public static readonly mergeFile = `${PACKAGE_NAME}.mergeFile`;
+    private static readonly mergeAppliedSuccessMessage = 'Merge applied successfully. Merge View can be closed.';
     private static readonly disallowedCmdChars = /[\r\n&|<>^%"']/;
 
     constructor(
         private readonly commandsProvider: CommandsProvider,
         private readonly mergeSessionCoordinator: MergeSessionCoordinator,
+        private readonly messageProvider: Pick<MessageProvider, 'showErrorMessage' | 'showInformationMessage' | 'showWarningMessage'>,
     ) { }
 
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>) {
         await this.mergeSessionCoordinator.activate(context);
         context.subscriptions.push(
+            this.mergeSessionCoordinator.onMergeApplied(() => {
+                this.messageProvider.showInformationMessage(MergeCommand.mergeAppliedSuccessMessage);
+            }),
             this.commandsProvider.registerCommand(MergeCommand.mergeFile, this.handleMergeCommand, this),
         );
     }
@@ -53,12 +59,12 @@ export class MergeCommand {
             return;
         }
 
-        vscode.window.showErrorMessage('Cannot open merge view: unsupported command argument.');
+        this.messageProvider.showErrorMessage('Cannot open merge view: unsupported command argument.');
     }
 
     private async runVSCodeMergeFromPath(localPath: string): Promise<void> {
         if (!localPath) {
-            vscode.window.showErrorMessage('Cannot open merge view: merge file path is missing.');
+            this.messageProvider.showErrorMessage('Cannot open merge view: merge file path is missing.');
             return;
         }
 
@@ -67,13 +73,13 @@ export class MergeCommand {
 
     private async runVSCodeMerge(node: COutlineItem): Promise<void> {
         if (!node) {
-            vscode.window.showErrorMessage('File data is not available for merge operation.');
+            this.messageProvider.showErrorMessage('File data is not available for merge operation.');
             return;
         }
 
         const localPath = node.getResourcePath();
         if (!localPath) {
-            vscode.window.showErrorMessage('Required local file is missing to perform merge.');
+            this.messageProvider.showErrorMessage('Required local file is missing to perform merge.');
             return;
         }
 
@@ -90,7 +96,7 @@ export class MergeCommand {
 
         const codePath = this.getVSCodeExecutablePath();
         if (!codePath) {
-            vscode.window.showErrorMessage('Visual Studio Code executable not found. Please ensure it is installed and available in your PATH.');
+            this.messageProvider.showErrorMessage('Visual Studio Code executable not found. Please ensure it is installed and available in your PATH.');
             return;
         }
 
@@ -130,7 +136,7 @@ export class MergeCommand {
         } catch (err) {
             console.error('Merge operations failed:', err);
             const details = err instanceof Error ? err.message : String(err);
-            vscode.window.showErrorMessage(`Merge operation failed: ${details}`);
+            this.messageProvider.showErrorMessage(`Merge operation failed: ${details}`);
         } finally {
             if (!exitHandled) {
                 this.mergeSessionCoordinator.cancelSession();
@@ -143,13 +149,13 @@ export class MergeCommand {
         const discovered = this.findNewestMergeFiles(local);
         const update = discovered.update;
         if (!update) {
-            vscode.window.showErrorMessage('Required update file is missing to perform merge.');
+            this.messageProvider.showErrorMessage('Required update file is missing to perform merge.');
             return undefined;
         }
 
         const base = discovered.base;
         if (!base) {
-            vscode.window.showErrorMessage('Required base file is missing to perform merge.');
+            this.messageProvider.showErrorMessage('Required base file is missing to perform merge.');
             return undefined;
         }
 
@@ -193,7 +199,7 @@ export class MergeCommand {
                 const resolved = execSync('which code', { stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim();
                 if (resolved && fsUtils.fileExists(resolved)) return resolved;
             } catch (err) {
-                vscode.window.showWarningMessage(`Could not resolve 'code' binary via 'which': ${err instanceof Error ? err.message : String(err)}`);
+                this.messageProvider.showWarningMessage(`Could not resolve 'code' binary via 'which': ${err instanceof Error ? err.message : String(err)}`);
                 return undefined;
             }
         }
