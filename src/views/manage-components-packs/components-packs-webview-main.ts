@@ -164,7 +164,7 @@ export class ComponentsPacksWebviewMain {
             const messageOptions: vscode.MessageOptions = { modal: true, detail: 'Your changes will be lost if you don\'t save them.\nPress cancel to continue editing.' };
 
             const pick = (await vscode.window.showWarningMessage(
-                'Do you want to save the changes you made to the Solution?',
+                'Do you want to save the changes you made in the \'Software Components\' view?',
                 messageOptions,
                 ...buttonOptions,
             )) || { title: 'Cancel' };
@@ -827,7 +827,16 @@ export class ComponentsPacksWebviewMain {
 
     private async resolveComponents(): Promise<void> {
         const activeContext = this.getActiveContext();
-        await this.csolutionService.resolve({ context: activeContext });
+        const selectedTarget = this.getSelectedTargetSetData();
+        const selectedLayerPath = selectedTarget?.type === 'layer' ? selectedTarget.path : '';
+        await this.csolutionService.resolve({
+            context: activeContext,
+            options: {
+                layer: selectedLayerPath,
+                explicitVersion: '',
+                explicitVendor: false,
+            },
+        });
         await this.sendSolutionData();
         await this.sendDirtyState();
     };

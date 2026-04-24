@@ -176,6 +176,15 @@ describe('ProblemDiagnosticActionResolver', () => {
 
             expect((result?.code as { value: string } | undefined)?.value).toBe('Run Generator');
         });
+
+        it('matches generator messages with irregular whitespace', () => {
+            const { command, args } = decodeCodeTarget(resolver, makeContext({
+                message: "cgen file was not found,\n  run generator   'CubeMX'\nfor context   'App.Debug+STM32'",
+            }));
+
+            expect(command).toBe(`command:${RUN_GENERATOR_COMMAND_ID}`);
+            expect(args).toEqual([{ generator: 'CubeMX', context: 'App.Debug+STM32' }]);
+        });
     });
 
     describe('manage-components action', () => {
