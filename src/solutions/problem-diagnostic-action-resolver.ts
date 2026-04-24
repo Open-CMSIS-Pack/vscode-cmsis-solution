@@ -101,6 +101,7 @@ export class ProblemDiagnosticActionResolver {
 
         if (descriptor.kind === 'run-generator') {
             return {
+                message: `Run generator '${descriptor.generator}' for '${descriptor.context}'`,
                 code: {
                     value: 'Run Generator',
                     target: this.createRunGeneratorCommandUri(descriptor.generator, descriptor.context),
