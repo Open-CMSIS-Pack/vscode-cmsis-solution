@@ -245,7 +245,47 @@ export class ManageSolutionCustomEditorProvider implements vscode.CustomEditorPr
 export function registerManageSolutionCommand(
     commandsProvider: CommandsProvider,
     solutionManager: SolutionManager,
+    configurationProvider: ConfigurationProvider,
 ): vscode.Disposable {
+    type TabInputLike = {
+        uri?: vscode.Uri;
+        viewType?: string;
+    };
+
+    const getTabInputLike = (input: unknown): TabInputLike | undefined => {
+        if (!input || typeof input !== 'object') {
+            return undefined;
+        }
+
+        return input as TabInputLike;
+    };
+
+    const hasSameUri = (left: vscode.Uri, right: vscode.Uri): boolean => left.toString() === right.toString();
+
+    const isCsolutionUri = (uri: vscode.Uri): boolean => uri.fsPath.endsWith('.csolution.yml');
+
+    const isTextTabForSolution = (input: unknown, solutionUri: vscode.Uri): boolean => {
+        const tabInput = getTabInputLike(input);
+        if (!tabInput?.uri) {
+            return false;
+        }
+
+        // Text tabs have URI but no custom editor viewType.
+        return tabInput.viewType === undefined && hasSameUri(tabInput.uri, solutionUri);
+    };
+
+    const isManageSolutionCustomTabForSolution = (input: unknown, solutionUri: vscode.Uri): boolean => {
+        const tabInput = getTabInputLike(input);
+        if (!tabInput?.uri || !tabInput.viewType) {
+            return false;
+        }
+
+        return tabInput.viewType === ManageSolutionCustomEditorProvider.viewType && hasSameUri(tabInput.uri, solutionUri);
+    };
+
+    const isSingleEditorModeEnabled = (): boolean =>
+        configurationProvider.getConfigVariableOrDefault<boolean>(manifest.CONFIG_MANAGE_SOLUTION_SINGLE_EDITOR, true);
+
     const getSolutionUri = (resource?: vscode.Uri): vscode.Uri | undefined => {
         if (resource && resource.fsPath.endsWith('.csolution.yml')) {
             return resource;
@@ -264,6 +304,91 @@ export function registerManageSolutionCommand(
         return undefined;
     };
 
+    const closeOtherEditorModes = async (solutionUri: vscode.Uri, desiredMode: 'ui' | 'text'): Promise<void> => {
+        if (!isSingleEditorModeEnabled()) {
+            return;
+        }
+
+        const tabGroups = vscode.window.tabGroups;
+        if (!tabGroups) {
+            return;
+        }
+
+        const tabsToClose: vscode.Tab[] = [];
+
+        for (const group of tabGroups.all) {
+            for (const tab of group.tabs) {
+                const input = tab.input;
+                if (desiredMode === 'ui' && isTextTabForSolution(input, solutionUri)) {
+                    tabsToClose.push(tab);
+                }
+
+                if (desiredMode === 'text' && isManageSolutionCustomTabForSolution(input, solutionUri)) {
+                    tabsToClose.push(tab);
+                }
+            }
+        }
+
+        if (tabsToClose.length > 0) {
+            await tabGroups.close(tabsToClose, true);
+        }
+    };
+
+    const enforceSingleEditorModeForUri = async (solutionUri: vscode.Uri): Promise<void> => {
+        if (!isSingleEditorModeEnabled()) {
+            return;
+        }
+
+        const tabGroups = vscode.window.tabGroups;
+        if (!tabGroups) {
+            return;
+        }
+
+        const textTabs: vscode.Tab[] = [];
+        let hasCustomTab = false;
+
+        for (const group of tabGroups.all) {
+            for (const tab of group.tabs) {
+                const input = tab.input;
+                if (isManageSolutionCustomTabForSolution(input, solutionUri)) {
+                    hasCustomTab = true;
+                    continue;
+                }
+
+                if (isTextTabForSolution(input, solutionUri)) {
+                    textTabs.push(tab);
+                }
+            }
+        }
+
+        if (hasCustomTab && textTabs.length > 0) {
+            await tabGroups.close(textTabs, true);
+        }
+    };
+
+    const watchTabChangesForSingleEditorMode = (): vscode.Disposable => {
+        const tabGroups = vscode.window.tabGroups;
+        if (!tabGroups || !('onDidChangeTabs' in tabGroups) || typeof tabGroups.onDidChangeTabs !== 'function') {
+            return { dispose: () => { return; } };
+        }
+
+        return tabGroups.onDidChangeTabs((event: vscode.TabChangeEvent) => {
+            void (async () => {
+                const candidates = new Map<string, vscode.Uri>();
+                for (const tab of [...event.opened, ...event.changed]) {
+                    const tabInput = getTabInputLike(tab.input);
+                    if (tabInput?.uri && isCsolutionUri(tabInput.uri)) {
+                        candidates.set(tabInput.uri.toString(), tabInput.uri);
+                    }
+                }
+
+                for (const solutionUri of candidates.values()) {
+                    await enforceSingleEditorModeForUri(solutionUri);
+                }
+            })();
+        });
+    };
+
     const openUiEditor = async (resource?: vscode.Uri): Promise<void> => {
         const solutionUri = getSolutionUri(resource);
         if (!solutionUri) {
@@ -271,6 +396,7 @@ export function registerManageSolutionCommand(
             return;
         }
 
+        await closeOtherEditorModes(solutionUri, 'ui');
         await commandsProvider.executeCommand('vscode.openWith', solutionUri, ManageSolutionCustomEditorProvider.viewType);
     };
 
@@ -281,10 +407,12 @@ export function registerManageSolutionCommand(
             return;
         }
 
+        await closeOtherEditorModes(solutionUri, 'text');
         await commandsProvider.executeCommand('vscode.openWith', solutionUri, 'default');
     };
 
     return vscode.Disposable.from(
+        watchTabChangesForSingleEditorMode(),
         commandsProvider.registerCommand(
             `${manifest.PACKAGE_NAME}.manageSolution`,
             async () => {
