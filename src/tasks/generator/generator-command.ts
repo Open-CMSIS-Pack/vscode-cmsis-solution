@@ -82,7 +82,7 @@ export class GeneratorCommand {
             return;
         }
 
-        const msg = `Starting generator ${generator} for context ${context}...`;
+        const msg = `Starting generator ${generator} for ${context}...`;
         vscode.window.showInformationMessage(msg);
 
         const executableArgs = ['run', solutionFilePath, '-g', generator, '-c', context];

@@ -70,7 +70,7 @@ describe('GeneratorCommand', () => {
         await generatorCommand.handleRunGenerator('my-gen', 'debug');
 
         expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
-            'Starting generator my-gen for context debug...'
+            'Starting generator my-gen for debug...'
         );
 
         expect(cmsisToolboxManager.runCmsisTool).toHaveBeenCalledWith(
@@ -111,7 +111,7 @@ describe('GeneratorCommand', () => {
         await generatorCommand.handleRunGenerator('my-gen', 'debug');
 
         const channel = outputChannelProvider.mockGetCreatedChannelByName(CMSIS_SOLUTION_OUTPUT_CHANNEL);
-        expect(channel?.mockAppendedStrings).toContain('Starting generator my-gen for context debug...');
+        expect(channel?.mockAppendedStrings).toContain('Starting generator my-gen for debug...');
     });
 
     describe('command dispatch', () => {
