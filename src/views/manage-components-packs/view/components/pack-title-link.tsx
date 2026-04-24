@@ -36,7 +36,8 @@ export const PackTitleLink: React.FC<PackTitleLinkProps> = ({
             {packName ?? ''}
             <Space align='baseline' style={{ marginLeft: '8px' }}>
                 <Button
-                    type="text"
+                    color="default"
+                    variant="link"
                     style={{ padding: '0px 12px' }}
                     title={packUrl}
                     aria-label='Open pack URL'
