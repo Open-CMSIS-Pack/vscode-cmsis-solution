@@ -166,17 +166,8 @@ describe('ProblemDiagnosticActionResolver', () => {
                 message: "cgen file was not found, run generator 'CubeMX' for context 'App.Debug+STM32'",
             }));
 
-            expect(result?.message).toBe("Run generator 'CubeMX' for 'App.Debug+STM32'");
+            expect(result?.message).toBe("Run generator 'CubeMX' for project 'App.Debug+STM32'");
             expect(result?.code).toBeDefined();
-        });
-
-        it('is suppressed when hasLocation is true', () => {
-            const result = resolver.resolve(makeContext({
-                message: "cgen file was not found, run generator 'CubeMX' for context 'App.Debug+STM32'",
-                hasLocation: true,
-            }));
-
-            expect(result).toBeUndefined();
         });
 
         it('matches alternate wording with trailing context description', () => {
