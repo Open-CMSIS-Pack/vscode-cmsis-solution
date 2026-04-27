@@ -38,11 +38,11 @@ export const PackTitleLink: React.FC<PackTitleLinkProps> = ({
                 <Button
                     color="default"
                     variant="link"
+                    role="link"
                     style={{ padding: '0px 12px' }}
                     title={packUrl}
                     aria-label='Open pack URL'
                     onClick={(e) => {
-                        e.preventDefault();
                         e.stopPropagation();
                         openFile(packUrl, true);
                     }}

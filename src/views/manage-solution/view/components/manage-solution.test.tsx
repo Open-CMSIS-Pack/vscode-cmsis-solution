@@ -181,10 +181,10 @@ describe('ContextSelection', () => {
 
         postGenericDataContext();
 
-        const selectors = ['a[title="Active Target"]',
+        const selectors = ['button[aria-label="Active Target"]',
             '.open-csolution-yml',
-            'a[title="Configure Related Projects"]',
-            'a[title="Debugger Configuration"]'];
+            'button[aria-label="Configure Related Projects"]',
+            'button[aria-label="Debug Adapter Configuration"]'];
 
         React.act(() => {
             for (const selector of selectors) {
@@ -194,7 +194,7 @@ describe('ContextSelection', () => {
                 }
             }
 
-            expect(listener).toHaveBeenCalledTimes(4);
+            expect(listener).toHaveBeenCalledTimes(6);
             expect(listener).toHaveBeenCalledWith({ type: 'OPEN_HELP' });
             expect(listener).toHaveBeenCalledWith({ type: 'GET_CONTEXT_SELECTION_DATA' });
             expect(listener).toHaveBeenCalledWith({ type: 'GET_DEBUG_ADAPTERS' });
