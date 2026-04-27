@@ -24,7 +24,7 @@ import { ActiveTargetSet, SolutionData } from './view/state/manage-solution-stat
 export type OutgoingMessage
     = { type: 'GET_CONTEXT_SELECTION_DATA' }
     | { type: 'SET_SELECTED_TARGET', target: string, set: string | undefined }
-    | { type: 'OPEN_FILE', path: string }
+    | { type: 'OPEN_FILE', path: string, external?: boolean }
     | { type: 'SET_SELECTED_CONTEXTS', data: SolutionData }
     | { type: 'GET_DEBUG_ADAPTERS' }
     | { type: 'SET_DEBUGGER', name: string }

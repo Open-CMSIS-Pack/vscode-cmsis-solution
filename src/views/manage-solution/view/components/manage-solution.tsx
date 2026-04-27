@@ -84,7 +84,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
     }, [props.messageHandler]);
 
     const openFile = React.useCallback(
-        (path: string) => props.messageHandler.push({ type: 'OPEN_FILE', path }),
+        (path: string, external?: boolean) => props.messageHandler.push({ type: 'OPEN_FILE', path, external }),
         [props.messageHandler]
     );
 
@@ -280,6 +280,23 @@ export const ManageSolution = (props: ManageSolutionProps) => {
 
     const showCoreSelector = state.solutionData.availableCoreNames !== undefined && state.solutionData.availableCoreNames.length > 1;
 
+    const externalLink = (link: string, title: string, external?: boolean): React.JSX.Element => {
+        return (<Button
+            color="default"
+            variant="link"
+            style={{ padding: '0px 12px' }}
+            title={title}
+            aria-label={title}
+            onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openFile(link, external);
+            }}
+        >
+            <CmsisCodicon name='link-external' style={{ fontSize: '1em', display: 'inline' }} />
+        </Button>);
+    };
+
     return (
         <React.StrictMode>
             <div className="manage-solution-frame">
@@ -302,7 +319,16 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                             <section className="targets-section">
                                 <div className='manage-solution-header'>
                                     <h3>Active Target</h3>
-                                    <a onClick={() => openHelp()} title="Active Target" className="codicon codicon-link-external codicon-fix-size-sub"></a>
+                                    <Button
+                                        color="default"
+                                        variant="link"
+                                        style={{ padding: '0px 12px' }}
+                                        title="Active Target"
+                                        aria-label='Active Target'
+                                        onClick={() => openHelp()}
+                                    >
+                                        <CmsisCodicon name='link-external' style={{ fontSize: '1em', display: 'inline' }} />
+                                    </Button>
                                 </div>
                                 <div>
                                     Select target for build, load, and debug. The Target
@@ -319,7 +345,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                             <section className="projects-section">
                                 <div className='manage-solution-header'>
                                     <h3>Projects and Images for Target {state.solutionData.selectedTarget?.name}{state.solutionData.selectedTarget?.selectedSet && `@${state.solutionData.selectedTarget?.selectedSet}`}</h3>
-                                    <a title="Configure Related Projects" href="https://open-cmsis-pack.github.io/cmsis-toolbox/build-overview/#configure-related-projects" className="codicon codicon-link-external codicon-fix-size-sub"></a>
+                                    {externalLink('https://open-cmsis-pack.github.io/cmsis-toolbox/build-overview/#configure-related-projects', 'Configure Related Projects', true)}
                                 </div>
                                 <ProjectsTable
                                     projects={state.solutionData.projects}
@@ -336,7 +362,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                             <section className="debug-adapter">
                                 <div className='manage-solution-header'>
                                     <h3>Debug Adapter for Target {state.solutionData.selectedTarget?.name}{state.solutionData.selectedTarget?.selectedSet && `@${state.solutionData.selectedTarget?.selectedSet}`}</h3>
-                                    <a title="Debugger Configuration" href="https://open-cmsis-pack.github.io/cmsis-toolbox/YML-Input-Format/#debugger-configuration" className="codicon codicon-link-external codicon-fix-size-sub"></a>
+                                    {externalLink('https://open-cmsis-pack.github.io/cmsis-toolbox/debugging/#debug-adapter-configuration', 'Debug Adapter Configuration', true)}
                                 </div>
 
                                 <table>

@@ -218,7 +218,7 @@ export class ManageSolutionWebviewMain {
 
     private async openFile(filePath: string, openExternal?: boolean): Promise<void> {
         const solutionDir = this.getSolutionDir();
-        const resolvedPath = !path.isAbsolute(filePath) && solutionDir
+        const resolvedPath = (!path.isAbsolute(filePath) && solutionDir) && !filePath.match(/^http.:\/\//)
             ? path.join(solutionDir, filePath)
             : filePath;
         if (openExternal) {
@@ -234,7 +234,7 @@ export class ManageSolutionWebviewMain {
                 await this.sendContextData();
                 break;
             case 'OPEN_FILE':
-                await this.openFile(message.path);
+                await this.openFile(message.path, message.external);
                 break;
             case 'SET_SELECTED_CONTEXTS':
                 await this.setSelectedContexts(message.data);
