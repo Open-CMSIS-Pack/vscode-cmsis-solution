@@ -102,15 +102,11 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
                 })) ?? []
             ];
 
-            const tooltipTitle = record.references && record.references.length > 0
-                ? referencedFrom
-                : [<div key='pack-name'>{packTitle}</div>];
-
             return (
                 <div className='pack-name-cell'>
                     <span>
                         <Tooltip
-                            title={tooltipTitle}
+                            title={referencedFrom}
                             placement='bottomLeft'
                         >
                             <span>{record.name}</span>
