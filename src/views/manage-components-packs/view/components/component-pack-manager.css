@@ -46,8 +46,8 @@
     cursor: default;
 }
 
-.ant-table-cell-ellipsis {
-    max-width: 50vw;
+.components-view-root .description-column {
+    max-width: 55vw;
 }
 
 .faded {
@@ -258,8 +258,8 @@ th.ant-table-cell {
     text-indent: -10px;
 }
 
-.components-view-root .ant-table-cell:nth-child(6) {
-    overflow: unset;
+.variant-column {
+    overflow: unset !important;
 }
 
 .packs-view-root .expandable-references {

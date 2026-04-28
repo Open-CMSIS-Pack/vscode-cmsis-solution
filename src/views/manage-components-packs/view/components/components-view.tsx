@@ -125,10 +125,10 @@ export const ComponentsView: React.FC<ComponentsViewProps> = ({
         { title: '', width: 40, render: (record: ComponentRowDataType) => renderWarningCell(record, state) },
         Table.SELECTION_COLUMN,
         { title: '', width: 40, render: (record: ComponentRowDataType) => renderEditField(record, setSelectedComponent, state) },
-        { title: 'Variant', dataIndex: ['parsed', 'variant'], key: 'variant', minWidth: 60, maxWidth: 90, ellipsis: true, render: (value: string, record: ComponentRowDataType, index: number) => renderVariantCell(value, record, index, onChangeBundle, onChangeComponentVariant) },
+        { title: 'Variant', dataIndex: ['parsed', 'variant'], key: 'variant', minWidth: 60, maxWidth: 90, ellipsis: true, render: (value: string, record: ComponentRowDataType, index: number) => renderVariantCell(value, record, index, onChangeBundle, onChangeComponentVariant), onCell: () => ({ className: 'variant-column' }) },
         { title: 'Version', dataIndex: ['parsed', 'version'], key: 'version', minWidth: 60, ellipsis: false },
         { title: 'Vendor', dataIndex: ['parsed', 'vendor'], key: 'vendor', minWidth: 60, ellipsis: false },
-        { title: 'Description', dataIndex: ['data', 'description'], key: 'data.description', width: 'calc(fit-content - 50px)', ellipsis: true, render: (value: string, record: ComponentRowDataType) => renderDescriptionCell(value, record, state, openDocFile) },
+        { title: 'Description', dataIndex: ['data', 'description'], key: 'data.description', width: 'calc(fit-content - 50px)', ellipsis: true, render: (value: string, record: ComponentRowDataType) => renderDescriptionCell(value, record, state, openDocFile), onCell: () => ({ className: 'description-column' }) },
     ], [openFile, state, onChangeBundle, onChangeComponentVariant, openDocFile]);
 
 

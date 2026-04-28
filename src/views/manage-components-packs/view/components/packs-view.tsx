@@ -162,7 +162,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
             { title: 'Software Pack', dataIndex: 'name', key: 'name', width: 240, ellipsis: true, render: renderPackColumn },
             { title: 'Select', render: (record: PackRowDataType) => renderEditColumn(record), width: 64 },
             { title: 'Version', dataIndex: 'versionTarget', key: 'versionTarget', minWidth: 120, ellipsis: false, render: renderVersionTarget },
-            { title: 'Description', dataIndex: 'description', key: 'description', ellipsis: true, render: renderDescriptionCell },
+            { title: 'Description', dataIndex: 'description', key: 'description', ellipsis: true, render: renderDescriptionCell, onCell: () => ({ className: 'description-column' }) },
         ];
     }, [openFile, selectPack]);
 

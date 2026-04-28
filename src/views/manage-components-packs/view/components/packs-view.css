@@ -52,3 +52,7 @@
     color: var(--vscode-foreground);
     vertical-align: text-bottom;
 }
+
+.packs-view-root .description-column {
+    max-width: 65vw;
+}
