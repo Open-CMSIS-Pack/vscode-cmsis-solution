@@ -43,9 +43,7 @@
     "preprepare": "npm run download:rpc-interface",
     "prepare": "concurrently npm:download:uv2csolution npm:download:debug-adapters npm:download:toolbox",
     "clean": "git clean -f -x ./dist ./out ./tools ./coverage ./e2e-report ./e2e-screenshots ./test-results",
-    "prebuild": "npm run font",
     "build": "webpack --mode production",
-    "prewatch": "npm run font",
     "watch": "webpack -w --progress",
     "lint": "eslint src api",
     "lint:fix": "eslint src api --fix",
@@ -65,7 +63,6 @@
     "api:nocheck": "tsc --noEmit -p ./api",
     "tpip": "tsx scripts/tpip-reporter.ts --header docs/tpip-header.md docs/third-party-licenses.json docs/third-party-licenses.md",
     "tpip:update": "tsx scripts/update-tpip docs/third-party-licenses.json",
-    "font": "fantasticon",
     "lint:md": "markdownlint **/*.md -c ./.github/markdownlint.jsonc -i ./node_modules -i ./dist -i ./coverage -i ./tools -i ./test-data -i ./src/e2e-tests/data -i CHANGELOG.md",
     "copyright:check": "tsx scripts/copyright-manager.ts --mode=check",
     "copyright:fix": "tsx scripts/copyright-manager.ts --mode=fix",
@@ -120,7 +117,6 @@
     "@playwright/test": "^1.58.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
-    "@twbs/fantasticon": "^3.1.0",
     "@types/fs-extra": "^11.0.4",
     "@types/google-protobuf": "3.15.12",
     "@types/jest": "^29.5.14",
@@ -180,9 +176,6 @@
   "overrides": {
     "ajv@>=7.0.0": "^8.18.0",
     "serialize-javascript@<=7.0.3": "^7.0.3",
-    "@twbs/fantasticon": {
-      "ttf2woff2": "^8.0.1"
-    },
     "markdownlint-cli": {
       "minimatch": "^10.2.4"
     },
