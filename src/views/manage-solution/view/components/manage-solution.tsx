@@ -318,13 +318,13 @@ export const ManageSolution = (props: ManageSolutionProps) => {
 
                             <section className="targets-section">
                                 <div className='manage-solution-header'>
-                                    <h3>Active Target</h3>
+                                    <h3>Manage Solution Target</h3>
                                     <Button
                                         color="default"
                                         variant="link"
                                         style={{ padding: '0px 12px' }}
-                                        title="Active Target"
-                                        aria-label='Active Target'
+                                        title="Manage Solution Target"
+                                        aria-label='Manage Solution Target'
                                         onClick={() => openHelp()}
                                     >
                                         <CmsisCodicon name='link-external' style={{ fontSize: '1em', display: 'inline' }} />

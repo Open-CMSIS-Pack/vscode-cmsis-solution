@@ -181,7 +181,7 @@ describe('ContextSelection', () => {
 
         postGenericDataContext();
 
-        const selectors = ['button[aria-label="Active Target"]',
+        const selectors = ['button[aria-label="Manage Solution Target"]',
             '.open-csolution-yml',
             'button[aria-label="Configure Related Projects"]',
             'button[aria-label="Debug Adapter Configuration"]'];
