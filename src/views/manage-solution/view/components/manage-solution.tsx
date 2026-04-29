@@ -169,11 +169,6 @@ export const ManageSolution = (props: ManageSolutionProps) => {
             ?.debugger as GenericPropertyList || {}
     ), [state.solutionData.selectedTarget?.targetSets, state.solutionData.selectedTarget?.selectedSet]);
 
-    const openHelp = React.useCallback(
-        () => props.messageHandler.push({ type: 'OPEN_HELP' }),
-        [props.messageHandler]
-    );
-
     // Generic getter (stable, no deps needed as it does not capture changing values directly)
     const getProperty = React.useCallback(function getProperty<T>(defaultValue: T | undefined, obj: Record<string, unknown>, ...keys: (string | unknown)[]): T | undefined {
         let result = obj;
@@ -325,7 +320,11 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                         style={{ padding: '0px 12px' }}
                                         title="Manage Solution Target"
                                         aria-label='Manage Solution Target'
-                                        onClick={() => openHelp()}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            openFile('https://mdk-packs.github.io/vscode-cmsis-solution-docs/manage_settings.html', true);
+                                        }}
                                     >
                                         <CmsisCodicon name='link-external' style={{ fontSize: '1em', display: 'inline' }} />
                                     </Button>

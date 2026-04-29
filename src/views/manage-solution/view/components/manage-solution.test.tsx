@@ -195,7 +195,11 @@ describe('ContextSelection', () => {
             }
 
             expect(listener).toHaveBeenCalledTimes(6);
-            expect(listener).toHaveBeenCalledWith({ type: 'OPEN_HELP' });
+            expect(listener).toHaveBeenCalledWith({
+                type: 'OPEN_FILE',
+                path: 'https://mdk-packs.github.io/vscode-cmsis-solution-docs/manage_settings.html',
+                external: true
+            });
             expect(listener).toHaveBeenCalledWith({ type: 'GET_CONTEXT_SELECTION_DATA' });
             expect(listener).toHaveBeenCalledWith({ type: 'GET_DEBUG_ADAPTERS' });
         });
