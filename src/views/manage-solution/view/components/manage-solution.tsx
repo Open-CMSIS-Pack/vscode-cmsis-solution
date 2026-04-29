@@ -156,10 +156,6 @@ export const ManageSolution = (props: ManageSolutionProps) => {
         props.messageHandler.push({ type: 'SET_DEBUGGER', name });
     }, [props.messageHandler]);
 
-    const clickSave = React.useCallback(() => {
-        props.messageHandler.push({ type: 'SAVE_CONTEXT_SELECTION' });
-    }, [props.messageHandler]);
-
     const changeAutoUpdate = React.useCallback((e: CheckboxChangeEvent) => {
         props.messageHandler.push({ type: 'SET_AUTO_UPDATE', value: e.target.checked });
         dispatch({ type: 'INCOMING_MESSAGE', message: { type: 'AUTO_UPDATE', data: e.target.checked } });
@@ -276,7 +272,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
     }, [adapter, selectedDebugAdapter, getProperty, getScaledProperty, keyFor]);
 
     const showCoreSelector = state.solutionData.availableCoreNames !== undefined && state.solutionData.availableCoreNames.length > 1;
-    const debugAdapterConfigurationDocsUrl= 'https://mdk-packs.github.io/vscode-cmsis-solution-docs/debug.html#configure-run-and-debug';
+    const debugAdapterConfigurationDocsUrl = 'https://mdk-packs.github.io/vscode-cmsis-solution-docs/debug.html#configure-run-and-debug';
     const externalLink = (link: string, title: string, external?: boolean): React.JSX.Element => {
         return (<Button
             color="default"
@@ -306,10 +302,6 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                     },
                     token: { fontSize: 13, sizeStep: 4, borderRadius: 3 }
                 }}>
-                    <section className='stickyHeader'>
-                        <Button disabled={!state.isDirty} style={{ minWidth: '100px' }} type='primary' onClick={clickSave} className='save-button'>Save</Button>
-                    </section>
-
                     <Spin spinning={state.busy} indicator={<LoadingOutlined spin={true} />} size='large'>
                         <section className="manage-solution-section">
 
