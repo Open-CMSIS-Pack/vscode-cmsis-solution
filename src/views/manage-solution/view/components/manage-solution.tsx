@@ -50,6 +50,8 @@ type SelectFileContext = {
     pathType?: PathType;
 };
 
+export const manageSolutionTargetDocsUrl = 'https://mdk-packs.github.io/vscode-cmsis-solution-docs/manage_settings.html';
+
 export const ManageSolution = (props: ManageSolutionProps) => {
     const [state, dispatch] = React.useReducer(manageSolutionReducer, initialState);
     // Eager local editable values snapshot (display-layer values). Numbers are stored scaled for user editing.
@@ -274,7 +276,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
     }, [adapter, selectedDebugAdapter, getProperty, getScaledProperty, keyFor]);
 
     const showCoreSelector = state.solutionData.availableCoreNames !== undefined && state.solutionData.availableCoreNames.length > 1;
-
+    const debugAdapterConfigurationDocsUrl= 'https://mdk-packs.github.io/vscode-cmsis-solution-docs/debug.html#configure-run-and-debug';
     const externalLink = (link: string, title: string, external?: boolean): React.JSX.Element => {
         return (<Button
             color="default"
@@ -318,12 +320,12 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                         color="default"
                                         variant="link"
                                         style={{ padding: '0px 12px' }}
-                                        title="Manage Solution Target"
+                                        title={manageSolutionTargetDocsUrl}
                                         aria-label='Manage Solution Target'
                                         onClick={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
-                                            openFile('https://mdk-packs.github.io/vscode-cmsis-solution-docs/manage_settings.html', true);
+                                            openFile(manageSolutionTargetDocsUrl, true);
                                         }}
                                     >
                                         <CmsisCodicon name='link-external' style={{ fontSize: '1em', display: 'inline' }} />
@@ -361,7 +363,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                             <section className="debug-adapter">
                                 <div className='manage-solution-header'>
                                     <h3>Debug Adapter for Target {state.solutionData.selectedTarget?.name}{state.solutionData.selectedTarget?.selectedSet && `@${state.solutionData.selectedTarget?.selectedSet}`}</h3>
-                                    {externalLink('https://open-cmsis-pack.github.io/cmsis-toolbox/debugging/#debug-adapter-configuration', 'Debug Adapter Configuration', true)}
+                                    {externalLink(debugAdapterConfigurationDocsUrl, debugAdapterConfigurationDocsUrl, true)}
                                 </div>
 
                                 <table>

@@ -18,7 +18,7 @@ import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import { MockMessageHandler } from '../../../__test__/mock-message-handler';
 import { IncomingMessage, OutgoingMessage } from '../../messages';
-import { ManageSolution } from './manage-solution';
+import { ManageSolution, manageSolutionTargetDocsUrl } from './manage-solution';
 import { LoadType, TargetType } from '../state/manage-solution-state';
 import { fireEvent } from '@testing-library/react';
 
@@ -194,10 +194,10 @@ describe('ContextSelection', () => {
                 }
             }
 
-            expect(listener).toHaveBeenCalledTimes(6);
+            expect(listener).toHaveBeenCalledTimes(5);
             expect(listener).toHaveBeenCalledWith({
                 type: 'OPEN_FILE',
-                path: 'https://mdk-packs.github.io/vscode-cmsis-solution-docs/manage_settings.html',
+                path: manageSolutionTargetDocsUrl,
                 external: true
             });
             expect(listener).toHaveBeenCalledWith({ type: 'GET_CONTEXT_SELECTION_DATA' });
