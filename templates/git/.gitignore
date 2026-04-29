@@ -87,7 +87,7 @@ uv2csolution.log
 *.cprj
 
 # SDS files
-*.sds
+*.[sS][dD][sS]
 sdsio.log
 
 # FVP model generated files when using with SDS
