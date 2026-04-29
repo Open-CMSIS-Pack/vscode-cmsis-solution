@@ -91,5 +91,5 @@ uv2csolution.log
 sdsio.log
 
 # FVP model generated files when using with SDS
-**/__pycache__
+**/__pycache__/
 
