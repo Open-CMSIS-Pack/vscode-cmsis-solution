@@ -308,20 +308,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                             <section className="targets-section">
                                 <div className='manage-solution-header'>
                                     <h3>Manage Solution Target</h3>
-                                    <Button
-                                        color="default"
-                                        variant="link"
-                                        style={{ padding: '0px 12px' }}
-                                        title={manageSolutionTargetDocsUrl}
-                                        aria-label='Manage Solution Target'
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            openFile(manageSolutionTargetDocsUrl, true);
-                                        }}
-                                    >
-                                        <CmsisCodicon name='link-external' style={{ fontSize: '1em', display: 'inline' }} />
-                                    </Button>
+                                    {externalLink(manageSolutionTargetDocsUrl, 'Manage Solution Target', true)}
                                 </div>
                                 <div>
                                     Select target for build, load, and debug. The Target
