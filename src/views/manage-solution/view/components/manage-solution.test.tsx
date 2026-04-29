@@ -194,7 +194,7 @@ describe('ContextSelection', () => {
                 }
             }
 
-            expect(listener).toHaveBeenCalledTimes(5);
+            expect(listener).toHaveBeenCalledTimes(6);
             expect(listener).toHaveBeenCalledWith({
                 type: 'OPEN_FILE',
                 path: manageSolutionTargetDocsUrl,

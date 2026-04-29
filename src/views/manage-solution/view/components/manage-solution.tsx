@@ -273,13 +273,13 @@ export const ManageSolution = (props: ManageSolutionProps) => {
 
     const showCoreSelector = state.solutionData.availableCoreNames !== undefined && state.solutionData.availableCoreNames.length > 1;
     const debugAdapterConfigurationDocsUrl = 'https://mdk-packs.github.io/vscode-cmsis-solution-docs/debug.html#configure-run-and-debug';
-    const externalLink = (link: string, title: string, external?: boolean): React.JSX.Element => {
+    const externalLink = (link: string, aria: string, external?: boolean): React.JSX.Element => {
         return (<Button
             color="default"
             variant="link"
             style={{ padding: '0px 12px' }}
-            title={title}
-            aria-label={title}
+            title={link}
+            aria-label={aria}
             onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -355,7 +355,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                             <section className="debug-adapter">
                                 <div className='manage-solution-header'>
                                     <h3>Debug Adapter for Target {state.solutionData.selectedTarget?.name}{state.solutionData.selectedTarget?.selectedSet && `@${state.solutionData.selectedTarget?.selectedSet}`}</h3>
-                                    {externalLink(debugAdapterConfigurationDocsUrl, debugAdapterConfigurationDocsUrl, true)}
+                                    {externalLink(debugAdapterConfigurationDocsUrl, 'Debug Adapter Configuration', true)}
                                 </div>
 
                                 <table>
