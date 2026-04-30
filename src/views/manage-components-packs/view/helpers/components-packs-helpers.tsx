@@ -113,7 +113,10 @@ export const isInActiveLayer = (record: ComponentRowDataType, state: { activeLay
 export const rowClassName = (record: ComponentRowDataType, state: { activeLayer?: string, selectedTargetType: TargetSetData | undefined }): string => {
     const isLeaf = !(record.children && record.children.length);
     const inActiveLayer = isInActiveLayer(record, state);
-    return `${isLeaf ? 'leaf-node ' : ''}${!inActiveLayer ? 'active-layer ' : 'ant-table-row-disabled '}`.trim();
+    const selectable = inActiveLayer
+        || !record.aggregate?.options?.layer!.length
+        || record.aggregate?.options?.layer === getActiveLayer(state);
+    return `${isLeaf ? 'leaf-node ' : ''}${selectable ? 'active-layer ' : 'inactive-layer '}`.trim();
 };
 
 export const codiconIcon = (name: string, title?: string, color?: string): React.ReactNode => {

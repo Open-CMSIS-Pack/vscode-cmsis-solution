@@ -56,3 +56,12 @@
 .packs-view-root .description-column {
     max-width: 65vw;
 }
+
+.active-layer {
+    background-color: var(--vscode-editor-activeSelectionBackground);
+}
+
+.inactive-layer {
+    background-color: var(--vscode-editor-inactiveSelectionBackground);
+    opacity: 0.5;
+}
