@@ -1,5 +1,13 @@
 # Change Log
 
+- Updates:
+  - When closing a CMSIS Solution project before closing the folder, the Solution needs to be explicitly loaded after opening the folder.
+  - Automatically showing the **CMSIS View** when the CMSIS Solution project was loaded can be disabled via the extension settings "Auto Show CMSIS View".
+  - **Software Components** offer links to keil.arm.com displaying public packs, as well as 'Overview' and 'Version History'.
+  
+- Solved issues:
+  - **Software Components** Software packs show packs that are selected but could not be installed, allowing to correct the pack selection via the 'Manage Pack' dialog. 
+
 ## 1.67.0
 
 - Updates:
