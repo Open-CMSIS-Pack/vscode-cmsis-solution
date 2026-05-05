@@ -85,3 +85,11 @@ uv2csolution.log
 
 # legacy intermediate project file
 *.cprj
+
+# SDS files
+*.[sS][dD][sS]
+
+# FVP model generated files when using with SDS
+**/__pycache__/
+sdsio.log
+
