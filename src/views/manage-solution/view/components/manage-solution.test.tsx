@@ -18,7 +18,7 @@ import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import { MockMessageHandler } from '../../../__test__/mock-message-handler';
 import { IncomingMessage, OutgoingMessage } from '../../messages';
-import { ManageSolution } from './manage-solution';
+import { ManageSolution, manageSolutionTargetDocsUrl } from './manage-solution';
 import { LoadType, TargetType } from '../state/manage-solution-state';
 import { fireEvent } from '@testing-library/react';
 
@@ -181,7 +181,7 @@ describe('ContextSelection', () => {
 
         postGenericDataContext();
 
-        const selectors = ['button[aria-label="Active Target"]',
+        const selectors = ['button[aria-label="Manage Solution Target"]',
             '.open-csolution-yml',
             'button[aria-label="Configure Related Projects"]',
             'button[aria-label="Debug Adapter Configuration"]'];
@@ -195,7 +195,11 @@ describe('ContextSelection', () => {
             }
 
             expect(listener).toHaveBeenCalledTimes(6);
-            expect(listener).toHaveBeenCalledWith({ type: 'OPEN_HELP' });
+            expect(listener).toHaveBeenCalledWith({
+                type: 'OPEN_FILE',
+                path: manageSolutionTargetDocsUrl,
+                external: true
+            });
             expect(listener).toHaveBeenCalledWith({ type: 'GET_CONTEXT_SELECTION_DATA' });
             expect(listener).toHaveBeenCalledWith({ type: 'GET_DEBUG_ADAPTERS' });
         });
@@ -351,51 +355,13 @@ describe('ContextSelection', () => {
         expect(listener).toHaveBeenCalledWith({ type: 'GET_CONTEXT_SELECTION_DATA' });
     });
 
-    it('calls messageHandler.push with SAVE_CONTEXT_SELECTION when Save button is clicked', () => {
+    it('does not render the Save button', () => {
         createContextSelectionComponent();
 
         postGenericDataContext();
 
-        // Simulate state.isDirty to enable the Save button
-        React.act(() => {
-            messageHandler.postWindowMessage({ type: 'IS_DIRTY', data: true });
-        });
-
         const saveButton = container.querySelector('.save-button');
-        expect(saveButton).not.toBeNull();
-        expect(saveButton?.getAttribute('disabled')).toBeNull();
-
-        React.act(() => {
-            if (saveButton) {
-                fireEvent.click(saveButton);
-            }
-        });
-
-        expect(listener).toHaveBeenCalledWith({ type: 'SAVE_CONTEXT_SELECTION' });
-    });
-
-    it('does not call messageHandler.push with SAVE_CONTEXT_SELECTION when Save button is disabled', () => {
-        createContextSelectionComponent();
-
-        postGenericDataContext();
-
-        // Simulate state.isDirty to disable the Save button
-        React.act(() => {
-            messageHandler.postWindowMessage({ type: 'IS_DIRTY', data: false });
-        });
-
-        const saveButton = container.querySelector('.save-button');
-        expect(saveButton).not.toBeNull();
-        expect(saveButton?.getAttribute('disabled')).not.toBeNull();
-
-        React.act(() => {
-            if (saveButton) {
-                fireEvent.click(saveButton);
-            }
-        });
-
-        // Must NOT call SAVE_CONTEXT_SELECTION
-        expect(listener).not.toHaveBeenCalledWith({ type: 'SAVE_CONTEXT_SELECTION' });
+        expect(saveButton).toBeNull();
     });
 
     describe('test change handlers', () => {
