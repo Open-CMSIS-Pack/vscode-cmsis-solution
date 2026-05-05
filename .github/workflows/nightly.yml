@@ -36,7 +36,9 @@ jobs:
       - name: Validate Links
         uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411 # v2.8.0
         with:
+          args: --config .github/lychee.toml './**/*.md'
           fail: true
+          jobSummary: true
 
   build:
     if: github.repository == 'Open-CMSIS-Pack/vscode-cmsis-solution'

@@ -111,14 +111,12 @@ Before running a release, check the following:
 
      `<version>` must match a [project manager schemas tag](https://github.com/Open-CMSIS-Pack/devtools/releases)
 
-2. User guide is up-to-date at [MDK-Packs/vscode-cmsis-solution-docs@main](https://github.com/MDK-Packs/vscode-cmsis-solution-docs/tree/main/site).
+2. User guide is up-to-date at [MDK-Packs/vscode-cmsis-solution-docs@main](https://github.com/MDK-Packs/vscode-cmsis-solution-docs/tree/main/docs).
 
 3. Update and review [CHANGELOG.md](CHANGELOG.md)
 
    Add all changes relevant for the upcoming release into the `[Unreleased]` section. This section
    is automatically replaced by the release version during the release workflow.
-
-4. [Release Assessment](https://armh.sharepoint.com/sites/pwa/PJ1000480/SitePages/Assessments.aspx) for `CMSIS Solution Extension` is approved.
 
 ## Release versioning
 
@@ -172,7 +170,7 @@ When a new RPC method or data type is needed:
 3. **Implement the server side** in [`ProjMgrRpcServer.cpp`](https://github.com/Open-CMSIS-Pack/devtools/blob/main/tools/projmgr/src/ProjMgrRpcServer.cpp) in the `devtools` repository.
 
 4. **Implement the client side** in this extension:
-   - Copy the regenerated `rpc-interface.ts` into [src/json-rpc/interface/](src/json-rpc/interface/) and update [version.txt](src/json-rpc/interface/version.txt) to the new API version.
+   - Copy the regenerated `rpc-interface.ts` into `src/json-rpc/interface/` and update `src/json-rpc/interface/version.txt` to the new API version.
    - Expose the new method via `CsolutionService` in [src/json-rpc/csolution-rpc-client.ts](src/json-rpc/csolution-rpc-client.ts).
    - Use the method from the relevant data source or manager in [src/data-manager/](src/data-manager/).
 

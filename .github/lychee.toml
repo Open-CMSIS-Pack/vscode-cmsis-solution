@@ -30,14 +30,15 @@ scheme = ["http", "https", "file"]
 exclude = [
   # Exclude links as cookies needed to be accepted
   'https://developer.arm.com',
-  'https://www.st.com/en/development-tools/hardware-debugger-and-programmer-tools-for-stm32/'
+  'https://www.st.com/en/development-tools'
 ]
 
 # Exclude paths from getting checked. The values are treated as regular expressions
 exclude_path = [
-    "\\.txt$",      # skip .txt extensions
-    "\\.html$",     # skip .html extensions
-    "test-data/",        # skip directories named "test",
-    "test-results/",        # skip directories named "test",
-    "test-workspace/",        # skip directories named "test"
+  "(^|[\\\\/])CHANGELOG\\.md$", # skip changelog file
+    "\\.txt$",            # skip .txt extensions
+    "\\.html$",           # skip .html extensions
+    "test-data/",         # skip directories named "test",
+    "test-results/",      # skip directories named "test",
+    "test-workspace/",    # skip directories named "test"
 ]
