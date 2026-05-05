@@ -88,8 +88,8 @@ uv2csolution.log
 
 # SDS files
 *.[sS][dD][sS]
-sdsio.log
 
 # FVP model generated files when using with SDS
 **/__pycache__/
+sdsio.log
 
