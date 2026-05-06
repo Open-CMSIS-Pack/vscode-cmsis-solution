@@ -10,7 +10,7 @@
   
 - Solved issues:
   - **Software Components**: Software Packs view shows packs that are selected but could not be installed, and allows you to correct the pack selection via the 'Manage Pack' dialog.
-  - **CMSIS View** does not allow to remove files from a project layer - fixed
+  - **CMSIS View** does not allow to remove files from a project layer.
 
 ## 1.67.0
 
