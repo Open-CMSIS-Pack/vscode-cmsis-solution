@@ -38,7 +38,7 @@ jobs:
         with:
           args: --config .github/lychee.toml './**/*.md'
           fail: true
-          jobSummary: true
+          jobSummary: false
 
   build:
     if: github.repository == 'Open-CMSIS-Pack/vscode-cmsis-solution'
