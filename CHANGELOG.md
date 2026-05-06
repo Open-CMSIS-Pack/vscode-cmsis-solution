@@ -9,7 +9,7 @@
   - Outdated CMSIS Component configuration files are now flagged with the N decorator. The (?), (!), and (x) project, group, component and file indicators have been removed. Outdated files are listed in the VS Code Problems view, and the merge utility can be opened for each file individually.
   
 - Solved issues:
-  - **Software Components** Software packs show packs that are selected but could not be installed, allowing to correct the pack selection via the 'Manage Pack' dialog.
+  - **Software Components**: Software Packs view shows packs that are selected but could not be installed, and allows you to correct the pack selection via the 'Manage Pack' dialog.
   - **CMSIS View** does not allow to remove files from a project layer - fixed
 
 ## 1.67.0
