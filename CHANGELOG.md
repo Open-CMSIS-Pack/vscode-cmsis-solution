@@ -1,7 +1,7 @@
 # Change Log
 
 - Updates:
-  - The loading time of a CMSIS project has been decreased by decoupling the process to build the compile-commands.json database. The build button turns into a "Stop" button while the process is running. The **clangd** extension starts indexing once the compile-commands.json files are ready.
+  - The loading time of a CMSIS project has been decreased by decoupling the process to build the compile_commands.json database. The build button turns into a "Stop" button while the process is running. The **clangd** extension starts indexing once the compile_commands.json files are ready.
   - When closing a CMSIS Solution project before closing the folder, the Solution needs to be explicitly loaded when opening the folder the next time.
   - Automatically showing the **CMSIS View** when the CMSIS Solution project was loaded can be disabled via the extension settings "Auto Show CMSIS View".
   - **Software Components** offer links to keil.arm.com displaying public packs, as well as 'Overview' and 'Version History' for specific packs.
