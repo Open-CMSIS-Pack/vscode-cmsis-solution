@@ -1,6 +1,7 @@
 # Change Log
 
 - Updates:
+  - The `Help` entry in the **Views and More Actions...** menu of the [**CMSIS-View**](https://mdk-packs.github.io/vscode-cmsis-solution-docs/debug.html#cmsis-view) now opens the Keil Studio offline documentation from the Keil Studio Pack extension (v2.12.2 or later). If not available, the extension's README.md is shown instead.
   - The loading time of a CMSIS project has been decreased by decoupling the process to build the compile_commands.json database. The build button turns into a "Stop" button while the process is running. The **clangd** extension starts indexing once the compile_commands.json files are ready.
   - When closing a CMSIS Solution project before closing the folder, the Solution needs to be explicitly loaded when opening the folder the next time.
   - Automatically showing the **CMSIS View** when the CMSIS Solution project was loaded can be disabled via the extension settings "Auto Show CMSIS View".
