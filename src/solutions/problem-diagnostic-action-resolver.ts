@@ -61,6 +61,7 @@ const envVarSettingName = `${PACKAGE_NAME}.${CONFIG_ENVIRONMENT_VARIABLES}`;
 const envVarActionPatterns: readonly RegExp[] = [
     /^missing [A-Za-z_][A-Za-z0-9_]* environment variable(?:; review "cmsis-csolution\.environmentVariables")?$/,
     /^[A-Za-z_][A-Za-z0-9_]* environment variable specifies non-existent directory: .+(?:; review "cmsis-csolution\.environmentVariables")?$/,
+    /^exec: "west": executable file not found in .+(?:; review "cmsis-csolution\.environmentVariables")?$/,
 ];
 
 const mergeMessagePatterns = [

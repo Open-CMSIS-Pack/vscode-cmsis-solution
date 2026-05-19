@@ -387,6 +387,7 @@ describe('SolutionProblems', () => {
     it.each([
         'missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"',
         'ZEPHYR_BASE environment variable specifies non-existent directory: C:/zephyr/base; review "cmsis-csolution.environmentVariables"',
+        'exec: "west": executable file not found in $PATH; review "cmsis-csolution.environmentVariables"',
     ])('creates configure environment variables command link for "%s" diagnostics', async message => {
         await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
