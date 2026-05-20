@@ -1255,7 +1255,7 @@
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "navigation",
-          "when": "(resourceLangId == cpp || resourceLangId == c || resourceFilename =~ /\\.dbgconf/) && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+          "when": "resourceScheme == file && activeCustomEditorId != 'cmsis-csolution.configWizard'"
         },
         {
           "command": "cmsis-csolution.showConfigWizardSource",
@@ -1277,14 +1277,14 @@
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "1_open",
-          "when": "(resourceLangId == cpp || resourceLangId == c || resourceFilename =~ /\\.dbgconf/) && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+          "when": "resourceScheme == file && activeCustomEditorId != 'cmsis-csolution.configWizard'"
         }
       ],
       "editor/context": [
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "1_open",
-          "when": "(resourceLangId == cpp || resourceLangId == c || resourceFilename =~ /\\.dbgconf/) && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+          "when": "resourceScheme == file && activeCustomEditorId != 'cmsis-csolution.configWizard'"
         }
       ]
     },
@@ -1294,13 +1294,7 @@
         "displayName": "Configuration Wizard",
         "selector": [
           {
-            "filenamePattern": "*.h"
-          },
-          {
-            "filenamePattern": "*.c"
-          },
-          {
-            "filenamePattern": "*.dbgconf"
+            "filenamePattern": "*"
           }
         ],
         "priority": "option"
