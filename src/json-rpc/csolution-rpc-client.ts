@@ -40,7 +40,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     private child: ChildProcess | undefined;
     private connection: MessageConnection | undefined;
     private idxWatcher: Optional<fs.FSWatcher> = undefined;
-    private readonly debouncedLoadPacks = debounce(super.loadPacks.bind(this), 1000);
+    private readonly debouncedLoadPacks = debounce(this.loadPacks.bind(this), 1000);
     private csolutionBin = 'csolution';
     private exitPromise: Promise<void> | undefined;
     private cachedVersion: GetVersionResult = { success: false };
@@ -57,9 +57,9 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     public async activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(
             this,
-            this.commandsProvider.registerCommand(CsolutionServiceImpl.reloadPacksCommandId, this.loadPacks, this),
+            this.commandsProvider.registerCommand(CsolutionServiceImpl.reloadPacksCommandId, this.reloadPacks, this),
         );
-        this.loadPacks();
+        this.loadPacks(); // direct load without notification
     }
 
     public async dispose() {
@@ -87,8 +87,14 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         }
         // ensure version is cached
         await this.getVersion();
-
         return super.loadPacks();
+    }
+
+
+    private async reloadPacks() {
+        const result = await this.loadPacks();
+        void this.commandsProvider.executeCommand(manifest.REFRESH_COMMAND_ID);
+        return result;
     }
 
     public getCsolutionBin(): string {

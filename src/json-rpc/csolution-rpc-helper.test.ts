@@ -13,6 +13,7 @@ import { CsolutionService } from './csolution-rpc-client';
 import { splitBoardId, splitDeviceId, splitPackId } from './csolution-rpc-helper';
 import { VcpkgManager } from '../vcpkg/vcpkg-manager';
 import { Environment, EnvironmentManager } from '../desktop/env-manager';
+import * as manifest from '../manifest';
 
 jest.mock('node:child_process', () => ({
     ...jest.requireActual('node:child_process'),
@@ -28,12 +29,16 @@ jest.mock('vscode-jsonrpc/node', () => ({
 describe('csolution-rpc-client', () => {
     type AnyService = Record<string, any>;
 
-    function createService(envManager?: EnvironmentManager): AnyService {
+    function createService(envManager?: EnvironmentManager, commandsProvider?: AnyService): AnyService {
         // `constructor(...)` wrapper shape is repo-specific; treat as constructible in tests.
         const mockEnvManager = envManager ?? ({
             augmentEnv: jest.fn().mockReturnValue(new Environment({}))
         } as unknown as EnvironmentManager);
-        return new (CsolutionService as unknown as new (em: EnvironmentManager) => AnyService)(mockEnvManager);
+        const mockCommandsProvider = commandsProvider ?? ({
+            executeCommand: jest.fn().mockResolvedValue(undefined),
+            registerCommand: jest.fn(),
+        });
+        return new (CsolutionService as unknown as new (em: EnvironmentManager, cp: AnyService) => AnyService)(mockEnvManager, mockCommandsProvider);
     }
 
     beforeEach(() => {
@@ -264,6 +269,31 @@ describe('csolution-rpc-client', () => {
             expect(transceiveSpy).toHaveBeenCalledWith('GetVersion', undefined);
             expect(transceiveSpy).toHaveBeenCalledWith('LoadPacks', undefined);
             expect(sequence.indexOf('GetVersion')).toBeLessThan(sequence.indexOf('LoadPacks'));
+            expect(service.commandsProvider.executeCommand).not.toHaveBeenCalled();
+        });
+
+        it('does not await refresh command execution in reloadPacks', async () => {
+            const neverResolves = new Promise<void>(() => undefined);
+            service = createService(undefined, {
+                executeCommand: jest.fn().mockReturnValue(neverResolves),
+                registerCommand: jest.fn(),
+            });
+            service.idxWatcher = { close: jest.fn() };
+            jest.spyOn(service as any, 'transceive').mockImplementation(async (...args: unknown[]) => {
+                const method = String(args[0]);
+                if (method === 'GetVersion') {
+                    return { success: true, version: '1.2.3', apiVersion: '0.0.9' };
+                }
+                if (method === 'LoadPacks') {
+                    return { success: true };
+                }
+                return { success: false };
+            });
+
+            const result = await service.reloadPacks();
+
+            expect(result).toEqual({ success: true });
+            expect(service.commandsProvider.executeCommand).toHaveBeenCalledWith(manifest.REFRESH_COMMAND_ID);
         });
     });
 
