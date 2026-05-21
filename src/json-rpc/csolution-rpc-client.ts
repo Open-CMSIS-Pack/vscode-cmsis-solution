@@ -31,6 +31,8 @@ export interface CsolutionService extends RpcInterface {
     activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>): Promise<void>;
     getCsolutionBin(): string;
     waitForExit(): Promise<void>;
+    suspendPackIdxWatcher(): void;
+    resumePackIdxWatcher(skipPendingReload?: boolean): void;
 }
 
 class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
@@ -40,10 +42,12 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     private child: ChildProcess | undefined;
     private connection: MessageConnection | undefined;
     private idxWatcher: Optional<fs.FSWatcher> = undefined;
-    private readonly debouncedLoadPacks = debounce(super.loadPacks.bind(this), 1000);
+    private readonly debouncedLoadPacks = debounce(this.reloadPacks.bind(this), 1000);
     private csolutionBin = 'csolution';
     private exitPromise: Promise<void> | undefined;
     private cachedVersion: GetVersionResult = { success: false };
+    private packIdxWatcherSuspendDepth = 0;
+    private pendingPackIdxChange = false;
     private readonly mutex: Mutex;
 
     constructor(
@@ -57,9 +61,9 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     public async activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(
             this,
-            this.commandsProvider.registerCommand(CsolutionServiceImpl.reloadPacksCommandId, this.loadPacks, this),
+            this.commandsProvider.registerCommand(CsolutionServiceImpl.reloadPacksCommandId, this.reloadPacks, this),
         );
-        this.loadPacks();
+        this.loadPacks(); // direct load without notification
     }
 
     public async dispose() {
@@ -87,8 +91,14 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         }
         // ensure version is cached
         await this.getVersion();
-
         return super.loadPacks();
+    }
+
+
+    private async reloadPacks() {
+        const result = await this.loadPacks();
+        void this.commandsProvider.executeCommand(manifest.REFRESH_COMMAND_ID);
+        return result;
     }
 
     public getCsolutionBin(): string {
@@ -97,6 +107,23 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
 
     public async waitForExit(): Promise<void> {
         return this.exitPromise ?? Promise.resolve();
+    }
+
+    public suspendPackIdxWatcher(): void {
+        this.packIdxWatcherSuspendDepth++;
+    }
+
+    public resumePackIdxWatcher(skipPendingReload: boolean = false): void {
+        if (this.packIdxWatcherSuspendDepth > 0) {
+            this.packIdxWatcherSuspendDepth--;
+        }
+        if (skipPendingReload) {
+            this.pendingPackIdxChange = false;
+        }
+        if (this.packIdxWatcherSuspendDepth === 0 && this.pendingPackIdxChange) {
+            this.pendingPackIdxChange = false;
+            this.debouncedLoadPacks();
+        }
     }
 
     private watchPackIdxFile() {
@@ -108,6 +135,10 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
                 const stat = fs.statSync(pack_idx);
                 if (stat?.mtimeMs !== mtimeMs) {
                     mtimeMs = stat.mtimeMs;
+                    if (this.packIdxWatcherSuspendDepth > 0) {
+                        this.pendingPackIdxChange = true;
+                        return;
+                    }
                     this.debouncedLoadPacks();
                 }
             }

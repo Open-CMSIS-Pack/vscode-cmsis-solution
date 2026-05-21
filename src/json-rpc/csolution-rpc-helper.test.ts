@@ -13,6 +13,7 @@ import { CsolutionService } from './csolution-rpc-client';
 import { splitBoardId, splitDeviceId, splitPackId } from './csolution-rpc-helper';
 import { VcpkgManager } from '../vcpkg/vcpkg-manager';
 import { Environment, EnvironmentManager } from '../desktop/env-manager';
+import * as manifest from '../manifest';
 
 jest.mock('node:child_process', () => ({
     ...jest.requireActual('node:child_process'),
@@ -28,12 +29,16 @@ jest.mock('vscode-jsonrpc/node', () => ({
 describe('csolution-rpc-client', () => {
     type AnyService = Record<string, any>;
 
-    function createService(envManager?: EnvironmentManager): AnyService {
+    function createService(envManager?: EnvironmentManager, commandsProvider?: AnyService): AnyService {
         // `constructor(...)` wrapper shape is repo-specific; treat as constructible in tests.
         const mockEnvManager = envManager ?? ({
             augmentEnv: jest.fn().mockReturnValue(new Environment({}))
         } as unknown as EnvironmentManager);
-        return new (CsolutionService as unknown as new (em: EnvironmentManager) => AnyService)(mockEnvManager);
+        const mockCommandsProvider = commandsProvider ?? ({
+            executeCommand: jest.fn().mockResolvedValue(undefined),
+            registerCommand: jest.fn(),
+        });
+        return new (CsolutionService as unknown as new (em: EnvironmentManager, cp: AnyService) => AnyService)(mockEnvManager, mockCommandsProvider);
     }
 
     beforeEach(() => {
@@ -264,6 +269,31 @@ describe('csolution-rpc-client', () => {
             expect(transceiveSpy).toHaveBeenCalledWith('GetVersion', undefined);
             expect(transceiveSpy).toHaveBeenCalledWith('LoadPacks', undefined);
             expect(sequence.indexOf('GetVersion')).toBeLessThan(sequence.indexOf('LoadPacks'));
+            expect(service.commandsProvider.executeCommand).not.toHaveBeenCalled();
+        });
+
+        it('does not await refresh command execution in reloadPacks', async () => {
+            const neverResolves = new Promise<void>(() => undefined);
+            service = createService(undefined, {
+                executeCommand: jest.fn().mockReturnValue(neverResolves),
+                registerCommand: jest.fn(),
+            });
+            service.idxWatcher = { close: jest.fn() };
+            jest.spyOn(service as any, 'transceive').mockImplementation(async (...args: unknown[]) => {
+                const method = String(args[0]);
+                if (method === 'GetVersion') {
+                    return { success: true, version: '1.2.3', apiVersion: '0.0.9' };
+                }
+                if (method === 'LoadPacks') {
+                    return { success: true };
+                }
+                return { success: false };
+            });
+
+            const result = await service.reloadPacks();
+
+            expect(result).toEqual({ success: true });
+            expect(service.commandsProvider.executeCommand).toHaveBeenCalledWith(manifest.REFRESH_COMMAND_ID);
         });
     });
 
@@ -380,6 +410,72 @@ describe('csolution-rpc-client', () => {
 
             expect(prevClose).toHaveBeenCalledTimes(1);
             expect(fs.watch).toHaveBeenCalledTimes(1);
+        });
+
+        it('suppresses pack.idx-triggered reload while suspended and runs once after resume', () => {
+            let watcherCallback: ((eventType: string) => void) | undefined;
+
+            (fs.statSync as unknown as jest.Mock)
+                .mockReturnValueOnce({ mtimeMs: 40 }) // initial
+                .mockReturnValueOnce({ mtimeMs: 41 }); // changed
+
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, listener: any) => {
+                watcherCallback = listener;
+                return { close: jest.fn() };
+            });
+
+            service.watchPackIdxFile();
+            service.suspendPackIdxWatcher();
+
+            watcherCallback!('change');
+            expect(service.debouncedLoadPacks).not.toHaveBeenCalled();
+
+            service.resumePackIdxWatcher();
+            expect(service.debouncedLoadPacks).toHaveBeenCalledTimes(1);
+        });
+
+        it('can resume without running pending reload when skipPendingReload is true', () => {
+            let watcherCallback: ((eventType: string) => void) | undefined;
+
+            (fs.statSync as unknown as jest.Mock)
+                .mockReturnValueOnce({ mtimeMs: 50 }) // initial
+                .mockReturnValueOnce({ mtimeMs: 51 }); // changed
+
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, listener: any) => {
+                watcherCallback = listener;
+                return { close: jest.fn() };
+            });
+
+            service.watchPackIdxFile();
+            service.suspendPackIdxWatcher();
+
+            watcherCallback!('change');
+            expect(service.debouncedLoadPacks).not.toHaveBeenCalled();
+
+            service.resumePackIdxWatcher(true);
+            expect(service.debouncedLoadPacks).not.toHaveBeenCalled();
+        });
+
+        it('triggers pending reload when resuming with depth already zero', () => {
+            service.pendingPackIdxChange = true;
+            service.packIdxWatcherSuspendDepth = 0;
+
+            service.resumePackIdxWatcher();
+
+            expect(service.debouncedLoadPacks).toHaveBeenCalledTimes(1);
+            expect(service.pendingPackIdxChange).toBe(false);
+            expect(service.packIdxWatcherSuspendDepth).toBe(0);
+        });
+
+        it('is a no-op when resuming with depth zero and no pending change', () => {
+            service.pendingPackIdxChange = false;
+            service.packIdxWatcherSuspendDepth = 0;
+
+            service.resumePackIdxWatcher();
+
+            expect(service.debouncedLoadPacks).not.toHaveBeenCalled();
+            expect(service.pendingPackIdxChange).toBe(false);
+            expect(service.packIdxWatcherSuspendDepth).toBe(0);
         });
     });
 

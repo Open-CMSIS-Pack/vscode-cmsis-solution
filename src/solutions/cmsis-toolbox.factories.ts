@@ -30,6 +30,8 @@ export const cmsisToolboxManagerFactory = (): MockCmsisToolboxManager => {
         runCmsisTool: jest.fn().mockResolvedValue([0, undefined]),
         runCsolutionRpc: jest.fn().mockResolvedValue({ success: true }),
         isRunning: jest.fn(),
+        suspendPackReload: jest.fn(),
+        resumePackReload: jest.fn(),
         collectSetupMessages: jest.fn(),
         getSetupMessages: jest.fn(),
         onRunCmsisTool: onRunCmsisToolEventEmitter.event,
