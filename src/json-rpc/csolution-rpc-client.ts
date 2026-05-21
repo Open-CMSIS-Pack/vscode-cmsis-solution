@@ -31,6 +31,8 @@ export interface CsolutionService extends RpcInterface {
     activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>): Promise<void>;
     getCsolutionBin(): string;
     waitForExit(): Promise<void>;
+    suspendPackIdxWatcher(): void;
+    resumePackIdxWatcher(): void;
 }
 
 class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
@@ -44,6 +46,8 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     private csolutionBin = 'csolution';
     private exitPromise: Promise<void> | undefined;
     private cachedVersion: GetVersionResult = { success: false };
+    private packIdxWatcherSuspendDepth = 0;
+    private pendingPackIdxChange = false;
     private readonly mutex: Mutex;
 
     constructor(
@@ -105,6 +109,20 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         return this.exitPromise ?? Promise.resolve();
     }
 
+    public suspendPackIdxWatcher(): void {
+        this.packIdxWatcherSuspendDepth++;
+    }
+
+    public resumePackIdxWatcher(): void {
+        if (this.packIdxWatcherSuspendDepth > 0) {
+            this.packIdxWatcherSuspendDepth--;
+        }
+        if (this.packIdxWatcherSuspendDepth === 0 && this.pendingPackIdxChange) {
+            this.pendingPackIdxChange = false;
+            this.debouncedLoadPacks();
+        }
+    }
+
     private watchPackIdxFile() {
         this.idxWatcher?.close();
         const pack_idx = path.join(getCmsisPackRoot(), 'pack.idx');
@@ -114,6 +132,10 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
                 const stat = fs.statSync(pack_idx);
                 if (stat?.mtimeMs !== mtimeMs) {
                     mtimeMs = stat.mtimeMs;
+                    if (this.packIdxWatcherSuspendDepth > 0) {
+                        this.pendingPackIdxChange = true;
+                        return;
+                    }
                     this.debouncedLoadPacks();
                 }
             }

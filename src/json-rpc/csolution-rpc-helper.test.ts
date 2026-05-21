@@ -411,6 +411,28 @@ describe('csolution-rpc-client', () => {
             expect(prevClose).toHaveBeenCalledTimes(1);
             expect(fs.watch).toHaveBeenCalledTimes(1);
         });
+
+        it('suppresses pack.idx-triggered reload while suspended and runs once after resume', () => {
+            let watcherCallback: ((eventType: string) => void) | undefined;
+
+            (fs.statSync as unknown as jest.Mock)
+                .mockReturnValueOnce({ mtimeMs: 40 }) // initial
+                .mockReturnValueOnce({ mtimeMs: 41 }); // changed
+
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, listener: any) => {
+                watcherCallback = listener;
+                return { close: jest.fn() };
+            });
+
+            service.watchPackIdxFile();
+            service.suspendPackIdxWatcher();
+
+            watcherCallback!('change');
+            expect(service.debouncedLoadPacks).not.toHaveBeenCalled();
+
+            service.resumePackIdxWatcher();
+            expect(service.debouncedLoadPacks).toHaveBeenCalledTimes(1);
+        });
     });
 
     describe('csolution-rpc-client launch', () => {

@@ -92,6 +92,10 @@ export interface CmsisToolboxManager {
     * @return true if the queue is not empty or mutex is locked
     */
     isRunning(): boolean
+
+    suspendPackReload(): void
+
+    resumePackReload(): void
 }
 
 /**
@@ -124,6 +128,14 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
 
     public isRunning(): boolean {
         return this.toolboxQueue.length > 0 || this.toolboxMutex.isLocked();
+    }
+
+    public suspendPackReload(): void {
+        this.csolutionService.suspendPackIdxWatcher();
+    }
+
+    public resumePackReload(): void {
+        this.csolutionService.resumePackIdxWatcher();
     }
 
     public async runCmsisTool(

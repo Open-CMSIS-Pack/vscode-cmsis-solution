@@ -266,6 +266,12 @@ describe('SolutionConverter', () => {
         expect(mockRunCmsisTool).toHaveBeenNthCalledWith(2, 'cpackget',
             expect.arrayContaining(['add', 'VendorB::PackB@2.0.0']), expect.any(Function), undefined, undefined, true);
 
+        expect(mockCsolutionService.suspendPackIdxWatcher).toHaveBeenCalledTimes(1);
+        expect(mockCsolutionService.resumePackIdxWatcher).toHaveBeenCalledTimes(1);
+        expect(mockCsolutionService.loadPacks).toHaveBeenCalledTimes(1);
+        expect(mockCsolutionService.loadPacks.mock.invocationCallOrder[0])
+            .toBeLessThan(mockCsolutionService.convertSolution.mock.invocationCallOrder[0]);
+
         expect(completedListener).toHaveBeenCalledTimes(1);
     });
 
