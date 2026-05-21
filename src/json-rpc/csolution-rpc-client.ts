@@ -32,7 +32,7 @@ export interface CsolutionService extends RpcInterface {
     getCsolutionBin(): string;
     waitForExit(): Promise<void>;
     suspendPackIdxWatcher(): void;
-    resumePackIdxWatcher(): void;
+    resumePackIdxWatcher(skipPendingReload?: boolean): void;
 }
 
 class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
@@ -42,7 +42,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     private child: ChildProcess | undefined;
     private connection: MessageConnection | undefined;
     private idxWatcher: Optional<fs.FSWatcher> = undefined;
-    private readonly debouncedLoadPacks = debounce(this.loadPacks.bind(this), 1000);
+    private readonly debouncedLoadPacks = debounce(this.reloadPacks.bind(this), 1000);
     private csolutionBin = 'csolution';
     private exitPromise: Promise<void> | undefined;
     private cachedVersion: GetVersionResult = { success: false };
@@ -113,9 +113,12 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         this.packIdxWatcherSuspendDepth++;
     }
 
-    public resumePackIdxWatcher(): void {
+    public resumePackIdxWatcher(skipPendingReload: boolean = false): void {
         if (this.packIdxWatcherSuspendDepth > 0) {
             this.packIdxWatcherSuspendDepth--;
+        }
+        if (skipPendingReload) {
+            this.pendingPackIdxChange = false;
         }
         if (this.packIdxWatcherSuspendDepth === 0 && this.pendingPackIdxChange) {
             this.pendingPackIdxChange = false;

@@ -433,6 +433,50 @@ describe('csolution-rpc-client', () => {
             service.resumePackIdxWatcher();
             expect(service.debouncedLoadPacks).toHaveBeenCalledTimes(1);
         });
+
+        it('can resume without running pending reload when skipPendingReload is true', () => {
+            let watcherCallback: ((eventType: string) => void) | undefined;
+
+            (fs.statSync as unknown as jest.Mock)
+                .mockReturnValueOnce({ mtimeMs: 50 }) // initial
+                .mockReturnValueOnce({ mtimeMs: 51 }); // changed
+
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, listener: any) => {
+                watcherCallback = listener;
+                return { close: jest.fn() };
+            });
+
+            service.watchPackIdxFile();
+            service.suspendPackIdxWatcher();
+
+            watcherCallback!('change');
+            expect(service.debouncedLoadPacks).not.toHaveBeenCalled();
+
+            service.resumePackIdxWatcher(true);
+            expect(service.debouncedLoadPacks).not.toHaveBeenCalled();
+        });
+
+        it('triggers pending reload when resuming with depth already zero', () => {
+            service.pendingPackIdxChange = true;
+            service.packIdxWatcherSuspendDepth = 0;
+
+            service.resumePackIdxWatcher();
+
+            expect(service.debouncedLoadPacks).toHaveBeenCalledTimes(1);
+            expect(service.pendingPackIdxChange).toBe(false);
+            expect(service.packIdxWatcherSuspendDepth).toBe(0);
+        });
+
+        it('is a no-op when resuming with depth zero and no pending change', () => {
+            service.pendingPackIdxChange = false;
+            service.packIdxWatcherSuspendDepth = 0;
+
+            service.resumePackIdxWatcher();
+
+            expect(service.debouncedLoadPacks).not.toHaveBeenCalled();
+            expect(service.pendingPackIdxChange).toBe(false);
+            expect(service.packIdxWatcherSuspendDepth).toBe(0);
+        });
     });
 
     describe('csolution-rpc-client launch', () => {

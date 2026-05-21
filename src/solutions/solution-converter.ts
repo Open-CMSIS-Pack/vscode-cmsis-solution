@@ -135,7 +135,8 @@ export class SolutionConverterImpl implements SolutionConverter {
                     missingPacksResult.success = downloadPacksOutput.length === 0;
                     downloadedMissingPacks = missingPacksResult.success;
                 } finally {
-                    this.cmsisToolboxManager.resumePackReload();
+                    // Converter explicitly calls LoadPacks below on successful downloads.
+                    this.cmsisToolboxManager.resumePackReload(true);
                 }
             }
         }

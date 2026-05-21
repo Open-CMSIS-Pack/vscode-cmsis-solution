@@ -95,7 +95,7 @@ export interface CmsisToolboxManager {
 
     suspendPackReload(): void
 
-    resumePackReload(): void
+    resumePackReload(skipPendingReload?: boolean): void
 }
 
 /**
@@ -134,8 +134,8 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
         this.csolutionService.suspendPackIdxWatcher();
     }
 
-    public resumePackReload(): void {
-        this.csolutionService.resumePackIdxWatcher();
+    public resumePackReload(skipPendingReload: boolean = false): void {
+        this.csolutionService.resumePackIdxWatcher(skipPendingReload);
     }
 
     public async runCmsisTool(
