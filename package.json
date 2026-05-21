@@ -1180,7 +1180,7 @@
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "navigation",
-          "when": "resourceLangId == cpp"
+          "when": "resourceScheme == file && !explorerResourceIsFolder"
         },
         {
           "command": "cmsis-csolution.build",
