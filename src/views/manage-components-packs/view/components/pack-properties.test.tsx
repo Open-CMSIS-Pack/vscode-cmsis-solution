@@ -336,4 +336,71 @@ describe('PackPropertiesDialog', () => {
         expect(mockOpenFile).toHaveBeenCalledWith('path/to/cbuild-pack.yml', false);
     });
 
+    it('displays packId in Used Pack when description is not "Pack not installed"', () => {
+        const pack = createMockPack({ description: 'CMSIS Pack' });
+        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);
+
+        expect(screen.getAllByText('ARM::CMSIS@6.1.0')).toBeDefined();
+    });
+
+    it('hides packId display in Used Pack when description is "Pack not installed"', () => {
+        const pack = createMockPack({ description: 'Pack not installed' });
+        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);
+
+        const table = screen.getByText('Used Pack:').closest('table');
+        expect(table).toBeDefined();
+        if (table) {
+            const cells = table.querySelectorAll('td');
+            const usedPackCell = Array.from(cells).find(cell => cell.textContent === 'Used Pack:');
+            if (usedPackCell) {
+                const valueCell = usedPackCell.nextElementSibling as HTMLElement;
+                expect(valueCell?.textContent).toBe('');
+            }
+        }
+    });
+
+    it('passes empty packName to PackTitleLink when description is "Pack not installed" and openFile is provided', () => {
+        const pack = createMockPack({ description: 'Pack not installed' });
+        const mockOpenFile = jest.fn();
+
+        render(
+            <PackPropertiesDialog
+                pack={pack}
+                state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }}
+                allOrigins={createMockAllOrigins()}
+                openFile={mockOpenFile}
+                onClose={mockOnClose}
+            />
+        );
+
+        const table = screen.getByText('Used Pack:').closest('table');
+        expect(table).toBeDefined();
+        if (table) {
+            const cells = table.querySelectorAll('td');
+            const usedPackCell = Array.from(cells).find(cell => cell.textContent === 'Used Pack:');
+            if (usedPackCell) {
+                const valueCell = usedPackCell.nextElementSibling as HTMLElement;
+                // PackTitleLink with empty packName should not display visible text
+                expect(valueCell?.textContent?.trim()).toBe('');
+            }
+        }
+    });
+
+    it('passes packId as packName to PackTitleLink when description is not "Pack not installed" and openFile is provided', () => {
+        const pack = createMockPack({ description: 'CMSIS Pack' });
+        const mockOpenFile = jest.fn();
+
+        render(
+            <PackPropertiesDialog
+                pack={pack}
+                state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }}
+                allOrigins={createMockAllOrigins()}
+                openFile={mockOpenFile}
+                onClose={mockOnClose}
+            />
+        );
+
+        expect(screen.getAllByText('ARM::CMSIS@6.1.0')).toBeDefined();
+    });
+
 });
