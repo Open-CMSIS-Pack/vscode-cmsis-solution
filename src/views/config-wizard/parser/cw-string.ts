@@ -122,7 +122,7 @@ export class CwString extends CwItem {
     }
 
     public getGuiValue(lines: string[]): GuiValue {
-        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.text);
+        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.text, undefined, this.lineCommentPrefix);
 
         return val.getGuiValue();
     }

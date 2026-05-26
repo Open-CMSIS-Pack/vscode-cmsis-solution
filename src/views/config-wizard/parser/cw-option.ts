@@ -261,7 +261,7 @@ export class CwOption extends CwItem {
 
     protected getGuiValueSymbolExchange(lines: string[]): GuiValue {
         const keyWord = this.identifierName;
-        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.exchangeSymbol, keyWord);
+        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.exchangeSymbol, keyWord, this.lineCommentPrefix);
 
         return val.getGuiValue();
     }
@@ -272,7 +272,7 @@ export class CwOption extends CwItem {
             return { value: keyWord.getGuiString(), readOnly: true, editRect: { line: 0, col: { start: 0, end: 0 } } };
         }
 
-        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.identifier, keyWord);
+        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.identifier, keyWord, this.lineCommentPrefix);
 
         const option = this.getOption(val.value);
         if (option === undefined) {
@@ -288,7 +288,7 @@ export class CwOption extends CwItem {
     }
 
     public getGuiValueDropOption(lines: string[]): GuiValue {
-        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.number);
+        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.number, undefined, this.lineCommentPrefix);
 
         const v = val.value;
         if (v === undefined) {
@@ -356,7 +356,7 @@ export class CwOption extends CwItem {
     }
 
     public getGuiValueNumber(lines: string[]): GuiValue {
-        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.number);
+        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.number, undefined, this.lineCommentPrefix);
         const v = val.value;
         if (!(v instanceof NumberType)) {
             return val.getGuiValue();
@@ -375,7 +375,7 @@ export class CwOption extends CwItem {
     }
 
     public setGuiValueNumber(lines: string[], newValue: GuiValue): boolean {
-        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.number);
+        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.number, undefined, this.lineCommentPrefix);
         const newValNum = new NumberType(newValue.value);
         if (newValNum === undefined || !(val.value instanceof NumberType)) {
             return false;
@@ -419,7 +419,7 @@ export class CwOption extends CwItem {
     }
 
     public setGuiValueDropOption(lines: string[], newValue: GuiValue): boolean {
-        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.number);
+        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.number, undefined, this.lineCommentPrefix);
         const oldVal = val.value;
         if (oldVal === undefined) {
             return false;
@@ -445,7 +445,7 @@ export class CwOption extends CwItem {
     }
 
     public setGuiValueSymbolExchange(lines: string[], newValue: GuiValue): boolean {
-        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.exchangeSymbol);
+        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.exchangeSymbol, undefined, this.lineCommentPrefix);
         const oldVal = val.value;
         if (oldVal === undefined || !(oldVal instanceof TextType)) {
             return false;
@@ -457,7 +457,7 @@ export class CwOption extends CwItem {
     }
 
     public setGuiValueIdentifierName(lines: string[], newValue: GuiValue): boolean {
-        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.identifier);
+        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.identifier, undefined, this.lineCommentPrefix);
         const oldVal = val.value;
         if (oldVal === undefined || !(oldVal instanceof TextType)) {
             return false;

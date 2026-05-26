@@ -103,7 +103,7 @@ export class CwComment extends CwItem {
         const linesStart = this.commentStartAfterLineNo + 1;
         const linesEnd = this.lineNoEnd;
 
-        const val = new RwValue(linesStart, linesEnd, this.offset.val, lines, ValueType.comment);
+        const val = new RwValue(linesStart, linesEnd, this.offset.val, lines, ValueType.comment, undefined, this.lineCommentPrefix);
 
         const numVal = val.value;
         let commentState = false;
@@ -137,7 +137,7 @@ export class CwComment extends CwItem {
 
         const linesStart = this.commentStartAfterLineNo + 1;
         const linesEnd = this.lineNoEnd;
-        const rwVal = new RwValue(linesStart, linesEnd, this.offset.val, lines, ValueType.comment);
+        const rwVal = new RwValue(linesStart, linesEnd, this.offset.val, lines, ValueType.comment, undefined, this.lineCommentPrefix);
 
         const curVal = rwVal.value;
         let newState = false;
@@ -151,7 +151,7 @@ export class CwComment extends CwItem {
             return false;
         }
 
-        const editText = newState ? '//' : '';
+        const editText = newState ? this.lineCommentPrefix : '';
 
         const multiEditArr = rwVal.multiEdit;   // Change text to modify
         multiEditArr.forEach(multiEdit => multiEdit.text = editText);

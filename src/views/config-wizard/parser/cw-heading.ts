@@ -129,7 +129,7 @@ export class CwHeading extends CwItem {
             return { value: '', readOnly: false };
         }
 
-        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.number);
+        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.number, undefined, this.lineCommentPrefix);
 
         const v = val.value;
         if (!(v instanceof NumberType)) {  // apply bitfield if number
@@ -148,7 +148,7 @@ export class CwHeading extends CwItem {
             return false;
         }
 
-        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.number);
+        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.number, undefined, this.lineCommentPrefix);
         const newValNum = new NumberType(newValue.value);
         if (newValNum == undefined || !(val.value instanceof NumberType)) {
             return false;

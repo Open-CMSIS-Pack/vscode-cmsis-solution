@@ -135,4 +135,24 @@ describe('tokenizer', () => {
             }
         });
     });
+
+    describe('semicolon prefix support', () => {
+        it('parses semicolon-prefixed annotations using semicolon tokenizer mode', () => {
+            const tokenizer = new Tokenizer(';');
+            const line = '; <o0.1..3> Test <1-7:2>';
+
+            let pos = tokenizer.isAnnotation(line);
+            expect(pos).toBeGreaterThanOrEqual(0);
+
+            pos = tokenizer.getNextToken(line, pos);
+            expect(pos).toBeGreaterThanOrEqual(0);
+            expect(tokenizer.tokenizeCmd(tokenizer.cmd, 1)).toEqual({ text: 'o0.1..3', items: [ 'o', '0', '.', '1', '..', '3' ], lineNo: 1 });
+            expect(tokenizer.tokenizeDescr(tokenizer.text, 1)).toEqual({ text: 'Test ', items: [ 'Test ' ], lineNo: 1 });
+
+            pos = tokenizer.getNextToken(line, pos);
+            expect(pos).toBeGreaterThanOrEqual(0);
+            expect(tokenizer.tokenizeCmd(tokenizer.cmd, 1)).toEqual({ text: '1-7:2', items: [ '1', '-', '7', ':', '2' ], lineNo: 1 });
+            expect(tokenizer.tokenizeDescr(tokenizer.text, 1)).toEqual({ text: '', items: [], lineNo: 1 });
+        });
+    });
 });
