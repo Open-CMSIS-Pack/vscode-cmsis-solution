@@ -135,5 +135,29 @@ describe('StatusBar', () => {
             expect(vscode.commands.executeCommand).toHaveBeenCalledWith('cmsis-csolution.manageSolution');
             expect(vscode.commands.executeCommand).toHaveBeenCalledWith(expect.stringContaining('workbench.action.output.show.extension-output'));
         });
+
+        it('clears and hides context when solution is unloaded after setup completed', async () => {
+            csolution.getActiveTargetSetName = jest.fn().mockReturnValue('target@set');
+            const cmsisToolboxManager = cmsisToolboxManagerFactory();
+
+            const statusBar = new StatusBar(solutionManager, cmsisToolboxManager, themeProvider);
+            await statusBar.activate(extensionContext);
+            const statusBarItem = mockCreateStatusBarItem.mock.results[0].value;
+
+            solutionManager.fireOnDidChangeLoadState(
+                { solutionPath: 'sol' },
+                { solutionPath: '' }
+            );
+            solutionManager.onDidSetupCompletedEmitter.fire(['success', false]);
+            expect(statusBarItem.show).toHaveBeenCalledTimes(2);
+            expect(statusBarItem.text).toBe('$(target) target@set');
+
+            solutionManager.getCsolution.mockReturnValue(undefined);
+            solutionManager.onDidSetupCompletedEmitter.fire(['success', false]);
+
+            expect(statusBarItem.hide).toHaveBeenCalledTimes(1);
+            expect(statusBarItem.text).toBe('');
+            expect(statusBarItem.tooltip).toBe('');
+        });
     });
 });
