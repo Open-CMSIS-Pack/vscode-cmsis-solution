@@ -33,6 +33,19 @@ class MarkdownString extends String {
     }
 }
 
+class TreeItem {
+    constructor(label, collapsibleState) {
+        this.label = label;
+        this.collapsibleState = collapsibleState;
+    }
+}
+
+class ThemeIcon {
+    constructor(id) {
+        this.id = id;
+    }
+}
+
 // Classes
 const Disposable = jest.fn(() => {
     return { dispose: jest.fn() };
@@ -107,6 +120,11 @@ const ViewColumn = {
     Beside: -2
 }
 const ProgressLocation = { Notification: 1 };
+const TreeItemCollapsibleState = {
+    None: 0,
+    Collapsed: 1,
+    Expanded: 2,
+};
 
 // Namespaces
 const commands = {
@@ -151,6 +169,11 @@ const window = {
     showWarningMessage: jest.fn(),
     showErrorMessage: jest.fn(),
     registerUriHandler: jest.fn(),
+    createTreeView: jest.fn(() => ({
+        onDidChangeVisibility: jest.fn(),
+        onDidCollapseElement: jest.fn(),
+        onDidExpandElement: jest.fn(),
+    })),
 };
 const fs = {
     readFile: jest.fn(),
@@ -216,6 +239,9 @@ module.exports = {
     QuickPickItemKind,
     Range,
     Diagnostic,
+    TreeItem,
+    ThemeIcon,
+    TreeItemCollapsibleState,
     RelativePattern,
     ShellExecution,
     Task,
