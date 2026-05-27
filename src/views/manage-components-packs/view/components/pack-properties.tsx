@@ -210,7 +210,12 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                     <Card size="small">
                         <table className='manage-component-properties-table'>
                             <tbody>
-                                <tr><td>Used Pack:</td><td>{(!firstReferencePath && openFile) ? <PackTitleLink packId={pack.packId} packName={packDisplayName} openFile={openFile} /> : packDisplayName}</td></tr>
+                                {packDisplayName ? (
+                                    <tr>
+                                        <td>Used Pack:</td>
+                                        <td>{(!firstReferencePath && openFile) ? <PackTitleLink packId={pack.packId} packName={packDisplayName} openFile={openFile} /> : packDisplayName}</td>
+                                    </tr>
+                                ) : null}
                                 <tr><td>Description:</td><td>{pack.description}</td></tr>
                                 {firstReferencePath ? <tr><td>Path:</td><td>{firstReferencePath}</td></tr> : null}
                             </tbody>
