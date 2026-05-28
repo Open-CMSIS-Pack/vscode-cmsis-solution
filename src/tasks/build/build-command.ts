@@ -18,7 +18,7 @@ import * as vscode from 'vscode';
 import { PACKAGE_NAME } from '../../manifest';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
 import { BuildTaskDefinition } from './build-task-definition';
-import { BuildTaskProvider } from './build-task-provider';
+import { BuildTaskProvider, waitForActiveBuildTasksCompletion } from './build-task-provider';
 import { BuildTaskDefinitionBuilder } from './build-task-definition-builder';
 import { COutlineItem } from '../../views/solution-outline/tree-structure/solution-outline-item';
 
@@ -44,18 +44,26 @@ export class BuildCommand {
     }
 
     private async handleBuild(uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution | undefined> {
-        const definition = await this.buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode('build', uriOrSolutionNode);
-        return this.executeTaskDefinition(definition);
+        return this.createAndExecuteTaskDefinition('build', uriOrSolutionNode);
     }
 
     private async handleClean(uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution> {
-        const definition = await this.buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode('clean', uriOrSolutionNode);
-        return this.executeTaskDefinition(definition);
+        return this.createAndExecuteTaskDefinition('clean', uriOrSolutionNode);
     }
 
     private async handleRebuild(uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution> {
-        const definition = await this.buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode('rebuild', uriOrSolutionNode);
+        return this.createAndExecuteTaskDefinition('rebuild', uriOrSolutionNode);
+    }
+
+    private async createAndExecuteTaskDefinition(action: 'build' | 'clean' | 'rebuild', uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution> {
+        await waitForActiveBuildTasksCompletion();
+        await this.saveDirtyManageSolutionTarget();
+        const definition = await this.buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode(action, uriOrSolutionNode);
         return this.executeTaskDefinition(definition);
+    }
+
+    private async saveDirtyManageSolutionTarget(): Promise<void> {
+        await this.commandsProvider.executeCommand('workbench.action.files.save');
     }
 
     private async executeTaskDefinition(definition: BuildTaskDefinition): Promise<vscode.TaskExecution> {

@@ -29,6 +29,33 @@ export interface BuildTaskProvider {
     getActiveTaskRunner(taskName: string): TerminalTaskRunner | undefined;
 }
 
+export const isBuildTask = (task: vscode.Task): boolean =>
+    task.definition?.type === BuildTaskProviderImpl.taskType;
+
+export const waitForActiveBuildTasksCompletion = async (): Promise<void> => {
+    const activeExecutions = (vscode.tasks.taskExecutions ?? []).filter(execution => isBuildTask(execution.task));
+
+    if (activeExecutions.length === 0) {
+        return;
+    }
+
+    const pendingExecutions = new Set(activeExecutions);
+
+    await new Promise<void>((resolve) => {
+        const disposable = vscode.tasks.onDidEndTask((event) => {
+            if (!pendingExecutions.has(event.execution)) {
+                return;
+            }
+
+            pendingExecutions.delete(event.execution);
+            if (pendingExecutions.size === 0) {
+                disposable.dispose();
+                resolve();
+            }
+        });
+    });
+};
+
 export class BuildTaskProviderImpl implements BuildTaskProvider, vscode.TaskProvider {
     public static taskType = `${PACKAGE_NAME}.build`;
     private readonly activeTaskRunners = new Map<string, TerminalTaskRunner>();

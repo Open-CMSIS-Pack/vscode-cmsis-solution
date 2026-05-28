@@ -25,6 +25,7 @@ import { SolutionEventHub } from '../solution-event-hub';
 import * as manifest from '../../manifest';
 import { MockOutputChannelProvider, outputChannelProviderFactory } from '../../vscode-api/output-channel-provider.factories';
 import { waitTimeout } from '../../__test__/test-waits';
+import { commandsProviderFactory, MockCommandsProvider } from '../../vscode-api/commands-provider.factories';
 
 jest.mock('which', () => jest.fn((cmd) => Promise.resolve(path.join('path', 'to', cmd))));
 
@@ -36,10 +37,18 @@ describe('CompileCommandsGenerator', () => {
     let exitCode: number;
     let mockEventHub: jest.Mocked<SolutionEventHub>;
     let outputChannelProvider: MockOutputChannelProvider;
+    let commandsProvider: MockCommandsProvider;
     let cbuildSetupRequestedListener: (() => void) | undefined;
 
     beforeEach(async () => {
         exitCode = 0;
+        (vscode.tasks as unknown as {
+            taskExecutions: vscode.TaskExecution[];
+            onDidEndTask: (listener: (event: vscode.TaskEndEvent) => void) => vscode.Disposable;
+        }).taskExecutions = [];
+        (vscode.tasks as unknown as {
+            onDidEndTask: (listener: (event: vscode.TaskEndEvent) => void) => vscode.Disposable;
+        }).onDidEndTask = () => ({ dispose: jest.fn() } as unknown as vscode.Disposable);
         mockEventHub = {
             fireCbuildCompleted: jest.fn().mockResolvedValue(undefined),
             onDidCbuildSetupRequested: jest.fn((listener: () => void) => {
@@ -48,6 +57,8 @@ describe('CompileCommandsGenerator', () => {
             }),
         } as unknown as jest.Mocked<SolutionEventHub>;
         outputChannelProvider = outputChannelProviderFactory();
+        commandsProvider = commandsProviderFactory();
+        commandsProvider.executeCommand.mockResolvedValue(undefined);
 
         const buildTaskDefinition: BuildTaskDefinition = {
             type: BuildTaskProviderImpl.taskType,
@@ -79,6 +90,7 @@ describe('CompileCommandsGenerator', () => {
             buildTaskDefinitionBuilder,
             mockEventHub,
             outputChannelProvider,
+            commandsProvider,
         );
         generator.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
 
@@ -93,6 +105,7 @@ describe('CompileCommandsGenerator', () => {
         await waitTimeout();
 
         const outputChannel = outputChannelProvider.mockGetCreatedChannelByName(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('workbench.action.files.save');
         expect(vscode.tasks.executeTask).toHaveBeenCalledTimes(1);
         expect(outputChannel!.appendLine).toHaveBeenCalledWith('Launching cbuild setup in Terminal to generate IntelliSense database');
         expect(mockEventHub.fireCbuildCompleted).toHaveBeenCalledWith({ success: true, severity: 'success', toolsOutputMessages: ['completed with exit code 0'] });
@@ -106,7 +119,55 @@ describe('CompileCommandsGenerator', () => {
         cbuildSetupRequestedListener?.();
         await waitTimeout();
 
+        const saveCommandCallOrder = commandsProvider.executeCommand.mock.invocationCallOrder[0];
+        const createDefinitionCallOrder = buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode.mock.invocationCallOrder[0];
+
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('workbench.action.files.save');
+        expect(saveCommandCallOrder).toBeLessThan(createDefinitionCallOrder);
         expect(vscode.tasks.executeTask).toHaveBeenCalledTimes(1);
+    });
+
+    it('coalesces concurrent cbuild setup requests into one run', async () => {
+        (mockBuildTaskProvider.getActiveTaskRunner as jest.Mock).mockReturnValue({
+            getOutputBuffer: () => ['completed with exit code 0']
+        });
+
+        cbuildSetupRequestedListener?.();
+        cbuildSetupRequestedListener?.();
+        await waitTimeout();
+
+        expect(vscode.tasks.executeTask).toHaveBeenCalledTimes(1);
+        expect(mockEventHub.fireCbuildCompleted).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits for active build task completion before creating setup task', async () => {
+        const activeExecution = {
+            task: {
+                definition: { type: BuildTaskProviderImpl.taskType }
+            }
+        } as unknown as vscode.TaskExecution;
+        const onDidEndTaskCallbacks: Array<(event: vscode.TaskEndEvent) => void> = [];
+
+        (vscode.tasks as unknown as {
+            taskExecutions: vscode.TaskExecution[];
+            onDidEndTask: (listener: (event: vscode.TaskEndEvent) => void) => vscode.Disposable;
+        }).taskExecutions = [activeExecution];
+        (vscode.tasks as unknown as {
+            onDidEndTask: (listener: (event: vscode.TaskEndEvent) => void) => vscode.Disposable;
+        }).onDidEndTask = (listener) => {
+            onDidEndTaskCallbacks.push(listener);
+            return { dispose: jest.fn() } as unknown as vscode.Disposable;
+        };
+
+        cbuildSetupRequestedListener?.();
+        await Promise.resolve();
+
+        expect(mockBuildTaskProvider.createTask).not.toHaveBeenCalled();
+
+        onDidEndTaskCallbacks[0]({ execution: activeExecution } as vscode.TaskEndEvent);
+        await waitTimeout();
+
+        expect(mockBuildTaskProvider.createTask).toHaveBeenCalledTimes(1);
     });
 
     it('prints an error message if the compilation database could not be generated', async () => {

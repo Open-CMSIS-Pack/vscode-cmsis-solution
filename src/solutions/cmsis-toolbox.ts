@@ -193,7 +193,12 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
             onOutput(msg);
         }
 
-        if (tool !== 'cbuild') { // do not notify cbuild is started
+        if (tool === 'cbuild') {
+            if (args.includes('setup')) {
+                // notify cbuild setup is started but do not notify other cbuild calls (e.g. during build)
+                this.runCmsisToolEmitter.fire([true, false]);
+            }
+        } else {
             // set 'packs' event flag when installing packs via 'cpackget add' command
             this.runCmsisToolEmitter.fire([true, tool === 'cpackget' && args.includes('add')]);
         }
