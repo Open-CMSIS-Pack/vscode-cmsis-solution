@@ -1,5 +1,5 @@
 /**
- * Copyright 2026 Arm Limited
+ * Copyright 2023-2026 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,12 @@
  * limitations under the License.
  */
 
-/*
- * Copyright (C) 2023-2026 Arm Limited
- */
-
 import { GuiValue, MultiEdit, TreeNodeElement } from '../confwiz-webview-common';
 import { NumberType } from './number-type';
 import { TextType } from './text-type';
 import { TypeBase } from './type-base';
 import { EditRect } from './cw-utils';
+import { ConfwizLineCommentPrefix, DEFAULT_LINE_COMMENT_PREFIX } from './comment-style';
 
 
 export enum ValueType {
@@ -39,13 +36,23 @@ export class RwValue {
     private _valueType = ValueType.number;
     private _inComment = false;
     private _inconsistentState = false;
+    private readonly _lineCommentPrefix: ConfwizLineCommentPrefix;
 
     private readonly _multiEdit: MultiEdit[] = [];
 
-    constructor(lineNo: number, lineNoEnd: number, offset: number, lines: string[], valueType: ValueType, identifier?: TextType) {
+    constructor(
+        lineNo: number,
+        lineNoEnd: number,
+        offset: number,
+        lines: string[],
+        valueType: ValueType,
+        identifier?: TextType,
+        lineCommentPrefix: ConfwizLineCommentPrefix = DEFAULT_LINE_COMMENT_PREFIX
+    ) {
         if (valueType !== undefined) {
             this._valueType = valueType;
         }
+        this._lineCommentPrefix = lineCommentPrefix;
 
         switch (valueType) {
             case ValueType.number:
@@ -156,7 +163,7 @@ export class RwValue {
     }
 
     protected findCommentStart(line: string, pos: number): number {
-        let found = line.indexOf('//', pos);
+        let found = line.indexOf(this._lineCommentPrefix, pos);
         if (found != -1) {
             return found;
         }
@@ -172,7 +179,7 @@ export class RwValue {
     protected skipComment(line: string, pos: number): number {
         pos = this.skipWhite(line, pos);
 
-        if (this.isAtPosition('//', line, pos)) {
+        if (this.isAtPosition(this._lineCommentPrefix, line, pos)) {
             return line.length; // skip rest of line
         }
 
@@ -356,11 +363,11 @@ export class RwValue {
     protected getLineCommentState(multiEdit: MultiEdit, line: string): boolean {
         const pos = this.skipWhite(line, multiEdit.editRect.col.start);
 
-        const newPos = line.indexOf('//', pos);
+        const newPos = line.indexOf(this._lineCommentPrefix, pos);
         if (newPos == pos) {     // found comment as first char
             multiEdit.editRect.col.start = pos;
-            multiEdit.editRect.col.end = pos + 2;
-            multiEdit.text = '//';
+            multiEdit.editRect.col.end = pos + this._lineCommentPrefix.length;
+            multiEdit.text = this._lineCommentPrefix;
             return true;
         }
 

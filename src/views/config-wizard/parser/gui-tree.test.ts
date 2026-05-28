@@ -1,5 +1,5 @@
 /**
- * Copyright 2026 Arm Limited
+ * Copyright 2023-2026 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,10 +12,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-
-/*
- * Copyright (C) 2023-2026 Arm Limited
  */
 
 import { it, describe, expect, beforeEach } from '@jest/globals';
@@ -260,6 +256,17 @@ ledConf.redPortMode = OutOpenDrain_GPIO;
 
 // <<< end of configuration section >>>`;
 
+const testFile_semicolon: string = `;-------- <<< Use Configuration Wizard in Context Menu >>> --------------------
+; <o> Flash Base Address <0x0-0xFFFFFFFF:8>
+#define __ROM_BASE      0x00000000
+
+; <c> Enable Code Block
+line_a
+line_b
+; </c>
+
+; <<< end of configuration section >>>`;
+
 
 
 // test global module
@@ -381,6 +388,41 @@ describe('GUI Tree tests', () => {
                 element.newValue.value = newVal;
                 const text = 'OutPushPull_GPIO';
                 guiTree.saveElement(text, element);
+            }
+        });
+
+        it('parses semicolon marker files and reads option values', () => {
+            ClearErrors();
+            const rootItem = guiTree.getAll(testFile_semicolon);
+
+            expect(rootItem).toBeDefined();
+            expect(GetErrors().length).toBe(0);
+
+            const optionElement = rootItem?.children?.find(child => child.type === GuiTypes.edit);
+            expect(optionElement).toBeDefined();
+            expect(optionElement?.name).toContain('Flash Base Address');
+            expect(optionElement?.value.value).toMatch(/^0x0+$/i);
+        });
+
+        it('uses semicolon prefix when enabling comment block edits', () => {
+            ClearErrors();
+            const rootItem = guiTree.getAll(testFile_semicolon);
+
+            expect(rootItem).toBeDefined();
+            expect(GetErrors().length).toBe(0);
+
+            const commentElement = rootItem?.children?.find(child => child.type === GuiTypes.check);
+            expect(commentElement).toBeDefined();
+
+            if (commentElement) {
+                // Force comment insertion path for block lines.
+                commentElement.newValue.value = '0';
+                const changed = guiTree.saveElement(testFile_semicolon, commentElement);
+
+                expect(changed).toBe(true);
+                expect(commentElement.newValue.multiEdit).toBeDefined();
+                const allSemicolon = commentElement.newValue.multiEdit?.every(edit => edit.text === ';');
+                expect(allSemicolon).toBe(true);
             }
         });
     });
