@@ -223,6 +223,7 @@ jobs:
     name: 'Test (windows-latest)'
     runs-on: windows-latest
     needs: build
+    timeout-minutes: 25
     permissions:
       contents: write
       packages: read
@@ -279,8 +280,6 @@ jobs:
         run: armlm activate --server https://mdk-preview.keil.arm.com --product KEMDK-COM0
 
       - name: Install Playwright
-        env:
-          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: '180000'
         run: npx playwright install chromium
 
       - name: Run Playwright tests
