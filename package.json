@@ -2,7 +2,7 @@
   "name": "cmsis-csolution",
   "displayName": "Arm CMSIS Solution",
   "description": "Create embedded and Edge AI projects for Arm Cortex-M based devices using the Common Microcontroller Software Interface Standard (CMSIS) and csolution format",
-  "version": "1.67.1",
+  "version": "1.67.2",
   "preview": false,
   "publisher": "Arm",
   "author": "Jonatan Antoni <jonatan.antoni@arm.com>",
@@ -1180,7 +1180,7 @@
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "navigation",
-          "when": "resourceLangId == cpp"
+          "when": "resourceScheme == file && !explorerResourceIsFolder"
         },
         {
           "command": "cmsis-csolution.build",
@@ -1255,7 +1255,7 @@
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "navigation",
-          "when": "(resourceLangId == cpp || resourceLangId == c || resourceFilename =~ /\\.dbgconf/) && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+          "when": "resourceScheme == file && activeCustomEditorId != 'cmsis-csolution.configWizard'"
         },
         {
           "command": "cmsis-csolution.showConfigWizardSource",
@@ -1277,14 +1277,14 @@
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "1_open",
-          "when": "(resourceLangId == cpp || resourceLangId == c || resourceFilename =~ /\\.dbgconf/) && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+          "when": "resourceScheme == file && activeCustomEditorId != 'cmsis-csolution.configWizard'"
         }
       ],
       "editor/context": [
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "1_open",
-          "when": "(resourceLangId == cpp || resourceLangId == c || resourceFilename =~ /\\.dbgconf/) && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+          "when": "resourceScheme == file && activeCustomEditorId != 'cmsis-csolution.configWizard'"
         }
       ]
     },
@@ -1294,13 +1294,7 @@
         "displayName": "Configuration Wizard",
         "selector": [
           {
-            "filenamePattern": "*.h"
-          },
-          {
-            "filenamePattern": "*.c"
-          },
-          {
-            "filenamePattern": "*.dbgconf"
+            "filenamePattern": "*"
           }
         ],
         "priority": "option"

@@ -1,5 +1,7 @@
 # Change Log
 
+## 1.67.2
+
 - Updates:
   - The `Help` entry in the **Views and More Actions...** menu of the [**CMSIS-View**](https://mdk-packs.github.io/vscode-cmsis-solution-docs/debug.html#cmsis-view) now opens the Keil Studio offline documentation from the Keil Studio Pack extension (v2.12.2 or later). If not available, the extension's README.md is shown instead.
   - The loading time of a CMSIS project has been decreased by decoupling the process to build the compile_commands.json database. The build button turns into a "Stop" button while the process is running. The **clangd** extension starts indexing once the compile_commands.json files are ready.
@@ -13,6 +15,11 @@
 - Solved issues:
   - **Software Components**: Software Packs view shows packs that are selected but could not be installed, and allows you to correct the pack selection via the 'Manage Pack' dialog.
   - **CMSIS View** does not allow to remove files from a project layer.
+
+## 1.67.1
+
+- Updates:
+  - Reference Open-CMSIS-Pack organization for repository, issues and images
 
 ## 1.67.0
 
@@ -28,8 +35,7 @@
   - **CMSIS View** does not load and display CMSIS Solution files without `projects:` node which is the case for debug only setups.
   - **Software Components** does not reliably open the initial view for the selected layer.
   - **Manage Solution** dialog target-type handling breaks in case the corresponding node is changed in `*.csolution.yml` on disk.
-  - `uVision option` in Debug Adapter for Keil uVision stores absolute filepath.
-  
+  - `uVision option` in Debug Adapter for Keil uVision stores absolute filepath.  
 
 ## 1.66.0
 

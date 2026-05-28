@@ -1,5 +1,5 @@
 /**
- * Copyright 2026 Arm Limited
+ * Copyright 2023-2026 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,10 +12,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-
-/*
- * Copyright (C) 2023-2026 Arm Limited
  */
 
 import { CwItem } from './cw-item';
@@ -103,7 +99,7 @@ export class CwComment extends CwItem {
         const linesStart = this.commentStartAfterLineNo + 1;
         const linesEnd = this.lineNoEnd;
 
-        const val = new RwValue(linesStart, linesEnd, this.offset.val, lines, ValueType.comment);
+        const val = new RwValue(linesStart, linesEnd, this.offset.val, lines, ValueType.comment, undefined, this.lineCommentPrefix);
 
         const numVal = val.value;
         let commentState = false;
@@ -137,7 +133,7 @@ export class CwComment extends CwItem {
 
         const linesStart = this.commentStartAfterLineNo + 1;
         const linesEnd = this.lineNoEnd;
-        const rwVal = new RwValue(linesStart, linesEnd, this.offset.val, lines, ValueType.comment);
+        const rwVal = new RwValue(linesStart, linesEnd, this.offset.val, lines, ValueType.comment, undefined, this.lineCommentPrefix);
 
         const curVal = rwVal.value;
         let newState = false;
@@ -151,7 +147,7 @@ export class CwComment extends CwItem {
             return false;
         }
 
-        const editText = newState ? '//' : '';
+        const editText = newState ? this.lineCommentPrefix : '';
 
         const multiEditArr = rwVal.multiEdit;   // Change text to modify
         multiEditArr.forEach(multiEdit => multiEdit.text = editText);

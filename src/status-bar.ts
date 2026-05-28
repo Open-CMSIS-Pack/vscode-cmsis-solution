@@ -80,7 +80,16 @@ export class StatusBar {
     protected updateContext(contextItem: vscode.StatusBarItem): void {
         if (this.cbuildSetupStatus !== ECbuildSetupStatus.Idle) {
             const csolution = this.solutionManager.getCsolution();
-            const activeTargetType = csolution?.getActiveTargetSetName() ?? csolution?.getActiveTargetType();
+            if (!csolution) {
+                // can happen when closing solution being converted/built
+                // solution is already unloaded
+                contextItem.text = '';
+                contextItem.tooltip = '';
+                contextItem.hide();
+                return;
+            }
+
+            const activeTargetType = csolution.getActiveTargetSetName() ?? csolution.getActiveTargetType();
             if (activeTargetType) {
                 contextItem.text = `${this.statusBarItemIcon} ${activeTargetType}`;
                 contextItem.show();

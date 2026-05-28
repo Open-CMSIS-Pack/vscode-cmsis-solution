@@ -34,6 +34,8 @@ export const csolutionServiceFactory = makeFactory<
     listMissingPacks: () => jest.fn(),
     getCsolutionBin: () => jest.fn(),
     waitForExit: () => jest.fn(),
+    suspendPackIdxWatcher: () => jest.fn(),
+    resumePackIdxWatcher: () => jest.fn(),
     selectPack: () => jest.fn(),
     getVariables: () => jest.fn(),
 });

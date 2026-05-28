@@ -1,5 +1,5 @@
 /**
- * Copyright 2026 Arm Limited
+ * Copyright 2023-2026 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,10 +12,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-
-/*
- * Copyright (C) 2023-2026 Arm Limited
  */
 
 import { CwItem } from './cw-item';
@@ -122,7 +118,7 @@ export class CwString extends CwItem {
     }
 
     public getGuiValue(lines: string[]): GuiValue {
-        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.text);
+        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.text, undefined, this.lineCommentPrefix);
 
         return val.getGuiValue();
     }

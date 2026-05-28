@@ -1,3 +1,4 @@
+[![Releases](https://img.shields.io/github/v/tag/Open-CMSIS-Pack/vscode-cmsis-solution.svg?sort=semver&label=Release)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/releases)
 [![License Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-green?label=LICENSE)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/blob/main/LICENSE)
 [![Maintainability](https://qlty.sh/badges/b5c6c01e-12d2-4093-8f01-3d511c17bdd5/maintainability.png)](https://qlty.sh/gh/Open-CMSIS-Pack/projects/vscode-cmsis-solution)
 [![Code Coverage](https://qlty.sh/badges/b5c6c01e-12d2-4093-8f01-3d511c17bdd5/coverage.png)](https://qlty.sh/gh/Open-CMSIS-Pack/projects/vscode-cmsis-solution)

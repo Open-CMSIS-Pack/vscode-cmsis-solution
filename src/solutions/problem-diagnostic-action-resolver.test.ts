@@ -16,7 +16,7 @@
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import * as vscode from 'vscode';
-import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
+import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, OPEN_ENV_VAR_SETTINGS_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
 import { ProblemDiagnosticActionResolver, ProblemDiagnosticActionContext } from './problem-diagnostic-action-resolver';
 
 const diagnosticFilePath = '/work/app.csolution.yml';
@@ -280,6 +280,39 @@ describe('ProblemDiagnosticActionResolver', () => {
 
             expect(result?.message).toBeUndefined();
             expect(result?.code).toBeDefined();
+        });
+    });
+
+    describe('environment variables settings action', () => {
+        it('creates configure environment variables action for missing environment variable', () => {
+            const { code, command, args } = decodeCodeTarget(resolver, makeContext({
+                message: 'missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"',
+                hasLocation: true,
+            }));
+
+            expect(code?.value).toBe('Configure Environment Variables');
+            expect(command).toBe(`command:${OPEN_ENV_VAR_SETTINGS_COMMAND_ID}`);
+            expect(args).toEqual(['cmsis-csolution.environmentVariables']);
+        });
+
+        it('creates configure environment variables action for non-existent environment variable directory', () => {
+            const { code, command, args } = decodeCodeTarget(resolver, makeContext({
+                message: 'ZEPHYR_BASE environment variable specifies non-existent directory: C:/zephyr/base; review "cmsis-csolution.environmentVariables"',
+            }));
+
+            expect(code?.value).toBe('Configure Environment Variables');
+            expect(command).toBe(`command:${OPEN_ENV_VAR_SETTINGS_COMMAND_ID}`);
+            expect(args).toEqual(['cmsis-csolution.environmentVariables']);
+        });
+
+        it('creates configure environment variables action for missing west executable', () => {
+            const { code, command, args } = decodeCodeTarget(resolver, makeContext({
+                message: 'exec: "west": executable file not found in $PATH; review "cmsis-csolution.environmentVariables"',
+            }));
+
+            expect(code?.value).toBe('Configure Environment Variables');
+            expect(command).toBe(`command:${OPEN_ENV_VAR_SETTINGS_COMMAND_ID}`);
+            expect(args).toEqual(['cmsis-csolution.environmentVariables']);
         });
     });
 });

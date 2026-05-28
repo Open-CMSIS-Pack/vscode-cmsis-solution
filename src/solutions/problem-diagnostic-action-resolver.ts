@@ -16,7 +16,14 @@
 
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
+import {
+    CONFIG_ENVIRONMENT_VARIABLES,
+    MANAGE_COMPONENTS_PACKS_COMMAND_ID,
+    MERGE_FILE_COMMAND_ID,
+    OPEN_ENV_VAR_SETTINGS_COMMAND_ID,
+    PACKAGE_NAME,
+    RUN_GENERATOR_COMMAND_ID,
+} from '../manifest';
 import { stripVendor, stripVersion } from '../utils/string-utils';
 
 
@@ -47,7 +54,15 @@ type ProblemActionDescriptor =
     | { kind: 'merge'; localPath: string; updateLevel: MergeUpdateLevel; componentId?: string }
     | { kind: 'run-generator'; generator: string; context: string }
     | { kind: 'manage-components'; query: string }
+    | { kind: 'open-environment-variables-settings' }
     | { kind: 'find-in-files'; query: string };
+
+const envVarSettingName = `${PACKAGE_NAME}.${CONFIG_ENVIRONMENT_VARIABLES}`;
+const envVarActionPatterns: readonly RegExp[] = [
+    /^missing [A-Za-z_][A-Za-z0-9_]* environment variable(?:; review "cmsis-csolution\.environmentVariables")?$/,
+    /^[A-Za-z_][A-Za-z0-9_]* environment variable specifies non-existent directory: .+(?:; review "cmsis-csolution\.environmentVariables")?$/,
+    /^exec: "west": executable file not found in .+(?:; review "cmsis-csolution\.environmentVariables")?$/,
+];
 
 const mergeMessagePatterns = [
     {
@@ -85,6 +100,7 @@ export class ProblemDiagnosticActionResolver {
         return this.resolveMergeAction(context)
             ?? this.resolveGeneratorMissingAction(context)
             ?? this.resolveManageComponentsAction(context)
+            ?? this.resolveEnvVarSettingsAction(context)
             ?? this.resolveGenericSearchAction(context);
     }
 
@@ -115,6 +131,15 @@ export class ProblemDiagnosticActionResolver {
                 code: {
                     value: 'Manage Components',
                     target: vscode.Uri.parse(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}?${args}`),
+                },
+            };
+        }
+
+        if (descriptor.kind === 'open-environment-variables-settings') {
+            return {
+                code: {
+                    value: 'Configure Environment Variables',
+                    target: this.createOpenEnvVarSettingsCommandUri(),
                 },
             };
         }
@@ -174,6 +199,18 @@ export class ProblemDiagnosticActionResolver {
         return {
             kind: 'manage-components',
             query: queryAction.query,
+        };
+    }
+
+    private resolveEnvVarSettingsAction(context: ProblemDiagnosticActionContext): ProblemActionDescriptor | undefined {
+        const normalizedMessage = this.normalizeMessageForPatternMatching(context.message);
+        const hasEnvironmentMessage = envVarActionPatterns.some(pattern => pattern.test(normalizedMessage));
+        if (!hasEnvironmentMessage) {
+            return undefined;
+        }
+
+        return {
+            kind: 'open-environment-variables-settings',
         };
     }
 
@@ -263,6 +300,11 @@ export class ProblemDiagnosticActionResolver {
     private createRunGeneratorCommandUri(generator: string, context: string): vscode.Uri {
         const args = this.encodeCommandArgs([{ generator, context }]);
         return vscode.Uri.parse(`command:${RUN_GENERATOR_COMMAND_ID}?${args}`);
+    }
+
+    private createOpenEnvVarSettingsCommandUri(): vscode.Uri {
+        const args = this.encodeCommandArgs([envVarSettingName]);
+        return vscode.Uri.parse(`command:${OPEN_ENV_VAR_SETTINGS_COMMAND_ID}?${args}`);
     }
 
     private isAbsoluteFilePath(filePath: string): boolean {

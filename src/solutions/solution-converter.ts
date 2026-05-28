@@ -115,6 +115,7 @@ export class SolutionConverterImpl implements SolutionConverter {
 
         outputChannel.appendLine('\n⚙️ Converting solution...');
         let missingPacksResult = undefined;
+        let downloadedMissingPacks = false;
         if (this.isDownloadPacksEnabled()) {
             // rpc method: ListMissingPacks
             outputChannel.append('Check for missing packs... ');
@@ -127,13 +128,25 @@ export class SolutionConverterImpl implements SolutionConverter {
             ) as rpc.ListMissingPacksResult;
             if (missingPacksResult.success && missingPacksResult.packs && missingPacksResult.packs.length > 0) {
                 // download missing packs if any
-                const downloadPacksOutput = await this.downloadMissingPacks(missingPacksResult.packs);
-                toolsOutputMessages = toolsOutputMessages.concat(downloadPacksOutput);
-                missingPacksResult.success = downloadPacksOutput.length === 0;
+                this.cmsisToolboxManager.suspendPackReload();
+                try {
+                    const downloadPacksOutput = await this.downloadMissingPacks(missingPacksResult.packs);
+                    toolsOutputMessages = toolsOutputMessages.concat(downloadPacksOutput);
+                    missingPacksResult.success = downloadPacksOutput.length === 0;
+                    downloadedMissingPacks = missingPacksResult.success;
+                } finally {
+                    // Converter explicitly calls LoadPacks below on successful downloads.
+                    this.cmsisToolboxManager.resumePackReload(true);
+                }
             }
         }
         if (signal.aborted) {
             return;
+        }
+
+        if (downloadedMissingPacks) {
+            outputChannel.append('Loading packs... ');
+            await this.cmsisToolboxManager.runCsolutionRpc('LoadPacks', {});
         }
 
         let detection = false;

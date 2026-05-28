@@ -1,5 +1,5 @@
 /**
- * Copyright 2026 Arm Limited
+ * Copyright 2023-2026 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-/*
- * Copyright (C) 2023-2026 Arm Limited
- */
-
 import { TextType } from './text-type';
 import { AddText } from './cw-utils';
 import { Token } from './tokenizer';
@@ -28,6 +24,7 @@ import { CwInfo } from './cw-info';
 import { CwDefault } from './cw-default';
 import { CwFormat } from './cw-format';
 import { LogErr } from './error';
+import { ConfwizLineCommentPrefix, DEFAULT_LINE_COMMENT_PREFIX } from './comment-style';
 
 //https://open-cmsis-pack.github.io/Open-CMSIS-Pack-Spec/main/html/configWizard.html
 export type ConfwizTypes =  'none' |
@@ -57,6 +54,7 @@ export class CwItem {
     private readonly _infos: CwInfo[] = [];
     private readonly _defaults: CwDefault[] = [];
     private _format?: CwFormat;
+    private _lineCommentPrefix: ConfwizLineCommentPrefix = DEFAULT_LINE_COMMENT_PREFIX;
 
     private _parent?: CwItem;
     private  readonly _children: CwItem[] = [];
@@ -64,8 +62,16 @@ export class CwItem {
     constructor(parent?: CwItem) {
         if (parent instanceof CwItem) {
             this._parent = parent;
+            this._lineCommentPrefix = parent.lineCommentPrefix;
             parent.addChild(this);
         }
+    }
+
+    public get lineCommentPrefix(): ConfwizLineCommentPrefix {
+        return this._lineCommentPrefix;
+    }
+    public set lineCommentPrefix(prefix: ConfwizLineCommentPrefix) {
+        this._lineCommentPrefix = prefix;
     }
 
     public addInfo(item: CwInfo) {
@@ -157,7 +163,7 @@ export class CwItem {
     }
 
     public getGuiValue(lines: string[]): GuiValue {
-        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.number);
+        const val = new RwValue(this.lineNo, this.lineNoEnd, this.offset.val, lines, ValueType.number, undefined, this.lineCommentPrefix);
 
         const v = val.value;
         if (v === undefined) {

@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ExtensionContext } from 'vscode';
-import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
+import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, OPEN_ENV_VAR_SETTINGS_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
 import * as fsUtils from '../utils/fs-utils';
 import * as vscodeUtils from '../utils/vscode-utils';
 import { solutionManagerFactory, MockSolutionManager } from './solution-manager.factories';
@@ -382,6 +382,36 @@ describe('SolutionProblems', () => {
         expect(diagnostic?.message).toBe("component 'Arm::Device@2.3.4' is missing");
         expect(code.value).toBe('Find in Files');
         expect(code.target.toString()).toContain('command:workbench.action.findInFiles');
+    });
+
+    it.each([
+        'missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"',
+        'ZEPHYR_BASE environment variable specifies non-existent directory: C:/zephyr/base; review "cmsis-csolution.environmentVariables"',
+        'exec: "west": executable file not found in $PATH; review "cmsis-csolution.environmentVariables"',
+    ])('creates configure environment variables command link for "%s" diagnostics', async message => {
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+        await eventHub.fireConvertCompleted({
+            success: false,
+            severity: 'error',
+            detection: false,
+            logMessages: {
+                success: false,
+                errors: [`mylayer.clayer.yml:10:2 - ${message}`],
+                warnings: [],
+                info: [],
+            },
+        });
+        await waitTimeout();
+
+        const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+        const code = diagnostics?.[0].code as { value: string; target: vscode.Uri };
+        const [command, args] = code.target.toString().split('?');
+
+        expect(code.value).toBe('Configure Environment Variables');
+        expect(command).toBe(`command:${OPEN_ENV_VAR_SETTINGS_COMMAND_ID}`);
+        expect(JSON.parse(decodeURIComponent(args))).toEqual(['cmsis-csolution.environmentVariables']);
     });
 
     describe('handleCbuildCompleted', () => {

@@ -84,6 +84,7 @@ import { BuildStopCommand } from '../tasks/build/build-stop-command';
 import { ComponentsPacksWebviewMain } from '../views/manage-components-packs/components-packs-webview-main';
 import { SolutionConverterImpl } from '../solutions/solution-converter';
 import { SolutionProblemsImpl } from '../solutions/solution-problems';
+import { EnvironmentVariablesSettingsCommand } from '../solutions/env-var-settings-command';
 import { EnvironmentManager } from './env-manager';
 import { ExtensionApiWrapper } from '../vscode-api/extension-api-wrapper';
 import { SerialMonitorApi, Version } from '@microsoft/vscode-serial-monitor-api';
@@ -181,6 +182,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     );
 
     const solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub);
+    const environmentVariablesSettingsCommand = new EnvironmentVariablesSettingsCommand(commandsProvider);
     const themeProvider = new ThemeProviderImpl();
     const statusBar = new StatusBar(solutionManager, cmsisToolboxManager, themeProvider);
     const componentsManager = new ComponentsPacksWebviewMain(solutionManager, csolutionService, context, messageProvider, commandsProvider, externalFileOpener);
@@ -268,6 +270,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         solutionConverterImpl.activate(context),
         compileCommandsGenerator.activate(context),
         solutionProblems.activate(context),
+        environmentVariablesSettingsCommand.activate(context),
         clangdManager.activate(context),
         componentsManager.activate(context),
         createSolution.activate(context),

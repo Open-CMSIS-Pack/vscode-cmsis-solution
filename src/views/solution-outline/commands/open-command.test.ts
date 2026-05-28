@@ -248,56 +248,78 @@ describe('OpenCommand', () => {
         expect(mockTerminal.show).toHaveBeenCalled();
     });
 
-    it('opens candidate source file in configuration wizard when annotations are found', async () => {
-        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
-        await openCommand.activate(extensionContextFactory());
-        (mockAnnotationChecker.hasAnnotations as jest.Mock).mockResolvedValue(true);
+    describe('openSourceFileSmart', () => {
+        describe('annotation-driven routing', () => {
+            it('opens file in configuration wizard when annotations are found', async () => {
+                const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+                await openCommand.activate(extensionContextFactory());
+                (mockAnnotationChecker.hasAnnotations as jest.Mock).mockResolvedValue(true);
 
-        const uri = Uri.file(path.join(testFolder, 'config.h'));
-        await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
+                const uri = Uri.file(path.join(testFolder, 'config.h'));
+                await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
 
-        const lastCall = commandsProvider.executeCommand.mock.lastCall;
-        expect(lastCall?.[0]).toBe('vscode.openWith');
-        expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
-        expect(lastCall?.[2]).toBe('cmsis-csolution.configWizard');
-    });
+                const lastCall = commandsProvider.executeCommand.mock.lastCall;
+                expect(lastCall?.[0]).toBe('vscode.openWith');
+                expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+                expect(lastCall?.[2]).toBe('cmsis-csolution.configWizard');
+            });
 
-    it('opens candidate source file in text editor when annotations are missing', async () => {
-        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
-        await openCommand.activate(extensionContextFactory());
-        (mockAnnotationChecker.hasAnnotations as jest.Mock).mockResolvedValue(false);
+            it('opens file in text editor when annotations are missing', async () => {
+                const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+                await openCommand.activate(extensionContextFactory());
+                (mockAnnotationChecker.hasAnnotations as jest.Mock).mockResolvedValue(false);
 
-        const uri = Uri.file(path.join(testFolder, 'config.h'));
-        await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
+                const uri = Uri.file(path.join(testFolder, 'config.h'));
+                await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
 
-        const lastCall = commandsProvider.executeCommand.mock.lastCall;
-        expect(lastCall?.[0]).toBe('vscode.open');
-        expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
-    });
+                const lastCall = commandsProvider.executeCommand.mock.lastCall;
+                expect(lastCall?.[0]).toBe('vscode.open');
+                expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+            });
 
-    it('falls back to text editor when annotation detection fails', async () => {
-        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
-        await openCommand.activate(extensionContextFactory());
-        (mockAnnotationChecker.hasAnnotations as jest.Mock).mockRejectedValue(new Error('parse failure'));
+            it('falls back to text editor when annotation detection fails', async () => {
+                const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+                await openCommand.activate(extensionContextFactory());
+                (mockAnnotationChecker.hasAnnotations as jest.Mock).mockRejectedValue(new Error('parse failure'));
 
-        const uri = Uri.file(path.join(testFolder, 'config.h'));
-        await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
+                const uri = Uri.file(path.join(testFolder, 'config.h'));
+                await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
 
-        const lastCall = commandsProvider.executeCommand.mock.lastCall;
-        expect(lastCall?.[0]).toBe('vscode.open');
-        expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
-    });
+                const lastCall = commandsProvider.executeCommand.mock.lastCall;
+                expect(lastCall?.[0]).toBe('vscode.open');
+                expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+            });
+        });
 
-    it('opens non-candidate source file in text editor without annotation checks', async () => {
-        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
-        await openCommand.activate(extensionContextFactory());
+        describe('file type handling', () => {
+            it('checks annotations for custom file types and opens in text editor when no annotations exist', async () => {
+                const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+                await openCommand.activate(extensionContextFactory());
+                (mockAnnotationChecker.hasAnnotations as jest.Mock).mockResolvedValue(false);
 
-        const uri = Uri.file(path.join(testFolder, 'build.txt'));
-        await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
+                const uri = Uri.file(path.join(testFolder, 'build.txt'));
+                await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
 
-        expect(mockAnnotationChecker.hasAnnotations).not.toHaveBeenCalled();
-        const lastCall = commandsProvider.executeCommand.mock.lastCall;
-        expect(lastCall?.[0]).toBe('vscode.open');
-        expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+                expect(mockAnnotationChecker.hasAnnotations).toHaveBeenCalledWith(uri.fsPath);
+                const lastCall = commandsProvider.executeCommand.mock.lastCall;
+                expect(lastCall?.[0]).toBe('vscode.open');
+                expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+            });
+
+            it('opens custom file types in configuration wizard when annotations exist', async () => {
+                const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+                await openCommand.activate(extensionContextFactory());
+                (mockAnnotationChecker.hasAnnotations as jest.Mock).mockResolvedValue(true);
+
+                const uri = Uri.file(path.join(testFolder, 'custom.cfg'));
+                await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
+
+                expect(mockAnnotationChecker.hasAnnotations).toHaveBeenCalledWith(uri.fsPath);
+                const lastCall = commandsProvider.executeCommand.mock.lastCall;
+                expect(lastCall?.[0]).toBe('vscode.openWith');
+                expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+                expect(lastCall?.[2]).toBe('cmsis-csolution.configWizard');
+            });
+        });
     });
 });

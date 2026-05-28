@@ -82,4 +82,36 @@ describe('configWizardAnnotationChecker', () => {
 
         await expect(configWizardAnnotationChecker.hasAnnotations(filePath)).resolves.toBe(true);
     });
+
+    describe('semicolon marker support', () => {
+        it('returns true when semicolon marker is within first 100 lines', async () => {
+            const filePath = path.join(testFolder, 'semicolon-within-100.s');
+            const lines = Array.from({ length: 99 }, () => '; bootstrap');
+            lines.push('; <<< Use Configuration Wizard in Context Menu >>>');
+            writeTextFile(filePath, lines.join('\n'));
+
+            await expect(configWizardAnnotationChecker.hasAnnotations(filePath)).resolves.toBe(true);
+        });
+
+        it('returns true for decorated semicolon marker lines', async () => {
+            const filePath = path.join(testFolder, 'decorated-semicolon-marker.s');
+            const lines = [
+                '; file header',
+                ';-------- <<< Use Configuration Wizard in Context Menu >>> --------------------',
+                'AREA RESET, CODE, READONLY'
+            ];
+            writeTextFile(filePath, lines.join('\n'));
+
+            await expect(configWizardAnnotationChecker.hasAnnotations(filePath)).resolves.toBe(true);
+        });
+
+        it('returns false when semicolon marker appears after first 100 lines', async () => {
+            const filePath = path.join(testFolder, 'semicolon-after-100.s');
+            const lines = Array.from({ length: 100 }, () => '; warmup');
+            lines.push('; <<< Use Configuration Wizard in Context Menu >>>');
+            writeTextFile(filePath, lines.join('\n'));
+
+            await expect(configWizardAnnotationChecker.hasAnnotations(filePath)).resolves.toBe(false);
+        });
+    });
 });
