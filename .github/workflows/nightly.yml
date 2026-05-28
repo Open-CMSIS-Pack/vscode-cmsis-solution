@@ -279,7 +279,9 @@ jobs:
         run: armlm activate --server https://mdk-preview.keil.arm.com --product KEMDK-COM0
 
       - name: Install Playwright
-        run: npx playwright install --with-deps
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: '180000'
+        run: npx playwright install chromium
 
       - name: Run Playwright tests
         id: tests

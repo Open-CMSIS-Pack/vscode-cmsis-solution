@@ -1,4 +1,4 @@
-name: CodeQL
+name: Security Scans
 
 on:
   push:
@@ -56,3 +56,19 @@ jobs:
       - name: Perform CodeQL Analysis
         id: analyze
         uses: github/codeql-action/analyze@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
+
+  osv-scan:
+    permissions:
+      actions: read
+      checks: write
+      contents: read
+      security-events: write
+      packages: read
+    if: ${{ github.event_name == 'pull_request' }}
+    name: Scan PR with OSV Scanner
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@3adb4b14a2b0623876d18d863a498b785fb3752d #v2.3.8
+    with:
+      scan-args: |-
+        --recursive
+        --skip-git
+        ./
