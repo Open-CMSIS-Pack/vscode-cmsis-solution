@@ -39,6 +39,7 @@ describe('ConfigWizardFilesContextService', () => {
     const plainUri = URI.file(`${workspacePath}/plain.txt`);
     const changedUri = URI.file(`${workspacePath}/startup.s`);
     const refreshedUri = URI.file(`${workspacePath}/scatter.sct`);
+    const excludedChangedUri = URI.file(`${workspacePath}/generated/excluded.h`);
     const annotatedPath = path.resolve(annotatedUri.fsPath);
     const changedPath = path.resolve(changedUri.fsPath);
     const refreshedPath = path.resolve(refreshedUri.fsPath);
@@ -114,6 +115,42 @@ describe('ConfigWizardFilesContextService', () => {
             expect(contextValue).toEqual({ [changedPath]: true });
         });
 
+        it('keeps a changed annotated file when a full refresh finishes afterwards', async () => {
+            let resolveInitialScan: (() => void) | undefined;
+            const initialScanBlocked = new Promise<void>(resolve => {
+                resolveInitialScan = resolve;
+            });
+
+            workspaceFoldersProvider.findFiles.mockResolvedValue([annotatedUri]);
+            annotationChecker.hasAnnotations.mockImplementation(async filePath => {
+                if (filePath === annotatedUri.fsPath) {
+                    await initialScanBlocked;
+                    return true;
+                }
+
+                return filePath === changedUri.fsPath;
+            });
+
+            service.activate(context as never);
+            await waitForCondition(
+                async () => workspaceFoldersProvider.findFiles.mock.calls.length === 1,
+                'initial file scan to start',
+                200,
+            );
+
+            fileWatcherProvider.mockFireEvent('**/*', changedUri.fsPath, 'change');
+            resolveInitialScan?.();
+
+            const contextValue = await waitForContextValue(commandsProvider, value =>
+                value[annotatedPath] === true && value[changedPath] === true,
+            );
+
+            expect(contextValue).toEqual({
+                [annotatedPath]: true,
+                [changedPath]: true,
+            });
+        });
+
         it('removes a deleted annotated file from the preview context', async () => {
             workspaceFoldersProvider.findFiles.mockResolvedValue([annotatedUri]);
             annotationChecker.hasAnnotations.mockResolvedValue(true);
@@ -128,6 +165,28 @@ describe('ConfigWizardFilesContextService', () => {
             const contextValue = await waitForContextValue(commandsProvider, value => Object.keys(value).length === 0);
 
             expect(contextValue).toEqual({});
+        });
+
+        it('does not re-add an excluded changed file to the preview context', async () => {
+            workspaceFoldersProvider.findFiles.mockResolvedValue([]);
+            configurationProvider.getConfigVariable.mockImplementation(name =>
+                name === manifest.CONFIG_EXCLUDE ? '**/generated/**' : undefined,
+            );
+            annotationChecker.hasAnnotations.mockResolvedValue(true);
+
+            service.activate(context as never);
+            await waitForCondition(
+                async () => workspaceFoldersProvider.findFiles.mock.calls.length === 1,
+                'initial file scan to complete',
+                200,
+            );
+
+            commandsProvider.executeCommand.mockClear();
+            fileWatcherProvider.mockFireEvent('**/*', excludedChangedUri.fsPath, 'change');
+            await waitTimeout(0);
+
+            expect(annotationChecker.hasAnnotations).not.toHaveBeenCalledWith(excludedChangedUri.fsPath);
+            expect(getLatestContextValue(commandsProvider)).toBeUndefined();
         });
     });
 

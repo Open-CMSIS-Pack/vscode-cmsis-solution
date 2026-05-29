@@ -27,6 +27,7 @@ import type { WorkspaceFoldersProvider } from '../../vscode-api/workspace-folder
 export class ConfigWizardFilesContextService {
     public static readonly contextKey = `${manifest.PACKAGE_NAME}.configWizardFiles`;
     private static readonly globPattern = '**/*';
+    private static readonly annotationCheckBatchSize = 32;
     private static readonly excludedPathSegments = new Set([
         'node_modules',
         '.git',
@@ -40,6 +41,7 @@ export class ConfigWizardFilesContextService {
     private readonly debouncedRefreshPending: () => void;
     private annotatedFiles = new Set<string>();
     private readonly pendingPaths = new Set<string>();
+    private refreshSequence: Promise<void> = Promise.resolve();
 
     public constructor(
         private readonly commandsProvider: CommandsProvider,
@@ -80,7 +82,7 @@ export class ConfigWizardFilesContextService {
     }
 
     private handlePathChanged(fsPath: string): void {
-        if (!this.workspaceFoldersProvider.getWorkspaceFolder(fsPath) || this.isExcludedPath(fsPath)) {
+        if (this.isExcludedFromTracking(fsPath)) {
             return;
         }
 
@@ -98,36 +100,60 @@ export class ConfigWizardFilesContextService {
     }
 
     private async refreshAll(): Promise<void> {
-        const uris = await this.workspaceFoldersProvider.findFiles(
-            ConfigWizardFilesContextService.globPattern,
-            this.getExcludeGlob(),
-        );
+        return this.enqueueRefresh(async () => {
+            const uris = await this.workspaceFoldersProvider.findFiles(
+                ConfigWizardFilesContextService.globPattern,
+                this.getExcludeGlob(),
+            );
 
-        const annotatedFiles = await Promise.all(uris.map(async uri => {
-            if (await this.hasAnnotations(uri.fsPath)) {
-                return path.resolve(uri.fsPath);
-            }
-
-            return undefined;
-        }));
-
-        this.annotatedFiles = new Set(annotatedFiles.filter((filePath): filePath is string => !!filePath));
-        this.updateContext();
+            const annotatedFiles = await this.findAnnotatedPaths(uris.map(uri => uri.fsPath));
+            this.annotatedFiles = new Set(annotatedFiles);
+            this.updateContext();
+        });
     }
 
     private async refreshPendingPaths(): Promise<void> {
-        const paths = [...this.pendingPaths];
-        this.pendingPaths.clear();
+        return this.enqueueRefresh(async () => {
+            const paths = [...this.pendingPaths];
+            this.pendingPaths.clear();
 
-        await Promise.all(paths.map(async fsPath => {
-            if (await this.hasAnnotations(fsPath)) {
-                this.annotatedFiles.add(fsPath);
-            } else {
-                this.annotatedFiles.delete(fsPath);
+            const annotatedPaths = new Set(await this.findAnnotatedPaths(paths));
+
+            for (const fsPath of paths) {
+                if (annotatedPaths.has(fsPath)) {
+                    this.annotatedFiles.add(fsPath);
+                } else {
+                    this.annotatedFiles.delete(fsPath);
+                }
             }
-        }));
 
-        this.updateContext();
+            this.updateContext();
+        });
+    }
+
+    private enqueueRefresh(refreshAction: () => Promise<void>): Promise<void> {
+        const queuedRefresh = this.refreshSequence.then(refreshAction, refreshAction);
+        this.refreshSequence = queuedRefresh.then(() => undefined, () => undefined);
+        return queuedRefresh;
+    }
+
+    private async findAnnotatedPaths(fsPaths: string[]): Promise<string[]> {
+        const annotatedPaths: string[] = [];
+
+        for (let index = 0; index < fsPaths.length; index += ConfigWizardFilesContextService.annotationCheckBatchSize) {
+            const batch = fsPaths.slice(index, index + ConfigWizardFilesContextService.annotationCheckBatchSize);
+            const batchResults = await Promise.all(batch.map(async fsPath => {
+                if (await this.hasAnnotations(fsPath)) {
+                    return path.resolve(fsPath);
+                }
+
+                return undefined;
+            }));
+
+            annotatedPaths.push(...batchResults.filter((filePath): filePath is string => !!filePath));
+        }
+
+        return annotatedPaths;
     }
 
     private async hasAnnotations(fsPath: string): Promise<boolean> {
@@ -164,5 +190,21 @@ export class ConfigWizardFilesContextService {
     private isExcludedPath(fsPath: string): boolean {
         const pathSegments = path.resolve(fsPath).split(path.sep);
         return pathSegments.some(segment => ConfigWizardFilesContextService.excludedPathSegments.has(segment));
+    }
+
+    private isExcludedFromTracking(fsPath: string): boolean {
+        const workspaceFolder = this.workspaceFoldersProvider.getWorkspaceFolder(fsPath);
+
+        if (!workspaceFolder || this.isExcludedPath(fsPath)) {
+            return true;
+        }
+
+        const configuredExclude = this.configurationProvider.getConfigVariable<string>(manifest.CONFIG_EXCLUDE);
+        if (!configuredExclude) {
+            return false;
+        }
+
+        const relativePath = path.relative(workspaceFolder.uri.fsPath, path.resolve(fsPath)).replaceAll('\\', '/');
+        return path.matchesGlob(relativePath, configuredExclude);
     }
 }
