@@ -24,6 +24,11 @@ import type { ConfigurationProvider } from '../../vscode-api/configuration-provi
 import type { FileWatcherProvider } from '../../vscode-api/file-watcher-provider';
 import type { WorkspaceFoldersProvider } from '../../vscode-api/workspace-folders-provider';
 
+interface ExclusionPolicy {
+    readonly excludeGlob: string | undefined;
+    shouldExcludeFromTracking(fsPath: string): boolean;
+}
+
 export class ConfigWizardFilesContextService {
     public static readonly contextKey = `${manifest.PACKAGE_NAME}.configWizardFiles`;
     private static readonly globPattern = '**/*';
@@ -82,7 +87,8 @@ export class ConfigWizardFilesContextService {
     }
 
     private handlePathChanged(fsPath: string): void {
-        if (this.isExcludedFromTracking(fsPath)) {
+        const exclusionPolicy = this.createExclusionPolicy();
+        if (exclusionPolicy.shouldExcludeFromTracking(fsPath)) {
             return;
         }
 
@@ -101,9 +107,10 @@ export class ConfigWizardFilesContextService {
 
     private async refreshAll(): Promise<void> {
         return this.enqueueRefresh(async () => {
+            const exclusionPolicy = this.createExclusionPolicy();
             const uris = await this.workspaceFoldersProvider.findFiles(
                 ConfigWizardFilesContextService.globPattern,
-                this.getExcludeGlob(),
+                exclusionPolicy.excludeGlob,
             );
 
             const annotatedFiles = await this.findAnnotatedPaths(uris.map(uri => uri.fsPath));
@@ -174,7 +181,7 @@ export class ConfigWizardFilesContextService {
         void this.commandsProvider.executeCommand('setContext', ConfigWizardFilesContextService.contextKey, contextValue);
     }
 
-    private getExcludeGlob(): string | undefined {
+    private createExclusionPolicy(): ExclusionPolicy {
         const configuredExclude = this.configurationProvider.getConfigVariable<string>(manifest.CONFIG_EXCLUDE);
         const excludePatterns = [...ConfigWizardFilesContextService.excludedPathSegments].map(
             segment => `**/${segment}/**`,
@@ -184,27 +191,28 @@ export class ConfigWizardFilesContextService {
             excludePatterns.push(configuredExclude);
         }
 
-        return excludePatterns.length > 0 ? `{${excludePatterns.join(',')}}` : undefined;
+        return {
+            excludeGlob: excludePatterns.length > 0 ? `{${excludePatterns.join(',')}}` : undefined,
+            shouldExcludeFromTracking: fsPath => {
+                const resolvedPath = path.resolve(fsPath);
+                const workspaceFolder = this.workspaceFoldersProvider.getWorkspaceFolder(resolvedPath);
+
+                if (!workspaceFolder || this.isExcludedPath(resolvedPath)) {
+                    return true;
+                }
+
+                if (!configuredExclude) {
+                    return false;
+                }
+
+                const relativePath = path.relative(workspaceFolder.uri.fsPath, resolvedPath).replaceAll('\\', '/');
+                return path.matchesGlob(relativePath, configuredExclude);
+            },
+        };
     }
 
     private isExcludedPath(fsPath: string): boolean {
         const pathSegments = path.resolve(fsPath).split(path.sep);
         return pathSegments.some(segment => ConfigWizardFilesContextService.excludedPathSegments.has(segment));
-    }
-
-    private isExcludedFromTracking(fsPath: string): boolean {
-        const workspaceFolder = this.workspaceFoldersProvider.getWorkspaceFolder(fsPath);
-
-        if (!workspaceFolder || this.isExcludedPath(fsPath)) {
-            return true;
-        }
-
-        const configuredExclude = this.configurationProvider.getConfigVariable<string>(manifest.CONFIG_EXCLUDE);
-        if (!configuredExclude) {
-            return false;
-        }
-
-        const relativePath = path.relative(workspaceFolder.uri.fsPath, path.resolve(fsPath)).replaceAll('\\', '/');
-        return path.matchesGlob(relativePath, configuredExclude);
     }
 }

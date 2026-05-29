@@ -94,6 +94,25 @@ describe('ConfigWizardFilesContextService', () => {
 
             expect(contextValue).toEqual({ [annotatedPath]: true });
         });
+
+        it('does not add files that match configured exclude during initial scan', async () => {
+            configurationProvider.getConfigVariable.mockImplementation(name =>
+                name === manifest.CONFIG_EXCLUDE ? '**/generated/**' : undefined,
+            );
+            workspaceFoldersProvider.findFiles.mockImplementation(async (_globPattern, excludeGlob) =>
+                [annotatedUri, excludedChangedUri].filter(uri =>
+                    !matchesExclude(uri.fsPath, workspacePath, excludeGlob),
+                ),
+            );
+            annotationChecker.hasAnnotations.mockResolvedValue(true);
+
+            service.activate(context as never);
+
+            const contextValue = await waitForContextValue(commandsProvider, value => value[annotatedPath] === true);
+
+            expect(contextValue).toEqual({ [annotatedPath]: true });
+            expect(contextValue[path.resolve(excludedChangedUri.fsPath)]).toBeUndefined();
+        });
     });
 
     describe('file changes', () => {
@@ -168,18 +187,18 @@ describe('ConfigWizardFilesContextService', () => {
         });
 
         it('does not re-add an excluded changed file to the preview context', async () => {
-            workspaceFoldersProvider.findFiles.mockResolvedValue([]);
             configurationProvider.getConfigVariable.mockImplementation(name =>
                 name === manifest.CONFIG_EXCLUDE ? '**/generated/**' : undefined,
+            );
+            workspaceFoldersProvider.findFiles.mockImplementation(async (_globPattern, excludeGlob) =>
+                [annotatedUri, excludedChangedUri].filter(uri =>
+                    !matchesExclude(uri.fsPath, workspacePath, excludeGlob),
+                ),
             );
             annotationChecker.hasAnnotations.mockResolvedValue(true);
 
             service.activate(context as never);
-            await waitForCondition(
-                async () => workspaceFoldersProvider.findFiles.mock.calls.length === 1,
-                'initial file scan to complete',
-                200,
-            );
+            await waitForContextValue(commandsProvider, value => value[annotatedPath] === true);
 
             commandsProvider.executeCommand.mockClear();
             fileWatcherProvider.mockFireEvent('**/*', excludedChangedUri.fsPath, 'change');
@@ -240,4 +259,13 @@ function getLatestContextValue(commandsProvider: MockCommandsProvider): Record<s
     }
 
     return matchingCall[2] as Record<string, boolean>;
+}
+
+function matchesExclude(fsPath: string, workspaceRoot: string, excludeGlob: string | undefined): boolean {
+    if (!excludeGlob) {
+        return false;
+    }
+
+    const relativePath = path.relative(workspaceRoot, fsPath).replaceAll('\\', '/');
+    return path.matchesGlob(relativePath, excludeGlob);
 }
