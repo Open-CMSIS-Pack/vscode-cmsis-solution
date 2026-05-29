@@ -170,7 +170,13 @@ export class TreeViewProviderImpl<A extends COutlineItem> implements TreeViewPro
         }
 
         const tooltip = element.getAttribute('tooltip');
-        treeItem.tooltip = tooltip ? new vscode.MarkdownString(tooltip) : undefined;
+        if (tooltip) {
+            const markdownTooltip = new vscode.MarkdownString(tooltip);
+            markdownTooltip.supportThemeIcons = true;
+            treeItem.tooltip = markdownTooltip;
+        } else {
+            treeItem.tooltip = undefined;
+        }
 
         return treeItem;
     }
