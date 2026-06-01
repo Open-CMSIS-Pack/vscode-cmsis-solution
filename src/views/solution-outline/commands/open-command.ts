@@ -39,7 +39,7 @@ export class OpenCommand {
     public static readonly openHelpCommandId = `${PACKAGE_NAME}.openHelp`;
     public static readonly openZephyrTerminalCommandId = `${PACKAGE_NAME}.openZephyrTerminal`;
     private static readonly configWizardViewType = `${PACKAGE_NAME}.configWizard`;
-    private static readonly configWizardCandidateExtensions = new Set(['.h', '.c', '.cpp', '.dbgconf', '.s', '.S', '.sct']);
+    private static readonly configWizardCandidateExtensions = new Set(['.h', '.c', '.cpp', '.dbgconf', '.s', '.sct']);
 
     constructor(
         private readonly solutionManager: SolutionManager,
