@@ -91,7 +91,6 @@ import { SerialMonitorApi, Version } from '@microsoft/vscode-serial-monitor-api'
 import { SolutionEventHub } from '../solutions/solution-event-hub';
 import { SolutionRpcData } from '../solutions/solution-rpc-data';
 import { ManageSolutionCustomEditorProvider, registerManageSolutionCommand } from '../views/manage-solution/manage-solution-custom-editor';
-import { ConfigWizardFilesContextService } from '../views/config-wizard/config-wizard-files-context-service';
 
 let installDefaultToolsetProcess: Promise<void> | undefined;
 
@@ -256,12 +255,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const cmsisCommands = new CmsisCommands(configurationProvider, commandsProvider, solutionManager, debugProvider, serialMonitorExtension);
     const buildStopCommand = new BuildStopCommand(commandsProvider, buildTaskProvider);
     const configurationWizardView = new ConfWizWebview(context);
-    const configWizardFilesContextService = new ConfigWizardFilesContextService(
-        commandsProvider,
-        fileWatcherProvider,
-        workspaceFoldersProvider,
-        configurationProvider,
-    );
     const solutionLanguageFeatures = new SolutionLanguageFeaturesProvider(solutionManager);
     const packInstallCommands = new PackInstallCommands(commandsProvider, cmsisToolboxManager, outputChannelProvider);
     const protocolHandler = new ProtocolHandler(cmsisToolboxManager, outputChannelProvider);
@@ -296,7 +289,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         findCommand.activate(context),
         mergeCommand.activate(context),
         cmsisCommands.activate(context),
-        configWizardFilesContextService.activate(context),
         configurationWizardView.activate(),
         statusBar.activate(context),
         packInstallCommands.activate(context),
