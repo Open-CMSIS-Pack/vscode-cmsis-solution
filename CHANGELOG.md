@@ -1,5 +1,14 @@
 # Change Log
 
+## 1.67.3
+
+- Updates:
+  - The extension uses the bundled [**CMSIS-Toolbox v2.14.1**](https://github.com/Open-CMSIS-Pack/cmsis-toolbox/releases/tag/2.14.1) exclusively, including for terminals within VS Code, ensuring feature alignment between the frontend and backend.
+  - The [**Configuration Wizard**](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#configuration-wizard) now supports file formats that use `;` for comments.
+
+- Solved issues:
+  - Fixed an issue where the **Software Components** view became empty after deleting a pack using `cpackget`, requiring a manual refresh.
+
 ## 1.67.2
 
 - Updates:
