@@ -113,7 +113,8 @@ Before running a release, check the following:
 
 3. Update and review [CHANGELOG.md](CHANGELOG.md)
 
-   Add all changes relevant to the upcoming release to the corresponding release section.
+   Add all changes relevant to the upcoming release to the section for the next version,
+   explicitly specified in `Major.Minor.Patch` format, for example `1.2.3`.
 
 ## Release versioning
 
@@ -138,7 +139,7 @@ Use the following commands:
 1. Ensure the version in `package.json` is up to date.
 2. Update the `CHANGELOG` with the latest changes.
 3. Open a pull request with these updates and merge it into `main`.
-4. Create a new release at: https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/releases
+4. Create a new release at [Open-CMSIS-Pack/vscode-cmsis-solution releases](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/releases).
    - This will trigger the `CI.yml` workflow.
    - Once the workflow completes successfully, the release artifacts will be generated automatically.
 
