@@ -145,7 +145,7 @@ export class EnvironmentDiagnosticsImpl implements EnvironmentDiagnostics {
             diagnostics.push(entry);
         }
 
-        const uri = vscode.Uri.file(path.posix.normalize(settings.filePath));
+        const uri = vscode.Uri.file(settings.filePath);
         this.diagnosticCollection.set(uri, diagnostics);
         await vscode.commands.executeCommand('workbench.actions.view.problems', { preserveFocus: true });
     }

@@ -140,7 +140,8 @@ describe('process-manager.ts', () => {
                 expect(spawnMock).not.toHaveBeenCalled();
                 expect(onOutput).toHaveBeenNthCalledWith(1, 'first line\r\n');
                 expect(onOutput).toHaveBeenNthCalledWith(2, 'second line\r\n');
-                expect(onOutput).toHaveBeenNthCalledWith(3, 'trailing\r\n');
+                expect(onOutput).toHaveBeenNthCalledWith(3, '\r\n');
+                expect(onOutput).toHaveBeenNthCalledWith(4, 'trailing\r\n');
             });
 
             it('cancels pty process with ctrl+c followed by kill after grace period', async () => {
