@@ -3,7 +3,7 @@ FROM ubuntu:24.04
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
-    apt-get -y install \
+    apt-get -y install --no-install-recommends \
         build-essential \
         curl \
         gdb \

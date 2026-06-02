@@ -98,7 +98,7 @@
     "sax-ts": "^1.2.13",
     "semver": "^7.7.4",
     "tcp-port-used": "^1.0.2",
-    "tmp": "^0.2.5",
+    "tmp": "^0.2.6",
     "vscode-jsonrpc": "^8.2.1",
     "vscode-messenger": "~0.6.0",
     "vscode-messenger-common": "~0.6.0",
