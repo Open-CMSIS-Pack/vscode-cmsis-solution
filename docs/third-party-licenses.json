@@ -232,7 +232,7 @@
     },
     {
         "name": "tmp",
-        "version": "0.2.5",
+        "version": "0.2.7",
         "spdx": "MIT",
         "url": "https://github.com/raszi/node-tmp",
         "license": "https://github.com/raszi/node-tmp/blob/master/LICENSE"
