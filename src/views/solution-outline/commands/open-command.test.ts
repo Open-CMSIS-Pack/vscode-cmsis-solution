@@ -292,26 +292,33 @@ describe('OpenCommand', () => {
         });
 
         describe('file type handling', () => {
-            it('checks annotations for custom file types and opens in text editor when no annotations exist', async () => {
+            it('does not check annotations for unsupported file extensions', async () => {
                 const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
                 await openCommand.activate(extensionContextFactory());
-                (mockAnnotationChecker.hasAnnotations as jest.Mock).mockResolvedValue(false);
 
                 const uri = Uri.file(path.join(testFolder, 'build.txt'));
                 await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
 
-                expect(mockAnnotationChecker.hasAnnotations).toHaveBeenCalledWith(uri.fsPath);
+                expect(mockAnnotationChecker.hasAnnotations).not.toHaveBeenCalled();
                 const lastCall = commandsProvider.executeCommand.mock.lastCall;
                 expect(lastCall?.[0]).toBe('vscode.open');
                 expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
             });
 
-            it('opens custom file types in configuration wizard when annotations exist', async () => {
+            it.each([
+                'config.h',
+                'source.c',
+                'source.cpp',
+                'settings.dbgconf',
+                'startup.s',
+                'startup.S',
+                'scatter.sct',
+            ])('opens candidate extension %s in configuration wizard when annotations exist', async fileName => {
                 const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
                 await openCommand.activate(extensionContextFactory());
                 (mockAnnotationChecker.hasAnnotations as jest.Mock).mockResolvedValue(true);
 
-                const uri = Uri.file(path.join(testFolder, 'custom.cfg'));
+                const uri = Uri.file(path.join(testFolder, fileName));
                 await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
 
                 expect(mockAnnotationChecker.hasAnnotations).toHaveBeenCalledWith(uri.fsPath);

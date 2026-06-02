@@ -1180,7 +1180,7 @@
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "navigation",
-          "when": "resourceScheme == file && !explorerResourceIsFolder"
+           "when": "resourceFilename =~ /\\.(h|c|cpp|dbgconf|s|sct)$/i"
         },
         {
           "command": "cmsis-csolution.build",
@@ -1255,7 +1255,7 @@
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "navigation",
-          "when": "resourceScheme == file && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+          "when": "resourceFilename =~ /\\.(h|c|cpp|dbgconf|s|sct)$/i && activeCustomEditorId != 'cmsis-csolution.configWizard'"
         },
         {
           "command": "cmsis-csolution.showConfigWizardSource",
@@ -1277,14 +1277,14 @@
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "1_open",
-          "when": "resourceScheme == file && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+          "when": "resourceFilename =~ /\\.(h|c|cpp|dbgconf|s|sct)$/i && activeCustomEditorId != 'cmsis-csolution.configWizard'"
         }
       ],
       "editor/context": [
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "1_open",
-          "when": "resourceScheme == file && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+          "when": "resourceFilename =~ /\\.(h|c|cpp|dbgconf|s|sct)$/i && activeCustomEditorId != 'cmsis-csolution.configWizard'"
         }
       ]
     },
