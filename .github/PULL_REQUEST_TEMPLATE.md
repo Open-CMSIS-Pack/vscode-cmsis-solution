@@ -1,5 +1,5 @@
 ## Fixes
-<!-- Enter the GitHub issue(s) number (e.g. #123) -->
+<!-- List the GitHub issue(s) this PR resolves (e.g. #123) -->
 - #<issue-number>
 
 ## Changes
