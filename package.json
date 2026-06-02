@@ -4,7 +4,7 @@
   "description": "Create embedded and Edge AI projects for Arm Cortex-M based devices using the Common Microcontroller Software Interface Standard (CMSIS) and csolution format",
   "version": "1.67.3",
   "preview": false,
-  "publisher": "Arm",
+  "publisher": "ARM",
   "author": "Jonatan Antoni <jonatan.antoni@arm.com>",
   "license": "SEE LICENSE IN LICENSE",
   "main": "dist/extension.js",
