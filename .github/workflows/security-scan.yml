@@ -66,7 +66,7 @@ jobs:
       packages: read
     if: ${{ github.event_name == 'pull_request' }}
     name: Scan PR with OSV Scanner
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@fa4ff678dd5d0a4fa3d628e57af8162873e93cd6 #v2.3.8
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 #v2.3.8
     with:
       scan-args: |-
         --recursive
