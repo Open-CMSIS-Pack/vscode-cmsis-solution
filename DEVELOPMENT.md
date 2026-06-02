@@ -8,7 +8,6 @@ and follow the best practices for creating your extension.
 Use vcpkg to install the tools as discussed in the [README](./README.md). The test-workspace
 contains a [vcpkg-configuration.json](./test-workspace/vcpkg-configuration.json) file to do this.
 
-
 ## Running the extension in development
 
 1. To download the tools, you must have a `GITHUB_TOKEN` environment variable containing a
@@ -40,7 +39,6 @@ contains a [vcpkg-configuration.json](./test-workspace/vcpkg-configuration.json)
 5. In Visual Studio Code, press the F5 key to run the Desktop Extension run configuration, starting
    the extension in debug mode. A new VS Code window will open with the extension loaded so it can
    be used.
-
 
 ## Run the tests
 
@@ -115,8 +113,7 @@ Before running a release, check the following:
 
 3. Update and review [CHANGELOG.md](CHANGELOG.md)
 
-   Add all changes relevant for the upcoming release into the `[Unreleased]` section. This section
-   is automatically replaced by the release version during the release workflow.
+   Add all changes relevant to the upcoming release to the corresponding release section.
 
 ## Release versioning
 
@@ -244,6 +241,7 @@ To debug the `csolution` server (C++ code) running on the backend:
 5. **Attach the native debugger** (Visual Studio Debugger or gdb/lldb) to the running `csolution` process by PID. The process will be active while the extension is communicating with it.
 
 ## Security
+
 For security considerations see [SECURITY.md](./SECURITY.md)
 
 ## Test or develop in Dev Containers
