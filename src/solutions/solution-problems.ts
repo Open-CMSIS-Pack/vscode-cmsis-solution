@@ -19,10 +19,8 @@ import * as vscode from 'vscode';
 import { constructor } from '../generic/constructor';
 import { LogMessages } from '../json-rpc/csolution-rpc-client';
 import { Severity } from './constants';
-import * as fsUtils from '../utils/fs-utils';
 import { getFileNameFromPath } from '../utils/path-utils';
 import { stripTwoExtensions } from '../utils/string-utils';
-import { getWorkspaceFolder } from '../utils/vscode-utils';
 import { ProblemDiagnosticActionResolver } from './problem-diagnostic-action-resolver';
 import { SolutionLoadStateChangeEvent, SolutionManager } from './solution-manager';
 import { ConvertResultData, CbuildResultData, SolutionEventHub } from './solution-event-hub';
@@ -68,44 +66,21 @@ export const envVarWestPatterns = [
     /^exec: "west": executable file not found in .+$/,
 ];
 
+const environmentVariablesReviewSuffixRegex = /;\s*review\s+"cmsis-csolution\.environmentVariables"$/;
+
+export const normalizeEnvironmentMessage = (message: string): string => {
+    return message.replace(environmentVariablesReviewSuffixRegex, '').trim();
+};
+
+export const isEnvironmentVariableMessage = (message: string): boolean => {
+    const normalized = normalizeEnvironmentMessage(message);
+    return envVarWestPatterns.some(pattern => pattern.test(normalized));
+};
+
 const pushUniquely = (array: string[], value: string) => {
     if (!array.includes(value)) {
         array.push(value);
     }
-};
-
-const formatWestMessages = async (errors: string[], warnings: string[]): Promise<void> => {
-    const hasWestMessages = [...errors, ...warnings].some(line =>
-        envVarWestPatterns.some(pattern => pattern.test(line))
-    );
-    if (!hasWestMessages) {
-        return;
-    }
-    const workspaceFolder = getWorkspaceFolder();
-    if (!workspaceFolder) {
-        return;
-    }
-
-    const settings = vscode.workspace.workspaceFile?.fsPath ?? path.join(workspaceFolder, '.vscode', 'settings.json');
-    const envvars = '"cmsis-csolution.environmentVariables"';
-    let startPos: vscode.Position | undefined;
-    if (fsUtils.fileExists(settings)) {
-        const doc = await vscode.workspace.openTextDocument(settings);
-        const startOffset = doc.getText().indexOf(envvars);
-        if (startOffset >= 0) {
-            startPos = doc.positionAt(startOffset);
-        }
-    }
-    const location = startPos ? `:${startPos.line + 1}:${startPos.character + 1}` : '';
-    const format = (items: string[]) => {
-        for (let i = 0; i < items.length; i++) {
-            if (envVarWestPatterns.some(pattern => pattern.test(items[i]))) {
-                items[i] = `${settings}${location} - ${items[i]}; review ${envvars}`;
-            }
-        }
-    };
-    format(errors);
-    format(warnings);
 };
 
 export const enrichLogMessagesFromToolOutput = async (logMessages: LogMessages, lines?: string[]): Promise<void> => {
@@ -123,7 +98,8 @@ export const enrichLogMessagesFromToolOutput = async (logMessages: LogMessages, 
     errors = errors.map(e => sanitize(e, 'error'));
     warnings = warnings.map(w => sanitize(w, 'warning'));
 
-    await formatWestMessages(errors, warnings);
+    errors = errors.filter(error => !isEnvironmentVariableMessage(error));
+    warnings = warnings.filter(warning => !isEnvironmentVariableMessage(warning));
 
     const logErrors = logMessages.errors ?? (logMessages.errors = []);
     const logWarnings = logMessages.warnings ?? (logMessages.warnings = []);
@@ -223,9 +199,12 @@ export class SolutionProblemsImpl implements SolutionProblems {
             return false;
         }
         const { filename, line, column, message: messageText } = m.groups;
+        if (isEnvironmentVariableMessage(messageText)) {
+            return false;
+        }
         const normalizedFilename = filename ? getFileNameFromPath(filename) : undefined;
         const fromMap = (filename && files.get(filename)) || (normalizedFilename && files.get(normalizedFilename));
-        const file = fromMap || (filename && path.isAbsolute(filename) ? filename : undefined) || this.solutionManager.getCsolution()?.solutionPath;
+        const file = fromMap || this.solutionManager.getCsolution()?.solutionPath;
         if (!file) {
             return false;
         }

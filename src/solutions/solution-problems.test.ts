@@ -17,9 +17,7 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import * as vscode from 'vscode';
 import { ExtensionContext } from 'vscode';
-import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, OPEN_ENV_VAR_SETTINGS_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
-import * as fsUtils from '../utils/fs-utils';
-import * as vscodeUtils from '../utils/vscode-utils';
+import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
 import { solutionManagerFactory, MockSolutionManager } from './solution-manager.factories';
 import { SolutionEventHub } from './solution-event-hub';
 import { enrichLogMessagesFromToolOutput, SolutionProblemsImpl, hasToolError, hasToolWarning, getToolsSeverity, getSeverity } from './solution-problems';
@@ -190,27 +188,15 @@ describe('SolutionProblems', () => {
         expect(messages.warnings).toEqual(['generated warning']);
     });
 
-    it('formats west-related messages with settings location', async () => {
-        jest.spyOn(vscodeUtils, 'getWorkspaceFolder').mockReturnValue('/workspace/folder');
-        jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
-        (vscode.workspace as { workspaceFile?: vscode.Uri }).workspaceFile = undefined;
-        (vscode.workspace.openTextDocument as jest.Mock).mockResolvedValue({
-            getText: () => '{"cmsis-csolution.environmentVariables":{}}',
-            positionAt: () => ({ line: 2, character: 4 }),
-            lineCount: 100,
-            lineAt: () => ({ range: { end: { character: 80 } } }),
-        });
-
+    it('filters west-related environment messages from enriched tool output', async () => {
         const messages = { success: true, errors: [], warnings: [], info: [] };
         await enrichLogMessagesFromToolOutput(messages, [
             'warning cbuild: missing ZEPHYR_BASE environment variable',
             'error cbuild: exec: "west": executable file not found in $PATH',
         ]);
 
-        expect(messages.warnings[0]).toContain('.vscode');
-        expect(messages.warnings[0]).toContain('settings.json:3:5 - missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"');
-        expect(messages.errors[0]).toContain('.vscode');
-        expect(messages.errors[0]).toContain('settings.json:3:5 - exec: "west": executable file not found in $PATH; review "cmsis-csolution.environmentVariables"');
+        expect(messages.warnings).toEqual([]);
+        expect(messages.errors).toEqual([]);
     });
 
     it('creates manage components command link with context argument', async () => {
@@ -387,8 +373,9 @@ describe('SolutionProblems', () => {
     it.each([
         'missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"',
         'ZEPHYR_BASE environment variable specifies non-existent directory: C:/zephyr/base; review "cmsis-csolution.environmentVariables"',
+        'VIRTUAL_ENV environment variable specifies non-existent directory: C:\\Users\\myuser/zephyrproject/.venv; review "cmsis-csolution.environmentVariables"',
         'exec: "west": executable file not found in $PATH; review "cmsis-csolution.environmentVariables"',
-    ])('creates configure environment variables command link for "%s" diagnostics', async message => {
+    ])('does not create diagnostics for environment-variable message "%s"', async message => {
         await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
 
@@ -405,13 +392,8 @@ describe('SolutionProblems', () => {
         });
         await waitTimeout();
 
-        const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
-        const code = diagnostics?.[0].code as { value: string; target: vscode.Uri };
-        const [command, args] = code.target.toString().split('?');
-
-        expect(code.value).toBe('Configure Environment Variables');
-        expect(command).toBe(`command:${OPEN_ENV_VAR_SETTINGS_COMMAND_ID}`);
-        expect(JSON.parse(decodeURIComponent(args))).toEqual(['cmsis-csolution.environmentVariables']);
+        expect(setSpy).not.toHaveBeenCalled();
+        expect(vscode.commands.executeCommand).not.toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
     });
 
     describe('handleCbuildCompleted', () => {
