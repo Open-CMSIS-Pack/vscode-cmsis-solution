@@ -83,7 +83,6 @@ import { CsolutionService } from '../json-rpc/csolution-rpc-client';
 import { BuildStopCommand } from '../tasks/build/build-stop-command';
 import { ComponentsPacksWebviewMain } from '../views/manage-components-packs/components-packs-webview-main';
 import { SolutionConverterImpl } from '../solutions/solution-converter';
-import { EnvironmentDiagnosticsImpl } from '../solutions/environment-diagnostics';
 import { SolutionProblemsImpl } from '../solutions/solution-problems';
 import { EnvironmentVariablesSettingsCommand } from '../solutions/env-var-settings-command';
 import { EnvironmentManager } from './env-manager';
@@ -183,7 +182,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     );
 
     const solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub);
-    const environmentDiagnostics = new EnvironmentDiagnosticsImpl(eventHub);
     const environmentVariablesSettingsCommand = new EnvironmentVariablesSettingsCommand(commandsProvider);
     const themeProvider = new ThemeProviderImpl();
     const statusBar = new StatusBar(solutionManager, cmsisToolboxManager, themeProvider);
@@ -272,7 +270,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         solutionConverterImpl.activate(context),
         compileCommandsGenerator.activate(context),
         solutionProblems.activate(context),
-        environmentDiagnostics.activate(context),
         environmentVariablesSettingsCommand.activate(context),
         clangdManager.activate(context),
         componentsManager.activate(context),

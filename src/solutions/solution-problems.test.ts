@@ -15,6 +15,7 @@
  */
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { ExtensionContext } from 'vscode';
 import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
@@ -22,6 +23,7 @@ import { solutionManagerFactory, MockSolutionManager } from './solution-manager.
 import { SolutionEventHub } from './solution-event-hub';
 import { enrichLogMessagesFromToolOutput, SolutionProblemsImpl, hasToolError, hasToolWarning, getToolsSeverity, getSeverity } from './solution-problems';
 import { waitTimeout } from '../__test__/test-waits';
+import * as fsUtils from '../utils/fs-utils';
 
 const solutionPath = '/work/app.csolution.yml';
 const layerPath = '/work/config/mylayer.clayer.yml';
@@ -68,7 +70,7 @@ describe('SolutionProblems', () => {
 
         await solutionProblems.activate(context);
 
-        expect(context.subscriptions).toHaveLength(4);
+        expect(context.subscriptions).toHaveLength(5);
     });
 
     it('clears diagnostics when solution path changes', async () => {
@@ -124,7 +126,7 @@ describe('SolutionProblems', () => {
         });
         await waitTimeout();
 
-        expect(clearSpy).toHaveBeenCalledTimes(1);
+        expect(clearSpy).toHaveBeenCalledTimes(2);
         expect(setSpy).toHaveBeenCalledTimes(3);
         expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
     });
@@ -412,7 +414,7 @@ describe('SolutionProblems', () => {
             await waitTimeout();
 
             expect(setSpy).toHaveBeenCalledTimes(1);
-            expect(clearSpy).not.toHaveBeenCalled();
+            expect(clearSpy).toHaveBeenCalledTimes(1);
             expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
         });
 
@@ -431,7 +433,7 @@ describe('SolutionProblems', () => {
             await waitTimeout();
 
             expect(setSpy).toHaveBeenCalledTimes(1);
-            expect(clearSpy).not.toHaveBeenCalled();
+            expect(clearSpy).toHaveBeenCalledTimes(1);
             expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
         });
 
@@ -481,6 +483,92 @@ describe('SolutionProblems', () => {
             await waitTimeout();
 
             expect(setSpy).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('environment diagnostics updates', () => {
+        beforeEach(() => {
+            (vscode.workspace as typeof vscode.workspace & {
+                workspaceFolders?: readonly vscode.WorkspaceFolder[];
+                workspaceFile?: vscode.Uri;
+            }).workspaceFolders = [{
+                uri: vscode.Uri.file(path.join(path.sep, 'workspace')),
+                name: 'workspace',
+                index: 0,
+            }];
+            (vscode.workspace as typeof vscode.workspace & {
+                workspaceFolders?: readonly vscode.WorkspaceFolder[];
+                workspaceFile?: vscode.Uri;
+            }).workspaceFile = undefined;
+
+            jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
+            (vscode.workspace.openTextDocument as unknown as jest.Mock).mockImplementation(async (filePath: string) => {
+                if (filePath.includes('settings.json')) {
+                    return {
+                        getText: () => '{"cmsis-csolution.environmentVariables": {}}',
+                        positionAt: () => ({ line: 0, character: 2 }),
+                        lineAt: () => ({ range: { end: { character: 42 } } }),
+                    } as unknown as vscode.TextDocument;
+                }
+                return {
+                    lineCount: 200,
+                    lineAt: () => ({ range: { end: { character: 80 } } }),
+                } as unknown as vscode.TextDocument;
+            });
+        });
+
+        it('creates environment diagnostics and opens Problems view', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireConvertCompleted({
+                success: false,
+                severity: 'error',
+                detection: false,
+                logMessages: {
+                    success: false,
+                    errors: ['missing ZEPHYR_BASE environment variable'],
+                    warnings: ['missing ZEPHYR_BASE environment variable'],
+                    info: [],
+                },
+                toolsOutputMessages: [
+                    'warning cbuild: ZEPHYR_BASE environment variable specifies non-existent directory: /missing',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).toHaveBeenCalledTimes(1);
+            const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+            expect(diagnostics).toHaveLength(2);
+            expect(diagnostics?.map(diagnostic => diagnostic.message)).toEqual(expect.arrayContaining([
+                'missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"',
+                'ZEPHYR_BASE environment variable specifies non-existent directory: /missing; review "cmsis-csolution.environmentVariables"',
+            ]));
+            expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
+        });
+
+        it('targets environment diagnostics at workspace file path when present', async () => {
+            const workspaceFilePath = 'C:\\workspace\\my.code-workspace';
+            (vscode.workspace as typeof vscode.workspace & {
+                workspaceFile?: vscode.Uri;
+            }).workspaceFile = vscode.Uri.file(workspaceFilePath);
+
+            jest.spyOn(fsUtils, 'fileExists').mockReturnValue(false);
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireCbuildCompleted({
+                success: false,
+                severity: 'error',
+                toolsOutputMessages: [
+                    'error cbuild: missing ZEPHYR_BASE environment variable',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).toHaveBeenCalledTimes(1);
+            const [uri] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+            expect(uri.fsPath).toBe(vscode.Uri.file(workspaceFilePath).fsPath);
         });
     });
 
