@@ -79,7 +79,7 @@ describe('OpenCommand', () => {
 
         await commandsProvider.mockRunRegistered(OpenCommand.openSolutionCommandId, solutionPath);
 
-        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(solutionPath));
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(solutionPath), { viewColumn: vscode.ViewColumn.Active });
     });
 
     it('opens and shows the cproject file from the path', async () => {
@@ -94,7 +94,7 @@ describe('OpenCommand', () => {
 
         await commandsProvider.mockRunRegistered(OpenCommand.openProjectCommandId, fileItem);
 
-        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_PROJECT_PATH));
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_PROJECT_PATH), { viewColumn: vscode.ViewColumn.Active });
     });
 
     it('opens and shows the clayer file from the path', async () => {
@@ -109,7 +109,7 @@ describe('OpenCommand', () => {
 
         await commandsProvider.mockRunRegistered(OpenCommand.openLayerCommandId, layerFile);
 
-        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_LAYER_PATH));
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_LAYER_PATH), { viewColumn: vscode.ViewColumn.Active });
     });
 
     it('opens and shows the linker map file from the path', async () => {
@@ -124,7 +124,7 @@ describe('OpenCommand', () => {
 
         await commandsProvider.mockRunRegistered(OpenCommand.openLinkerCommandId, linkerMapFile);
 
-        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_LINKER_PATH));
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_LINKER_PATH), { viewColumn: vscode.ViewColumn.Active });
     });
 
     it('opens and shows the prj.conf file for West project', async () => {
@@ -139,7 +139,7 @@ describe('OpenCommand', () => {
 
         await commandsProvider.mockRunRegistered(OpenCommand.openPrjConfCommandId, prjConfFile);
 
-        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_PRJ_CONF_PATH));
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_PRJ_CONF_PATH), { viewColumn: vscode.ViewColumn.Active });
     });
 
     it('opens and shows a doc file from the path', async () => {
@@ -275,6 +275,7 @@ describe('OpenCommand', () => {
                 const lastCall = commandsProvider.executeCommand.mock.lastCall;
                 expect(lastCall?.[0]).toBe('vscode.open');
                 expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+                expect(lastCall?.[2]).toEqual({ viewColumn: vscode.ViewColumn.Active });
             });
 
             it('falls back to text editor when annotation detection fails', async () => {
@@ -288,6 +289,7 @@ describe('OpenCommand', () => {
                 const lastCall = commandsProvider.executeCommand.mock.lastCall;
                 expect(lastCall?.[0]).toBe('vscode.open');
                 expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+                expect(lastCall?.[2]).toEqual({ viewColumn: vscode.ViewColumn.Active });
             });
         });
 
@@ -303,6 +305,7 @@ describe('OpenCommand', () => {
                 const lastCall = commandsProvider.executeCommand.mock.lastCall;
                 expect(lastCall?.[0]).toBe('vscode.open');
                 expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+                expect(lastCall?.[2]).toEqual({ viewColumn: vscode.ViewColumn.Active });
             });
 
             it.each([

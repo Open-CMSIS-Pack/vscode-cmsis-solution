@@ -1537,7 +1537,7 @@ describe('ComponentsPacksWebviewMain', () => {
 
             expect(openSpy).not.toHaveBeenCalled();
             const [command, previewUri] = commandsProvider.executeCommand.mock.calls.at(-1);
-            expect(command).toBe('markdown.showPreview');
+            expect(command).toBe('markdown.showPreviewToSide');
             const previewPath = (previewUri.path ?? previewUri.fsPath ?? '').replace(/\\/g, '/');
             expect(previewPath.endsWith('/docs/intro.md')).toBe(true);
         });
