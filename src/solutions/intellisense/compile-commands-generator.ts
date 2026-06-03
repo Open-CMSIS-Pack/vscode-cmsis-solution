@@ -86,9 +86,17 @@ export class CompileCommandsGenerator {
                     const match = this.outputRegex.exec(output.join('\n'));
                     const returnCode = match?.[1] !== undefined ? Number(match[1]) :
                         event.exitCode !== undefined ? event.exitCode : -1;
+
+                    const outputSeverity = getToolsSeverity(output);
+                    // Detect task abort (exit code -1 without tool-reported error indicates user termination)
+                    const isAborted = returnCode === -1 && outputSeverity !== 'error';
+                    if (isAborted) {
+                        output.push('error cbuild: cbuild setup incomplete, use Refresh command');
+                    }
+
                     const success = returnCode === 0;
-                    const severity = success ? getToolsSeverity(output) : 'error';
-                    this.eventHub.fireCbuildCompleted({ success, severity, toolsOutputMessages: output });
+                    const severity = isAborted ? 'error' : (success ? outputSeverity : 'error');
+                    this.eventHub.fireCbuildCompleted({ success: isAborted ? false : success, severity, toolsOutputMessages: output });
                     resolve();
                 }
             });

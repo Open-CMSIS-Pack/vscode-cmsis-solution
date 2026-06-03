@@ -163,4 +163,30 @@ describe('BuildTaskProviderImpl', () => {
         await waitPromise;
         expect(completed).toBe(true);
     });
+
+    it('resolves if build task ended before listener registration (race condition)', async () => {
+        const activeExecution = {
+            task: { definition: { type: BuildTaskProviderImpl.taskType } }
+        } as unknown as vscode.TaskExecution;
+
+        // Initial snapshot shows the task as active
+        (vscode.tasks as unknown as {
+            taskExecutions: vscode.TaskExecution[];
+        }).taskExecutions = [activeExecution];
+
+        (vscode.tasks as unknown as {
+            onDidEndTask: (listener: (event: vscode.TaskEndEvent) => void) => vscode.Disposable;
+        }).onDidEndTask = (listener) => {
+            // After listener registration, the task is no longer active (simulating race condition)
+            (vscode.tasks as unknown as {
+                taskExecutions: vscode.TaskExecution[];
+            }).taskExecutions = [];
+            // Invoke listener callback on next tick (safe to do even if task already ended)
+            setTimeout(() => listener({ execution: activeExecution } as vscode.TaskEndEvent), 0);
+            return { dispose: jest.fn() } as unknown as vscode.Disposable;
+        };
+
+        // Should resolve without hanging, even though the task ended before the listener could catch the event
+        await expect(waitForActiveBuildTasksCompletion()).resolves.toBeUndefined();
+    });
 });

@@ -53,6 +53,19 @@ export const waitForActiveBuildTasksCompletion = async (): Promise<void> => {
                 resolve();
             }
         });
+
+        // Guard against missing an end event between the snapshot and listener registration.
+        // If a build task ended between the snapshot and now, remove it from pending.
+        const stillActive = new Set((vscode.tasks.taskExecutions ?? []).filter(execution => isBuildTask(execution.task)));
+        for (const exec of pendingExecutions) {
+            if (!stillActive.has(exec)) {
+                pendingExecutions.delete(exec);
+            }
+        }
+        if (pendingExecutions.size === 0) {
+            disposable.dispose();
+            resolve();
+        }
     });
 };
 
