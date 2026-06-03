@@ -24,6 +24,7 @@ import { CSolution } from '../../../solutions/csolution';
 import { getMapFilePath, setDocContext, setHeaderContext, setLinkerContext } from './solution-outline-utils';
 import { CProjectYamlFile } from '../../../solutions/files/cproject-yaml-file';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
+import { buildPackOverviewLink } from './pack-tooltip';
 
 export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
     private readonly _lastPrioritizedComponentList: COutlineItem[] = [];
@@ -346,9 +347,10 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
 
     private addGenerator(node: COutlineItem, component: ITreeItem<CTreeItem>, cbuild: CTreeItem) {
         const generator = component.getChild('generator');
+        const fromPack = component.getValueAsString('from-pack');
         let tooltip =
             '- component: ` ' + component.getValueAsString('component') + ' `\n' +
-            '- from pack: ` ' + component.getValueAsString('from-pack') + ' `';
+            '- from pack: ` ' + fromPack + ' `' + buildPackOverviewLink(fromPack);
 
         if (generator) {
             const id = generator.getValueAsString('id');

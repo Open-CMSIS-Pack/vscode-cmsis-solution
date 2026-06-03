@@ -5,7 +5,7 @@ solution
     expandable=1
     iconPath=chip
     tooltip=- device: `ARM::RteTest_ARMCM0_Dual`
-- from pack: `ARM::RteTest_DFP@0.2.0`
+- from pack: `ARM::RteTest_DFP@0.2.0` [$(link-external)](https://www.keil.arm.com/packs/rtetest_dfp-arm/)
     file
       label=image-only-multicore+CM0.dbgconf
       expandable=0

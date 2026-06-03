@@ -2,7 +2,7 @@
   "name": "cmsis-csolution",
   "displayName": "Arm CMSIS Solution",
   "description": "Create embedded and Edge AI projects for Arm Cortex-M based devices using the Common Microcontroller Software Interface Standard (CMSIS) and csolution format",
-  "version": "1.67.2",
+  "version": "1.67.3",
   "preview": false,
   "publisher": "Arm",
   "author": "Jonatan Antoni <jonatan.antoni@arm.com>",
@@ -117,7 +117,7 @@
     "@graphql-codegen/typescript-graphql-request": "^6.4.0",
     "@graphql-codegen/typescript-operations": "^5.0.8",
     "@open-cmsis-pack/vsce-helper": "^0.3.0",
-    "@playwright/test": "^1.58.2",
+    "@playwright/test": "^1.60.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@twbs/fantasticon": "^3.1.0",
@@ -1180,7 +1180,7 @@
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "navigation",
-          "when": "resourceScheme == file && !explorerResourceIsFolder"
+           "when": "resourceFilename =~ /\\.(h|c|cpp|dbgconf|s|sct)$/i"
         },
         {
           "command": "cmsis-csolution.build",
@@ -1255,7 +1255,7 @@
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "navigation",
-          "when": "resourceScheme == file && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+          "when": "resourceFilename =~ /\\.(h|c|cpp|dbgconf|s|sct)$/i && activeCustomEditorId != 'cmsis-csolution.configWizard'"
         },
         {
           "command": "cmsis-csolution.showConfigWizardSource",
@@ -1277,14 +1277,14 @@
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "1_open",
-          "when": "resourceScheme == file && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+          "when": "resourceFilename =~ /\\.(h|c|cpp|dbgconf|s|sct)$/i && activeCustomEditorId != 'cmsis-csolution.configWizard'"
         }
       ],
       "editor/context": [
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "1_open",
-          "when": "resourceScheme == file && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+          "when": "resourceFilename =~ /\\.(h|c|cpp|dbgconf|s|sct)$/i && activeCustomEditorId != 'cmsis-csolution.configWizard'"
         }
       ]
     },

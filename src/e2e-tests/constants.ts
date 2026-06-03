@@ -45,7 +45,7 @@ export const LONG_TIMEOUT_MS = 420000;
 export const UI_STABILITY_DELAY_MS = 200;
 
 /** Delay for quick pick menu to appear (4 seconds) */
-export const QUICK_PICK_DELAY_MS = 40000;
+export const QUICK_PICK_DELAY_MS = 4000;
 
 /** Delay after reloading VS Code window to allow reinitialization */
 export const WORKSPACE_RELOAD_DELAY_MS = DEFAULT_TIMEOUT_MS;
