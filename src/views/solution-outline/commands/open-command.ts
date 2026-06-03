@@ -25,6 +25,7 @@ import { contextDescriptorFromString } from '../../../solutions/descriptors/desc
 import { existsSync } from 'fs';
 import type { ConfigWizardAnnotationChecker } from '../../../utils/config-wizard-checker';
 import { configWizardAnnotationChecker } from '../../../utils/config-wizard-checker';
+import { openFileWithPolicy } from '../../file-open-policy';
 
 export const openSourceSmartCommandId = `${PACKAGE_NAME}.openSourceFileSmart`;
 
@@ -117,15 +118,13 @@ export class OpenCommand {
             return;
         }
 
-        if (filePath.toLowerCase().endsWith('.md')) {
-            return this.commandsProvider.executeCommand('markdown.showPreview', vscode.Uri.file(filePath));
-        }
-
-        if (await this.shouldOpenConfigWizard(filePath)) {
-            return this.commandsProvider.executeCommand('vscode.openWith', vscode.Uri.file(filePath), OpenCommand.configWizardViewType);
-        }
-
-        return this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(filePath));
+        await openFileWithPolicy(filePath, this.commandsProvider, {
+            markdownPreviewTarget: 'active',
+            configWizard: {
+                viewType: OpenCommand.configWizardViewType,
+                shouldOpen: this.shouldOpenConfigWizard.bind(this),
+            },
+        });
     }
 
     private async shouldOpenConfigWizard(filePath: string): Promise<boolean> {
