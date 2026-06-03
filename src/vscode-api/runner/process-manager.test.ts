@@ -144,6 +144,45 @@ describe('process-manager.ts', () => {
                 expect(onOutput).toHaveBeenNthCalledWith(4, 'trailing\r\n');
             });
 
+            it('preserves blank PTY line boundaries for whitespace and control-sequence-only lines', async () => {
+                let onDataCallback: ((data: string) => void) | undefined;
+                let onExitCallback: ((event: { exitCode: number }) => void) | undefined;
+                const ptyProcess = {
+                    onData: jest.fn((callback: (data: string) => void) => {
+                        onDataCallback = callback;
+                    }),
+                    onExit: jest.fn((callback: (event: { exitCode: number }) => void) => {
+                        onExitCallback = callback;
+                    }),
+                    write: jest.fn(),
+                    kill: jest.fn(),
+                };
+                ptySpawnMock.mockReturnValue(ptyProcess);
+
+                const environmentManager = {
+                    augmentEnv: jest.fn(() => ({ vars: { AUGMENTED: '1' } })),
+                };
+                const processManager = new ProcessManagerImpl(environmentManager as never);
+                const onOutput = jest.fn();
+
+                const resultPromise = processManager.spawn(
+                    'tool',
+                    ['--flag'],
+                    { cwd: '.', env: { ORIGINAL: '1' } },
+                    onOutput,
+                    undefined,
+                    { columns: 80, rows: 24 }
+                );
+
+                onDataCallback?.(' \r\n\x1b[31m\x1b[0m\r\nnext\r\n');
+                onExitCallback?.({ exitCode: 0 });
+
+                await expect(resultPromise).resolves.toEqual({ code: 0 });
+                expect(onOutput).toHaveBeenNthCalledWith(1, '\r\n');
+                expect(onOutput).toHaveBeenNthCalledWith(2, '\r\n');
+                expect(onOutput).toHaveBeenNthCalledWith(3, 'next\r\n');
+            });
+
             it('cancels pty process with ctrl+c followed by kill after grace period', async () => {
                 jest.useFakeTimers();
                 try {

@@ -72,9 +72,8 @@ export class ProcessManagerImpl implements ProcessManager {
         const pending = pieces.pop() ?? '';
         for (const piece of pieces) {
             const normalized = this.normalizeTerminalText(piece);
-            if (normalized.length > 0 || piece.length === 0) {
-                onOutput(normalized + '\r\n');
-            }
+            // Preserve one emitted output line per detected line break from PTY output.
+            onOutput(normalized + '\r\n');
         }
         return pending;
     }

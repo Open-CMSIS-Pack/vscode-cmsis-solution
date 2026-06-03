@@ -82,7 +82,7 @@ describe('SolutionProblems', () => {
             { solutionPath: '/work/old.csolution.yml' }
         );
 
-        expect(clearSpy).toHaveBeenCalledTimes(1);
+        expect(clearSpy).toHaveBeenCalledTimes(2);
     });
 
     it('clears diagnostics when solution is closed', async () => {
@@ -94,7 +94,7 @@ describe('SolutionProblems', () => {
             { solutionPath: '/work/old.csolution.yml' }
         );
 
-        expect(clearSpy).toHaveBeenCalledTimes(1);
+        expect(clearSpy).toHaveBeenCalledTimes(2);
     });
     it('does not clear diagnostics when solution path is unchanged', async () => {
         await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
@@ -150,6 +150,28 @@ describe('SolutionProblems', () => {
 
         const [uri] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
         expect(uri.fsPath).toContain('mylayer.clayer.yml');
+    });
+
+    it('maps diagnostics to absolute filename from log when source map has no match', async () => {
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+        await eventHub.fireConvertCompleted({
+            success: false,
+            severity: 'error',
+            detection: false,
+            logMessages: {
+                success: false,
+                errors: ['C:\\external\\build\\..\\outside.clayer.yml:2:1 - invalid value'],
+                warnings: [],
+                info: [],
+            },
+        });
+        await waitTimeout();
+
+        const [uri] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+        expect(uri.fsPath).toContain('outside.clayer.yml');
+        expect(uri.fsPath).not.toContain('app.csolution.yml');
     });
 
     it('does not open problems view when all messages are excluded', async () => {
@@ -544,6 +566,34 @@ describe('SolutionProblems', () => {
                 'missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"',
                 'ZEPHYR_BASE environment variable specifies non-existent directory: /missing; review "cmsis-csolution.environmentVariables"',
             ]));
+            expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
+        });
+
+        it('opens Problems view once when both general and environment diagnostics exist', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireConvertCompleted({
+                success: false,
+                severity: 'error',
+                detection: false,
+                logMessages: {
+                    success: false,
+                    errors: [
+                        'mylayer.clayer.yml:10:2 - missing node',
+                        'missing ZEPHYR_BASE environment variable',
+                    ],
+                    warnings: [],
+                    info: [],
+                },
+                toolsOutputMessages: [
+                    'warning cbuild: ZEPHYR_BASE environment variable specifies non-existent directory: /missing',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).toHaveBeenCalledTimes(2);
+            expect(vscode.commands.executeCommand).toHaveBeenCalledTimes(1);
             expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
         });
 

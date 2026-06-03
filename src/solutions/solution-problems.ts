@@ -155,23 +155,25 @@ export class SolutionProblemsImpl implements SolutionProblems {
         // Intentionally clear only on convert: convert is the canonical refresh point.
         // cbuild follows convert and should add diagnostics without wiping convert findings.
         this.clearDiagnostics();
-        await Promise.all([
+        const [hasGeneralDiagnostics, hasEnvironmentDiagnostics] = await Promise.all([
             this.enrichAndUpdateDiagnostics(data.logMessages, data.toolsOutputMessages),
             this.updateEnvironmentDiagnosticsFromConvert(data),
         ]);
+        await this.showProblemsViewIfNeeded(hasGeneralDiagnostics || hasEnvironmentDiagnostics);
     }
 
     private async handleCbuildCompleted(data: CbuildResultData): Promise<void> {
         // Do not clear diagnostics here. cbuild diagnostics are additive after convert.
         // This preserves existing convert diagnostics and avoids churn from redundant clears.
         const logMessages: LogMessages = { success: true, errors: [], warnings: [], info: [] };
-        await Promise.all([
+        const [hasGeneralDiagnostics, hasEnvironmentDiagnostics] = await Promise.all([
             this.enrichAndUpdateDiagnostics(logMessages, data.toolsOutputMessages),
             this.updateEnvironmentDiagnosticsFromCbuild(data),
         ]);
+        await this.showProblemsViewIfNeeded(hasGeneralDiagnostics || hasEnvironmentDiagnostics);
     }
 
-    private async updateEnvironmentDiagnosticsFromConvert(data: ConvertResultData): Promise<void> {
+    private async updateEnvironmentDiagnosticsFromConvert(data: ConvertResultData): Promise<boolean> {
         const messages: EnvironmentMessage[] = [
             ...(data.logMessages.errors ?? []).map(message => ({
                 message,
@@ -183,22 +185,23 @@ export class SolutionProblemsImpl implements SolutionProblems {
             })),
             ...this.extractEnvironmentMessagesFromToolOutput(data.toolsOutputMessages),
         ];
-        await this.updateEnvironmentDiagnostics(messages);
+        return this.updateEnvironmentDiagnostics(messages);
     }
 
-    private async updateEnvironmentDiagnosticsFromCbuild(data: CbuildResultData): Promise<void> {
+    private async updateEnvironmentDiagnosticsFromCbuild(data: CbuildResultData): Promise<boolean> {
         const messages = this.extractEnvironmentMessagesFromToolOutput(data.toolsOutputMessages);
-        await this.updateEnvironmentDiagnostics(messages);
+        return this.updateEnvironmentDiagnostics(messages);
     }
 
-    private async enrichAndUpdateDiagnostics(logMessages: LogMessages, toolsOutputMessages?: string[]): Promise<void> {
+    private async enrichAndUpdateDiagnostics(logMessages: LogMessages, toolsOutputMessages?: string[]): Promise<boolean> {
         await enrichLogMessagesFromToolOutput(logMessages, toolsOutputMessages);
-        await this.updateDiagnostics(logMessages);
+        return this.updateDiagnostics(logMessages);
     }
 
     private handleLoadStateChanged(data: SolutionLoadStateChangeEvent): void {
         if (data.previousState.solutionPath !== data.newState.solutionPath) {
             this.clearDiagnostics();
+            this.environmentDiagnosticCollection.clear();
         }
     }
 
@@ -226,7 +229,7 @@ export class SolutionProblemsImpl implements SolutionProblems {
             .filter(item => isEnvironmentVariableMessage(item.message));
     }
 
-    private async updateEnvironmentDiagnostics(rawMessages: EnvironmentMessage[]): Promise<void> {
+    private async updateEnvironmentDiagnostics(rawMessages: EnvironmentMessage[]): Promise<boolean> {
         this.environmentDiagnosticCollection.clear();
 
         const messages = new Map<string, vscode.DiagnosticSeverity>();
@@ -242,12 +245,12 @@ export class SolutionProblemsImpl implements SolutionProblems {
         }
 
         if (messages.size === 0) {
-            return;
+            return false;
         }
 
         const settings = await this.getSettingsLocation();
         if (!settings) {
-            return;
+            return false;
         }
 
         const diagnostics: vscode.Diagnostic[] = [];
@@ -269,6 +272,13 @@ export class SolutionProblemsImpl implements SolutionProblems {
 
         const uri = vscode.Uri.file(settings.filePath);
         this.environmentDiagnosticCollection.set(uri, diagnostics);
+        return diagnostics.length > 0;
+    }
+
+    private async showProblemsViewIfNeeded(hasDiagnostics: boolean): Promise<void> {
+        if (!hasDiagnostics) {
+            return;
+        }
         await vscode.commands.executeCommand('workbench.actions.view.problems', { preserveFocus: true });
     }
 
@@ -350,7 +360,8 @@ export class SolutionProblemsImpl implements SolutionProblems {
         }
         const normalizedFilename = filename ? getFileNameFromPath(filename) : undefined;
         const fromMap = (filename && files.get(filename)) || (normalizedFilename && files.get(normalizedFilename));
-        const file = fromMap || this.solutionManager.getCsolution()?.solutionPath;
+        const absoluteFromLog = filename && this.isAbsoluteDiagnosticPath(filename) ? filename : undefined;
+        const file = fromMap || absoluteFromLog || this.solutionManager.getCsolution()?.solutionPath;
         if (!file) {
             return false;
         }
@@ -369,9 +380,15 @@ export class SolutionProblemsImpl implements SolutionProblems {
         }
 
         // append diagnostic entry
-        const uri = vscode.Uri.file(path.posix.normalize(file));
+        const uri = vscode.Uri.file(path.normalize(file));
         this.diagnosticCollection.set(uri, [...(this.diagnosticCollection.get(uri) ?? []), entry]);
         return true;
+    }
+
+    private isAbsoluteDiagnosticPath(filePath: string): boolean {
+        return path.isAbsolute(filePath)
+            || /^[A-Za-z]:[\\/]/.test(filePath)
+            || /^\\\\[^\\]+\\[^\\]+/.test(filePath);
     }
 
     /**
@@ -382,7 +399,7 @@ export class SolutionProblemsImpl implements SolutionProblems {
         this.collectYmlFiles();
     }
 
-    private async updateDiagnostics(messages: LogMessages): Promise<void> {
+    private async updateDiagnostics(messages: LogMessages): Promise<boolean> {
         // Diagnostics lifecycle is controlled by event handlers.
         // handleConvertCompleted clears; handleCbuildCompleted appends.
         let diagnostics = false;
@@ -397,9 +414,7 @@ export class SolutionProblemsImpl implements SolutionProblems {
         for (const message of messages.info ?? []) {
             diagnostics = await this.addDiagnosticEntry(message, vscode.DiagnosticSeverity.Information, this.sourceFiles) || diagnostics;
         }
-        if (diagnostics) {
-            vscode.commands.executeCommand('workbench.actions.view.problems', { preserveFocus: true });
-        }
+        return diagnostics;
     }
 
     private addFile(file: string): void {
