@@ -911,6 +911,7 @@ export class ComponentsPacksWebviewMain {
             if (isMarkdown) {
                 await openFileWithPolicy(absoluteFilePath, this.commandsProvider, {
                     markdownPreviewTarget: 'beside',
+                    markdownPreviewMode: 'editor',
                 });
             } else {
                 let focusOnLine: number = 0;
