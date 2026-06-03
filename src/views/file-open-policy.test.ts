@@ -39,6 +39,59 @@ describe('openFileWithPolicy', () => {
 
             expect(commandsProvider.executeCommand).toHaveBeenCalledWith('markdown.showPreviewToSide', Uri.file('docs/readme.md'));
         });
+
+        it('opens markdown preview editor to the side when editor mode is requested', async () => {
+            await openFileWithPolicy('docs/readme.md', commandsProvider, {
+                markdownPreviewTarget: 'beside',
+                markdownPreviewMode: 'editor',
+            });
+
+            expect(commandsProvider.executeCommand).toHaveBeenCalledTimes(1);
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith(
+                'vscode.openWith',
+                Uri.file('docs/readme.md'),
+                'vscode.markdown.preview.editor',
+                { viewColumn: vscode.ViewColumn.Beside }
+            );
+        });
+
+        it('opens markdown preview editor in the active group when editor mode targets active', async () => {
+            await openFileWithPolicy('docs/readme.md', commandsProvider, {
+                markdownPreviewTarget: 'active',
+                markdownPreviewMode: 'editor',
+            });
+
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith(
+                'vscode.openWith',
+                Uri.file('docs/readme.md'),
+                'vscode.markdown.preview.editor',
+                { viewColumn: vscode.ViewColumn.Active }
+            );
+        });
+
+        it('falls back to markdown preview command when preview editor opening fails', async () => {
+            commandsProvider.executeCommand
+                .mockRejectedValueOnce(new Error('openWith failed'))
+                .mockResolvedValueOnce(undefined as never);
+
+            await openFileWithPolicy('docs/readme.md', commandsProvider, {
+                markdownPreviewTarget: 'beside',
+                markdownPreviewMode: 'editor',
+            });
+
+            expect(commandsProvider.executeCommand).toHaveBeenNthCalledWith(
+                1,
+                'vscode.openWith',
+                Uri.file('docs/readme.md'),
+                'vscode.markdown.preview.editor',
+                { viewColumn: vscode.ViewColumn.Beside }
+            );
+            expect(commandsProvider.executeCommand).toHaveBeenNthCalledWith(
+                2,
+                'markdown.showPreviewToSide',
+                Uri.file('docs/readme.md')
+            );
+        });
     });
 
     describe('non-markdown files', () => {

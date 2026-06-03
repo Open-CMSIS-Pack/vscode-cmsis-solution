@@ -18,9 +18,11 @@ import * as vscode from 'vscode';
 import { CommandsProvider } from '../vscode-api/commands-provider';
 
 export type MarkdownPreviewTarget = 'active' | 'beside';
+export type MarkdownPreviewMode = 'command' | 'editor';
 
 export type OpenFilePolicyOptions = {
     markdownPreviewTarget?: MarkdownPreviewTarget;
+    markdownPreviewMode?: MarkdownPreviewMode;
     configWizard?: {
         viewType: string;
         shouldOpen: (filePath: string) => Promise<boolean>;
@@ -33,9 +35,23 @@ export async function openFileWithPolicy(
     options: OpenFilePolicyOptions = {},
 ): Promise<void> {
     const openInActiveGroup = { viewColumn: vscode.ViewColumn.Active };
+    const openInBesideGroup = { viewColumn: vscode.ViewColumn.Beside };
     const markdownPreviewTarget = options.markdownPreviewTarget ?? 'active';
+    const markdownPreviewMode = options.markdownPreviewMode ?? 'command';
 
     if (filePath.toLowerCase().endsWith('.md')) {
+        if (markdownPreviewMode === 'editor') {
+            try {
+                const openOptions = markdownPreviewTarget === 'beside'
+                    ? openInBesideGroup
+                    : openInActiveGroup;
+                await commandsProvider.executeCommand('vscode.openWith', vscode.Uri.file(filePath), 'vscode.markdown.preview.editor', openOptions);
+                return;
+            } catch {
+                // Fall back to markdown commands if editor opening fails.
+            }
+        }
+
         const markdownCommand = markdownPreviewTarget === 'beside'
             ? 'markdown.showPreviewToSide'
             : 'markdown.showPreview';
