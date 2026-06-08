@@ -51,7 +51,7 @@ export class StatusBar {
 
         context.subscriptions.push(
             vscode.commands.registerCommand(StatusBar.commandType, () => this.runOnClick()),
-            this.cmsisToolboxManager.onRunCmsisTool(([start, packs]) => this.updateIconStatus(statusBarItem, start, packs)),
+            this.cmsisToolboxManager.onRunCmsisTool(([start, packs, cbuildSetup]) => this.updateIconStatus(statusBarItem, start, packs, cbuildSetup)),
             this.solutionManager.onDidSetupCompleted(([severity, detection]) => this.updateCbuildSetupStatus(statusBarItem, severity, detection)),
             this.solutionManager.onDidChangeLoadState((event) => this.handleLoadStateChange(statusBarItem, event)),
             statusBarItem,
@@ -119,10 +119,13 @@ export class StatusBar {
         return ` - ${context.projectName}${build}\n`;
     }
 
-    protected updateIconStatus(statusBarItem: vscode.StatusBarItem, start: boolean, packs?: boolean): void {
+    protected updateIconStatus(statusBarItem: vscode.StatusBarItem, start: boolean, packs?: boolean, cbuildSetup?: boolean): void {
         // Animation from: https://code.visualstudio.com/api/references/icons-in-labels
         this.statusBarItemIcon = start ? '$(sync~spin)' : '$(target)';
-        if (packs) {
+        if (cbuildSetup) {
+            statusBarItem.text = `${this.statusBarItemIcon} Building Compilation Database...`;
+            statusBarItem.show();
+        } else if (packs) {
             statusBarItem.text = `${this.statusBarItemIcon} Downloading Packs...`;
             statusBarItem.show();
         } else {
