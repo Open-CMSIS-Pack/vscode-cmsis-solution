@@ -336,7 +336,7 @@ export class ComponentsPacksWebviewMain {
             return true;
         }
 
-        const componentMapper = (c: ComponentInstance) => ({ id: c.id, variant: c.resolvedComponent?.pack });
+        const componentMapper = (c: ComponentInstance) => ({ id: c.id, variant: c.resolvedComponent?.pack, selectedCount: c.selectedCount });
         const packMapper = (p: PackReference) => ({ pack: p.pack, origin: normalizeForCompare(p.origin) });
         const localUsedItemsSorted = {
             components: [...(this.usedItems?.components ?? [])].sort((a, b) => a.id.localeCompare(b.id)).map(componentMapper),
