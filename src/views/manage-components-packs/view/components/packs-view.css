@@ -56,3 +56,11 @@
 .packs-view-root .description-column {
     max-width: 65vw;
 }
+
+.packs-view-root .packs-missing-row .packs-pack-column,
+.packs-view-root .packs-missing-row .packs-version-column,
+.packs-view-root .packs-missing-row .packs-description-column,
+.packs-view-root .packs-missing-row .packs-pack-column a,
+.packs-view-root .packs-missing-row .packs-description-column a {
+    color: var(--vscode-errorForeground);
+}

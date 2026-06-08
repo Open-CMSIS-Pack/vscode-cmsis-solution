@@ -524,9 +524,9 @@ export class ComponentsPacksWebviewMain {
     private async handleApplyComponentSet(): Promise<void> {
         await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Saving changes...' });
 
-        if (this.solutionManager.getCsolution()?.cbuildPackFile.isModified()) {
+        const cbuildPackModified = this.solutionManager.getCsolution()?.cbuildPackFile.isModified() ?? false;
+        if (cbuildPackModified) {
             await this.solutionManager.getCsolution()?.cbuildPackFile.save();
-            await this.handleRequestInitialData();
             this.unlinkRequests.clear();
         }
 
@@ -539,6 +539,11 @@ export class ComponentsPacksWebviewMain {
         this.componentTree = this.manageComponentsActions.mapComponentsFromService(await this.csolutionService.getComponentsTree({ context: activeContext, all: requestAll }));
         this.validations = await this.csolutionService.validateComponents({ context: activeContext });
         await this.projectFileUpdater.updateUsedItems(activeContext, projectFileName, usedItemsForProjectFileUpdate);
+
+        // Trigger refresh if cbuild-pack was modified to ensure solution is properly reloaded
+        if (cbuildPackModified) {
+            await this.solutionManager.refresh();
+        }
 
         await Promise.all([
             this.webviewManager.sendMessage({ type: 'SET_ERROR_MESSAGES', messages: [] }),
