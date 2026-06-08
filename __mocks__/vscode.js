@@ -53,6 +53,12 @@ class TabInputCustom {
     }
 }
 
+class TabInputText {
+    constructor(uri) {
+        this.uri = uri;
+    }
+}
+
 // Classes
 const Disposable = jest.fn(() => {
     return { dispose: jest.fn() };
@@ -260,6 +266,7 @@ module.exports = {
     ShellExecution,
     Task,
     TabInputCustom,
+    TabInputText,
     Uri,
     WorkspaceEdit,
     ShellQuoting,

@@ -108,6 +108,36 @@ describe('openFileWithPolicy', () => {
             );
         });
 
+        it('closes existing markdown source tabs and reuses their editor group', async () => {
+            const sourceTab = {
+                input: new vscode.TabInputText(Uri.file('docs/old.md')),
+            } as vscode.Tab;
+            const otherTextTab = {
+                input: new vscode.TabInputText(Uri.file('src/main.c')),
+            } as vscode.Tab;
+            const sourceColumn = 3 as vscode.ViewColumn;
+
+            tabGroups.all = [{
+                isActive: false,
+                viewColumn: sourceColumn,
+                activeTab: sourceTab,
+                tabs: [otherTextTab, sourceTab],
+            }];
+
+            await openFileWithPolicy('docs/readme.md', commandsProvider, {
+                markdownPreviewTarget: 'beside-reuse',
+                markdownPreviewMode: 'editor',
+            });
+
+            expect(vscode.window.tabGroups.close).toHaveBeenCalledWith([sourceTab], true);
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith(
+                'vscode.openWith',
+                Uri.file('docs/readme.md'),
+                'vscode.markdown.preview.editor',
+                { viewColumn: sourceColumn }
+            );
+        });
+
         it('opens markdown preview editor in the active group when editor mode targets active', async () => {
             await openFileWithPolicy('docs/readme.md', commandsProvider, {
                 markdownPreviewTarget: 'active',

@@ -31,16 +31,23 @@ export type OpenFilePolicyOptions = {
 
 const markdownPreviewViewType = 'vscode.markdown.preview.editor';
 
-function getMarkdownPreviewTabs(): vscode.Tab[] {
+function isMarkdownPreviewTab(tab: vscode.Tab): boolean {
+    return tab.input instanceof vscode.TabInputCustom &&
+        tab.input.viewType === markdownPreviewViewType;
+}
+
+function isMarkdownSourceTab(tab: vscode.Tab): boolean {
+    return tab.input instanceof vscode.TabInputText &&
+        tab.input.uri.fsPath.toLowerCase().endsWith('.md');
+}
+
+function getReusableMarkdownTabs(): vscode.Tab[] {
     return vscode.window.tabGroups.all.flatMap(group =>
-        group.tabs.filter(tab =>
-            tab.input instanceof vscode.TabInputCustom &&
-            tab.input.viewType === markdownPreviewViewType
-        )
+        group.tabs.filter(tab => isMarkdownPreviewTab(tab) || isMarkdownSourceTab(tab))
     );
 }
 
-function getMarkdownPreviewViewColumn(tabs: vscode.Tab[]): vscode.ViewColumn | undefined {
+function getReusableMarkdownViewColumn(tabs: vscode.Tab[]): vscode.ViewColumn | undefined {
     const previewGroup = vscode.window.tabGroups.all.find(group =>
         group.tabs.some(tab => tabs.includes(tab))
     );
@@ -54,11 +61,11 @@ async function getMarkdownPreviewOpenOptions(target: MarkdownPreviewTarget): Pro
     }
 
     if (target === 'beside-reuse') {
-        const previewTabs = getMarkdownPreviewTabs();
-        const viewColumn = getMarkdownPreviewViewColumn(previewTabs) ?? vscode.ViewColumn.Beside;
+        const reusableTabs = getReusableMarkdownTabs();
+        const viewColumn = getReusableMarkdownViewColumn(reusableTabs) ?? vscode.ViewColumn.Beside;
 
-        if (previewTabs.length > 0) {
-            await vscode.window.tabGroups.close(previewTabs, true);
+        if (reusableTabs.length > 0) {
+            await vscode.window.tabGroups.close(reusableTabs, true);
         }
 
         return { viewColumn };
