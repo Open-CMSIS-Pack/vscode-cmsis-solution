@@ -305,6 +305,16 @@ describe('ProblemDiagnosticActionResolver', () => {
             expect(args).toEqual(['cmsis-csolution.environmentVariables']);
         });
 
+        it('creates configure environment variables action for non-existent VIRTUAL_ENV directory', () => {
+            const { code, command, args } = decodeCodeTarget(resolver, makeContext({
+                message: 'VIRTUAL_ENV environment variable specifies non-existent directory: C:\\Users\\myuser/zephyrproject/.venv; review "cmsis-csolution.environmentVariables"',
+            }));
+
+            expect(code?.value).toBe('Configure Environment Variables');
+            expect(command).toBe(`command:${OPEN_ENV_VAR_SETTINGS_COMMAND_ID}`);
+            expect(args).toEqual(['cmsis-csolution.environmentVariables']);
+        });
+
         it('creates configure environment variables action for missing west executable', () => {
             const { code, command, args } = decodeCodeTarget(resolver, makeContext({
                 message: 'exec: "west": executable file not found in $PATH; review "cmsis-csolution.environmentVariables"',

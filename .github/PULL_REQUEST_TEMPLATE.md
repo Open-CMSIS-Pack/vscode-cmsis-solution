@@ -1,6 +1,6 @@
 ## Fixes
-<!-- List the GitHub issue this PR resolves -->
-- #<issue-number> (for example: #123)
+<!-- List the GitHub issue(s) this PR resolves (e.g. #123) -->
+- #<issue-number>
 
 ## Changes
 <!-- List the changes this PR introduces -->

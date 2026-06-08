@@ -119,7 +119,8 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
             'Equal or higher with same major and minor version'
         ];
 
-    const latestInstalledPack = latestUpgradable ? `${pack?.name}@${latestUpgradable}` : pack?.packId;
+    const packDisplayName = pack?.description !== 'Pack not installed' ? pack?.packId : '';
+    const latestInstalledPack = latestUpgradable ? `${pack?.name}@${latestUpgradable}` : packDisplayName;
     const hasNewerOnlineVersion = !!pack?.latestOnlineVersion && !latestInstalledPack?.endsWith(pack.latestOnlineVersion);
     const onlineTooltip = hasNewerOnlineVersion ? <div>Latest version available online: {pack.latestOnlineVersion}</div> : undefined;
 
@@ -209,7 +210,12 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                     <Card size="small">
                         <table className='manage-component-properties-table'>
                             <tbody>
-                                <tr><td>Used Pack:</td><td>{(!firstReferencePath && openFile) ? <PackTitleLink packId={pack.packId} packName={pack.packId} openFile={openFile} /> : pack.packId}</td></tr>
+                                {packDisplayName ? (
+                                    <tr>
+                                        <td>Used Pack:</td>
+                                        <td>{(!firstReferencePath && openFile) ? <PackTitleLink packId={pack.packId} packName={packDisplayName} openFile={openFile} /> : packDisplayName}</td>
+                                    </tr>
+                                ) : null}
                                 <tr><td>Description:</td><td>{pack.description}</td></tr>
                                 {firstReferencePath ? <tr><td>Path:</td><td>{firstReferencePath}</td></tr> : null}
                             </tbody>
@@ -224,7 +230,7 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                                     <Tooltip title={<span>Update and remove lock in <a onClick={() => { if (openFile && cbuildPackPath) openFile(cbuildPackPath, false); }}><EditFilled /></a>{cbuildPackPath} {unlockOf && <><br />Pending unlock request will be committed on save</>}</span>}>
                                         <Button
                                             type="text"
-                                            disabled={latestInstalledPack === pack.packId || unlockOf === pack.name}
+                                            disabled={!latestInstalledPack || latestInstalledPack === pack.packId || unlockOf === pack.name}
                                             style={{ border: unlockOf ? '1px dashed var(--vscode-foreground)' : 'none' }}
                                             onClick={requestUnlock}
                                             icon={<CmsisCodicon name="update-arrow" />}
