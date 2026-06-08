@@ -21,10 +21,18 @@ import { openFileWithPolicy } from './file-open-policy';
 import { commandsProviderFactory, MockCommandsProvider } from '../vscode-api/commands-provider.factories';
 
 describe('openFileWithPolicy', () => {
+    type MockTabGroups = Omit<vscode.TabGroups, 'all' | 'close'> & {
+        all: vscode.TabGroup[];
+        close: jest.Mock;
+    };
+
+    const tabGroups = vscode.window.tabGroups as unknown as MockTabGroups;
     let commandsProvider: MockCommandsProvider;
 
     beforeEach(() => {
         commandsProvider = commandsProviderFactory();
+        tabGroups.all = [];
+        tabGroups.close.mockClear();
     });
 
     describe('markdown files', () => {
@@ -52,6 +60,51 @@ describe('openFileWithPolicy', () => {
                 Uri.file('docs/readme.md'),
                 'vscode.markdown.preview.editor',
                 { viewColumn: vscode.ViewColumn.Beside }
+            );
+        });
+
+        it('opens markdown preview editor to the side when reuse is requested and no preview is open', async () => {
+            await openFileWithPolicy('docs/readme.md', commandsProvider, {
+                markdownPreviewTarget: 'beside-reuse',
+                markdownPreviewMode: 'editor',
+            });
+
+            expect(vscode.window.tabGroups.close).not.toHaveBeenCalled();
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith(
+                'vscode.openWith',
+                Uri.file('docs/readme.md'),
+                'vscode.markdown.preview.editor',
+                { viewColumn: vscode.ViewColumn.Beside }
+            );
+        });
+
+        it('closes existing markdown preview tabs and reuses their editor group', async () => {
+            const previewTab = {
+                input: new vscode.TabInputCustom(Uri.file('docs/old.md'), 'vscode.markdown.preview.editor'),
+            } as vscode.Tab;
+            const otherCustomEditorTab = {
+                input: new vscode.TabInputCustom(Uri.file('src/config.h'), 'cmsis-csolution.configWizard'),
+            } as vscode.Tab;
+            const previewColumn = 3 as vscode.ViewColumn;
+
+            tabGroups.all = [{
+                isActive: false,
+                viewColumn: previewColumn,
+                activeTab: previewTab,
+                tabs: [otherCustomEditorTab, previewTab],
+            }];
+
+            await openFileWithPolicy('docs/readme.md', commandsProvider, {
+                markdownPreviewTarget: 'beside-reuse',
+                markdownPreviewMode: 'editor',
+            });
+
+            expect(vscode.window.tabGroups.close).toHaveBeenCalledWith([previewTab], true);
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith(
+                'vscode.openWith',
+                Uri.file('docs/readme.md'),
+                'vscode.markdown.preview.editor',
+                { viewColumn: previewColumn }
             );
         });
 

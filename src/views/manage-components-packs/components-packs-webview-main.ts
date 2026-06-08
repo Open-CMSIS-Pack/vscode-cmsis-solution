@@ -910,7 +910,7 @@ export class ComponentsPacksWebviewMain {
 
             if (isMarkdown) {
                 await openFileWithPolicy(absoluteFilePath, this.commandsProvider, {
-                    markdownPreviewTarget: 'beside',
+                    markdownPreviewTarget: 'beside-reuse',
                     markdownPreviewMode: 'editor',
                 });
             } else {

@@ -46,6 +46,13 @@ class ThemeIcon {
     }
 }
 
+class TabInputCustom {
+    constructor(uri, viewType) {
+        this.uri = uri;
+        this.viewType = viewType;
+    }
+}
+
 // Classes
 const Disposable = jest.fn(() => {
     return { dispose: jest.fn() };
@@ -155,6 +162,13 @@ const tasks = {
 };
 const window = {
     activeColorTheme: { kind: 1 },
+    tabGroups: {
+        all: [],
+        activeTabGroup: undefined,
+        onDidChangeTabGroups: new EventEmitter().event,
+        onDidChangeTabs: new EventEmitter().event,
+        close: jest.fn(),
+    },
     createStatusBarItem: jest.fn(() => ({ show: jest.fn(), hide: jest.fn() })),
     createTerminal: jest.fn(() => ({ show: jest.fn(), hide: jest.fn(), dispose: jest.fn() })),
     createWebviewPanel: jest.fn(),
@@ -245,6 +259,7 @@ module.exports = {
     RelativePattern,
     ShellExecution,
     Task,
+    TabInputCustom,
     Uri,
     WorkspaceEdit,
     ShellQuoting,
