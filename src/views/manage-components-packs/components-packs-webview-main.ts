@@ -37,6 +37,7 @@ import { lineOf, readTextFile } from '../../utils/fs-utils';
 import { stripTwoExtensions } from '../../utils/string-utils';
 import { getLatestAvailablePacks } from '../../packs/index-pidx-file';
 import { isDeepStrictEqual } from 'util';
+import { openFileWithPolicy } from '../file-open-policy';
 
 export const MANAGE_COMPONENTS_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> = {
     title: 'Software Components',
@@ -908,7 +909,10 @@ export class ComponentsPacksWebviewMain {
             const isMarkdown = absoluteFilePath.toLowerCase().endsWith('.md');
 
             if (isMarkdown) {
-                this.commandsProvider.executeCommand('markdown.showPreview', vscode.Uri.file(absoluteFilePath));
+                await openFileWithPolicy(absoluteFilePath, this.commandsProvider, {
+                    markdownPreviewTarget: 'beside',
+                    markdownPreviewMode: 'editor',
+                });
             } else {
                 let focusOnLine: number = 0;
 

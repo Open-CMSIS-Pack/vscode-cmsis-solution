@@ -1521,33 +1521,35 @@ describe('ComponentsPacksWebviewMain', () => {
             commandsProvider.executeCommand.mockClear();
         });
 
-        it('passes files to the external opener when requested', () => {
+        it('passes files to the external opener when requested', async () => {
             const openSpy = jest.spyOn(mockOpenFileExternal, 'openFile');
 
-            (componentsPacksWebviewMain as any).openFile('docs/readme.md', true);
+            await (componentsPacksWebviewMain as any).openFile('docs/readme.md', true);
 
             expect(openSpy).toHaveBeenCalledWith('docs/readme.md');
             expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
         });
 
-        it('shows markdown preview for .md files', () => {
+        it('shows markdown preview for .md files', async () => {
             const openSpy = jest.spyOn(mockOpenFileExternal, 'openFile');
 
-            (componentsPacksWebviewMain as any).openFile('docs/intro.md');
+            await (componentsPacksWebviewMain as any).openFile('docs/intro.md');
 
             expect(openSpy).not.toHaveBeenCalled();
-            const [command, previewUri] = commandsProvider.executeCommand.mock.calls.at(-1);
-            expect(command).toBe('markdown.showPreview');
+            const [command, previewUri, viewId, options] = commandsProvider.executeCommand.mock.calls.at(-1);
+            expect(command).toBe('vscode.openWith');
+            expect(viewId).toBe('vscode.markdown.preview.editor');
+            expect(options).toEqual({ viewColumn: vscode.ViewColumn.Beside });
             const previewPath = (previewUri.path ?? previewUri.fsPath ?? '').replace(/\\/g, '/');
             expect(previewPath.endsWith('/docs/intro.md')).toBe(true);
         });
 
-        it('opens other files inside VS Code', () => {
+        it('opens other files inside VS Code', async () => {
             const showSpy = jest
                 .spyOn(vscode.window, 'showTextDocument')
                 .mockResolvedValue(undefined as unknown as vscode.TextEditor);
 
-            (componentsPacksWebviewMain as any).openFile('docs/notes.txt', false, '');
+            await (componentsPacksWebviewMain as any).openFile('docs/notes.txt', false, '');
 
             expect(showSpy).toHaveBeenCalledTimes(1);
 
