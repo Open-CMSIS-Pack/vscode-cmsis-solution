@@ -151,17 +151,18 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
         const renderVersionTarget = (_value: string, record: PackRowDataType) => {
             const usedVersion = record.versionUsed.replace(/^[~^<>=@\s]+/, '');
             const lockedReference = record.references
-                .map(reference => reference.locked?.trim())
-                .find((locked): locked is string => Boolean(locked));
+                .find(reference => Boolean(reference.locked?.trim()))
+                ?.locked?.trim();
             const lockedVersion = lockedReference
                 ? (parsePackId(lockedReference)?.version || lockedReference.replace(/^.*@/, ''))
                 : '';
             const missingReference = record.references
-                .find(reference => reference.missing && Boolean(reference.pack?.trim()));
+                .find(reference => reference.missing && Boolean(reference.pack?.trim()))
+                ?.pack;
             const missingVersion = missingReference && !lockedReference
-                ? (parsePackId(missingReference.pack)?.version ?? '')
+                ? (parsePackId(missingReference)?.version ?? '')
                 : '';
-            const version = usedVersion || lockedVersion || missingVersion;
+            const version = lockedVersion || usedVersion || missingVersion;
             return (
                 <span>
                     {version}
