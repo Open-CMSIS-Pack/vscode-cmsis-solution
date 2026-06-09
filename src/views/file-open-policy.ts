@@ -17,7 +17,7 @@
 import * as vscode from 'vscode';
 import { CommandsProvider } from '../vscode-api/commands-provider';
 
-export type MarkdownPreviewTarget = 'active' | 'beside';
+export type MarkdownPreviewTarget = 'active' | 'beside' | 'beside-reuse';
 export type MarkdownPreviewMode = 'command' | 'editor';
 
 export type OpenFilePolicyOptions = {
@@ -29,32 +29,74 @@ export type OpenFilePolicyOptions = {
     };
 };
 
+const markdownPreviewViewType = 'vscode.markdown.preview.editor';
+
+function isMarkdownPreviewTab(tab: vscode.Tab): boolean {
+    return tab.input instanceof vscode.TabInputCustom &&
+        tab.input.viewType === markdownPreviewViewType;
+}
+
+function isMarkdownSourceTab(tab: vscode.Tab): boolean {
+    return tab.input instanceof vscode.TabInputText &&
+        tab.input.uri.fsPath.toLowerCase().endsWith('.md');
+}
+
+function getReusableMarkdownTabs(): vscode.Tab[] {
+    return vscode.window.tabGroups.all.flatMap(group =>
+        group.tabs.filter(tab => isMarkdownPreviewTab(tab) || isMarkdownSourceTab(tab))
+    );
+}
+
+function getReusableMarkdownViewColumn(tabs: vscode.Tab[]): vscode.ViewColumn | undefined {
+    const previewGroup = vscode.window.tabGroups.all.find(group =>
+        group.tabs.some(tab => tabs.includes(tab))
+    );
+
+    return previewGroup?.viewColumn;
+}
+
+async function getMarkdownPreviewOpenOptions(target: MarkdownPreviewTarget): Promise<vscode.TextDocumentShowOptions> {
+    if (target === 'active') {
+        return { viewColumn: vscode.ViewColumn.Active };
+    }
+
+    if (target === 'beside-reuse') {
+        const reusableTabs = getReusableMarkdownTabs();
+        const viewColumn = getReusableMarkdownViewColumn(reusableTabs) ?? vscode.ViewColumn.Beside;
+
+        if (reusableTabs.length > 0) {
+            await vscode.window.tabGroups.close(reusableTabs, true);
+        }
+
+        return { viewColumn };
+    }
+
+    return { viewColumn: vscode.ViewColumn.Beside };
+}
+
 export async function openFileWithPolicy(
     filePath: string,
     commandsProvider: CommandsProvider,
     options: OpenFilePolicyOptions = {},
 ): Promise<void> {
     const openInActiveGroup = { viewColumn: vscode.ViewColumn.Active };
-    const openInBesideGroup = { viewColumn: vscode.ViewColumn.Beside };
     const markdownPreviewTarget = options.markdownPreviewTarget ?? 'active';
     const markdownPreviewMode = options.markdownPreviewMode ?? 'command';
 
     if (filePath.toLowerCase().endsWith('.md')) {
         if (markdownPreviewMode === 'editor') {
             try {
-                const openOptions = markdownPreviewTarget === 'beside'
-                    ? openInBesideGroup
-                    : openInActiveGroup;
-                await commandsProvider.executeCommand('vscode.openWith', vscode.Uri.file(filePath), 'vscode.markdown.preview.editor', openOptions);
+                const openOptions = await getMarkdownPreviewOpenOptions(markdownPreviewTarget);
+                await commandsProvider.executeCommand('vscode.openWith', vscode.Uri.file(filePath), markdownPreviewViewType, openOptions);
                 return;
             } catch {
                 // Fall back to markdown commands if editor opening fails.
             }
         }
 
-        const markdownCommand = markdownPreviewTarget === 'beside'
-            ? 'markdown.showPreviewToSide'
-            : 'markdown.showPreview';
+        const markdownCommand = markdownPreviewTarget === 'active'
+            ? 'markdown.showPreview'
+            : 'markdown.showPreviewToSide';
 
         await commandsProvider.executeCommand(markdownCommand, vscode.Uri.file(filePath));
         return;
