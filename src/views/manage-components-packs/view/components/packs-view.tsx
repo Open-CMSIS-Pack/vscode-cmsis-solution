@@ -226,7 +226,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
         const relativePath = state.selectedTargetType?.relativePath || '';
         const selectedInCurrentTarget = referenceFromContext(relativePath, record).length > 0;
 
-        return !selectedInCurrentTarget ? '' : 'ant-table-row-disabled';
+        return selectedInCurrentTarget ? 'active-layer' : 'inactive-layer';
     };
 
     return (

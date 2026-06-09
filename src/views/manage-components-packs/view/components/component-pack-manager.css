@@ -297,6 +297,7 @@ th.ant-table-cell {
     vertical-align: unset;
 }
 
+
 .packs-view-root tr td:first-child,
 .packs-view-root tr th:first-child {
     padding-left: 24px !important;
@@ -304,4 +305,13 @@ th.ant-table-cell {
 
 .packs-view-root .ant-table-wrapper {
     padding-top: 4px;
+}
+
+.active-layer {
+    background-color: var(--vscode-editor-activeSelectionBackground);
+}
+
+.inactive-layer {
+    background-color: var(--vscode-editor-inactiveSelectionBackground);
+    opacity: 0.5;
 }
