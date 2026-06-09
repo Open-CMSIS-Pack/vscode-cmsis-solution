@@ -42,12 +42,77 @@ export const toolsPrefixPatterns = {
     warning: /^.*warning (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
 };
 
+const ESC = String.fromCharCode(27);
+const BEL = String.fromCharCode(7);
+
+const stripAnsiControlSequences = (line: string): string => {
+    let normalized = '';
+
+    for (let i = 0; i < line.length;) {
+        if (line[i] !== ESC) {
+            normalized += line[i];
+            i++;
+            continue;
+        }
+
+        const next = line[i + 1];
+
+        // CSI sequence: ESC [ ... final-byte(0x40-0x7E)
+        if (next === '[') {
+            i += 2;
+            while (i < line.length) {
+                const code = line.charCodeAt(i);
+                i++;
+                if (code >= 0x40 && code <= 0x7E) {
+                    break;
+                }
+            }
+            continue;
+        }
+
+        // OSC sequence: ESC ] ... BEL  OR  ESC \
+        if (next === ']') {
+            i += 2;
+            while (i < line.length) {
+                if (line[i] === BEL) {
+                    i++;
+                    break;
+                }
+                if (line[i] === ESC && line[i + 1] === '\\') {
+                    i += 2;
+                    break;
+                }
+                i++;
+            }
+            continue;
+        }
+
+        // Single-character escape sequence: ESC <code>
+        i += Math.min(2, line.length - i);
+    }
+
+    return normalized;
+};
+
+export const normalizeToolOutputLines = (lines?: string[]): string[] => {
+    if (!lines) {
+        return [];
+    }
+
+    return lines
+        .flatMap(line => line
+            .split(/\r\n|\n|\r/)
+            .map(segment => stripAnsiControlSequences(segment)))
+        .map(line => line.trimEnd())
+        .filter(line => line.length > 0);
+};
+
 export const hasToolError = (lines?: string[]): boolean => {
-    return lines?.find(line => toolsPrefixPatterns.error.test(line)) !== undefined;
+    return normalizeToolOutputLines(lines).find(line => toolsPrefixPatterns.error.test(line)) !== undefined;
 };
 
 export const hasToolWarning = (lines?: string[]): boolean => {
-    return lines?.find(line => toolsPrefixPatterns.warning.test(line)) !== undefined;
+    return normalizeToolOutputLines(lines).find(line => toolsPrefixPatterns.warning.test(line)) !== undefined;
 };
 
 export const getToolsSeverity = (lines?: string[]): Severity => {
@@ -96,12 +161,13 @@ const pushUniquely = (array: string[], value: string) => {
 };
 
 export const enrichLogMessagesFromToolOutput = async (logMessages: LogMessages, lines?: string[]): Promise<void> => {
-    if (!lines) {
+    const normalizedLines = normalizeToolOutputLines(lines);
+    if (!normalizedLines.length) {
         return;
     }
 
-    let errors = lines.filter(line => toolsPrefixPatterns.error.test(line));
-    let warnings = lines.filter(line => toolsPrefixPatterns.warning.test(line));
+    let errors = normalizedLines.filter(line => toolsPrefixPatterns.error.test(line));
+    let warnings = normalizedLines.filter(line => toolsPrefixPatterns.warning.test(line));
     if (!warnings.length && !errors.length) {
         return;
     }
@@ -206,11 +272,12 @@ export class SolutionProblemsImpl implements SolutionProblems {
     }
 
     private extractEnvironmentMessagesFromToolOutput(lines?: string[]): EnvironmentMessage[] {
-        if (!lines) {
+        const normalizedLines = normalizeToolOutputLines(lines);
+        if (!normalizedLines.length) {
             return [];
         }
 
-        return lines
+        return normalizedLines
             .flatMap(line => {
                 if (toolsPrefixPatterns.error.test(line)) {
                     return [{
