@@ -223,6 +223,48 @@ describe('SolutionProblems', () => {
         expect(messages.errors).toEqual([]);
     });
 
+    describe('tool output normalization through enrichment', () => {
+        it('parses warning/error messages when wrapped in CSI ANSI sequences', async () => {
+            const messages = { success: true, errors: [], warnings: [], info: [] };
+            const esc = String.fromCharCode(27);
+
+            await enrichLogMessagesFromToolOutput(messages, [
+                `${esc}[2Kwarning cbuild: generated warning${esc}[0m\r\n`,
+                `${esc}[31merror cbuild: generated error${esc}[0m\r\n`,
+            ]);
+
+            expect(messages.warnings).toEqual(['generated warning']);
+            expect(messages.errors).toEqual(['generated error']);
+        });
+
+        it('parses warning/error messages when preceded by OSC sequences terminated by BEL or ST', async () => {
+            const messages = { success: true, errors: [], warnings: [], info: [] };
+            const esc = String.fromCharCode(27);
+            const bel = String.fromCharCode(7);
+
+            await enrichLogMessagesFromToolOutput(messages, [
+                `${esc}]0;term-title${bel}warning cbuild: generated warning\r\n`,
+                `${esc}]0;term-title${esc}\\error cbuild: generated error\r\n`,
+            ]);
+
+            expect(messages.warnings).toEqual(['generated warning']);
+            expect(messages.errors).toEqual(['generated error']);
+        });
+
+        it('ignores single-character escape sequences while preserving parseable text', async () => {
+            const messages = { success: true, errors: [], warnings: [], info: [] };
+            const esc = String.fromCharCode(27);
+
+            await enrichLogMessagesFromToolOutput(messages, [
+                `${esc}7warning cbuild: generated warning\r\n`,
+                `${esc}8error cbuild: generated error\r\n`,
+            ]);
+
+            expect(messages.warnings).toEqual(['generated warning']);
+            expect(messages.errors).toEqual(['generated error']);
+        });
+    });
+
     it('enriches tool messages when warning/error prefixes are split across PTY chunks', async () => {
         const messages = { success: true, errors: [], warnings: [], info: [] };
 
