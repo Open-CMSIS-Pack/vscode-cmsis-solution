@@ -21,15 +21,7 @@ import { ExtensionContext } from 'vscode';
 import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
 import { solutionManagerFactory, MockSolutionManager } from './solution-manager.factories';
 import { SolutionEventHub } from './solution-event-hub';
-import {
-    enrichLogMessagesFromToolOutput,
-    SolutionProblemsImpl,
-    hasToolError,
-    hasToolWarning,
-    getToolsSeverity,
-    getSeverity,
-    normalizeToolOutputLines,
-} from './solution-problems';
+import { enrichLogMessagesFromToolOutput, SolutionProblemsImpl, hasToolError, hasToolWarning, getToolsSeverity, getSeverity } from './solution-problems';
 import { waitTimeout } from '../__test__/test-waits';
 import * as fsUtils from '../utils/fs-utils';
 
@@ -218,18 +210,6 @@ describe('SolutionProblems', () => {
 
         expect(messages.errors).toEqual(['already there', 'generated error']);
         expect(messages.warnings).toEqual(['generated warning']);
-    });
-
-    it('normalizes PTY chunks in tool output during enrichment', async () => {
-        const messages = { success: true, errors: [], warnings: [], info: [] };
-
-        await enrichLogMessagesFromToolOutput(messages, [
-            '\u001b[2Kwarning cbuild: buffered warning\r\n',
-            'progress 10%\rprogress 20%\rerror cbuild: buffered error\r\n',
-        ]);
-
-        expect(messages.warnings).toEqual(['buffered warning']);
-        expect(messages.errors).toEqual(['buffered error']);
     });
 
     it('filters west-related environment messages from enriched tool output', async () => {
@@ -640,6 +620,47 @@ describe('SolutionProblems', () => {
             const [uri] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
             expect(uri.fsPath).toBe(vscode.Uri.file(workspaceFilePath).fsPath);
         });
+
+        it('reassembles split PTY chunks for environment warning diagnostics', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireCbuildCompleted({
+                success: false,
+                severity: 'error',
+                toolsOutputMessages: [
+                    'warning cbui',
+                    'ld: missing ZEPHYR_BASE environment variable\r\n',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).toHaveBeenCalledTimes(1);
+            const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+            expect(diagnostics?.map(diagnostic => diagnostic.message)).toEqual(expect.arrayContaining([
+                'missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"',
+            ]));
+        });
+
+        it('strips control characters from environment diagnostics tool output', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireCbuildCompleted({
+                success: false,
+                severity: 'error',
+                toolsOutputMessages: [
+                    '\u0007warning cbuild: missing ZEPHYR_BASE environment variable\u0007\r\n',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).toHaveBeenCalledTimes(1);
+            const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+            expect(diagnostics?.map(diagnostic => diagnostic.message)).toEqual(expect.arrayContaining([
+                'missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"',
+            ]));
+        });
     });
 
     describe('Severity utility functions', () => {
@@ -663,10 +684,6 @@ describe('SolutionProblems', () => {
             it('returns false when lines is empty', () => {
                 expect(hasToolError([])).toBe(false);
             });
-
-            it('returns true for PTY chunked ANSI output containing error', () => {
-                expect(hasToolError(['\u001b[2Kprogress\rerror cbuild: chunked failure\r\n'])).toBe(true);
-            });
         });
 
         describe('hasToolWarning', () => {
@@ -684,10 +701,6 @@ describe('SolutionProblems', () => {
 
             it('returns false when lines is empty', () => {
                 expect(hasToolWarning([])).toBe(false);
-            });
-
-            it('returns true for PTY chunked ANSI output containing warning', () => {
-                expect(hasToolWarning(['\u001b[2Kprogress\rwarning cbuild: chunked warning\r\n'])).toBe(true);
             });
         });
 
@@ -748,19 +761,6 @@ describe('SolutionProblems', () => {
 
             it('prioritizes message warnings over info', () => {
                 expect(getSeverity({ success: true, errors: [], warnings: ['warning'], info: ['info'] })).toBe('warning');
-            });
-        });
-
-        describe('normalizeToolOutputLines', () => {
-            it('strips ANSI and splits CR/LF chunked output into lines', () => {
-                expect(normalizeToolOutputLines([
-                    '\u001b[2Kwarning cbuild: first\r\n',
-                    'progress\rerror cbuild: second\r\n',
-                ])).toEqual([
-                    'warning cbuild: first',
-                    'progress',
-                    'error cbuild: second',
-                ]);
             });
         });
     });

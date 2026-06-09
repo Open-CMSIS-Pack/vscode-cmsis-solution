@@ -94,25 +94,64 @@ const stripAnsiControlSequences = (line: string): string => {
     return normalized;
 };
 
-export const normalizeToolOutputLines = (lines?: string[]): string[] => {
-    if (!lines) {
+const stripNonPrintableControls = (line: string): string => {
+    let normalized = '';
+    for (let i = 0; i < line.length; i++) {
+        const code = line.charCodeAt(i);
+        const isTab = code === 0x09;
+        const isLf = code === 0x0A;
+        const isCr = code === 0x0D;
+        const isPrintable = code >= 0x20 && code !== 0x7F;
+        if (isTab || isLf || isCr || isPrintable) {
+            normalized += line[i];
+        }
+    }
+    return normalized;
+};
+
+const normalizeToolOutputLines = (lines?: string[]): string[] => {
+    if (!lines || lines.length === 0) {
         return [];
     }
 
-    return lines
-        .flatMap(line => line
-            .split(/\r\n|\n|\r/)
-            .map(segment => stripAnsiControlSequences(segment)))
-        .map(line => line.trimEnd())
-        .filter(line => line.length > 0);
+    const isPtyLike = lines.some(line => line.includes(ESC) || line.includes('\r') || line.includes('\n'));
+    if (!isPtyLike) {
+        return lines
+            .map(line => stripNonPrintableControls(stripAnsiControlSequences(line)).trimEnd())
+            .filter(line => line.length > 0);
+    }
+
+    const normalizedLines: string[] = [];
+    let pending = '';
+
+    for (const chunk of lines) {
+        const sanitizedChunk = stripNonPrintableControls(stripAnsiControlSequences(chunk));
+        const combined = pending + sanitizedChunk;
+        const parts = combined.split(/\r\n|\n|\r/);
+        pending = parts.pop() ?? '';
+
+        for (const part of parts) {
+            const line = part.trimEnd();
+            if (line.length > 0) {
+                normalizedLines.push(line);
+            }
+        }
+    }
+
+    const tail = pending.trimEnd();
+    if (tail.length > 0) {
+        normalizedLines.push(tail);
+    }
+
+    return normalizedLines;
 };
 
 export const hasToolError = (lines?: string[]): boolean => {
-    return normalizeToolOutputLines(lines).find(line => toolsPrefixPatterns.error.test(line)) !== undefined;
+    return lines?.find(line => toolsPrefixPatterns.error.test(line)) !== undefined;
 };
 
 export const hasToolWarning = (lines?: string[]): boolean => {
-    return normalizeToolOutputLines(lines).find(line => toolsPrefixPatterns.warning.test(line)) !== undefined;
+    return lines?.find(line => toolsPrefixPatterns.warning.test(line)) !== undefined;
 };
 
 export const getToolsSeverity = (lines?: string[]): Severity => {
