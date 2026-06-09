@@ -237,7 +237,7 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                     {!firstReferencePath && (
                         <Card title="Update Pack" size="small">
                             <Row>
-                                <Col flex={3}>Latest Installed Pack:</Col>
+                                <Col flex={3}>Latest Compliant Pack Installed:</Col>
                                 <Col flex={5}>{latestInstalledPack}</Col>
                                 <Col flex={1}>
                                     <Tooltip title={<span>Update and remove lock in <a onClick={() => { if (openFile && cbuildPackPath) openFile(cbuildPackPath, false); }}><EditFilled /></a>{cbuildPackPath} {unlockOf && <><br />Pending unlock request will be committed on save</>}</span>}>
