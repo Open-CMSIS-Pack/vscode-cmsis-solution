@@ -223,6 +223,20 @@ describe('SolutionProblems', () => {
         expect(messages.errors).toEqual([]);
     });
 
+    it('enriches tool messages when warning/error prefixes are split across PTY chunks', async () => {
+        const messages = { success: true, errors: [], warnings: [], info: [] };
+
+        await enrichLogMessagesFromToolOutput(messages, [
+            'warning cbui',
+            'ld: generated warning\r\n',
+            'error cbu',
+            'ild: generated error\r\n',
+        ]);
+
+        expect(messages.warnings).toEqual(['generated warning']);
+        expect(messages.errors).toEqual(['generated error']);
+    });
+
     it('creates manage components command link with context argument', async () => {
         await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
