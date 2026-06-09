@@ -223,6 +223,62 @@ describe('SolutionProblems', () => {
         expect(messages.errors).toEqual([]);
     });
 
+    describe('tool output normalization through enrichment', () => {
+        it('parses warning/error messages when wrapped in CSI ANSI sequences', async () => {
+            const messages = { success: true, errors: [], warnings: [], info: [] };
+            const esc = String.fromCharCode(27);
+
+            await enrichLogMessagesFromToolOutput(messages, [
+                `${esc}[2Kwarning cbuild: generated warning${esc}[0m\r\n`,
+                `${esc}[31merror cbuild: generated error${esc}[0m\r\n`,
+            ]);
+
+            expect(messages.warnings).toEqual(['generated warning']);
+            expect(messages.errors).toEqual(['generated error']);
+        });
+
+        it('parses warning/error messages when preceded by OSC sequences terminated by BEL or ST', async () => {
+            const messages = { success: true, errors: [], warnings: [], info: [] };
+            const esc = String.fromCharCode(27);
+            const bel = String.fromCharCode(7);
+
+            await enrichLogMessagesFromToolOutput(messages, [
+                `${esc}]0;term-title${bel}warning cbuild: generated warning\r\n`,
+                `${esc}]0;term-title${esc}\\error cbuild: generated error\r\n`,
+            ]);
+
+            expect(messages.warnings).toEqual(['generated warning']);
+            expect(messages.errors).toEqual(['generated error']);
+        });
+
+        it('ignores single-character escape sequences while preserving parseable text', async () => {
+            const messages = { success: true, errors: [], warnings: [], info: [] };
+            const esc = String.fromCharCode(27);
+
+            await enrichLogMessagesFromToolOutput(messages, [
+                `${esc}7warning cbuild: generated warning\r\n`,
+                `${esc}8error cbuild: generated error\r\n`,
+            ]);
+
+            expect(messages.warnings).toEqual(['generated warning']);
+            expect(messages.errors).toEqual(['generated error']);
+        });
+    });
+
+    it('enriches tool messages when warning/error prefixes are split across PTY chunks', async () => {
+        const messages = { success: true, errors: [], warnings: [], info: [] };
+
+        await enrichLogMessagesFromToolOutput(messages, [
+            'warning cbui',
+            'ld: generated warning\r\n',
+            'error cbu',
+            'ild: generated error\r\n',
+        ]);
+
+        expect(messages.warnings).toEqual(['generated warning']);
+        expect(messages.errors).toEqual(['generated error']);
+    });
+
     it('creates manage components command link with context argument', async () => {
         await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
@@ -619,6 +675,47 @@ describe('SolutionProblems', () => {
             expect(setSpy).toHaveBeenCalledTimes(1);
             const [uri] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
             expect(uri.fsPath).toBe(vscode.Uri.file(workspaceFilePath).fsPath);
+        });
+
+        it('reassembles split PTY chunks for environment warning diagnostics', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireCbuildCompleted({
+                success: false,
+                severity: 'error',
+                toolsOutputMessages: [
+                    'warning cbui',
+                    'ld: missing ZEPHYR_BASE environment variable\r\n',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).toHaveBeenCalledTimes(1);
+            const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+            expect(diagnostics?.map(diagnostic => diagnostic.message)).toEqual(expect.arrayContaining([
+                'missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"',
+            ]));
+        });
+
+        it('strips control characters from environment diagnostics tool output', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireCbuildCompleted({
+                success: false,
+                severity: 'error',
+                toolsOutputMessages: [
+                    '\u0007warning cbuild: missing ZEPHYR_BASE environment variable\u0007\r\n',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).toHaveBeenCalledTimes(1);
+            const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+            expect(diagnostics?.map(diagnostic => diagnostic.message)).toEqual(expect.arrayContaining([
+                'missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"',
+            ]));
         });
     });
 

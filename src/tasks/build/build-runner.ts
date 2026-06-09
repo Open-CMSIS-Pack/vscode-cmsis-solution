@@ -89,7 +89,7 @@ export const cbuildArgsFromTaskDefinition = (definition: BuildTaskDefinition): s
         executionArgs.push('--output', outDir);
     }
 
-    if (!definition.rebuild && !definition.clean) {
+    if (definition.setup) {
         executionArgs.push('--skip-convert');
     }
 

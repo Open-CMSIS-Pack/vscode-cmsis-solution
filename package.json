@@ -975,7 +975,7 @@
       "view/title": [
         {
           "command": "cmsis-csolution.build",
-          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && cmsis-csolution.buildState == idle",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && (cmsis-csolution.buildState == idle || cmsis-csolution.buildState == setup)",
           "group": "navigation@1"
         },
         {

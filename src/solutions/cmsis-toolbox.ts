@@ -45,7 +45,7 @@ const isErrnoException = (e: unknown): e is NodeJS.ErrnoException => Boolean(e) 
 export interface CmsisToolboxManager {
     activate(context: vscode.ExtensionContext): Promise<void>
 
-    readonly onRunCmsisTool: vscode.Event<[boolean, boolean?]>;
+    readonly onRunCmsisTool: vscode.Event<[boolean, boolean?, boolean?]>;
 
     /** Run CMSIS Tool
     * @param tool name of CMSIS command line tool to be executed
@@ -112,7 +112,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
     ) {
     }
 
-    private readonly runCmsisToolEmitter = new vscode.EventEmitter<[boolean, boolean?]>();
+    private readonly runCmsisToolEmitter = new vscode.EventEmitter<[boolean, boolean?, boolean?]>();
     public readonly onRunCmsisTool = this.runCmsisToolEmitter.event;
 
     private readonly toolboxMutex = new Mutex();
@@ -193,9 +193,14 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
             onOutput(msg);
         }
 
-        if (tool !== 'cbuild') { // do not notify cbuild is started
+        if (tool === 'cbuild') {
+            if (args.includes('setup')) {
+                // notify cbuild setup is started but do not notify other cbuild calls (e.g. during build)
+                this.runCmsisToolEmitter.fire([true, false, true]);
+            }
+        } else {
             // set 'packs' event flag when installing packs via 'cpackget add' command
-            this.runCmsisToolEmitter.fire([true, tool === 'cpackget' && args.includes('add')]);
+            this.runCmsisToolEmitter.fire([true, tool === 'cpackget' && args.includes('add'), false]);
         }
 
         const [cmdMsg, returnCode] = await this.runCmd(

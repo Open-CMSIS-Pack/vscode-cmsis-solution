@@ -172,7 +172,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
 
     const buildTaskProvider = new BuildTaskProviderImpl(buildRunner);
     const buildTaskDefinitionBuilder = new BuildTaskDefinitionBuilderImpl(solutionManager, configurationProvider);
-    const compileCommandsGenerator = new CompileCommandsGenerator(buildTaskProvider, buildTaskDefinitionBuilder, eventHub, outputChannelProvider);
+    const compileCommandsGenerator = new CompileCommandsGenerator(buildTaskProvider, buildTaskDefinitionBuilder, eventHub, outputChannelProvider, commandsProvider);
 
     const solutionConverterImpl = new SolutionConverterImpl(
         eventHub,

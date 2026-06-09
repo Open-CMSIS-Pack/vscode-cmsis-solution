@@ -48,36 +48,6 @@ export class ProcessManagerImpl implements ProcessManager {
     // https://github.com/microsoft/node-pty/issues/763
     private readonly debuggingOnWindows = process.platform === 'win32' && inspector.url() !== undefined;
 
-    private readonly ptyLineBreakRegex = /\r\n|\n|\r/g;
-
-    private readonly ansiControlSequenceRegex = new RegExp(
-        String.raw`\u001B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\u001B\\))`,
-        'g'
-    );
-
-    private readonly nonPrintableControlRegex = new RegExp(
-        String.raw`[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]`,
-        'g'
-    );
-
-    private normalizeTerminalText(text: string): string {
-        return text
-            .replace(this.ansiControlSequenceRegex, '')
-            .replace(this.nonPrintableControlRegex, '')
-            .trimEnd();
-    }
-
-    private flushPtyOutputChunk(chunk: string, onOutput: (line: string) => void): string {
-        const pieces = chunk.split(this.ptyLineBreakRegex);
-        const pending = pieces.pop() ?? '';
-        for (const piece of pieces) {
-            const normalized = this.normalizeTerminalText(piece);
-            // Preserve one emitted output line per detected line break from PTY output.
-            onOutput(normalized + '\r\n');
-        }
-        return pending;
-    }
-
     public spawn(
         command: string,
         args: string[],
@@ -103,15 +73,8 @@ export class ProcessManagerImpl implements ProcessManager {
                     cwd: typeof options.cwd === 'string' ? options.cwd : undefined,
                     env: augmentedEnv
                 });
-                let pendingOutput = '';
-                ptyProcess.onData((data) => {
-                    pendingOutput = this.flushPtyOutputChunk(pendingOutput + data, onOutput);
-                });
+                ptyProcess.onData((data) => { onOutput(data); });
                 ptyProcess.onExit(({ exitCode }) => {
-                    const normalizedTail = this.normalizeTerminalText(pendingOutput);
-                    if (normalizedTail.length > 0) {
-                        onOutput(normalizedTail + '\r\n');
-                    }
                     if (exitCode === 0) {
                         resolve({ code: 0 });
                     } else {
