@@ -42,6 +42,11 @@ describe('CompileCommandsGenerator', () => {
 
     beforeEach(async () => {
         exitCode = 0;
+        (vscode.window as unknown as {
+            activeTextEditor: { document: { isDirty: boolean } } | undefined;
+        }).activeTextEditor = {
+            document: { isDirty: true }
+        };
         (vscode.tasks as unknown as {
             taskExecutions: vscode.TaskExecution[];
             onDidEndTask: (listener: (event: vscode.TaskEndEvent) => void) => vscode.Disposable;
@@ -124,6 +129,24 @@ describe('CompileCommandsGenerator', () => {
 
         expect(commandsProvider.executeCommand).toHaveBeenCalledWith('workbench.action.files.save');
         expect(saveCommandCallOrder).toBeLessThan(createDefinitionCallOrder);
+        expect(vscode.tasks.executeTask).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not save files when active editor is not dirty', async () => {
+        (vscode.window as unknown as {
+            activeTextEditor: { document: { isDirty: boolean } } | undefined;
+        }).activeTextEditor = {
+            document: { isDirty: false }
+        };
+        (mockBuildTaskProvider.getActiveTaskRunner as jest.Mock).mockReturnValue({
+            getOutputBuffer: () => ['completed with exit code 0']
+        });
+
+        cbuildSetupRequestedListener?.();
+        await waitTimeout();
+
+        expect(commandsProvider.executeCommand).not.toHaveBeenCalledWith('workbench.action.files.save');
+        expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).toHaveBeenCalledWith('setup');
         expect(vscode.tasks.executeTask).toHaveBeenCalledTimes(1);
     });
 

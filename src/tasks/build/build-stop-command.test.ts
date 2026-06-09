@@ -292,7 +292,7 @@ describe('BuildStopCommand', () => {
 
         const task = {
             execution: { task: { name: 'cbuild test-solution', definition: { type: BuildTaskProviderImpl.taskType, setup: true } } }
-        } as vscode.TaskProcessStartEvent;
+        } as unknown as vscode.TaskProcessStartEvent;
 
         // Call the handler
         onDidStartTaskProcessHandler(task);

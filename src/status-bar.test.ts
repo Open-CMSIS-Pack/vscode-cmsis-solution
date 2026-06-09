@@ -55,9 +55,10 @@ describe('StatusBar', () => {
 
             await statusBar.activate(extensionContext);
 
-            expect(mockCreateStatusBarItem).toHaveBeenCalledTimes(1);
+            expect(mockCreateStatusBarItem).toHaveBeenCalledTimes(2);
             expect(mockCreateStatusBarItem.mock.results[0].value.command).toBe(StatusBar.commandType);
             expect(mockCreateStatusBarItem.mock.results[0].value.name).toBe('CMSIS Context');
+            expect(mockCreateStatusBarItem.mock.results[1].value.name).toBe('CMSIS Setup');
         });
 
         it('shows and hides the status bar item according to load state', async () => {
@@ -96,6 +97,7 @@ describe('StatusBar', () => {
             const statusBar = new StatusBar(solutionManager, cmsisToolboxManager, themeProvider);
             await statusBar.activate(extensionContext);
             const statusBarItem = mockCreateStatusBarItem.mock.results[0].value;
+            const operationStatusBarItem = mockCreateStatusBarItem.mock.results[1].value;
 
             // start cmsis tool
             solutionManager.fireOnDidChangeLoadState(
@@ -109,18 +111,20 @@ describe('StatusBar', () => {
 
             // start cbuild setup
             cmsisToolboxManager.mockTriggerOnRunCmsisTool(true, false, true);
-            expect(statusBarItem.show).toHaveBeenCalledTimes(4);
-            expect(statusBarItem.text).toBe('$(sync~spin) Building Compilation Database...');
+            expect(operationStatusBarItem.show).toHaveBeenCalledTimes(1);
+            expect(operationStatusBarItem.text).toBe('$(sync~spin) Building Compilation Database...');
 
             // end cmsis tool
             cmsisToolboxManager.mockTriggerOnRunCmsisTool(false, false);
-            expect(statusBarItem.show).toHaveBeenCalledTimes(5);
+            expect(operationStatusBarItem.hide).toHaveBeenCalledTimes(3);
+            expect(statusBarItem.show).toHaveBeenCalledTimes(4);
             expect(statusBarItem.text).toBe('$(target) target@set');
             expect(statusBarItem.tooltip.valueOf()).toEqual('**solution/test**\n - project.build\n');
 
             // cbuild setup completed and files loaded successfully
             solutionManager.onDidSetupCompletedEmitter.fire(['success', false]);
-            expect(statusBarItem.show).toHaveBeenCalledTimes(6);
+            expect(operationStatusBarItem.hide).toHaveBeenCalledTimes(4);
+            expect(statusBarItem.show).toHaveBeenCalledTimes(5);
             expect(statusBarItem.backgroundColor).toStrictEqual(themeProvider.getThemeColor('statusBarItem.background'));
 
             // Run status bar command
@@ -131,7 +135,8 @@ describe('StatusBar', () => {
 
             // cbuild setup completed with error
             solutionManager.onDidSetupCompletedEmitter.fire(['error', false]);
-            expect(statusBarItem.show).toHaveBeenCalledTimes(7);
+            expect(operationStatusBarItem.hide).toHaveBeenCalledTimes(5);
+            expect(statusBarItem.show).toHaveBeenCalledTimes(6);
             expect(statusBarItem.backgroundColor).toStrictEqual(themeProvider.getThemeColor('statusBarItem.errorBackground'));
 
             // Run status bar command

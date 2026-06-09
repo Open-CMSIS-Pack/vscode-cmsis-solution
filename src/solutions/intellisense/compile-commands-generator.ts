@@ -49,7 +49,9 @@ export class CompileCommandsGenerator {
 
     private async prepareSetupTask() {
         await waitForActiveBuildTasksCompletion();
-        await this.commandsProvider.executeCommand('workbench.action.files.save');
+        if (vscode.window.activeTextEditor?.document.isDirty) {
+            await this.commandsProvider.executeCommand('workbench.action.files.save');
+        }
         const definition = await this.buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode('setup');
         return this.buildTaskProvider.createTask(definition);
     }
