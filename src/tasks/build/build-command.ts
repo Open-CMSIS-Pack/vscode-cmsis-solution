@@ -18,7 +18,7 @@ import * as vscode from 'vscode';
 import { PACKAGE_NAME } from '../../manifest';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
 import { BuildTaskDefinition } from './build-task-definition';
-import { BuildTaskProvider, waitForActiveBuildTasksCompletion } from './build-task-provider';
+import { BuildTaskProvider, BuildTaskProviderImpl, waitForActiveBuildTasksCompletion } from './build-task-provider';
 import { BuildTaskDefinitionBuilder } from './build-task-definition-builder';
 import { COutlineItem } from '../../views/solution-outline/tree-structure/solution-outline-item';
 
@@ -56,10 +56,26 @@ export class BuildCommand {
     }
 
     private async createAndExecuteTaskDefinition(action: 'build' | 'clean' | 'rebuild', uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution> {
+        await this.stopActiveSetupTaskIfRunning();
         await waitForActiveBuildTasksCompletion();
         await this.saveDirtyManageSolutionTarget();
         const definition = await this.buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode(action, uriOrSolutionNode);
         return this.executeTaskDefinition(definition);
+    }
+
+    private async stopActiveSetupTaskIfRunning(): Promise<void> {
+        const setupExecution = (vscode.tasks.taskExecutions ?? []).find(execution =>
+            execution.task.definition?.type === BuildTaskProviderImpl.taskType && execution.task.definition?.setup === true
+        );
+
+        if (!setupExecution) {
+            return;
+        }
+
+        const taskName = setupExecution.task.name;
+        if (!taskName || !this.buildTaskProvider.terminateTask(taskName)) {
+            setupExecution.terminate();
+        }
     }
 
     private async saveDirtyManageSolutionTarget(): Promise<void> {

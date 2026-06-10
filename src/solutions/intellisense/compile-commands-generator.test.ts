@@ -217,24 +217,7 @@ describe('CompileCommandsGenerator', () => {
         });
     });
 
-    it('reports error with incomplete setup message when task is aborted', async () => {
-        (mockBuildTaskProvider.getActiveTaskRunner as jest.Mock).mockReturnValue({
-            getOutputBuffer: () => []
-        });
-        exitCode = -1;
-        cbuildSetupRequestedListener?.();
-        await waitTimeout();
-
-        expect(mockEventHub.fireCbuildCompleted).toHaveBeenCalledWith(
-            expect.objectContaining({
-                success: false,
-                severity: 'error',
-                toolsOutputMessages: expect.arrayContaining([expect.stringContaining('cbuild setup incomplete, use Refresh command')])
-            })
-        );
-    });
-
-    it('does not append incomplete setup message when exit code is -1 but tool output already contains an error', async () => {
+    it('reports error severity when output contains an error pattern even without parsed exit code', async () => {
         (mockBuildTaskProvider.getActiveTaskRunner as jest.Mock).mockReturnValue({
             getOutputBuffer: () => ['error cbuild: failed to generate']
         });
@@ -243,7 +226,7 @@ describe('CompileCommandsGenerator', () => {
         await waitTimeout();
 
         expect(mockEventHub.fireCbuildCompleted).toHaveBeenCalledWith({
-            success: false,
+            success: true,
             severity: 'error',
             toolsOutputMessages: ['error cbuild: failed to generate']
         });

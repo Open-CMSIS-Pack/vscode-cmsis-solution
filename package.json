@@ -447,7 +447,7 @@
         "command": "cmsis-csolution.build",
         "title": "Build Solution",
         "icon": "$(csolution-build)",
-        "enablement": "cmsis-csolution.activeSolutionState == active && cmsis-csolution.buildState == idle"
+        "enablement": "cmsis-csolution.activeSolutionState == active && (cmsis-csolution.buildState == idle || cmsis-csolution.buildState == setup)"
       },
       {
         "category": "CMSIS",

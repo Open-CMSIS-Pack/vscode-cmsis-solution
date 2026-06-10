@@ -99,6 +99,80 @@ describe('BuildCommand', () => {
             });
         });
 
+        it('stops active setup task via provider before starting build', async () => {
+            const setupTask = {
+                name: 'cbuild setup-solution',
+                definition: { type: BuildTaskProviderImpl.taskType, setup: true }
+            } as unknown as vscode.Task;
+
+            (vscode.tasks as unknown as {
+                taskExecutions: vscode.TaskExecution[];
+            }).taskExecutions = [
+                {
+                    task: setupTask,
+                    terminate: jest.fn()
+                } as unknown as vscode.TaskExecution
+            ];
+
+            mockBuildTaskProvider.terminateTask = jest.fn().mockImplementation(() => {
+                (vscode.tasks as unknown as {
+                    taskExecutions: vscode.TaskExecution[];
+                }).taskExecutions = [];
+                return true;
+            });
+
+            const buildCommand = new BuildCommand(
+                mockBuildTaskProvider,
+                commandsProvider,
+                buildTaskDefinitionBuilder,
+            );
+            await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+
+            await commandsProvider.mockRunRegistered(BuildCommand.buildCommandType, undefined);
+
+            expect(mockBuildTaskProvider.terminateTask).toHaveBeenCalledWith('cbuild setup-solution');
+            expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).toHaveBeenCalledWith('build', undefined);
+            expect(mockExecuteTask).toHaveBeenCalledTimes(1);
+        });
+
+        it('falls back to task execution terminate when provider cannot stop setup task', async () => {
+            const terminateSpy = jest.fn().mockImplementation(() => {
+                (vscode.tasks as unknown as {
+                    taskExecutions: vscode.TaskExecution[];
+                }).taskExecutions = [];
+            });
+
+            const setupTask = {
+                name: 'cbuild setup-solution',
+                definition: { type: BuildTaskProviderImpl.taskType, setup: true }
+            } as unknown as vscode.Task;
+
+            (vscode.tasks as unknown as {
+                taskExecutions: vscode.TaskExecution[];
+            }).taskExecutions = [
+                {
+                    task: setupTask,
+                    terminate: terminateSpy
+                } as unknown as vscode.TaskExecution
+            ];
+
+            mockBuildTaskProvider.terminateTask = jest.fn().mockReturnValue(false);
+
+            const buildCommand = new BuildCommand(
+                mockBuildTaskProvider,
+                commandsProvider,
+                buildTaskDefinitionBuilder,
+            );
+            await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+
+            await commandsProvider.mockRunRegistered(BuildCommand.buildCommandType, undefined);
+
+            expect(mockBuildTaskProvider.terminateTask).toHaveBeenCalledWith('cbuild setup-solution');
+            expect(terminateSpy).toHaveBeenCalledTimes(1);
+            expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).toHaveBeenCalledWith('build', undefined);
+            expect(mockExecuteTask).toHaveBeenCalledTimes(1);
+        });
+
     });
 
     describe('rebuild command', () => {

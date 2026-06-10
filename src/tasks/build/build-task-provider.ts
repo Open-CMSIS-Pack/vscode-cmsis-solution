@@ -147,7 +147,8 @@ export class BuildTaskProviderImpl implements BuildTaskProvider, vscode.TaskProv
                     taskName: taskLabel,
                     runMessage: this.taskMessages.runMessage,
                     completeMessage: this.taskMessages.completeMessage,
-                    terminationMessage: this.taskMessages.terminationMessage,
+                    terminationMessage: resolvedTaskDefinition.setup ? '\r\n🟥 Build requested by user, skip setup\r\n' :
+                        this.taskMessages.terminationMessage,
                     dimensions: resolvedTaskDefinition.dimensions,
                 });
                 // Use the generated task name for tracking
