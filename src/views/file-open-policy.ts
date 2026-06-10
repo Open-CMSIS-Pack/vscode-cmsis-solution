@@ -23,6 +23,8 @@ export type MarkdownPreviewMode = 'command' | 'editor';
 export type OpenFilePolicyOptions = {
     markdownPreviewTarget?: MarkdownPreviewTarget;
     markdownPreviewMode?: MarkdownPreviewMode;
+    viewColumn?: vscode.ViewColumn;
+    selection?: vscode.Range;
     configWizard?: {
         viewType: string;
         shouldOpen: (filePath: string) => Promise<boolean>;
@@ -79,14 +81,19 @@ export async function openFileWithPolicy(
     commandsProvider: CommandsProvider,
     options: OpenFilePolicyOptions = {},
 ): Promise<void> {
-    const openInActiveGroup = { viewColumn: vscode.ViewColumn.Active };
+    const openInTargetGroup: vscode.TextDocumentShowOptions = {
+        viewColumn: options.viewColumn ?? vscode.ViewColumn.Active,
+        ...(options.selection ? { selection: options.selection } : {}),
+    };
     const markdownPreviewTarget = options.markdownPreviewTarget ?? 'active';
     const markdownPreviewMode = options.markdownPreviewMode ?? 'command';
 
     if (filePath.toLowerCase().endsWith('.md')) {
         if (markdownPreviewMode === 'editor') {
             try {
-                const openOptions = await getMarkdownPreviewOpenOptions(markdownPreviewTarget);
+                const openOptions = options.viewColumn === undefined
+                    ? await getMarkdownPreviewOpenOptions(markdownPreviewTarget)
+                    : openInTargetGroup;
                 await commandsProvider.executeCommand('vscode.openWith', vscode.Uri.file(filePath), markdownPreviewViewType, openOptions);
                 return;
             } catch {
@@ -103,9 +110,13 @@ export async function openFileWithPolicy(
     }
 
     if (options.configWizard && await options.configWizard.shouldOpen(filePath)) {
-        await commandsProvider.executeCommand('vscode.openWith', vscode.Uri.file(filePath), options.configWizard.viewType);
+        if (options.viewColumn !== undefined || options.selection !== undefined) {
+            await commandsProvider.executeCommand('vscode.openWith', vscode.Uri.file(filePath), options.configWizard.viewType, openInTargetGroup);
+        } else {
+            await commandsProvider.executeCommand('vscode.openWith', vscode.Uri.file(filePath), options.configWizard.viewType);
+        }
         return;
     }
 
-    await commandsProvider.executeCommand('vscode.open', vscode.Uri.file(filePath), openInActiveGroup);
+    await commandsProvider.executeCommand('vscode.open', vscode.Uri.file(filePath), openInTargetGroup);
 }

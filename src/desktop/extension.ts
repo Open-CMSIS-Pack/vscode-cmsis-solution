@@ -91,6 +91,7 @@ import { SerialMonitorApi, Version } from '@microsoft/vscode-serial-monitor-api'
 import { SolutionEventHub } from '../solutions/solution-event-hub';
 import { SolutionRpcData } from '../solutions/solution-rpc-data';
 import { ManageSolutionCustomEditorProvider, registerManageSolutionCommand } from '../views/manage-solution/manage-solution-custom-editor';
+import { FileOpenGroupOrchestratorImpl } from '../views/file-open-group-orchestrator';
 
 let installDefaultToolsetProcess: Promise<void> | undefined;
 
@@ -185,7 +186,17 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const environmentVariablesSettingsCommand = new EnvironmentVariablesSettingsCommand(commandsProvider);
     const themeProvider = new ThemeProviderImpl();
     const statusBar = new StatusBar(solutionManager, cmsisToolboxManager, themeProvider);
-    const componentsManager = new ComponentsPacksWebviewMain(solutionManager, csolutionService, context, messageProvider, commandsProvider, externalFileOpener);
+    const fileOpenGroupOrchestrator = new FileOpenGroupOrchestratorImpl();
+    const componentsManager = new ComponentsPacksWebviewMain(
+        solutionManager,
+        csolutionService,
+        context,
+        messageProvider,
+        commandsProvider,
+        externalFileOpener,
+        undefined,
+        fileOpenGroupOrchestrator,
+    );
     const solarSearch = new SolarSearchClientImpl();
     const convertMdkToCsolution = new ConvertMdkToCsolutionCommand(commandsProvider, processManager, outputChannelProvider, workspaceFoldersProvider, messageProvider, workspaceFsProvider, globalStateProvider);
     const solutionInitialiserImp = new SolutionInitialiserImp(commandsProvider, workspaceFoldersProvider, configureVcpkgForSolution, messageProvider, globalStateProvider,);
@@ -218,7 +229,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const deleteCommand = new DeleteCommand(commandsProvider, workspaceFsProvider);
     const editCommand = new EditCommand(commandsProvider);
     const copyHeaderCommand = new CopyHeaderCommand(commandsProvider);
-    const openCommand = new OpenCommand(solutionManager, commandsProvider, externalFileOpener);
+    const openCommand = new OpenCommand(solutionManager, commandsProvider, externalFileOpener, undefined, fileOpenGroupOrchestrator);
     const findCommand = new FindCommand(commandsProvider);
     const fileDecorationProviderManager = new FileDecorationProviderManagerImpl();
     const treeViewProviderImpl = new TreeViewProviderImpl(SolutionOutlineView.treeViewId);

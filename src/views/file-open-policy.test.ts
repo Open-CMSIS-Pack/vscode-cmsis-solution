@@ -184,6 +184,31 @@ describe('openFileWithPolicy', () => {
             expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file('src/main.c'), { viewColumn: vscode.ViewColumn.Active });
         });
 
+        it('opens regular files in the requested view column', async () => {
+            const targetColumn = 3 as vscode.ViewColumn;
+
+            await openFileWithPolicy('src/main.c', commandsProvider, {
+                viewColumn: targetColumn,
+            });
+
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file('src/main.c'), { viewColumn: targetColumn });
+        });
+
+        it('forwards selection for regular file opens', async () => {
+            const targetColumn = 3 as vscode.ViewColumn;
+            const selection = new vscode.Range(1, 2, 3, 4);
+
+            await openFileWithPolicy('src/main.c', commandsProvider, {
+                viewColumn: targetColumn,
+                selection,
+            });
+
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file('src/main.c'), {
+                viewColumn: targetColumn,
+                selection,
+            });
+        });
+
         it('opens files in config wizard when routing predicate returns true', async () => {
             const shouldOpen = jest.fn().mockResolvedValue(true);
 
@@ -196,6 +221,32 @@ describe('openFileWithPolicy', () => {
 
             expect(shouldOpen).toHaveBeenCalledWith('src/config.h');
             expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.openWith', Uri.file('src/config.h'), 'cmsis-csolution.configWizard');
+        });
+
+        it('forwards view column and selection for config wizard opens when provided', async () => {
+            const shouldOpen = jest.fn().mockResolvedValue(true);
+            const targetColumn = 4 as vscode.ViewColumn;
+            const selection = new vscode.Range(5, 0, 5, 10);
+
+            await openFileWithPolicy('src/config.h', commandsProvider, {
+                viewColumn: targetColumn,
+                selection,
+                configWizard: {
+                    viewType: 'cmsis-csolution.configWizard',
+                    shouldOpen,
+                },
+            });
+
+            expect(shouldOpen).toHaveBeenCalledWith('src/config.h');
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith(
+                'vscode.openWith',
+                Uri.file('src/config.h'),
+                'cmsis-csolution.configWizard',
+                {
+                    viewColumn: targetColumn,
+                    selection,
+                }
+            );
         });
     });
 });
