@@ -922,7 +922,7 @@ export class ComponentsPacksWebviewMain {
                     viewColumn: targetViewColumn,
                 });
 
-                this.fileOpenGroupOrchestrator.rememberTargetViewColumn(vscode.window.activeTextEditor?.viewColumn ?? targetViewColumn);
+                this.fileOpenGroupOrchestrator.rememberTargetViewColumn(vscode.window.tabGroups.activeTabGroup?.viewColumn);
                 return;
             }
 

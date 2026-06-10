@@ -137,6 +137,8 @@ export class OpenCommand {
                 shouldOpen: this.shouldOpenConfigWizard.bind(this),
             },
         });
+
+        this.fileOpenGroupOrchestrator.rememberTargetViewColumn(vscode.window.tabGroups.activeTabGroup?.viewColumn);
     }
 
     private async shouldOpenConfigWizard(filePath: string): Promise<boolean> {
