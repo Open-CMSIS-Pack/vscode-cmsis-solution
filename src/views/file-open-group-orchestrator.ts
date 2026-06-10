@@ -20,7 +20,7 @@ export type FileOpenOrigin = 'software-components' | 'solution-outline';
 
 export interface FileOpenGroupOrchestrator {
     getTargetViewColumn(origin: FileOpenOrigin): vscode.ViewColumn;
-    rememberTargetViewColumn(viewColumn: vscode.ViewColumn | undefined): void;
+    rememberTargetViewColumn(origin: FileOpenOrigin, viewColumn: vscode.ViewColumn | undefined): void;
 }
 
 export class FileOpenGroupOrchestratorImpl implements FileOpenGroupOrchestrator {
@@ -49,9 +49,15 @@ export class FileOpenGroupOrchestratorImpl implements FileOpenGroupOrchestrator 
             : vscode.ViewColumn.Active;
     }
 
-    public rememberTargetViewColumn(viewColumn: vscode.ViewColumn | undefined): void {
-        if (this.isPersistableViewColumn(viewColumn)) {
-            this.targetViewColumn = viewColumn;
+    public rememberTargetViewColumn(origin: FileOpenOrigin, viewColumn: vscode.ViewColumn | undefined): void {
+        if (!this.isPersistableViewColumn(viewColumn)) {
+            return;
         }
+
+        if (!this.targetViewColumn && origin !== 'software-components') {
+            return;
+        }
+
+        this.targetViewColumn = viewColumn;
     }
 }

@@ -138,7 +138,7 @@ export class OpenCommand {
             },
         });
 
-        this.fileOpenGroupOrchestrator.rememberTargetViewColumn(vscode.window.tabGroups.activeTabGroup?.viewColumn);
+        this.fileOpenGroupOrchestrator.rememberTargetViewColumn('solution-outline', vscode.window.tabGroups.activeTabGroup?.viewColumn);
     }
 
     private async shouldOpenConfigWizard(filePath: string): Promise<boolean> {

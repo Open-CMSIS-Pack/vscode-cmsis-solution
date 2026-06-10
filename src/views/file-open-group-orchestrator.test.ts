@@ -39,18 +39,46 @@ describe('FileOpenGroupOrchestratorImpl', () => {
     it('persists only concrete numeric view columns', () => {
         const orchestrator = new FileOpenGroupOrchestratorImpl();
 
-        orchestrator.rememberTargetViewColumn(vscode.ViewColumn.Active);
-        orchestrator.rememberTargetViewColumn(vscode.ViewColumn.Beside);
-        orchestrator.rememberTargetViewColumn(undefined);
+        orchestrator.rememberTargetViewColumn('software-components', vscode.ViewColumn.Active);
+        orchestrator.rememberTargetViewColumn('software-components', vscode.ViewColumn.Beside);
+        orchestrator.rememberTargetViewColumn('software-components', undefined);
 
         expect(orchestrator.getTargetViewColumn('solution-outline')).toBe(vscode.ViewColumn.Active);
 
         const persistedColumn = 3 as vscode.ViewColumn;
         tabGroups.all = [{ viewColumn: persistedColumn } as vscode.TabGroup];
-        orchestrator.rememberTargetViewColumn(persistedColumn);
+        orchestrator.rememberTargetViewColumn('software-components', persistedColumn);
 
         expect(orchestrator.getTargetViewColumn('solution-outline')).toBe(persistedColumn);
         expect(orchestrator.getTargetViewColumn('software-components')).toBe(persistedColumn);
+    });
+
+    it('does not allow solution outline to initialize persisted group before software components', () => {
+        const orchestrator = new FileOpenGroupOrchestratorImpl();
+        const outlineColumn = 3 as vscode.ViewColumn;
+
+        tabGroups.all = [{ viewColumn: outlineColumn } as vscode.TabGroup];
+        orchestrator.rememberTargetViewColumn('solution-outline', outlineColumn);
+
+        expect(orchestrator.getTargetViewColumn('software-components')).toBe(vscode.ViewColumn.Beside);
+        expect(orchestrator.getTargetViewColumn('solution-outline')).toBe(vscode.ViewColumn.Active);
+    });
+
+    it('allows solution outline to update persisted group after software components initializes it', () => {
+        const orchestrator = new FileOpenGroupOrchestratorImpl();
+        const initialColumn = 3 as vscode.ViewColumn;
+        const updatedColumn = 4 as vscode.ViewColumn;
+
+        tabGroups.all = [
+            { viewColumn: initialColumn } as vscode.TabGroup,
+            { viewColumn: updatedColumn } as vscode.TabGroup,
+        ];
+
+        orchestrator.rememberTargetViewColumn('software-components', initialColumn);
+        orchestrator.rememberTargetViewColumn('solution-outline', updatedColumn);
+
+        expect(orchestrator.getTargetViewColumn('software-components')).toBe(updatedColumn);
+        expect(orchestrator.getTargetViewColumn('solution-outline')).toBe(updatedColumn);
     });
 
     it('resets persisted group when the column is no longer present in tab groups', () => {
@@ -58,7 +86,7 @@ describe('FileOpenGroupOrchestratorImpl', () => {
         const oldColumn = 3 as vscode.ViewColumn;
 
         tabGroups.all = [{ viewColumn: oldColumn } as vscode.TabGroup];
-        orchestrator.rememberTargetViewColumn(oldColumn);
+        orchestrator.rememberTargetViewColumn('software-components', oldColumn);
         expect(orchestrator.getTargetViewColumn('solution-outline')).toBe(oldColumn);
 
         tabGroups.all = [{ viewColumn: 4 as vscode.ViewColumn } as vscode.TabGroup];

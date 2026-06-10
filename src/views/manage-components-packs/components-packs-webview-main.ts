@@ -922,7 +922,7 @@ export class ComponentsPacksWebviewMain {
                     viewColumn: targetViewColumn,
                 });
 
-                this.fileOpenGroupOrchestrator.rememberTargetViewColumn(vscode.window.tabGroups.activeTabGroup?.viewColumn);
+                this.fileOpenGroupOrchestrator.rememberTargetViewColumn('software-components', vscode.window.tabGroups.activeTabGroup?.viewColumn);
                 return;
             }
 
@@ -942,7 +942,7 @@ export class ComponentsPacksWebviewMain {
                 selection,
             });
 
-            this.fileOpenGroupOrchestrator.rememberTargetViewColumn(editor?.viewColumn);
+            this.fileOpenGroupOrchestrator.rememberTargetViewColumn('software-components', editor?.viewColumn);
         }
     }
 
