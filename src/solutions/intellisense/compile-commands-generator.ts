@@ -86,7 +86,7 @@ export class CompileCommandsGenerator {
                     disposable.dispose();
                     const output = this.buildTaskProvider.getActiveTaskRunner(task.name)?.getOutputBuffer() ?? [];
                     const match = this.outputRegex.exec(output.join('\n'));
-                    // 'success' strictly reflects process outcome reported in the output
+                    // 'success' reflects process outcome reported in the output, ignoring when the task was terminated early
                     const success = Number(match?.[1] ?? 0) === 0;
                     // 'severity' is determined based on output content to properly report errors/warnings
                     const severity = success ? getToolsSeverity(output) : 'error';
