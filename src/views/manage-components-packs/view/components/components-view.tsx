@@ -134,6 +134,10 @@ export const ComponentsView: React.FC<ComponentsViewProps> = ({
 
     const componentSelected = (confirmed: boolean, updated?: ComponentRowDataType, original?: ComponentRowDataType) => {
         if (confirmed && selectedComponent && updated && original) {
+            if (updated.aggregate.options?.layer) {
+                updated.aggregate.options.layer = /\.clayer\.ya?ml$/i.test(state.selectedTargetType?.path || '') ? state.selectedTargetType?.path : '';
+            }
+
             if (selectedComponent.aggregate.selectedCount !== updated.aggregate?.selectedCount) {
                 onChangeComponentValue(updated);
             }

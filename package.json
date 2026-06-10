@@ -37,7 +37,7 @@
   "csolution": {
     "uv2csolutionVersion": "1.6.0",
     "toolboxVersion": "nightly",
-    "rpcVersion": "0.0.10"
+    "rpcVersion": "0.0.11"
   },
   "scripts": {
     "preprepare": "npm run download:rpc-interface",
@@ -447,7 +447,7 @@
         "command": "cmsis-csolution.build",
         "title": "Build Solution",
         "icon": "$(csolution-build)",
-        "enablement": "cmsis-csolution.activeSolutionState == active && cmsis-csolution.buildState == idle"
+        "enablement": "cmsis-csolution.activeSolutionState == active && (cmsis-csolution.buildState == idle || cmsis-csolution.buildState == setup)"
       },
       {
         "category": "CMSIS",
@@ -975,7 +975,7 @@
       "view/title": [
         {
           "command": "cmsis-csolution.build",
-          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && cmsis-csolution.buildState == idle",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && (cmsis-csolution.buildState == idle || cmsis-csolution.buildState == setup)",
           "group": "navigation@1"
         },
         {

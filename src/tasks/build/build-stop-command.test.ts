@@ -83,7 +83,7 @@ describe('BuildStopCommand', () => {
     });
 
     // sets VS Code context for execution states:
-    const expectedStates = ['idle', 'building'] as const;
+    const expectedStates = ['idle', 'building', 'setup'] as const;
 
     expectedStates.forEach((state) => {
         it(`sets VS Code context for execution state: ${state}`, () => {
@@ -282,6 +282,26 @@ describe('BuildStopCommand', () => {
             'setContext',
             `${PACKAGE_NAME}.buildState`,
             'building'
+        );
+    });
+
+    it('should set processStarted and set state to setup when setup task process starts', async () => {
+        await buildStopCommand.activate(extensionContextFactory());
+        // Add lifecycle for setup task
+        buildStopCommand['taskLifecycles'].set('cbuild test-solution', { name: 'cbuild test-solution', started: true, processStarted: false });
+
+        const task = {
+            execution: { task: { name: 'cbuild test-solution', definition: { type: BuildTaskProviderImpl.taskType, setup: true } } }
+        } as unknown as vscode.TaskProcessStartEvent;
+
+        // Call the handler
+        onDidStartTaskProcessHandler(task);
+        const lifecycle = buildStopCommand['taskLifecycles'].get('cbuild test-solution');
+        expect(lifecycle?.processStarted).toBe(true);
+        expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
+            'setContext',
+            `${PACKAGE_NAME}.buildState`,
+            'setup'
         );
     });
 

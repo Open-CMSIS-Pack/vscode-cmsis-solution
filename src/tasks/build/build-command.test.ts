@@ -37,6 +37,13 @@ describe('BuildCommand', () => {
 
     beforeEach(async () => {
         commandsProvider = commandsProviderFactory();
+        (vscode.tasks as unknown as {
+            taskExecutions: vscode.TaskExecution[];
+            onDidEndTask: (listener: (event: vscode.TaskEndEvent) => void) => vscode.Disposable;
+        }).taskExecutions = [];
+        (vscode.tasks as unknown as {
+            onDidEndTask: (listener: (event: vscode.TaskEndEvent) => void) => vscode.Disposable;
+        }).onDidEndTask = () => ({ dispose: jest.fn() } as unknown as vscode.Disposable);
         mockBuildTaskProvider = {
             createTask: jest.fn((taskDefinition) => new vscode.Task(
                 taskDefinition, vscode.TaskScope.Workspace, 'cbuild some-solution-path', taskDefinition.type
@@ -46,6 +53,7 @@ describe('BuildCommand', () => {
         };
         buildTaskDefinitionBuilder = buildTaskDefinitionBuilderFactory();
         buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode.mockResolvedValue(buildTaskDefinition);
+        commandsProvider.executeCommand.mockResolvedValue(undefined);
     });
 
     it('registers the build, clean and rebuild commands on activation', async () => {
@@ -74,7 +82,13 @@ describe('BuildCommand', () => {
 
             await commandsProvider.mockRunRegistered(BuildCommand.buildCommandType, undefined);
 
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith('workbench.action.files.save');
             expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).toHaveBeenCalledWith('build', undefined);
+
+            const saveCommandCallOrder = commandsProvider.executeCommand.mock.invocationCallOrder[0];
+            const createDefinitionCallOrder = buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode.mock.invocationCallOrder[0];
+            expect(saveCommandCallOrder).toBeLessThan(createDefinitionCallOrder);
+
             expect(mockExecuteTask).toHaveBeenCalledTimes(1);
             expect(mockExecuteTask).toHaveBeenCalledWith({
                 definition: buildTaskDefinition,
@@ -83,6 +97,80 @@ describe('BuildCommand', () => {
                 source: BuildTaskProviderImpl.taskType,
                 execution: undefined,
             });
+        });
+
+        it('stops active setup task via provider before starting build', async () => {
+            const setupTask = {
+                name: 'cbuild setup-solution',
+                definition: { type: BuildTaskProviderImpl.taskType, setup: true }
+            } as unknown as vscode.Task;
+
+            (vscode.tasks as unknown as {
+                taskExecutions: vscode.TaskExecution[];
+            }).taskExecutions = [
+                {
+                    task: setupTask,
+                    terminate: jest.fn()
+                } as unknown as vscode.TaskExecution
+            ];
+
+            mockBuildTaskProvider.terminateTask = jest.fn().mockImplementation(() => {
+                (vscode.tasks as unknown as {
+                    taskExecutions: vscode.TaskExecution[];
+                }).taskExecutions = [];
+                return true;
+            });
+
+            const buildCommand = new BuildCommand(
+                mockBuildTaskProvider,
+                commandsProvider,
+                buildTaskDefinitionBuilder,
+            );
+            await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+
+            await commandsProvider.mockRunRegistered(BuildCommand.buildCommandType, undefined);
+
+            expect(mockBuildTaskProvider.terminateTask).toHaveBeenCalledWith('cbuild setup-solution');
+            expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).toHaveBeenCalledWith('build', undefined);
+            expect(mockExecuteTask).toHaveBeenCalledTimes(1);
+        });
+
+        it('falls back to task execution terminate when provider cannot stop setup task', async () => {
+            const terminateSpy = jest.fn().mockImplementation(() => {
+                (vscode.tasks as unknown as {
+                    taskExecutions: vscode.TaskExecution[];
+                }).taskExecutions = [];
+            });
+
+            const setupTask = {
+                name: 'cbuild setup-solution',
+                definition: { type: BuildTaskProviderImpl.taskType, setup: true }
+            } as unknown as vscode.Task;
+
+            (vscode.tasks as unknown as {
+                taskExecutions: vscode.TaskExecution[];
+            }).taskExecutions = [
+                {
+                    task: setupTask,
+                    terminate: terminateSpy
+                } as unknown as vscode.TaskExecution
+            ];
+
+            mockBuildTaskProvider.terminateTask = jest.fn().mockReturnValue(false);
+
+            const buildCommand = new BuildCommand(
+                mockBuildTaskProvider,
+                commandsProvider,
+                buildTaskDefinitionBuilder,
+            );
+            await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+
+            await commandsProvider.mockRunRegistered(BuildCommand.buildCommandType, undefined);
+
+            expect(mockBuildTaskProvider.terminateTask).toHaveBeenCalledWith('cbuild setup-solution');
+            expect(terminateSpy).toHaveBeenCalledTimes(1);
+            expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).toHaveBeenCalledWith('build', undefined);
+            expect(mockExecuteTask).toHaveBeenCalledTimes(1);
         });
 
     });
@@ -98,6 +186,7 @@ describe('BuildCommand', () => {
 
             await commandsProvider.mockRunRegistered(BuildCommand.rebuildCommandType);
 
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith('workbench.action.files.save');
             expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).toHaveBeenCalledWith('rebuild', undefined);
             expect(mockExecuteTask).toHaveBeenCalledTimes(1);
             expect(mockExecuteTask).toHaveBeenCalledWith({
@@ -121,6 +210,7 @@ describe('BuildCommand', () => {
 
             await commandsProvider.mockRunRegistered(BuildCommand.cleanCommandType);
 
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith('workbench.action.files.save');
             expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).toHaveBeenCalledWith('clean', undefined);
             expect(mockExecuteTask).toHaveBeenCalledTimes(1);
             expect(mockExecuteTask).toHaveBeenCalledWith({

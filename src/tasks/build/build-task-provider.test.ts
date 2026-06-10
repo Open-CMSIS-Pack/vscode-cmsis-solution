@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-import { BuildTaskProviderImpl } from './build-task-provider';
+import { BuildTaskProviderImpl, waitForActiveBuildTasksCompletion } from './build-task-provider';
 import { cbuildArgsFromTaskDefinition } from './build-runner';
 import { Runner } from '../../vscode-api/runner/runner';
 import * as path from 'path';
 import { BuildTaskDefinition } from './build-task-definition';
+import * as vscode from 'vscode';
 
 interface MockCustomExecution {
     callback: () => void;
@@ -125,5 +126,67 @@ describe('BuildTaskProviderImpl', () => {
         const provider = new BuildTaskProviderImpl(mockRunner, 'Build');
         const result = provider.terminateTask('Build');
         expect(result).toBe(false);
+    });
+
+    it('waitForActiveBuildTasksCompletion resolves immediately when no active build tasks exist', async () => {
+        (vscode.tasks as unknown as { taskExecutions: vscode.TaskExecution[] }).taskExecutions = [];
+
+        await expect(waitForActiveBuildTasksCompletion()).resolves.toBeUndefined();
+    });
+
+    it('waitForActiveBuildTasksCompletion waits until active build task ends', async () => {
+        const activeExecution = {
+            task: { definition: { type: BuildTaskProviderImpl.taskType } }
+        } as unknown as vscode.TaskExecution;
+        const callbacks: Array<(event: vscode.TaskEndEvent) => void> = [];
+
+        (vscode.tasks as unknown as {
+            taskExecutions: vscode.TaskExecution[];
+            onDidEndTask: (listener: (event: vscode.TaskEndEvent) => void) => vscode.Disposable;
+        }).taskExecutions = [activeExecution];
+        (vscode.tasks as unknown as {
+            onDidEndTask: (listener: (event: vscode.TaskEndEvent) => void) => vscode.Disposable;
+        }).onDidEndTask = (listener) => {
+            callbacks.push(listener);
+            return { dispose: jest.fn() } as unknown as vscode.Disposable;
+        };
+
+        let completed = false;
+        const waitPromise = waitForActiveBuildTasksCompletion().then(() => {
+            completed = true;
+        });
+
+        await Promise.resolve();
+        expect(completed).toBe(false);
+
+        callbacks[0]({ execution: activeExecution } as vscode.TaskEndEvent);
+        await waitPromise;
+        expect(completed).toBe(true);
+    });
+
+    it('resolves if build task ended before listener registration (race condition)', async () => {
+        const activeExecution = {
+            task: { definition: { type: BuildTaskProviderImpl.taskType } }
+        } as unknown as vscode.TaskExecution;
+
+        // Initial snapshot shows the task as active
+        (vscode.tasks as unknown as {
+            taskExecutions: vscode.TaskExecution[];
+        }).taskExecutions = [activeExecution];
+
+        (vscode.tasks as unknown as {
+            onDidEndTask: (listener: (event: vscode.TaskEndEvent) => void) => vscode.Disposable;
+        }).onDidEndTask = (listener) => {
+            // After listener registration, the task is no longer active (simulating race condition)
+            (vscode.tasks as unknown as {
+                taskExecutions: vscode.TaskExecution[];
+            }).taskExecutions = [];
+            // Invoke listener callback on next tick (safe to do even if task already ended)
+            setTimeout(() => listener({ execution: activeExecution } as vscode.TaskEndEvent), 0);
+            return { dispose: jest.fn() } as unknown as vscode.Disposable;
+        };
+
+        // Should resolve without hanging, even though the task ended before the listener could catch the event
+        await expect(waitForActiveBuildTasksCompletion()).resolves.toBeUndefined();
     });
 });

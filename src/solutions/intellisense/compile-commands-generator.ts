@@ -18,17 +18,21 @@ import * as vscode from 'vscode';
 import { ExtensionContext } from 'vscode';
 import * as manifest from '../../manifest';
 import { BuildTaskDefinitionBuilder } from '../../tasks/build/build-task-definition-builder';
-import { BuildTaskProvider } from '../../tasks/build/build-task-provider';
+import { BuildTaskProvider, waitForActiveBuildTasksCompletion } from '../../tasks/build/build-task-provider';
 import { SolutionEventHub } from '../solution-event-hub';
 import { getToolsSeverity } from '../solution-problems';
 import { OutputChannelProvider } from '../../vscode-api/output-channel-provider';
+import { CommandsProvider } from '../../vscode-api/commands-provider';
 
 export class CompileCommandsGenerator {
+    private runningSetupRequest: Promise<void> | undefined;
+
     constructor(
         private readonly buildTaskProvider: BuildTaskProvider,
         private readonly buildTaskDefinitionBuilder: BuildTaskDefinitionBuilder,
         private readonly eventHub: SolutionEventHub,
         private readonly outputChannelProvider: OutputChannelProvider,
+        private readonly commandsProvider: CommandsProvider,
     ) {
     }
 
@@ -36,16 +40,37 @@ export class CompileCommandsGenerator {
         context.subscriptions.push(
             this.eventHub.onDidCbuildSetupRequested(() => {
                 // fire-and-forget: completion is reported via onDidCbuildCompleted
-                void this.runCbuildSetup();
+                void this.runCbuildSetupOnce();
             }),
         );
     }
 
     private readonly outputRegex = /\b(?:completed|failed)\s+with\s+exit\s+code\s*([+-]?\d+)\b/i;
 
-    private async runCbuildSetup(): Promise<void> {
+    private async prepareSetupTask() {
+        await waitForActiveBuildTasksCompletion();
+        if (vscode.window.activeTextEditor?.document.isDirty) {
+            await this.commandsProvider.executeCommand('workbench.action.files.save');
+        }
         const definition = await this.buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode('setup');
-        const task = this.buildTaskProvider.createTask(definition);
+        return this.buildTaskProvider.createTask(definition);
+    }
+
+    private runCbuildSetupOnce(): Promise<void> {
+        if (this.runningSetupRequest) {
+            return this.runningSetupRequest;
+        }
+
+        this.runningSetupRequest = this.runCbuildSetup().finally(() => {
+            this.runningSetupRequest = undefined;
+        });
+
+        return this.runningSetupRequest;
+    }
+
+    private async runCbuildSetup(): Promise<void> {
+        const task = await this.prepareSetupTask();
+        const definition = task.definition;
         const revealKind = definition.west ? vscode.TaskRevealKind?.Always : vscode.TaskRevealKind?.Silent;
         task.presentationOptions = {
             ...(revealKind !== undefined ? { reveal: revealKind } : {})
@@ -61,9 +86,9 @@ export class CompileCommandsGenerator {
                     disposable.dispose();
                     const output = this.buildTaskProvider.getActiveTaskRunner(task.name)?.getOutputBuffer() ?? [];
                     const match = this.outputRegex.exec(output.join('\n'));
-                    const returnCode = match?.[1] !== undefined ? Number(match[1]) :
-                        event.exitCode !== undefined ? event.exitCode : -1;
-                    const success = returnCode === 0;
+                    // 'success' reflects process outcome reported in the output, ignoring when the task was terminated early
+                    const success = Number(match?.[1] ?? 0) === 0;
+                    // 'severity' is determined based on output content to properly report errors/warnings
                     const severity = success ? getToolsSeverity(output) : 'error';
                     this.eventHub.fireCbuildCompleted({ success, severity, toolsOutputMessages: output });
                     resolve();

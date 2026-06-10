@@ -336,4 +336,52 @@ describe('PackPropertiesDialog', () => {
         expect(mockOpenFile).toHaveBeenCalledWith('path/to/cbuild-pack.yml', false);
     });
 
+    it('displays packId in Used Pack when description is not "Pack not installed"', () => {
+        const pack = createMockPack({ description: 'CMSIS Pack' });
+        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);
+
+        expect(screen.getAllByText('ARM::CMSIS@6.1.0')).toBeDefined();
+    });
+
+    it('does not render Used Pack row when description is "Pack not installed"', () => {
+        const pack = createMockPack({ description: 'Pack not installed' });
+        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);
+
+        expect(screen.queryByText('Used Pack:')).toBeNull();
+    });
+
+    it('does not render Used Pack row when description is "Pack not installed" and openFile is provided', () => {
+        const pack = createMockPack({ description: 'Pack not installed' });
+        const mockOpenFile = jest.fn();
+
+        render(
+            <PackPropertiesDialog
+                pack={pack}
+                state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }}
+                allOrigins={createMockAllOrigins()}
+                openFile={mockOpenFile}
+                onClose={mockOnClose}
+            />
+        );
+
+        expect(screen.queryByText('Used Pack:')).toBeNull();
+    });
+
+    it('passes packId as packName to PackTitleLink when description is not "Pack not installed" and openFile is provided', () => {
+        const pack = createMockPack({ description: 'CMSIS Pack' });
+        const mockOpenFile = jest.fn();
+
+        render(
+            <PackPropertiesDialog
+                pack={pack}
+                state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }}
+                allOrigins={createMockAllOrigins()}
+                openFile={mockOpenFile}
+                onClose={mockOnClose}
+            />
+        );
+
+        expect(screen.getAllByText('ARM::CMSIS@6.1.0')).toBeDefined();
+    });
+
 });

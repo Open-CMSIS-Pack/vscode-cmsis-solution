@@ -27,9 +27,123 @@ import { ProblemDiagnosticActionResolver } from './problem-diagnostic-action-res
 import { SolutionLoadStateChangeEvent, SolutionManager } from './solution-manager';
 import { ConvertResultData, CbuildResultData, SolutionEventHub } from './solution-event-hub';
 
+interface SettingsLocation {
+    filePath: string;
+    range: vscode.Range;
+}
+
+interface EnvironmentMessage {
+    message: string;
+    severity: vscode.DiagnosticSeverity;
+}
+
 export const toolsPrefixPatterns = {
     error: /^.*error (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
     warning: /^.*warning (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
+};
+
+const ESC = String.fromCharCode(27);
+const BEL = String.fromCharCode(7);
+
+const stripAnsiControlSequences = (line: string): string => {
+    let normalized = '';
+
+    for (let i = 0; i < line.length;) {
+        if (line[i] !== ESC) {
+            normalized += line[i];
+            i++;
+            continue;
+        }
+
+        const next = line[i + 1];
+
+        // CSI sequence: ESC [ ... final-byte(0x40-0x7E)
+        if (next === '[') {
+            i += 2;
+            while (i < line.length) {
+                const code = line.charCodeAt(i);
+                i++;
+                if (code >= 0x40 && code <= 0x7E) {
+                    break;
+                }
+            }
+            continue;
+        }
+
+        // OSC sequence: ESC ] ... BEL  OR  ESC \
+        if (next === ']') {
+            i += 2;
+            while (i < line.length) {
+                if (line[i] === BEL) {
+                    i++;
+                    break;
+                }
+                if (line[i] === ESC && line[i + 1] === '\\') {
+                    i += 2;
+                    break;
+                }
+                i++;
+            }
+            continue;
+        }
+
+        // Single-character escape sequence: ESC <code>
+        i += Math.min(2, line.length - i);
+    }
+
+    return normalized;
+};
+
+const stripNonPrintableControls = (line: string): string => {
+    let normalized = '';
+    for (let i = 0; i < line.length; i++) {
+        const code = line.charCodeAt(i);
+        const isTab = code === 0x09;
+        const isLf = code === 0x0A;
+        const isCr = code === 0x0D;
+        const isPrintable = code >= 0x20 && code !== 0x7F;
+        if (isTab || isLf || isCr || isPrintable) {
+            normalized += line[i];
+        }
+    }
+    return normalized;
+};
+
+const normalizeToolOutputLines = (lines?: string[]): string[] => {
+    if (!lines || lines.length === 0) {
+        return [];
+    }
+
+    const isPtyLike = lines.some(line => line.includes(ESC) || line.includes('\r') || line.includes('\n'));
+    if (!isPtyLike) {
+        return lines
+            .map(line => stripNonPrintableControls(stripAnsiControlSequences(line)).trimEnd())
+            .filter(line => line.length > 0);
+    }
+
+    const normalizedLines: string[] = [];
+    let pending = '';
+
+    for (const chunk of lines) {
+        const sanitizedChunk = stripNonPrintableControls(stripAnsiControlSequences(chunk));
+        const combined = pending + sanitizedChunk;
+        const parts = combined.split(/\r\n|\n|\r/);
+        pending = parts.pop() ?? '';
+
+        for (const part of parts) {
+            const line = part.trimEnd();
+            if (line.length > 0) {
+                normalizedLines.push(line);
+            }
+        }
+    }
+
+    const tail = pending.trimEnd();
+    if (tail.length > 0) {
+        normalizedLines.push(tail);
+    }
+
+    return normalizedLines;
 };
 
 export const hasToolError = (lines?: string[]): boolean => {
@@ -68,53 +182,31 @@ export const envVarWestPatterns = [
     /^exec: "west": executable file not found in .+$/,
 ];
 
+const environmentVariablesReviewSuffixRegex = /;\s*review\s+"cmsis-csolution\.environmentVariables"$/;
+
+export const normalizeEnvironmentMessage = (message: string): string => {
+    return message.replace(environmentVariablesReviewSuffixRegex, '').trim();
+};
+
+export const isEnvironmentVariableMessage = (message: string): boolean => {
+    const normalized = normalizeEnvironmentMessage(message);
+    return envVarWestPatterns.some(pattern => pattern.test(normalized));
+};
+
 const pushUniquely = (array: string[], value: string) => {
     if (!array.includes(value)) {
         array.push(value);
     }
 };
 
-const formatWestMessages = async (errors: string[], warnings: string[]): Promise<void> => {
-    const hasWestMessages = [...errors, ...warnings].some(line =>
-        envVarWestPatterns.some(pattern => pattern.test(line))
-    );
-    if (!hasWestMessages) {
-        return;
-    }
-    const workspaceFolder = getWorkspaceFolder();
-    if (!workspaceFolder) {
-        return;
-    }
-
-    const settings = vscode.workspace.workspaceFile?.fsPath ?? path.join(workspaceFolder, '.vscode', 'settings.json');
-    const envvars = '"cmsis-csolution.environmentVariables"';
-    let startPos: vscode.Position | undefined;
-    if (fsUtils.fileExists(settings)) {
-        const doc = await vscode.workspace.openTextDocument(settings);
-        const startOffset = doc.getText().indexOf(envvars);
-        if (startOffset >= 0) {
-            startPos = doc.positionAt(startOffset);
-        }
-    }
-    const location = startPos ? `:${startPos.line + 1}:${startPos.character + 1}` : '';
-    const format = (items: string[]) => {
-        for (let i = 0; i < items.length; i++) {
-            if (envVarWestPatterns.some(pattern => pattern.test(items[i]))) {
-                items[i] = `${settings}${location} - ${items[i]}; review ${envvars}`;
-            }
-        }
-    };
-    format(errors);
-    format(warnings);
-};
-
 export const enrichLogMessagesFromToolOutput = async (logMessages: LogMessages, lines?: string[]): Promise<void> => {
-    if (!lines) {
+    const normalizedLines = normalizeToolOutputLines(lines);
+    if (!normalizedLines.length) {
         return;
     }
 
-    let errors = lines.filter(line => toolsPrefixPatterns.error.test(line));
-    let warnings = lines.filter(line => toolsPrefixPatterns.warning.test(line));
+    let errors = normalizedLines.filter(line => toolsPrefixPatterns.error.test(line));
+    let warnings = normalizedLines.filter(line => toolsPrefixPatterns.warning.test(line));
     if (!warnings.length && !errors.length) {
         return;
     }
@@ -123,7 +215,8 @@ export const enrichLogMessagesFromToolOutput = async (logMessages: LogMessages, 
     errors = errors.map(e => sanitize(e, 'error'));
     warnings = warnings.map(w => sanitize(w, 'warning'));
 
-    await formatWestMessages(errors, warnings);
+    errors = errors.filter(error => !isEnvironmentVariableMessage(error));
+    warnings = warnings.filter(warning => !isEnvironmentVariableMessage(warning));
 
     const logErrors = logMessages.errors ?? (logMessages.errors = []);
     const logWarnings = logMessages.warnings ?? (logMessages.warnings = []);
@@ -139,7 +232,9 @@ export interface SolutionProblems {
 export class SolutionProblemsImpl implements SolutionProblems {
 
     private readonly diagnosticCollection: vscode.DiagnosticCollection = vscode.languages.createDiagnosticCollection('csolution');
+    private readonly environmentDiagnosticCollection: vscode.DiagnosticCollection = vscode.languages.createDiagnosticCollection('csolution-environment');
     private readonly diagnosticActionResolver = new ProblemDiagnosticActionResolver();
+    private readonly environmentVariablesSetting = '"cmsis-csolution.environmentVariables"';
     /**
     *  source files for diagnostics mapping
     */
@@ -157,6 +252,7 @@ export class SolutionProblemsImpl implements SolutionProblems {
             this.eventHub.onDidCbuildCompleted(this.handleCbuildCompleted, this),
             this.solutionManager.onDidChangeLoadState(this.handleLoadStateChanged, this),
             this.diagnosticCollection,
+            this.environmentDiagnosticCollection,
         );
     }
 
@@ -164,25 +260,167 @@ export class SolutionProblemsImpl implements SolutionProblems {
         // Intentionally clear only on convert: convert is the canonical refresh point.
         // cbuild follows convert and should add diagnostics without wiping convert findings.
         this.clearDiagnostics();
-        await this.enrichAndUpdateDiagnostics(data.logMessages, data.toolsOutputMessages);
+        const [hasGeneralDiagnostics, hasEnvironmentDiagnostics] = await Promise.all([
+            this.enrichAndUpdateDiagnostics(data.logMessages, data.toolsOutputMessages),
+            this.updateEnvironmentDiagnosticsFromConvert(data),
+        ]);
+        await this.showProblemsViewIfNeeded(hasGeneralDiagnostics || hasEnvironmentDiagnostics);
     }
 
     private async handleCbuildCompleted(data: CbuildResultData): Promise<void> {
         // Do not clear diagnostics here. cbuild diagnostics are additive after convert.
         // This preserves existing convert diagnostics and avoids churn from redundant clears.
         const logMessages: LogMessages = { success: true, errors: [], warnings: [], info: [] };
-        await this.enrichAndUpdateDiagnostics(logMessages, data.toolsOutputMessages);
+        const [hasGeneralDiagnostics, hasEnvironmentDiagnostics] = await Promise.all([
+            this.enrichAndUpdateDiagnostics(logMessages, data.toolsOutputMessages),
+            this.updateEnvironmentDiagnosticsFromCbuild(data),
+        ]);
+        await this.showProblemsViewIfNeeded(hasGeneralDiagnostics || hasEnvironmentDiagnostics);
     }
 
-    private async enrichAndUpdateDiagnostics(logMessages: LogMessages, toolsOutputMessages?: string[]): Promise<void> {
+    private async updateEnvironmentDiagnosticsFromConvert(data: ConvertResultData): Promise<boolean> {
+        const messages: EnvironmentMessage[] = [
+            ...(data.logMessages.errors ?? []).map(message => ({
+                message,
+                severity: vscode.DiagnosticSeverity.Error,
+            })),
+            ...(data.logMessages.warnings ?? []).map(message => ({
+                message,
+                severity: vscode.DiagnosticSeverity.Warning,
+            })),
+            ...this.extractEnvironmentMessagesFromToolOutput(data.toolsOutputMessages),
+        ];
+        return this.updateEnvironmentDiagnostics(messages);
+    }
+
+    private async updateEnvironmentDiagnosticsFromCbuild(data: CbuildResultData): Promise<boolean> {
+        const messages = this.extractEnvironmentMessagesFromToolOutput(data.toolsOutputMessages);
+        return this.updateEnvironmentDiagnostics(messages);
+    }
+
+    private async enrichAndUpdateDiagnostics(logMessages: LogMessages, toolsOutputMessages?: string[]): Promise<boolean> {
         await enrichLogMessagesFromToolOutput(logMessages, toolsOutputMessages);
-        await this.updateDiagnostics(logMessages);
+        return this.updateDiagnostics(logMessages);
     }
 
     private handleLoadStateChanged(data: SolutionLoadStateChangeEvent): void {
         if (data.previousState.solutionPath !== data.newState.solutionPath) {
             this.clearDiagnostics();
+            this.environmentDiagnosticCollection.clear();
         }
+    }
+
+    private extractEnvironmentMessagesFromToolOutput(lines?: string[]): EnvironmentMessage[] {
+        const normalizedLines = normalizeToolOutputLines(lines);
+        if (!normalizedLines.length) {
+            return [];
+        }
+
+        return normalizedLines
+            .flatMap(line => {
+                if (toolsPrefixPatterns.error.test(line)) {
+                    return [{
+                        message: line.replace(toolsPrefixPatterns.error, '').trim(),
+                        severity: vscode.DiagnosticSeverity.Error,
+                    }];
+                }
+                if (toolsPrefixPatterns.warning.test(line)) {
+                    return [{
+                        message: line.replace(toolsPrefixPatterns.warning, '').trim(),
+                        severity: vscode.DiagnosticSeverity.Warning,
+                    }];
+                }
+                return [];
+            })
+            .filter(item => isEnvironmentVariableMessage(item.message));
+    }
+
+    private async updateEnvironmentDiagnostics(rawMessages: EnvironmentMessage[]): Promise<boolean> {
+        this.environmentDiagnosticCollection.clear();
+
+        const messages = new Map<string, vscode.DiagnosticSeverity>();
+        for (const rawMessage of rawMessages) {
+            const message = normalizeEnvironmentMessage(rawMessage.message);
+            if (!isEnvironmentVariableMessage(message)) {
+                continue;
+            }
+            const currentSeverity = messages.get(message);
+            if (currentSeverity === undefined || rawMessage.severity < currentSeverity) {
+                messages.set(message, rawMessage.severity);
+            }
+        }
+
+        if (messages.size === 0) {
+            return false;
+        }
+
+        const settings = await this.getSettingsLocation();
+        if (!settings) {
+            return false;
+        }
+
+        const diagnostics: vscode.Diagnostic[] = [];
+        for (const [message, severity] of messages) {
+            const fullMessage = `${message}; review ${this.environmentVariablesSetting}`;
+            const action = this.diagnosticActionResolver.resolve({
+                message: fullMessage,
+                diagnosticFilePath: settings.filePath,
+                hasLocation: true,
+            });
+
+            const entry = new vscode.Diagnostic(settings.range, action?.message ?? fullMessage, severity);
+            entry.source = 'csolution';
+            if (action?.code) {
+                entry.code = action.code;
+            }
+            diagnostics.push(entry);
+        }
+
+        const uri = vscode.Uri.file(settings.filePath);
+        this.environmentDiagnosticCollection.set(uri, diagnostics);
+        return diagnostics.length > 0;
+    }
+
+    private async showProblemsViewIfNeeded(hasDiagnostics: boolean): Promise<void> {
+        if (!hasDiagnostics) {
+            return;
+        }
+        await vscode.commands.executeCommand('workbench.actions.view.problems', { preserveFocus: true });
+    }
+
+    private async getSettingsLocation(): Promise<SettingsLocation | undefined> {
+        const workspaceFolder = getWorkspaceFolder();
+        if (!workspaceFolder) {
+            return undefined;
+        }
+
+        const settingsFile = vscode.workspace.workspaceFile?.fsPath ?? path.join(workspaceFolder, '.vscode', 'settings.json');
+        if (!fsUtils.fileExists(settingsFile)) {
+            return {
+                filePath: settingsFile,
+                range: new vscode.Range(0, 0, 0, 0),
+            };
+        }
+
+        try {
+            const doc = await vscode.workspace.openTextDocument(settingsFile);
+            const startOffset = doc.getText().indexOf(this.environmentVariablesSetting);
+            if (startOffset >= 0) {
+                const pos = doc.positionAt(startOffset);
+                const endCharacter = doc.lineAt(pos.line).range.end.character;
+                return {
+                    filePath: settingsFile,
+                    range: new vscode.Range(pos.line, pos.character, pos.line, endCharacter),
+                };
+            }
+        } catch {
+            // Keep default range when settings document cannot be opened.
+        }
+
+        return {
+            filePath: settingsFile,
+            range: new vscode.Range(0, 0, 0, 0),
+        };
     }
 
     /**
@@ -223,9 +461,13 @@ export class SolutionProblemsImpl implements SolutionProblems {
             return false;
         }
         const { filename, line, column, message: messageText } = m.groups;
+        if (isEnvironmentVariableMessage(messageText)) {
+            return false;
+        }
         const normalizedFilename = filename ? getFileNameFromPath(filename) : undefined;
         const fromMap = (filename && files.get(filename)) || (normalizedFilename && files.get(normalizedFilename));
-        const file = fromMap || (filename && path.isAbsolute(filename) ? filename : undefined) || this.solutionManager.getCsolution()?.solutionPath;
+        const absoluteFromLog = filename && this.isAbsoluteDiagnosticPath(filename) ? filename : undefined;
+        const file = fromMap || absoluteFromLog || this.solutionManager.getCsolution()?.solutionPath;
         if (!file) {
             return false;
         }
@@ -244,9 +486,15 @@ export class SolutionProblemsImpl implements SolutionProblems {
         }
 
         // append diagnostic entry
-        const uri = vscode.Uri.file(path.posix.normalize(file));
+        const uri = vscode.Uri.file(path.normalize(file));
         this.diagnosticCollection.set(uri, [...(this.diagnosticCollection.get(uri) ?? []), entry]);
         return true;
+    }
+
+    private isAbsoluteDiagnosticPath(filePath: string): boolean {
+        return path.isAbsolute(filePath)
+            || /^[A-Za-z]:[\\/]/.test(filePath)
+            || /^\\\\[^\\]+\\[^\\]+/.test(filePath);
     }
 
     /**
@@ -257,7 +505,7 @@ export class SolutionProblemsImpl implements SolutionProblems {
         this.collectYmlFiles();
     }
 
-    private async updateDiagnostics(messages: LogMessages): Promise<void> {
+    private async updateDiagnostics(messages: LogMessages): Promise<boolean> {
         // Diagnostics lifecycle is controlled by event handlers.
         // handleConvertCompleted clears; handleCbuildCompleted appends.
         let diagnostics = false;
@@ -272,9 +520,7 @@ export class SolutionProblemsImpl implements SolutionProblems {
         for (const message of messages.info ?? []) {
             diagnostics = await this.addDiagnosticEntry(message, vscode.DiagnosticSeverity.Information, this.sourceFiles) || diagnostics;
         }
-        if (diagnostics) {
-            vscode.commands.executeCommand('workbench.actions.view.problems', { preserveFocus: true });
-        }
+        return diagnostics;
     }
 
     private addFile(file: string): void {

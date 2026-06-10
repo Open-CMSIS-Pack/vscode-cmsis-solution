@@ -37,6 +37,8 @@ import { lineOf, readTextFile } from '../../utils/fs-utils';
 import { stripTwoExtensions } from '../../utils/string-utils';
 import { getLatestAvailablePacks } from '../../packs/index-pidx-file';
 import { isDeepStrictEqual } from 'util';
+import { openFileWithPolicy } from '../file-open-policy';
+import { FileOpenGroupOrchestrator, FileOpenGroupOrchestratorImpl } from '../file-open-group-orchestrator';
 
 export const MANAGE_COMPONENTS_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> = {
     title: 'Software Components',
@@ -114,6 +116,7 @@ export class ComponentsPacksWebviewMain {
         private readonly commandsProvider: CommandsProvider,
         private readonly openFileExternal: IOpenFileExternal,
         webviewManager?: WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>,
+        private readonly fileOpenGroupOrchestrator: FileOpenGroupOrchestrator = new FileOpenGroupOrchestratorImpl(),
     ) {
         this.webviewManager = webviewManager ??
             new WebviewManager(context, MANAGE_COMPONENTS_WEBVIEW_OPTIONS, commandsProvider);
@@ -335,7 +338,7 @@ export class ComponentsPacksWebviewMain {
             return true;
         }
 
-        const componentMapper = (c: ComponentInstance) => ({ id: c.id, variant: c.resolvedComponent?.pack });
+        const componentMapper = (c: ComponentInstance) => ({ id: c.id, variant: c.resolvedComponent?.pack, selectedCount: c.selectedCount });
         const packMapper = (p: PackReference) => ({ pack: p.pack, origin: normalizeForCompare(p.origin) });
         const localUsedItemsSorted = {
             components: [...(this.usedItems?.components ?? [])].sort((a, b) => a.id.localeCompare(b.id)).map(componentMapper),
@@ -523,9 +526,9 @@ export class ComponentsPacksWebviewMain {
     private async handleApplyComponentSet(): Promise<void> {
         await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Saving changes...' });
 
-        if (this.solutionManager.getCsolution()?.cbuildPackFile.isModified()) {
+        const cbuildPackModified = this.solutionManager.getCsolution()?.cbuildPackFile.isModified() ?? false;
+        if (cbuildPackModified) {
             await this.solutionManager.getCsolution()?.cbuildPackFile.save();
-            await this.handleRequestInitialData();
             this.unlinkRequests.clear();
         }
 
@@ -538,6 +541,11 @@ export class ComponentsPacksWebviewMain {
         this.componentTree = this.manageComponentsActions.mapComponentsFromService(await this.csolutionService.getComponentsTree({ context: activeContext, all: requestAll }));
         this.validations = await this.csolutionService.validateComponents({ context: activeContext });
         await this.projectFileUpdater.updateUsedItems(activeContext, projectFileName, usedItemsForProjectFileUpdate);
+
+        // Trigger refresh if cbuild-pack was modified to ensure solution is properly reloaded
+        if (cbuildPackModified) {
+            await this.solutionManager.refresh();
+        }
 
         await Promise.all([
             this.webviewManager.sendMessage({ type: 'SET_ERROR_MESSAGES', messages: [] }),
@@ -905,21 +913,36 @@ export class ComponentsPacksWebviewMain {
             this.openFileExternal.openFile(filePath);
         } else {
             const absoluteFilePath = path.resolve(path.dirname(this.project?.solutionPath || './'), filePath);
+            const targetViewColumn = this.fileOpenGroupOrchestrator.getTargetViewColumn('software-components');
             const isMarkdown = absoluteFilePath.toLowerCase().endsWith('.md');
 
             if (isMarkdown) {
-                this.commandsProvider.executeCommand('markdown.showPreview', vscode.Uri.file(absoluteFilePath));
-            } else {
-                let focusOnLine: number = 0;
-
-                if (focusOn) {
-                    focusOnLine = lineOf(readTextFile(absoluteFilePath), focusOn);
-                }
-
-                await vscode.window.showTextDocument(vscode.Uri.file(absoluteFilePath), {
-                    selection: new vscode.Range(new vscode.Position(focusOnLine ?? 0, 0), new vscode.Position(focusOnLine ?? 0, focusOnLine ? 100 : 0))
+                await openFileWithPolicy(absoluteFilePath, this.commandsProvider, {
+                    markdownPreviewMode: 'editor',
+                    viewColumn: targetViewColumn,
                 });
+
+                this.fileOpenGroupOrchestrator.rememberTargetViewColumn('software-components', vscode.window.tabGroups.activeTabGroup?.viewColumn);
+                return;
             }
+
+            let focusOnLine: number = 0;
+
+            if (focusOn) {
+                focusOnLine = lineOf(readTextFile(absoluteFilePath), focusOn);
+            }
+
+            const selection = new vscode.Range(
+                new vscode.Position(focusOnLine ?? 0, 0),
+                new vscode.Position(focusOnLine ?? 0, focusOnLine ? 100 : 0),
+            );
+
+            const editor = await vscode.window.showTextDocument(vscode.Uri.file(absoluteFilePath), {
+                viewColumn: targetViewColumn,
+                selection,
+            });
+
+            this.fileOpenGroupOrchestrator.rememberTargetViewColumn('software-components', editor?.viewColumn);
         }
     }
 

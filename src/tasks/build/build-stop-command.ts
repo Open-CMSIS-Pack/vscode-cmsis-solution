@@ -20,7 +20,7 @@ import { CommandsProvider } from '../../vscode-api/commands-provider';
 import * as vscode from 'vscode';
 import { BuildTaskProviderImpl } from './build-task-provider';
 
-type buildState = 'idle' | 'building';
+type buildState = 'idle' | 'building' | 'setup';
 
 interface TaskLifecycle {
     name: string;
@@ -67,7 +67,7 @@ export class BuildStopCommand {
                 lifecycle.processStarted = true;
             }
 
-            this.setExecutionState('building');
+            this.setExecutionState(task.definition?.setup ? 'setup' : 'building');
         });
 
         vscode.tasks.onDidEndTaskProcess(event => {
