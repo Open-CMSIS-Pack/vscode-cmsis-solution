@@ -136,6 +136,111 @@ describe('PacksView', () => {
         expect(tableContent).toContain('6.0.0');
     });
 
+    it('strips version qualifier prefix for missing packs', () => {
+        const missingPackState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                packId: 'ARM::CMSIS@>=7.13.0',
+                versionUsed: '@>=7.13.0',
+                references: [{ pack: 'ARM::CMSIS@>=7.13.0', origin: 'path/to/solution.cproject.yml', relOrigin: 'path/to/solution.cproject.yml', selected: false, missing: true }]
+            }]
+        };
+
+        const localContainer = document.createElement('div');
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView state={missingPackState} openFile={openFileMock} messageHandler={messageHandler} availablePacks={defaultState.availablePacks} />
+            );
+        });
+
+        const tableContent = localContainer.textContent || '';
+        expect(tableContent).toContain('7.13.0');
+        // The version column should show the clean version without qualifier prefix
+        const versionCells = localContainer.querySelectorAll('td');
+        const versionCell = Array.from(versionCells).find(td => td.textContent?.trim() === '7.13.0');
+        expect(versionCell).toBeDefined();
+    });
+
+    it('adds missing-row class when pack has missing references', () => {
+        const missingPackState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                references: [{ pack: 'ARM::CMSIS@>=7.13.0', origin: 'path/to/solution.cproject.yml', relOrigin: 'path/to/solution.cproject.yml', selected: false, missing: true }]
+            }]
+        };
+
+        const localContainer = document.createElement('div');
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView state={missingPackState} openFile={openFileMock} messageHandler={messageHandler} availablePacks={defaultState.availablePacks} />
+            );
+        });
+
+        const row = localContainer.querySelector('tr.ant-table-row');
+        expect(row?.classList.contains('packs-missing-row')).toBe(true);
+    });
+
+    it('shows empty version when no version is given in the pack id', () => {
+        const noVersionPackState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                name: 'TFM',
+                packId: 'Keil::TFM',
+                versionUsed: '',
+                references: [{ pack: 'Keil::TFM', origin: 'path/to/solution.cproject.yml', relOrigin: 'path/to/solution.cproject.yml', selected: false, missing: true }]
+            }]
+        };
+
+        const localContainer = document.createElement('div');
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView state={noVersionPackState} openFile={openFileMock} messageHandler={messageHandler} availablePacks={defaultState.availablePacks} />
+            );
+        });
+
+        const tableContent = localContainer.textContent || '';
+        // The pack name should appear (in the Software Pack column), but not in the Version column
+        expect(tableContent).toContain('TFM');
+        expect(tableContent).not.toContain('Keil::TFM');
+    });
+
+    it('derives missing version from missing reference pack id when row pack id has no version', () => {
+        const missingReferenceVersionState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                packId: 'ARM::CMSIS',
+                versionUsed: '',
+                references: [{
+                    pack: 'ARM::CMSIS@>=7.13.0',
+                    origin: 'path/to/solution.cproject.yml',
+                    relOrigin: 'path/to/solution.cproject.yml',
+                    selected: false,
+                    missing: true
+                }]
+            }]
+        };
+
+        const localContainer = document.createElement('div');
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView
+                    state={missingReferenceVersionState}
+                    openFile={openFileMock}
+                    messageHandler={messageHandler}
+                    availablePacks={defaultState.availablePacks}
+                />
+            );
+        });
+
+        const versionCells = localContainer.querySelectorAll('td');
+        const versionCell = Array.from(versionCells).find(td => td.textContent?.trim() === '7.13.0');
+        expect(versionCell).toBeDefined();
+    });
+
     describe('pack properties dialog', () => {
         it('opens pack properties dialog when edit button is clicked', () => {
             const tableRows = container.querySelectorAll('.ant-table-row-level-0');
@@ -285,6 +390,99 @@ describe('PacksView', () => {
     });
 
     describe('references tooltip', () => {
+        it('shows version in tooltip from pack id even when locked is present', () => {
+            const stateWithLockedReference: ComponentsState = {
+                ...defaultState,
+                packs: [{
+                    ...mockPack,
+                    references: [{
+                        ...mockPack.references[0],
+                        pack: 'ARM::CMSIS@5.9.0',
+                        locked: 'ARM::CMSIS@6.1.0',
+                        relPath: ''
+                    }]
+                }]
+            };
+
+            const localContainer = document.createElement('div');
+            React.act(() => {
+                createRoot(localContainer).render(
+                    <PacksView
+                        state={stateWithLockedReference}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={defaultState.availablePacks}
+                    />
+                );
+            });
+
+            const tableContent = localContainer.textContent || '';
+            expect(tableContent).toContain('(5.9.0)');
+            expect(tableContent).not.toContain('(6.1.0)');
+        });
+
+        it('does not show tooltip version when reference pack id does not provide a version', () => {
+            const stateWithLockedOnlyVersion: ComponentsState = {
+                ...defaultState,
+                packs: [{
+                    ...mockPack,
+                    packId: 'ARM::CMSIS',
+                    references: [{
+                        ...mockPack.references[0],
+                        pack: 'ARM::CMSIS',
+                        locked: 'ARM::CMSIS@6.1.0',
+                        relPath: ''
+                    }]
+                }]
+            };
+
+            const localContainer = document.createElement('div');
+            React.act(() => {
+                createRoot(localContainer).render(
+                    <PacksView
+                        state={stateWithLockedOnlyVersion}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={defaultState.availablePacks}
+                    />
+                );
+            });
+
+            const tableContent = localContainer.textContent || '';
+            expect(tableContent).not.toContain('(6.1.0)');
+        });
+
+        it('shows missing pack version in tooltip without @ prefix', () => {
+            const stateWithMissingReference: ComponentsState = {
+                ...defaultState,
+                packs: [{
+                    ...mockPack,
+                    references: [{
+                        ...mockPack.references[0],
+                        pack: 'ARM::CMSIS@>=6.1.0',
+                        missing: true,
+                        relPath: ''
+                    }]
+                }]
+            };
+
+            const localContainer = document.createElement('div');
+            React.act(() => {
+                createRoot(localContainer).render(
+                    <PacksView
+                        state={stateWithMissingReference}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={defaultState.availablePacks}
+                    />
+                );
+            });
+
+            const tableContent = localContainer.textContent || '';
+            expect(tableContent).toContain('(>=6.1.0)');
+            expect(tableContent).not.toContain('(@>=6.1.0)');
+        });
+
         it('shows a separate path line when relPath is defined and non-empty', () => {
             const stateWithRelPath: ComponentsState = {
                 ...defaultState,

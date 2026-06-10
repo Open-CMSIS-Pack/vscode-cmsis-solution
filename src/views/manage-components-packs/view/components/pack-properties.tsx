@@ -120,6 +120,13 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
         ];
 
     const packDisplayName = pack?.description !== 'Pack not installed' ? pack?.packId : '';
+    const lockedPackValue = pack?.references.find(reference => reference.locked?.trim())?.locked?.trim() ?? '';
+    const hasMissingReferences = Boolean(pack?.references.some(ref => ref.missing));
+    const showErrorFallback = !packDisplayName && (Boolean(lockedPackValue) || hasMissingReferences);
+    const fallbackUsedPackDisplay = !packDisplayName
+        ? (lockedPackValue || pack?.packId || '')
+        : '';
+    const errorRowStyle = { color: 'var(--vscode-list-errorForeground)' };
     const latestInstalledPack = latestUpgradable ? `${pack?.name}@${latestUpgradable}` : packDisplayName;
     const hasNewerOnlineVersion = !!pack?.latestOnlineVersion && !latestInstalledPack?.endsWith(pack.latestOnlineVersion);
     const onlineTooltip = hasNewerOnlineVersion ? <div>Latest version available online: {pack.latestOnlineVersion}</div> : undefined;
@@ -216,7 +223,13 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                                         <td>{(!firstReferencePath && openFile) ? <PackTitleLink packId={pack.packId} packName={packDisplayName} openFile={openFile} /> : packDisplayName}</td>
                                     </tr>
                                 ) : null}
-                                <tr><td>Description:</td><td>{pack.description}</td></tr>
+                                {showErrorFallback ? (
+                                    <tr style={errorRowStyle}>
+                                        <td>Used Pack:</td>
+                                        <td>{fallbackUsedPackDisplay}</td>
+                                    </tr>
+                                ) : null}
+                                <tr style={showErrorFallback ? errorRowStyle : undefined}><td>Description:</td><td>{pack.description}</td></tr>
                                 {firstReferencePath ? <tr><td>Path:</td><td>{firstReferencePath}</td></tr> : null}
                             </tbody>
                         </table>
@@ -224,7 +237,7 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                     {!firstReferencePath && (
                         <Card title="Update Pack" size="small">
                             <Row>
-                                <Col flex={3}>Latest Installed Pack:</Col>
+                                <Col flex={3}>Latest Compliant Pack Installed:</Col>
                                 <Col flex={5}>{latestInstalledPack}</Col>
                                 <Col flex={1}>
                                     <Tooltip title={<span>Update and remove lock in <a onClick={() => { if (openFile && cbuildPackPath) openFile(cbuildPackPath, false); }}><EditFilled /></a>{cbuildPackPath} {unlockOf && <><br />Pending unlock request will be committed on save</>}</span>}>
