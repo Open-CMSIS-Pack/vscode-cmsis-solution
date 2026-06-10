@@ -1,5 +1,16 @@
 # Change Log
 
+## 1.68.0
+
+Stable release including changes from the 1.67.x pre-release series.
+
+- Updates:
+  - The loading time of a CMSIS solution project has been decreased by decoupling the task to build the compilation database (compile_commands.json). While that task is running the build button can be pressed to run the build task. The extension will terminate the compilation database task and start the build task using the same terminal.
+  - In the packs display of the **Software Components** view pack's overview MD files are opened to the side in preview mode.
+
+- Solved issues:
+  - Fixed the orchestration of events in case of the build task triggering saving of changed CMSIS YAML input files including **Manage Solution** (see VS Code setting "Task: Save Before Run").
+
 ## 1.67.3
 
 - Updates:
