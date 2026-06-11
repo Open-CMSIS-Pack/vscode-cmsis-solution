@@ -42,6 +42,7 @@ export const ComponentPackManager = (props: ComponentProps) => {
     const [activeView, setActiveView] = React.useState<'components' | 'packs'>('components');
     const [expandedRowKeys, setExpandedRowKeys] = React.useState<string[]>([]);
     const [search, setSearch] = React.useState('');
+    const [focusPackId, setFocusPackId] = React.useState<string | undefined>(undefined);
 
     const isDarkTheme = useVSCodeTheme();
 
@@ -61,8 +62,18 @@ export const ComponentPackManager = (props: ComponentProps) => {
 
     React.useEffect(() => {
         messageHandler.push({ type: 'REQUEST_INITIAL_DATA' });
-        return messageHandler.subscribe(message => dispatch({ type: 'INCOMING_MESSAGE', message }));
+        return messageHandler.subscribe(message => {
+            dispatch({ type: 'INCOMING_MESSAGE', message });
+            if (message.type === 'SOLUTION_LOADED' && message.focusPackId) {
+                setActiveView('packs');
+                setFocusPackId(message.focusPackId);
+            }
+        });
     }, [messageHandler]);
+
+    const onFocusPackConsumed = React.useCallback(() => {
+        setFocusPackId(undefined);
+    }, []);
 
     const onChangeActiveView = (view: 'components' | 'packs') => {
         setActiveView(view);
@@ -172,6 +183,8 @@ export const ComponentPackManager = (props: ComponentProps) => {
                                 openFile={openFile}
                                 messageHandler={messageHandler}
                                 availablePacks={state.availablePacks}
+                                focusPackId={focusPackId}
+                                onFocusPackConsumed={onFocusPackConsumed}
                             />
                         }
                     </div>

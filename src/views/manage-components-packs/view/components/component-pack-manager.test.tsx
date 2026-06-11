@@ -65,6 +65,28 @@ describe('ManageComponents', () => {
         expect(listener).toHaveBeenCalledTimes(1);
     });
 
+    it('switches to Software packs when loaded solution includes a focused pack id', () => {
+        listener.mockClear();
+
+        React.act(() => {
+            messageHandler.postWindowMessage({
+                type: 'SOLUTION_LOADED',
+                componentTree: { classes: [], success: true },
+                validations: [],
+                componentScope: ComponentScope.Solution,
+                availableTargetTypes: [],
+                cbuildPackPath: '',
+                packs: [],
+                solution: {},
+                availablePacks: {},
+                focusPackId: 'ARM::CMSIS@2.3.0'
+            });
+        });
+
+        expect(container.querySelectorAll('.packs-view-root')).toHaveLength(1);
+        expect(listener).not.toHaveBeenCalledWith({ type: 'CHANGE_COMPONENT_SCOPE', scope: ComponentScope.Solution });
+    });
+
     describe('once the initial data has been received', () => {
         const target = { type: 'project' as const, relativePath: 'path/to/context', label: 'My.ContextName+Debug', key: 'project.path.to.context', path: 'path/to/context' };
 

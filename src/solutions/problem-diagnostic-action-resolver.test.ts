@@ -207,6 +207,47 @@ describe('ProblemDiagnosticActionResolver', () => {
         });
     });
 
+    describe('manage-pack action', () => {
+        it('creates an Open Software Packs action for pack download failures', () => {
+            const { code, command, args } = decodeCodeTarget(resolver, makeContext({
+                message: "downloading pack 'ARM::CMSIS@2.3.0' failed",
+            }));
+
+            expect(code?.value).toBe('Open Software Packs');
+            expect(command).toBe(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}`);
+            expect(args).toEqual([{ type: 'pack', value: 'ARM::CMSIS@2.3.0' }]);
+        });
+
+        it('creates an Open Software Packs action for required packs that are not installed', () => {
+            const { code, command, args } = decodeCodeTarget(resolver, makeContext({
+                message: "required pack 'ARM::CMSIS@2.3.0' not installed",
+            }));
+
+            expect(code?.value).toBe('Open Software Packs');
+            expect(command).toBe(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}`);
+            expect(args).toEqual([{ type: 'pack', value: 'ARM::CMSIS@2.3.0' }]);
+        });
+
+        it('creates an Open Software Packs action for multiple selected versions diagnostics', () => {
+            const { code, command, args } = decodeCodeTarget(resolver, makeContext({
+                message: "selected multiple versions of pack 'Keil::MDK-Middleware': '8.1.0', '8.2.0' Review pack selection",
+            }));
+
+            expect(code?.value).toBe('Open Software Packs');
+            expect(command).toBe(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}`);
+            expect(args).toEqual([{ type: 'pack', value: 'Keil::MDK-Middleware' }]);
+        });
+
+        it('is suppressed when hasLocation is true', () => {
+            const result = resolver.resolve(makeContext({
+                message: "downloading pack 'ARM::CMSIS@2.3.0' failed",
+                hasLocation: true,
+            }));
+
+            expect(result).toBeUndefined();
+        });
+    });
+
     describe('find-in-files action', () => {
         it('extracts query from a quoted string in the message', () => {
             const { code } = decodeCodeTarget(resolver, makeContext({

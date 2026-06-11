@@ -54,6 +54,7 @@ type ProblemActionDescriptor =
     | { kind: 'merge'; localPath: string; updateLevel: MergeUpdateLevel; componentId?: string }
     | { kind: 'run-generator'; generator: string; context: string }
     | { kind: 'manage-components'; query: string }
+    | { kind: 'manage-pack'; packId: string }
     | { kind: 'open-environment-variables-settings' }
     | { kind: 'find-in-files'; query: string };
 
@@ -79,6 +80,12 @@ const generatorMissingPatterns: readonly RegExp[] = [
     /(?:cgen\s+file\s+.*\s+)?run generator '([^']+)' for context '([^']+)'/i,
 ];
 
+const packProblemPatterns: readonly RegExp[] = [
+    /downloading pack '([^']+)' failed/i,
+    /required pack '([^']+)' not installed/i,
+    /selected multiple versions of pack '([^']+)'/i,
+];
+
 const queryActionPatterns: ReadonlyArray<{ pattern: RegExp; action: 'components-packs' | 'find-in-files' }> = [
     { pattern: /dependency validation for context '([^']+)' failed:/, action: 'components-packs' },
     { pattern: /\/([^/\s']+\.[^/\s']+)/, action: 'find-in-files' },
@@ -99,6 +106,7 @@ export class ProblemDiagnosticActionResolver {
     private resolveDescriptor(context: ProblemDiagnosticActionContext): ProblemActionDescriptor | undefined {
         return this.resolveMergeAction(context)
             ?? this.resolveGeneratorMissingAction(context)
+            ?? this.resolveManagePackAction(context)
             ?? this.resolveManageComponentsAction(context)
             ?? this.resolveEnvVarSettingsAction(context)
             ?? this.resolveGenericSearchAction(context);
@@ -130,6 +138,16 @@ export class ProblemDiagnosticActionResolver {
             return {
                 code: {
                     value: 'Manage Components',
+                    target: vscode.Uri.parse(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}?${args}`),
+                },
+            };
+        }
+
+        if (descriptor.kind === 'manage-pack') {
+            const args = this.encodeCommandArgs([{ type: 'pack', value: descriptor.packId }]);
+            return {
+                code: {
+                    value: 'Open Software Packs',
                     target: vscode.Uri.parse(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}?${args}`),
                 },
             };
@@ -202,6 +220,22 @@ export class ProblemDiagnosticActionResolver {
         };
     }
 
+    private resolveManagePackAction(context: ProblemDiagnosticActionContext): ProblemActionDescriptor | undefined {
+        if (context.hasLocation) {
+            return undefined;
+        }
+
+        const packId = this.parsePackIdFromProblem(context.message);
+        if (!packId) {
+            return undefined;
+        }
+
+        return {
+            kind: 'manage-pack',
+            packId,
+        };
+    }
+
     private resolveEnvVarSettingsAction(context: ProblemDiagnosticActionContext): ProblemActionDescriptor | undefined {
         const normalizedMessage = this.normalizeMessageForPatternMatching(context.message);
         const hasEnvironmentMessage = envVarActionPatterns.some(pattern => pattern.test(normalizedMessage));
@@ -261,6 +295,17 @@ export class ProblemDiagnosticActionResolver {
                 localPath: item.getLocalPath(match),
                 updateLevel: item.getUpdateLevel(match).toLowerCase() as MergeUpdateLevel,
             };
+        }
+
+        return undefined;
+    }
+
+    private parsePackIdFromProblem(message: string): string | undefined {
+        for (const pattern of packProblemPatterns) {
+            const match = message.match(pattern);
+            if (match?.[1]) {
+                return match[1];
+            }
         }
 
         return undefined;
