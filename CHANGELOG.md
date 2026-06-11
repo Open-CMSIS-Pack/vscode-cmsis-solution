@@ -9,7 +9,7 @@ Stable release including changes from the 1.67.x pre-release series.
   - In the packs display of the **Software Components** view, pack overview `.md` files are opened to the side in preview mode.
 
 - Solved issues:
-  - Fixed the orchestration of events in case of the build task triggering saving of changed CMSIS YAML input files including **Manage Solution** (see VS Code setting "Task: Save Before Run").
+  - Fixed the orchestration of events when the build task triggers saving changed CMSIS YAML input files, including in the **Manage Solution** dialog (see VS Code setting "Task: Save Before Run").
 
 ## 1.67.3
 
