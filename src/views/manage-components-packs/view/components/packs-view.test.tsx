@@ -391,6 +391,7 @@ describe('PacksView', () => {
 
     describe('pack focus', () => {
         const originalRequestAnimationFrame = window.requestAnimationFrame;
+        const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
         let scrollIntoViewMock: jest.Mock;
 
         beforeEach(() => {
@@ -404,6 +405,7 @@ describe('PacksView', () => {
 
         afterEach(() => {
             window.requestAnimationFrame = originalRequestAnimationFrame;
+            HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
         });
 
         it('scrolls to the focused pack and consumes the focus request', () => {
@@ -425,6 +427,35 @@ describe('PacksView', () => {
 
             expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'center' });
             expect(onFocusPackConsumed).toHaveBeenCalledTimes(1);
+        });
+
+        it('prefers an exact pack id match when multiple versions share the same pack name', () => {
+            const requestedPack: PackRowDataType = {
+                ...mockPack,
+                key: 'ARM::CMSIS@2.3.0',
+                packId: 'ARM::CMSIS@2.3.0',
+                versionUsed: '2.3.0'
+            };
+            const stateWithMultipleVersions: ComponentsState = {
+                ...defaultState,
+                packs: [mockPack, requestedPack]
+            };
+            const localContainer = document.createElement('div');
+
+            React.act(() => {
+                createRoot(localContainer).render(
+                    <PacksView
+                        state={stateWithMultipleVersions}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={defaultState.availablePacks}
+                        focusPackId='ARM::CMSIS@2.3.0'
+                    />
+                );
+            });
+
+            const scrolledRow = scrollIntoViewMock.mock.contexts[0] as HTMLElement;
+            expect(scrolledRow.getAttribute('data-row-key')).toBe('ARM::CMSIS@2.3.0');
         });
 
         it('consumes the focus request when no matching pack is present', () => {

@@ -55,6 +55,10 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
         return `${parsed.vendor ? `${parsed.vendor}::` : ''}${parsed.packName}`.toLowerCase();
     }, []);
 
+    const normalizeExactPackId = React.useCallback((value: string): string => {
+        return value.trim().toLowerCase();
+    }, []);
+
     const selectPack = React.useCallback((record: PackRowDataType | undefined) => {
         if (!record) {
             setSelectedPack(undefined);
@@ -254,8 +258,9 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
             return;
         }
 
-        const normalizedFocusPackId = normalizePackLookupId(focusPackId);
-        const focusedPack = state.packs.find(pack => normalizePackLookupId(pack.packId) === normalizedFocusPackId);
+        const exactFocusPackId = normalizeExactPackId(focusPackId);
+        const focusedPack = state.packs.find(pack => normalizeExactPackId(pack.packId) === exactFocusPackId)
+            ?? state.packs.find(pack => normalizePackLookupId(pack.packId) === normalizePackLookupId(focusPackId));
         if (!focusedPack) {
             onFocusPackConsumed?.();
             return;
@@ -267,11 +272,11 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
         };
 
         // Defer scrolling until the filtered table rows have been rendered.
-        requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
             scrollToPackRow();
             onFocusPackConsumed?.();
         });
-    }, [focusPackId, normalizePackLookupId, onFocusPackConsumed, state.packs]);
+    }, [focusPackId, normalizeExactPackId, normalizePackLookupId, onFocusPackConsumed, state.packs]);
 
     const rowClassName = (record: PackRowDataType): string => {
         const relativePath = state.selectedTargetType?.relativePath || '';
