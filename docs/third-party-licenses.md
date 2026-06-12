@@ -1,6 +1,6 @@
 # TPIP Report for vscode-cmsis-solution
 
-Generated for release: 
+Generated for release: 1.68.0
 
 | *Package* | *Version* | *Repository* | *License* |
 |---|---|---|---|
