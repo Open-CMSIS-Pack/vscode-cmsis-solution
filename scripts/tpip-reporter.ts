@@ -23,7 +23,7 @@ import fs from "fs";
 async function main() {
 
     const argv = yargs(hideBin(process.argv))
-        .usage('Usage: $0 <json> <report> [--header <header>] [--release <release>]')
+        .usage('Usage: $0 <json> <report> [--header <header>]')
         .options('header', {
             describe: 'Header to add to the report',
             type: 'string'
