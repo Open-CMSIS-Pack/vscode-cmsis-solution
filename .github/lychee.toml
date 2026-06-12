@@ -10,7 +10,7 @@ no_progress = true
 
 # Enable link caching. This can be helpful to avoid checking the same links on
 # multiple runs.
-cache = true
+cache = false
 
 accept = [
   "200"
