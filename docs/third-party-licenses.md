@@ -1,6 +1,6 @@
 # TPIP Report for vscode-cmsis-solution
 
-Report prepared at: 03/03/2026, 10:51:48
+Report prepared at: 12/06/2026, 09:39:35
 
 | *Package* | *Version* | *Repository* | *License* |
 |---|---|---|---|
@@ -11,7 +11,6 @@ Report prepared at: 03/03/2026, 10:51:48
 |@lydell/node-pty|1.1.0|https://github.com/lydell/node-pty|https://github.com/lydell/node-pty/blob/split-package/LICENSE|
 |@microsoft/vscode-serial-monitor-api|0.1.7|https://github.com/microsoft/vscode-serial-monitor|https://raw.githubusercontent.com/microsoft/vscode-serial-monitor/refs/heads/main/LICENSE|
 |@vscode/codicons|0.0.44|https://github.com/microsoft/vscode-codicons|https://github.com/microsoft/vscode-codicons/blob/main/LICENSE|
-|@vscode/webview-ui-toolkit|1.4.0|https://github.com/microsoft/vscode-webview-ui-toolkit|https://github.com/microsoft/vscode-webview-ui-toolkit/blob/main/LICENSE|
 |antd|5.29.3|https://ant.design|https://github.com/ant-design/ant-design/blob/master/LICENSE|
 |async-mutex|0.5.0|https://github.com/DirtyHairy/async-mutex|https://github.com/DirtyHairy/async-mutex/blob/master/LICENSE|
 |eta|4.5.1|https://github.com/eta-dev/eta|https://github.com/eta-dev/eta/blob/main/LICENSE|
@@ -31,6 +30,7 @@ Report prepared at: 03/03/2026, 10:51:48
 |sax-ts|1.2.13|https://github.com/Maxim-Mazurok/sax-ts|https://github.com/Maxim-Mazurok/sax-ts/blob/master/LICENSE.md|
 |semver|7.7.4|https://github.com/npm/node-semver|https://github.com/npm/node-semver/blob/main/LICENSE|
 |tcp-port-used|1.0.2|https://github.com/stdarg/tcp-port-used|https://raw.githubusercontent.com/stdarg/tcp-port-used/refs/heads/master/LICENSE|
+|tmp|0.2.5|https://github.com/raszi/node-tmp|https://github.com/raszi/node-tmp/blob/master/LICENSE|
 |vscode-jsonrpc|8.2.1|https://github.com/Microsoft/vscode-languageserver-node|https://github.com/Microsoft/vscode-languageserver-node/blob/main/License.txt|
 |vscode-messenger|0.6.0|https://github.com/TypeFox/vscode-messenger|https://github.com/TypeFox/vscode-messenger/blob/main/LICENSE|
 |vscode-messenger-common|0.6.0|https://github.com/TypeFox/vscode-messenger|https://github.com/TypeFox/vscode-messenger/blob/main/LICENSE|
