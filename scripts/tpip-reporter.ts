@@ -23,7 +23,7 @@ import fs from "fs";
 async function main() {
 
     const argv = yargs(hideBin(process.argv))
-        .usage('Usage: $0 <json> <report> [--header <header>]')
+        .usage('Usage: $0 <json> <report> [--header <header>] [--release <release>]')
         .options('header', {
             describe: 'Header to add to the report',
             type: 'string'
@@ -49,6 +49,12 @@ async function main() {
     const report = argv.report as string;
     const header = argv.header;
 
+    let release: string | undefined;
+    if (fs.existsSync('package.json')) {
+        const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+        release = packageJson.version;
+    }
+
     const tpipJson = JSON.parse(fs.readFileSync(json, "utf8"));
 
     // Sort packages alphabetically by name for better readability
@@ -62,7 +68,7 @@ async function main() {
     }
 
     data += '\n';
-    data += `Report prepared at: ${new Date().toLocaleString('en-GB')}\n\n`;
+    data += `Generated for release: ${release ?? 'unknown'}\n\n`;
     data += '| *Package* | *Version* | *Repository* | *License* |\n';
     data += '|---|---|---|---|\n';
 

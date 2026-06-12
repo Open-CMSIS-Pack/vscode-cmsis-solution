@@ -57,25 +57,22 @@ jobs:
         run: npm ci
 
       - name: Update TPIP excerpt
-        id: excerpt
+        run: npm run tpip:update
+
+      - name: Update TPIP report
+        id: report
         run: |
-          npm run tpip:update
-          if git diff --exit-code docs/third-party-licenses.json > /dev/null; then
+          npm run tpip
+          if git diff --exit-code docs/third-party-licenses.md > /dev/null; then
             echo "update=0" >> $GITHUB_OUTPUT
           else
             echo "update=1" >> $GITHUB_OUTPUT
           fi
 
-      - name: Update TPIP report
-        if: ${{ steps.excerpt.outputs.update == 1 }}
-        run: npm run tpip
-
       - name: Commit Changes
-        if: ${{ steps.excerpt.outputs.update == 1 }}
+        if: ${{ steps.report.outputs.update == 1 }}
         uses: EndBug/add-and-commit@290ea2c423ad77ca9c62ae0f5b224379612c0321
         with:
-          author_name: monty-bot
-          author_email: monty-bot@arm.com
           message: "Update TPIP report [skip ci]"
           add: |
             docs/third-party-licenses.*
