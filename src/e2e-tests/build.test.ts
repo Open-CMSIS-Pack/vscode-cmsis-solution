@@ -154,9 +154,12 @@ test.describe('CMSIS Solution Build Validation', () => {
 
                     if (quickPickVisible) {
                         const quickPickRows = quickPickList.locator('.monaco-list-row');
+                        // Wait for rows to be rendered with exponential backoff and longer initial interval
+                        // to account for slower CI environments
+                        log('debug', '⏳ Waiting for quick pick rows to render...');
                         await expect.poll(async () => quickPickRows.count(), {
                             timeout: DEFAULT_TIMEOUT_MS,
-                            intervals: [500, 1000, 2000]
+                            intervals: [1000, 2000, 3000]
                         }).toBeGreaterThan(0);
 
                         const firstWorkspaceItem = quickPickRows.first();

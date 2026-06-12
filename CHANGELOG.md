@@ -1,5 +1,16 @@
 # Change Log
 
+## 1.68.0
+
+Stable release including changes from the 1.67.x pre-release series.
+
+- Updates:
+  - The loading time of a CMSIS solution project has been decreased by decoupling the task to build the compilation database (compile_commands.json). While that task is running the build button can be pressed to run the build task. The extension will terminate the compilation database task and start the build task using the same terminal.
+  - In the packs display of the **Software Components** view, pack overview `.md` files are opened to the side in preview mode.
+
+- Solved issues:
+  - Fixed the orchestration of events when the build task triggers saving changed CMSIS YAML input files, including in the **Manage Solution** dialog (see VS Code setting "Task: Save Before Run").
+
 ## 1.67.3
 
 - Updates:
@@ -12,7 +23,7 @@
 ## 1.67.2
 
 - Updates:
-  - The `Help` entry in the **Views and More Actions...** menu of the [**CMSIS-View**](https://mdk-packs.github.io/vscode-cmsis-solution-docs/debug.html#cmsis-view) now opens the Keil Studio offline documentation from the Keil Studio Pack extension (v2.12.2 or later). If not available, the extension's README.md is shown instead.
+  - The `Help` entry in the **Views and More Actions...** menu of the [**CMSIS-View**](https://mdk-packs.github.io/vscode-cmsis-solution-docs/debug.html#cmsis-view) now opens the Keil Studio offline documentation from the Keil Studio Pack extension (v1.20.2 or later). If not available, the extension's README.md is shown instead.
   - The loading time of a CMSIS project has been decreased by decoupling the process to build the compile_commands.json database. The build button turns into a "Stop" button while the process is running. The **clangd** extension starts indexing once the compile_commands.json files are ready.
   - When closing a CMSIS Solution project before closing the folder, the Solution needs to be explicitly loaded when opening the folder the next time.
   - Automatically showing the **CMSIS View** when the CMSIS Solution project was loaded can be disabled via the extension settings "Auto Show CMSIS View".
