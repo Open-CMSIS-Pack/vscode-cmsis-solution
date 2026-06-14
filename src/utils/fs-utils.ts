@@ -56,6 +56,27 @@ export function copyFolderRecursive(src: string, dest: string) {
     }
 }
 
+/**
+ * Copies only the immediate files (not subdirectories) from src to dest.
+ * Used to copy shared template files that live in a parent folder alongside
+ * device-specific solution subfolders (e.g. Blank.cproject.yml, main.c),
+ * ensuring they exist on disk before the .csolution.yml is written.
+ */
+export function copyFilesOnly(src: string, dest: string) {
+    if (!fs.existsSync(src) || !fs.statSync(src).isDirectory()) {
+        return;
+    }
+    fs.mkdirSync(dest, { recursive: true });
+    fs.readdirSync(src).forEach((item) => {
+        const srcItem = path.join(src, item);
+        const destItem = path.join(dest, item);
+        if (fs.statSync(srcItem).isFile()) {
+            fs.copyFileSync(srcItem, destItem);
+            removeReadOnly(destItem);
+        }
+    });
+}
+
 export function writeTextFile(filePath?: string, data?: string) {
     if (!filePath) {
         return;
