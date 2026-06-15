@@ -224,6 +224,27 @@ describe('ComponentsPacksWebviewMain', () => {
             expect((componentsPacksWebviewMain as any).openWebview).not.toHaveBeenCalled();
             expect(messageProvider.showWarningMessage).toHaveBeenCalledWith(`No valid project found for context: ${context}.`);
         });
+
+        it('opens view and records pack focus for typed pack payload', async () => {
+            jest.spyOn(componentsPacksWebviewMain as any, 'getValidProjectId').mockReturnValue(projectPath);
+
+            await (componentsPacksWebviewMain as any).handleWebviewCommand({ type: 'pack', value: 'ARM::CMSIS@2.3.0' });
+
+            expect((componentsPacksWebviewMain as any).openWebview).toHaveBeenCalledTimes(1);
+            expect((componentsPacksWebviewMain as any).openWebview).toHaveBeenCalledWith(projectPath, undefined);
+            expect((componentsPacksWebviewMain as any).scope).toBe(ComponentScope.Solution);
+            expect((componentsPacksWebviewMain as any).pendingFocusPackId).toBe('ARM::CMSIS@2.3.0');
+        });
+
+        it('shows warning for typed pack payload when no valid project exists', async () => {
+            jest.spyOn(componentsPacksWebviewMain as any, 'getValidProjectId').mockReturnValue(undefined);
+
+            await (componentsPacksWebviewMain as any).handleWebviewCommand({ type: 'pack', value: 'ARM::CMSIS@2.3.0' });
+
+            expect((componentsPacksWebviewMain as any).openWebview).not.toHaveBeenCalled();
+            expect((componentsPacksWebviewMain as any).pendingFocusPackId).toBeUndefined();
+            expect(messageProvider.showWarningMessage).toHaveBeenCalledWith('No valid project found in the active solution.');
+        });
     });
 
     describe('openWebview', () => {
@@ -1742,6 +1763,38 @@ describe('ComponentsPacksWebviewMain', () => {
                 type: 'SOLUTION_LOADED',
                 availableTargetTypes: mockTargetData,
                 selectedTargetType: mockTargetData[0]
+            });
+        });
+
+        it('sends pending pack focus in the next SOLUTION_LOADED message', async () => {
+            (componentsPacksWebviewMain as any).pendingFocusPackId = 'ARM::CMSIS@2.3.0';
+
+            await (componentsPacksWebviewMain as any).resolveComponents();
+
+            const solutionLoadedCall = webviewManager.sendMessage.mock.calls.find(
+                c => c[0].type === 'SOLUTION_LOADED'
+            );
+
+            expect(solutionLoadedCall![0]).toMatchObject({
+                type: 'SOLUTION_LOADED',
+                focusPackId: 'ARM::CMSIS@2.3.0'
+            });
+        });
+
+        it('clears pending pack focus after it has been sent', async () => {
+            (componentsPacksWebviewMain as any).pendingFocusPackId = 'ARM::CMSIS@2.3.0';
+
+            await (componentsPacksWebviewMain as any).resolveComponents();
+            webviewManager.sendMessage.mockClear();
+            await (componentsPacksWebviewMain as any).resolveComponents();
+
+            const solutionLoadedCall = webviewManager.sendMessage.mock.calls.find(
+                c => c[0].type === 'SOLUTION_LOADED'
+            );
+
+            expect(solutionLoadedCall![0]).toMatchObject({
+                type: 'SOLUTION_LOADED',
+                focusPackId: undefined
             });
         });
     });

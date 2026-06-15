@@ -37,11 +37,27 @@ interface PacksProps {
     openFile: (link: string, external?: boolean, focusOn?: string) => void;
     messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>;
     availablePacks: Record<string, string>;
+    focusPackId?: string;
+    onFocusPackConsumed?: () => void;
 }
 
-export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandler, availablePacks }) => {
+export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandler, availablePacks, focusPackId, onFocusPackConsumed }) => {
     const [selectedPack, setSelectedPack] = React.useState<PackRowDataType | undefined>(undefined);
     const [searchText, setSearchText] = React.useState<string>('');
+    const packsContainerRef = React.useRef<HTMLDivElement | null>(null);
+
+    const normalizePackLookupId = React.useCallback((value: string): string => {
+        const parsed = parsePackId(value);
+        if (!parsed) {
+            return value.trim().toLowerCase();
+        }
+
+        return `${parsed.vendor ? `${parsed.vendor}::` : ''}${parsed.packName}`.toLowerCase();
+    }, []);
+
+    const normalizeExactPackId = React.useCallback((value: string): string => {
+        return value.trim().toLowerCase();
+    }, []);
 
     const selectPack = React.useCallback((record: PackRowDataType | undefined) => {
         if (!record) {
@@ -237,6 +253,31 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
         });
     }, [state.packs, searchText]);
 
+    React.useEffect(() => {
+        if (!focusPackId || !state.packs || state.packs.length === 0) {
+            return;
+        }
+
+        const exactFocusPackId = normalizeExactPackId(focusPackId);
+        const focusedPack = state.packs.find(pack => normalizeExactPackId(pack.packId) === exactFocusPackId)
+            ?? state.packs.find(pack => normalizePackLookupId(pack.packId) === normalizePackLookupId(focusPackId));
+        if (!focusedPack) {
+            onFocusPackConsumed?.();
+            return;
+        }
+
+        const scrollToPackRow = () => {
+            const row = packsContainerRef.current?.querySelector(`tr[data-row-key="${focusedPack.key}"]`) as HTMLElement | null;
+            row?.scrollIntoView({ block: 'center' });
+        };
+
+        // Defer scrolling until the filtered table rows have been rendered.
+        window.requestAnimationFrame(() => {
+            scrollToPackRow();
+            onFocusPackConsumed?.();
+        });
+    }, [focusPackId, normalizeExactPackId, normalizePackLookupId, onFocusPackConsumed, state.packs]);
+
     const rowClassName = (record: PackRowDataType): string => {
         const relativePath = state.selectedTargetType?.relativePath || '';
         const selectedInCurrentTarget = referenceFromContext(relativePath, record).length > 0;
@@ -249,7 +290,6 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
         if (hasMissingReferences) {
             classes.push('packs-missing-row');
         }
-
         return classes.join(' ');
     };
 
@@ -283,7 +323,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
                     />
                 </Col>
             </Row >
-            <div className='packs-view-root'>
+            <div className='packs-view-root' ref={packsContainerRef}>
                 <Spin spinning={state.stateMessage !== undefined} tip={state.stateMessage} indicator={<LoadingOutlined spin={true} />} size='large'>
                     <Table<PackRowDataType>
                         tableLayout='auto'

@@ -80,10 +80,9 @@ const packsRowsFromInfo = (packsInfo: PacksInfo, solutionPath: string): PackRowD
     return (packsInfo.packs || []).map(pack => packsRowFromInfo(pack, solutionPath));
 };
 
-type ManageComponentsCommandPayload = {
-    type: 'context';
-    value: string;
-};
+type ManageComponentsCommandPayload =
+    | { type: 'context'; value: string }
+    | { type: 'pack'; value: string };
 
 export class ComponentsPacksWebviewMain {
     private readonly webviewManager: WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>;
@@ -107,6 +106,7 @@ export class ComponentsPacksWebviewMain {
     private isLoading = false;
     private readonly unlinkRequests: Set<string> = new Set<string>();
     private availablePacksCache: Record<string, string> = {}; // this cache must be invalidated, if a new pack was installed
+    private pendingFocusPackId?: string;
 
     constructor(
         private readonly solutionManager: SolutionManager,
@@ -154,6 +154,7 @@ export class ComponentsPacksWebviewMain {
             this.unlinkRequests.clear();
             this.isLoading = false;
             this.scope = ComponentScope.Solution;
+            this.pendingFocusPackId = undefined;
         };
 
         const hasBaseline = this.usedItems !== undefined;
@@ -217,6 +218,19 @@ export class ComponentsPacksWebviewMain {
                 return;
             }
 
+            await this.openWebview(projectId, undefined);
+            return;
+        }
+
+        if (commandArg?.type === 'pack') {
+            const projectId = this.getValidProjectId();
+            if (!projectId) {
+                this.messageProvider.showWarningMessage('No valid project found in the active solution.');
+                return;
+            }
+
+            this.scope = ComponentScope.Solution;
+            this.pendingFocusPackId = commandArg.value;
             await this.openWebview(projectId, undefined);
             return;
         }
@@ -814,6 +828,9 @@ export class ComponentsPacksWebviewMain {
             stripTwoExtensions(this.solutionManager.getCsolution()?.solutionPath || '') + '.cbuild-pack.yml'
         ));
 
+        const focusPackId = this.pendingFocusPackId;
+        this.pendingFocusPackId = undefined;
+
         await this.webviewManager.sendMessage({
             type: 'SOLUTION_LOADED',
             componentTree: this.componentTree,
@@ -829,7 +846,8 @@ export class ComponentsPacksWebviewMain {
                 path: this.solutionManager.getCsolution()?.solutionPath,
                 relativePath: backToForwardSlashes(path.relative(dirname(this.solutionManager.getCsolution()?.solutionPath || ''), this.solutionManager.getCsolution()?.solutionPath || ''))
             },
-            availablePacks: this.availablePacksCache
+            availablePacks: this.availablePacksCache,
+            focusPackId,
         });
     }
 
