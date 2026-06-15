@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-/*
- * Copyright (C) 2023-2026 Arm Limited
- */
-
 import { it } from '@jest/globals';
 import { CwItem } from './cw-item';
 import { ClearErrors, GetErrors } from './error';

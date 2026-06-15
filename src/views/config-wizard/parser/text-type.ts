@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-/*
- * Copyright (C) 2023-2026 Arm Limited
- */
-
 import { TypeBase } from './type-base';
 
 export class TextType extends TypeBase {

@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-/*
- * Copyright (C) 2023 - 2026 Arm Limited
- */
-
 import { it, describe, expect, beforeEach } from '@jest/globals';
 import { CwOption } from './cw-option';
 import { CwOptionAssign } from './cw-option-assign';
