@@ -16,6 +16,7 @@
 
 import { GuiValue } from '../confwiz-webview-common';
 import { CwComment } from './cw-comment';
+import { ClearErrors } from './error';
 import { Tokenizer } from './tokenizer';
 
 const tokenizer = new Tokenizer();
@@ -37,6 +38,10 @@ function makeGuiValue(value: string): GuiValue {
 }
 
 describe('CwComment', () => {
+    beforeEach(() => {
+        ClearErrors();
+    });
+
     describe('multi-line comment toggling', () => {
         it('reports an uncommented block as checked and produces edits to comment each line', () => {
             const lines = [
