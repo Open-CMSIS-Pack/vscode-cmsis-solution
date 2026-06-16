@@ -22,7 +22,7 @@ import { tmpdir } from 'os';
 import extractZip from 'extract-zip';
 import { downloadFile } from '../file-download';
 import { workspaceFsProvider } from '../vscode-api/workspace-fs-provider';
-import { copyFolderRecursive, copyFilesOnly } from '../utils/fs-utils';
+import { copyFolderRecursive, copyFilesOnly, copyFolderRecursiveDeferred } from '../utils/fs-utils';
 
 import { ExampleProject as CsolutionExampleProject, ExampleEnvironment as CsolutionExampleEnvironment, SolutionTemplate as CsolutionTemplate } from '../json-rpc/csolution-rpc-client';
 import { splitPackId } from '../json-rpc/csolution-rpc-helper';
@@ -260,18 +260,7 @@ export class CsolutionTemplateData extends BaseDraftProjectData {
     }
 
     public async copyTo(dest: string) {
-        // DFP pack templates place shared files (e.g. Blank.cproject.yml, main.c)
-        // one level above the device-specific solution subfolder. The csolution
-        // references those files via '../' relative paths. Vendor packs have no
-        // guaranteed write order — any file in the template folder may appear
-        // before or after the .csolution.yml. Copying parent-level files BEFORE
-        // copying the subfolder (which contains the .csolution.yml) ensures every
-        // referenced file already exists when the file watcher fires on the
-        // csolution write, eliminating the "cproject not parsed" race.
-        const templateParent = path.dirname(this.data.folder);
-        const destParent = path.dirname(dest);
-        copyFilesOnly(templateParent, destParent);
-
-        return copyFolderRecursive(this.data.folder, dest);
+        copyFilesOnly(path.dirname(this.data.folder), path.dirname(dest));
+        copyFolderRecursiveDeferred(this.data.folder, dest, '.csolution.yml');
     }
 }
