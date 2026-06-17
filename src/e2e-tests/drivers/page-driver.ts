@@ -30,7 +30,8 @@
 
 import { FrameLocator, Locator, Page } from 'playwright';
 import { CommandDriver } from './command-driver';
-import { DEFAULT_TIMEOUT_MS } from '../constants';
+import { DEFAULT_TIMEOUT_MS, SCREENSHOT_TIMEOUT_MS } from '../constants';
+import { log } from '../utils/logger';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -47,6 +48,34 @@ export class PageDriver {
             .waitFor({ timeout: DEFAULT_TIMEOUT_MS });
     }
 
+    /**
+     * Reloads the VS Code window and waits for it to become ready again.
+     *
+     * Reloading forces the extension host to fully re-initialize against the current contents
+     * of the workspace folder. This makes workspace switches deterministic: the project files
+     * are already on disk when the extension activates, so solution discovery and tool
+     * activation no longer race against asynchronous file watchers.
+     *
+     * The Playwright Page survives the renderer reload (it is a navigation of the same window),
+     * so this instance remains valid afterwards.
+     *
+     * @param waitForActionItemName Optional action item (e.g. 'CMSIS') to wait for after reload.
+     */
+    async reloadWindow(waitForActionItemName?: string): Promise<void> {
+        // Begin waiting for the reload navigation before triggering it to avoid missing the event.
+        const navigation = this.page
+            .waitForEvent('framenavigated', { timeout: DEFAULT_TIMEOUT_MS })
+            .catch(() => undefined);
+
+        await this.getCommands().runCommandFromPalette('Developer: Reload Window');
+        await navigation;
+
+        await this.waitForVsCodeToBeReady();
+        if (waitForActionItemName) {
+            await this.waitForActionItem(waitForActionItemName);
+        }
+    }
+
     async screenshot(name: string): Promise<void> {
         const outputDir = path.join(process.cwd(), 'e2e-screenshots');
         const fullPath = path.join(outputDir, name + '.png');
@@ -57,7 +86,14 @@ export class PageDriver {
             fs.mkdirSync(dir, { recursive: true });
         }
 
-        await this.page.screenshot({ path: fullPath });
+        // These screenshots are diagnostic aids only and must never fail an otherwise-passing test.
+        // page.screenshot occasionally hangs on "waiting for fonts to load", so bound it with a short
+        // timeout and swallow any failure instead of letting it bubble up.
+        try {
+            await this.page.screenshot({ path: fullPath, timeout: SCREENSHOT_TIMEOUT_MS });
+        } catch (err) {
+            log('warn', `Failed to capture screenshot "${name}": ${(err as Error).message}`);
+        }
     }
 
     async turnNotificationsOff(): Promise<void> {

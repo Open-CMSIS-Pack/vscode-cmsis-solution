@@ -45,8 +45,11 @@ export class VcpkgDriver {
      * This includes waiting for the Arm Environment Manager to be activated.
      */
     public async waitForActivation(): Promise<void> {
-        // Ensure "Always Allow" is selected in the message box
-        await this.vscode.mockShowMessageBoxResponse('Always Allow');
+        // Ensure "Always Allow" is selected in the message box. Use a persistent mock because the
+        // Arm Environment Manager trust dialog is a native modal that can appear at an unpredictable
+        // time (and more than once) while tools are activated; a one-shot mock races with it and can
+        // leave the dialog unanswered, blocking activation until this poll times out.
+        await this.vscode.mockShowMessageBoxResponse('Always Allow', { persist: true });
 
         await playwright.expect.poll(
             async () => {
@@ -72,31 +75,36 @@ export class VcpkgDriver {
     private async getActivatedToolCount(): Promise<number> {
         try {
             const statusItem = await this.getArmToolsStatusBarItem();
-            if (!statusItem) {
+
+            // The status bar can briefly contain more than one item with the same id (e.g. a
+            // transient progress item), so inspect every match rather than assuming a single one;
+            // reading an aria-label off a multi-match locator throws a strict-mode violation.
+            const items = await statusItem.all();
+            if (items.length === 0) {
                 log('debug', 'Status bar item not found.');
                 return 0;
             }
 
-            const label = await statusItem.getAttribute('aria-label');
-            if (!label) {
-                log('debug', 'Status bar aria-label is missing.');
-                return 0;
+            let bestCount = 0;
+            for (const item of items) {
+                const label = await item.getAttribute('aria-label');
+                if (!label) {
+                    continue;
+                }
+
+                const match = /Arm Tools:\s*(\d+)/.exec(label);
+                if (!match) {
+                    continue;
+                }
+
+                const count = parseInt(match[1], 10);
+                if (!Number.isNaN(count)) {
+                    bestCount = Math.max(bestCount, count);
+                }
             }
 
-            const match = /Arm Tools:\s*(\d+)/.exec(label);
-            if (!match) {
-                log('debug', `No tool count found in aria-label: "${label}"`);
-                return 0;
-            }
-
-            const count = parseInt(match[1], 10);
-            if (Number.isNaN(count)) {
-                log('error', 'Failed to parse tool count:', match[1]);
-                return 0;
-            }
-
-            log('debug', `Parsed activated tool count: ${count}`);
-            return count;
+            log('debug', `Parsed activated tool count: ${bestCount}`);
+            return bestCount;
 
         } catch (err) {
             log('error', 'Error while retrieving activated tool count:', (err as Error).message);
@@ -135,21 +143,30 @@ export class VcpkgDriver {
     private async getLoadedSolution(targetName: string): Promise<boolean> {
         const statusItem = await this.getLoadSolutionStatusBarItem();
 
-        if (!statusItem) {
+        // The CMSIS status bar may briefly contain more than one item sharing the same id (for
+        // example a transient "Building Compilation Database…" progress item alongside the loaded
+        // solution item). Reading an attribute from a locator that matches multiple elements throws
+        // a strict-mode violation, so inspect each matching item individually.
+        const items = await statusItem.all();
+        if (items.length === 0) {
             log('warn', '[getLoadedSolution] Status bar item not found.');
             return false;
         }
 
-        const label = await statusItem.getAttribute('aria-label');
+        for (const item of items) {
+            const label = await item.getAttribute('aria-label');
+            if (!label) {
+                continue;
+            }
 
-        if (!label) {
-            log('warn', '[getLoadedSolution] Status bar aria-label is missing.');
-            return false;
+            if (label.includes(targetName)) {
+                log('debug', `[getLoadedSolution] Label: "${label}", Contains "${targetName}": true`);
+                return true;
+            }
         }
 
-        const containsTarget = label.includes(targetName);
-        log('debug', `[getLoadedSolution] Label: "${label}", Contains "${targetName}": ${containsTarget}`);
-        return containsTarget;
+        log('debug', `[getLoadedSolution] No status bar item contained "${targetName}"`);
+        return false;
     }
 
     /**
@@ -157,42 +174,26 @@ export class VcpkgDriver {
      * @param targetName The name of the target to wait for in the loaded solution.
      */
     public async waitForLoadedSolution(targetName: string): Promise<void> {
-        // Ensure "Always Allow" is selected in the message box
-        await this.vscode.mockShowMessageBoxResponse('Always Allow');
+        // Ensure "Always Allow" is selected in the message box (see waitForActivation for rationale).
+        await this.vscode.mockShowMessageBoxResponse('Always Allow', { persist: true });
 
-        try {
-            await playwright.expect.poll(
-                async () => {
-                    try {
-                        const isLoaded = await this.getLoadedSolution(targetName);
-                        log('debug', `[waitForLoadedSolution] Checking if "${targetName}" is loaded: ${isLoaded}`);
-                        if (isLoaded) {
-                            log('info', `🎯 Solution "${targetName}" detected as loaded in status bar`);
-                        }
-                        return isLoaded;
-                    } catch (e) {
-                        const errorMessage = (e as Error).message || e;
-                        log('error', `[waitForLoadedSolution] Polling failed: ${errorMessage}`);
-                        throw e; // Propagate error to fail the test
-                    }
-                },
-                {
-                    timeout: TASK_TIMEOUT_MS,
-                    message: `Expected loaded solution "${targetName}" to be visible.`,
+        // Let a genuine "solution never loaded" surface here with a clear message instead of being
+        // swallowed and continuing, which previously masked the real failure and produced a confusing
+        // downstream timeout (e.g. the command palette failing to open several steps later).
+        await playwright.expect.poll(
+            async () => {
+                const isLoaded = await this.getLoadedSolution(targetName);
+                log('debug', `[waitForLoadedSolution] Checking if "${targetName}" is loaded: ${isLoaded}`);
+                if (isLoaded) {
+                    log('info', `🎯 Solution "${targetName}" detected as loaded in status bar`);
                 }
-            ).toBe(true);
-            log('info', `✅ Solution "${targetName}" loaded successfully`);
-        } catch (e) {
-            const error = e as Error;
-            const isTimeout = error.message?.includes('Timeout') || error.message?.includes('timeout') || error.name === 'TimeoutError';
-
-            if (isTimeout) {
-                log('warn', `⚠️ Timeout waiting for solution "${targetName}" after ${TASK_TIMEOUT_MS}ms, assuming loaded and continuing...`);
-                // Consider it loaded and continue instead of failing
-            } else {
-                log('error', `❌ Unexpected error waiting for solution "${targetName}": ${error.message}`);
-                throw e; // Re-throw non-timeout errors
+                return isLoaded;
+            },
+            {
+                timeout: TASK_TIMEOUT_MS,
+                message: `Expected loaded solution "${targetName}" to be visible.`,
             }
-        }
+        ).toBe(true);
+        log('info', `✅ Solution "${targetName}" loaded successfully`);
     }
 }
