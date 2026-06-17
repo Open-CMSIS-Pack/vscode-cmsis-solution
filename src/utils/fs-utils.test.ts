@@ -80,6 +80,70 @@ describe('copyFolderRecursive', () => {
     });
 });
 
+describe('copyFilesOnly', () => {
+    const testDataHandler = new TestDataHandler();
+    const tempDir = testDataHandler.tmpDir;
+    const srcDir = path.join(tempDir, 'copyFilesOnlySrc');
+    const destDir = path.join(tempDir, 'copyFilesOnlyDest');
+
+    beforeAll(async () => {
+        await fs.mkdir(srcDir);
+        await fs.writeFile(path.join(srcDir, 'file1.txt'), 'text1');
+        await fs.writeFile(path.join(srcDir, 'file2.txt'), 'text2');
+        await fs.mkdir(path.join(srcDir, 'subDir'));
+        await fs.writeFile(path.join(srcDir, 'subDir', 'nested.txt'), 'nested');
+    });
+
+    afterAll(async () => {
+        testDataHandler.dispose();
+    });
+
+    it('copies only files, not subdirectories', () => {
+        fsUtils.copyFilesOnly(srcDir, destDir);
+        expect(fsUtils.readTextFile(path.join(destDir, 'file1.txt'))).toBe('text1');
+        expect(fsUtils.readTextFile(path.join(destDir, 'file2.txt'))).toBe('text2');
+        expect(fsUtils.fileExists(path.join(destDir, 'subDir'))).toBe(false);
+    });
+
+    it('does nothing when src does not exist', () => {
+        expect(() => fsUtils.copyFilesOnly(path.join(tempDir, 'nonexistent'), destDir)).not.toThrow();
+    });
+});
+
+describe('copyFolderRecursiveDeferred', () => {
+    const testDataHandler = new TestDataHandler();
+    const tempDir = testDataHandler.tmpDir;
+    const srcDir = path.join(tempDir, 'deferredSrc');
+    const destDir = path.join(tempDir, 'deferredDest');
+
+    beforeAll(async () => {
+        await fs.mkdir(srcDir);
+        await fs.writeFile(path.join(srcDir, 'Blank.cproject.yml'), 'cproject');
+        await fs.writeFile(path.join(srcDir, 'main.c'), 'main');
+        await fs.writeFile(path.join(srcDir, 'Blank.csolution.yml'), 'csolution');
+        await fs.mkdir(path.join(srcDir, 'sub'));
+        await fs.writeFile(path.join(srcDir, 'sub', 'Sub.cproject.yml'), 'sub_cproject');
+        await fs.writeFile(path.join(srcDir, 'sub', 'Sub.csolution.yml'), 'sub_csolution');
+    });
+
+    afterAll(async () => {
+        testDataHandler.dispose();
+    });
+
+    it('copies all files to destination including deferred', () => {
+        fsUtils.copyFolderRecursiveDeferred(srcDir, destDir, '.csolution.yml');
+        expect(fsUtils.readTextFile(path.join(destDir, 'Blank.cproject.yml'))).toBe('cproject');
+        expect(fsUtils.readTextFile(path.join(destDir, 'main.c'))).toBe('main');
+        expect(fsUtils.readTextFile(path.join(destDir, 'Blank.csolution.yml'))).toBe('csolution');
+        expect(fsUtils.readTextFile(path.join(destDir, 'sub', 'Sub.cproject.yml'))).toBe('sub_cproject');
+        expect(fsUtils.readTextFile(path.join(destDir, 'sub', 'Sub.csolution.yml'))).toBe('sub_csolution');
+    });
+
+    it('throws when src does not exist', () => {
+        expect(() => fsUtils.copyFolderRecursiveDeferred(path.join(tempDir, 'nonexistent'), destDir, '.csolution.yml')).toThrow();
+    });
+});
+
 describe('fsUtils', () => {
 
     it('should handle undefined filename', () => {

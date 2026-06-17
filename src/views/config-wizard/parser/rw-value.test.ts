@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-/*
- * Copyright (C) 2023 - 2026 Arm Limited
- */
-
 import { it } from '@jest/globals';
 import { NumberType } from './number-type';
 import { RwValue, ValueType } from './rw-value';

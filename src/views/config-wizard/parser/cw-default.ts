@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-/*
- * Copyright (C) 2023-2026 Arm Limited
- */
-
 import { CwItem } from './cw-item';
 import { NumberType } from './number-type';
 import { TextType } from './text-type';

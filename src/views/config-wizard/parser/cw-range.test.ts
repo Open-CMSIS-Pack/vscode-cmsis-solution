@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-/*
- * Copyright (C) 2023-2026 Arm Limited
- */
-
 import { CwRange } from './cw-range';
 import { Token } from './tokenizer';
 import { it } from '@jest/globals';

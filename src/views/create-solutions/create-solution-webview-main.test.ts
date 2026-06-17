@@ -214,9 +214,9 @@ describe('CreateSolutionWebviewMain', () => {
 
         await waitTimeout();
 
-        expect(mockFsCopyFile).toHaveBeenNthCalledWith(1, path.resolve(__dirname, '..', '..', '..', 'templates', 'template.csolution.yml'), solutionPath, expect.any(Function));
-        expect(mockFsCopyFile).toHaveBeenNthCalledWith(2, path.resolve(__dirname, '..', '..', '..', 'templates', 'template.cproject.yml'), projectPath, expect.any(Function));
-        expect(mockFsCopyFile).toHaveBeenNthCalledWith(3, path.resolve(__dirname, '..', '..', '..', 'templates', 'c', 'main.c'), cPath, expect.any(Function));
+        expect(mockFsCopyFile).toHaveBeenNthCalledWith(1, path.resolve(__dirname, '..', '..', '..', 'templates', 'template.cproject.yml'), projectPath, expect.any(Function));
+        expect(mockFsCopyFile).toHaveBeenNthCalledWith(2, path.resolve(__dirname, '..', '..', '..', 'templates', 'c', 'main.c'), cPath, expect.any(Function));
+        expect(mockFsCopyFile).toHaveBeenNthCalledWith(3, path.resolve(__dirname, '..', '..', '..', 'templates', 'template.csolution.yml'), solutionPath, expect.any(Function));
     });
 
     it('sends an error event if creation fails', async () => {

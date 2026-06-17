@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-/*
- * Copyright (C) 2023-2026 Arm Limited
- */
-
 export class CwError {
     private _value: string[] = [];
 
