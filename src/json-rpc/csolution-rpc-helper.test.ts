@@ -477,6 +477,28 @@ describe('csolution-rpc-client', () => {
             expect(service.pendingPackIdxChange).toBe(false);
             expect(service.packIdxWatcherSuspendDepth).toBe(0);
         });
+
+        it('gracefully handles missing pack.idx file', () => {
+            const packIdx = path.join('/cmsis-packs', 'pack.idx');
+            const error = new Error('ENOENT: no such file or directory');
+            (error as any).code = 'ENOENT';
+
+            (fs.statSync as unknown as jest.Mock).mockImplementation(() => {
+                throw error;
+            });
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, _listener: any) => ({ close: jest.fn() }));
+
+            // Should not throw
+            expect(() => service.watchPackIdxFile()).not.toThrow();
+
+            // Should still attempt to get pack root and call statSync
+            expect(pathUtils.getCmsisPackRoot).toHaveBeenCalledTimes(1);
+            expect(fs.statSync).toHaveBeenCalledWith(packIdx);
+
+            // fs.watch should not be set up since statSync failed
+            expect(fs.watch).not.toHaveBeenCalled();
+            expect(service.idxWatcher).toBeUndefined();
+        });
     });
 
     describe('csolution-rpc-client launch', () => {
