@@ -299,7 +299,7 @@ class EnvironmentManagerImpl implements EnvironmentManager {
     }
 
     private notifyOnInvalidKeys(invalidKeys: string[]): void {
-        const serialized = invalidKeys.slice().sort().join('|');
+        const serialized = JSON.stringify(invalidKeys.slice().sort());
         if (serialized === this.lastInvalidEnvKeys) {
             return;
         }

@@ -534,6 +534,28 @@ describe('EnvironmentManager', () => {
             expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
         });
 
+        it('warns again when different invalid key sets serialize similarly with delimiters', async () => {
+            const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+            configurationProviderMock = configurationProviderFactory({
+                [CONFIG_ENVIRONMENT_VARIABLES]: {
+                    '|x': 'first',
+                    'y|z-': 'second',
+                },
+            });
+            environmentManager = new EnvironmentManager(configurationProviderMock);
+
+            await environmentManager.activate(mockContext);
+
+            configurationProviderMock.getConfigVariableOrDefault.mockReturnValue({
+                '': 'empty',
+                'x|y|z-': 'third',
+            });
+            configurationProviderMock.fireOnChangeConfiguration(CONFIG_ENVIRONMENT_VARIABLES);
+
+            expect(warnSpy).toHaveBeenCalledTimes(2);
+            warnSpy.mockRestore();
+        });
+
         it('shows a recoverable error message when applying environment settings fails', async () => {
             mockEnvironmentVariableCollection.replace.mockImplementation(() => {
                 throw new Error('failed to apply env var');
