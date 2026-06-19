@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ExtensionContext } from 'vscode';
+import * as vscode from 'vscode';
 import * as manifest from '../manifest';
 import { ConfigurationProvider } from '../vscode-api/configuration-provider';
 import { OutputChannelProvider } from '../vscode-api/output-channel-provider';
@@ -24,9 +24,12 @@ import * as rpc from '../json-rpc/csolution-rpc-client';
 import { ConvertRequestData, SolutionEventHub } from './solution-event-hub';
 import { getSeverity } from './solution-problems';
 
+const OPEN_SETTINGS_ACTION = 'Open Environment Variables Settings';
+const ENV_VAR_SETTINGS_NAME = `${manifest.PACKAGE_NAME}.${manifest.CONFIG_ENVIRONMENT_VARIABLES}`;
+
 
 export interface SolutionConverter {
-    activate(context: ExtensionContext): void;
+    activate(context: vscode.ExtensionContext): void;
 }
 
 export class SolutionConverterImpl implements SolutionConverter {
@@ -43,7 +46,7 @@ export class SolutionConverterImpl implements SolutionConverter {
     ) {
     }
 
-    public activate(context: ExtensionContext) {
+    public activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(
             this.eventHub.onDidConvertRequested(this.handleConvertRequested, this),
         );
@@ -80,6 +83,10 @@ export class SolutionConverterImpl implements SolutionConverter {
 
         try {
             await this.convertSolution(signal);
+        } catch (error) {
+            if (!signal.aborted) {
+                await this.handleConvertFailure(error);
+            }
         } finally {
             release();
             this.controller = null;
@@ -269,6 +276,61 @@ export class SolutionConverterImpl implements SolutionConverter {
             }
         ) as rpc.DiscoverLayersInfo;
         return result;
+    }
+
+    private async handleConvertFailure(error: unknown): Promise<void> {
+        const message = this.getErrorMessage(error);
+        const outputChannel = this.outputChannelProvider.getOrCreate(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
+
+        console.error('Unhandled error while converting solution', error);
+        outputChannel.appendLine(`\n🟥 Convert solution failed: ${message}`);
+
+        const logMessages: rpc.LogMessages = {
+            success: false,
+            errors: [message],
+            warnings: [],
+            info: [],
+        };
+
+        await this.eventHub.fireConvertCompleted({
+            success: false,
+            severity: 'error',
+            detection: false,
+            logMessages,
+            toolsOutputMessages: [`error cmsis-csolution: ${message}`],
+        });
+        await this.eventHub.fireConfigureSolutionDataReady({ availableCompilers: [], availableConfigurations: undefined });
+
+        if (this.isEnvironmentSettingsError(message)) {
+            const selection = await vscode.window.showErrorMessage(
+                `Failed to load solution due to invalid environment variable settings: ${message}`,
+                OPEN_SETTINGS_ACTION,
+            );
+            if (selection === OPEN_SETTINGS_ACTION) {
+                await vscode.commands.executeCommand(manifest.OPEN_ENV_VAR_SETTINGS_COMMAND_ID, ENV_VAR_SETTINGS_NAME);
+            }
+            return;
+        }
+
+        await vscode.window.showErrorMessage(`Failed to load solution: ${message}`);
+    }
+
+    private isEnvironmentSettingsError(message: string): boolean {
+        const normalized = message.toLocaleLowerCase();
+        const environmentIssueHints = [
+            'environment variable',
+            'environment variables',
+            'env var',
+            'env vars',
+            ENV_VAR_SETTINGS_NAME.toLocaleLowerCase(),
+            manifest.CONFIG_ENVIRONMENT_VARIABLES.toLocaleLowerCase(),
+        ];
+
+        return environmentIssueHints.some(hint => normalized.includes(hint));
+    }
+
+    private getErrorMessage(error: unknown): string {
+        return error instanceof Error ? error.message : String(error);
     }
 }
 

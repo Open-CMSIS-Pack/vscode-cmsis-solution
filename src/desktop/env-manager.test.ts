@@ -19,6 +19,7 @@ import { Environment, EnvironmentManager } from './env-manager';
 import { configurationProviderFactory, MockConfigurationProvider } from '../vscode-api/configuration-provider.factories';
 import path from 'path';
 import { CMSIS_TOOLBOX_FOLDER, CONFIG_ENVIRONMENT_VARIABLES } from '../manifest';
+import { waitTimeout } from '../__test__/test-waits';
 
 const DEFAULT_PATH_VAR = (process.platform === 'win32') ? 'Path' : 'PATH';
 
@@ -319,6 +320,7 @@ describe('EnvironmentManager', () => {
 
 
     beforeEach(() => {
+        jest.clearAllMocks();
         mockEnvironmentVariableCollection = {
             prepend: jest.fn(),
             replace: jest.fn(),
@@ -514,6 +516,66 @@ describe('EnvironmentManager', () => {
 
             expect(mockEnvironmentVariableCollection.prepend).toHaveBeenCalledWith(DEFAULT_PATH_VAR, `${path.delimiter}${defaultPath}${path.delimiter}`);
             expect(mockEnvironmentVariableCollection.replace).not.toHaveBeenCalled();
+        });
+
+        it('ignores invalid environment variable names and keeps valid ones', async () => {
+            configurationProviderMock = configurationProviderFactory({
+                [CONFIG_ENVIRONMENT_VARIABLES]: {
+                    '': '',
+                    VALID_VAR: 'value',
+                    _VALID_VAR: 'underscore_value',
+                },
+            });
+            environmentManager = new EnvironmentManager(configurationProviderMock);
+
+            await environmentManager.activate(mockContext);
+
+            expect(mockEnvironmentVariableCollection.replace).toHaveBeenCalledWith('VALID_VAR', 'value');
+            expect(mockEnvironmentVariableCollection.replace).toHaveBeenCalledWith('_VALID_VAR', 'underscore_value');
+            expect(mockEnvironmentVariableCollection.replace).not.toHaveBeenCalledWith('', '');
+            expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
+        });
+
+        it('warns again when different invalid key sets serialize similarly with delimiters', async () => {
+            const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+            configurationProviderMock = configurationProviderFactory({
+                [CONFIG_ENVIRONMENT_VARIABLES]: {
+                    '|x': 'first',
+                    'y|z-': 'second',
+                },
+            });
+            environmentManager = new EnvironmentManager(configurationProviderMock);
+
+            await environmentManager.activate(mockContext);
+
+            configurationProviderMock.getConfigVariableOrDefault.mockReturnValue({
+                '': 'empty',
+                'x|y|z-': 'third',
+            });
+            configurationProviderMock.fireOnChangeConfiguration(CONFIG_ENVIRONMENT_VARIABLES);
+
+            expect(warnSpy).toHaveBeenCalledTimes(2);
+            warnSpy.mockRestore();
+        });
+
+        it('shows a recoverable error message when applying environment settings fails', async () => {
+            mockEnvironmentVariableCollection.replace.mockImplementation(() => {
+                throw new Error('failed to apply env var');
+            });
+            configurationProviderMock = configurationProviderFactory({
+                [CONFIG_ENVIRONMENT_VARIABLES]: {
+                    VALID_VAR: 'value',
+                },
+            });
+            environmentManager = new EnvironmentManager(configurationProviderMock);
+
+            await environmentManager.activate(mockContext);
+            await waitTimeout();
+
+            expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+                expect.stringContaining('Failed to apply cmsis-csolution.environmentVariables'),
+                'Open Environment Variables Settings',
+            );
         });
     });
 

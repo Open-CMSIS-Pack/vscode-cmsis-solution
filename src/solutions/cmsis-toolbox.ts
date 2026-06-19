@@ -275,20 +275,24 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
         const release = await this.toolboxMutex.acquire();
         // dequeue
         this.toolboxQueue.shift();
-        // call rpc method
         this.runCmsisToolEmitter.fire([true]);
-        const result = await this.rpcHandler[method as keyof typeof this.rpcHandler](args as never);
-        msg = `${(result as rpc.SuccessResult).success ? '☑️' : '🟥'} RPC: ${method}` +
-            `${argsArray.length > 0 ? ` { ${argsArray.join(', ')} }` : ''}`;
-        console.log(msg);
-        if (method === 'Shutdown' && (result as rpc.SuccessResult).success) {
-            // wait for csolution process to exit
-            await this.csolutionService.waitForExit();
+        try {
+            const result = await this.rpcHandler[method as keyof typeof this.rpcHandler](args as never);
+            msg = `${(result as rpc.SuccessResult).success ? '☑️' : '🟥'} RPC: ${method}` +
+                `${argsArray.length > 0 ? ` { ${argsArray.join(', ')} }` : ''}`;
+            console.log(msg);
+            if (method === 'Shutdown' && (result as rpc.SuccessResult).success) {
+                // wait for csolution process to exit
+                await this.csolutionService.waitForExit();
+            }
+            return result;
+        } catch (error) {
+            console.error(`RPC ${method} failed`, error);
+            throw error;
+        } finally {
+            release();
+            this.runCmsisToolEmitter.fire([false]);
         }
-        // release mutex
-        release();
-        this.runCmsisToolEmitter.fire([false]);
-        return result;
     }
 
     private handleProcessFail(msg: string, result: unknown): [string, number] {
