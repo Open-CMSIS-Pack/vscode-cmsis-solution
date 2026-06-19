@@ -128,6 +128,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
 
     private watchPackIdxFile() {
         this.idxWatcher?.close();
+        this.idxWatcher = undefined;
         const pack_idx = path.join(getCmsisPackRoot(), 'pack.idx');
         try {
             let mtimeMs = fs.statSync(pack_idx)?.mtimeMs;
@@ -145,7 +146,11 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
                 }
             });
         } catch (error) {
-            // pack.idx may not exist yet, gracefully handle the error
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                // pack.idx may not exist yet, gracefully handle the error
+            } else {
+                console.warn('Failed to watch pack.idx file:', error);
+            }
         }
     }
 
