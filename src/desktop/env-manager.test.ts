@@ -523,6 +523,7 @@ describe('EnvironmentManager', () => {
                 [CONFIG_ENVIRONMENT_VARIABLES]: {
                     '': '',
                     VALID_VAR: 'value',
+                    _VALID_VAR: 'underscore_value',
                 },
             });
             environmentManager = new EnvironmentManager(configurationProviderMock);
@@ -530,6 +531,7 @@ describe('EnvironmentManager', () => {
             await environmentManager.activate(mockContext);
 
             expect(mockEnvironmentVariableCollection.replace).toHaveBeenCalledWith('VALID_VAR', 'value');
+            expect(mockEnvironmentVariableCollection.replace).toHaveBeenCalledWith('_VALID_VAR', 'underscore_value');
             expect(mockEnvironmentVariableCollection.replace).not.toHaveBeenCalledWith('', '');
             expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
         });

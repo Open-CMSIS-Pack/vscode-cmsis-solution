@@ -26,7 +26,7 @@ import { extendEnvWithCmsisSettings } from '../util';
 import { getCmsisToolboxRoot } from '../utils/path-utils';
 
 const DEFAULT_PATH_VAR = (process.platform === 'win32') ? 'Path' : 'PATH';
-const ENV_VAR_NAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]*$/;
+const ENV_VAR_NAME_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const ENV_VAR_SETTINGS_NAME = `${PACKAGE_NAME}.${CONFIG_ENVIRONMENT_VARIABLES}`;
 const OPEN_SETTINGS_ACTION = 'Open Environment Variables Settings';
 
