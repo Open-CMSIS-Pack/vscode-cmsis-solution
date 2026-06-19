@@ -469,6 +469,15 @@ describe('SolutionConverter', () => {
             );
             expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to load solution: rpc unavailable');
         });
+
+        it('shows generic error for non-environment messages containing invalid', async () => {
+            mockCsolutionService.listMissingPacks.mockRejectedValue(new Error('invalid YAML in csolution file'));
+
+            await fireAndWaitForConversion();
+            await waitTimeout();
+
+            expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to load solution: invalid YAML in csolution file');
+        });
     });
 
 });

@@ -301,7 +301,7 @@ export class SolutionConverterImpl implements SolutionConverter {
         });
         await this.eventHub.fireConfigureSolutionDataReady({ availableCompilers: [], availableConfigurations: undefined });
 
-        if (this.looksLikeEnvironmentSettingsIssue(message)) {
+        if (this.isEnvironmentSettingsError(message)) {
             const selection = await vscode.window.showErrorMessage(
                 `Failed to load solution due to invalid environment variable settings: ${message}`,
                 OPEN_SETTINGS_ACTION,
@@ -315,12 +315,18 @@ export class SolutionConverterImpl implements SolutionConverter {
         await vscode.window.showErrorMessage(`Failed to load solution: ${message}`);
     }
 
-    private looksLikeEnvironmentSettingsIssue(message: string): boolean {
+    private isEnvironmentSettingsError(message: string): boolean {
         const normalized = message.toLocaleLowerCase();
-        return normalized.includes('environment')
-            || normalized.includes('env')
-            || normalized.includes('invalid')
-            || normalized.includes(manifest.CONFIG_ENVIRONMENT_VARIABLES.toLocaleLowerCase());
+        const environmentIssueHints = [
+            'environment variable',
+            'environment variables',
+            'env var',
+            'env vars',
+            ENV_VAR_SETTINGS_NAME.toLocaleLowerCase(),
+            manifest.CONFIG_ENVIRONMENT_VARIABLES.toLocaleLowerCase(),
+        ];
+
+        return environmentIssueHints.some(hint => normalized.includes(hint));
     }
 
     private getErrorMessage(error: unknown): string {
