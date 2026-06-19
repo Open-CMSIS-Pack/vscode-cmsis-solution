@@ -28,17 +28,35 @@
  */
 
 import { Page } from 'playwright';
-import { BUILDING_DIALOG_TIMEOUT_MS, PACK_INSTALL_TIMEOUT_MS } from '../constants';
+import { BUILDING_DIALOG_TIMEOUT_MS, PACK_INSTALL_TIMEOUT_MS, SHORT_TIMEOUT_MS } from '../constants';
 
 export class CommandDriver {
     public constructor (private readonly page: Page) {}
 
     async runCommandFromPalette(command: string): Promise<void> {
-        await this.page.keyboard.press(`${getMetaKey()}+Shift+KeyP`);
-        await this.page.locator('.quick-input-box').waitFor({ state: 'visible' });
-        await this.page.keyboard.type(command);
-        this.page.locator('.quick-input-list').getByRole('link', { name: command });
-        await this.page.keyboard.press('Enter');
+        const quickInputBox = this.page.locator('.quick-input-box');
+        const maxAttempts = 3;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            // Drop keyboard focus from any element that might swallow the palette shortcut (for
+            // example the Chat input in the secondary side bar). If focus stays there, Ctrl+Shift+P
+            // is ignored and the typed command leaks into that input as text.
+            await this.page.keyboard.press('Escape');
+            await this.page.keyboard.press(`${getMetaKey()}+Shift+KeyP`);
+
+            try {
+                await quickInputBox.waitFor({ state: 'visible', timeout: SHORT_TIMEOUT_MS });
+            } catch {
+                if (attempt === maxAttempts) {
+                    throw new Error(`Command palette did not open after ${maxAttempts} attempts for command "${command}"`);
+                }
+                continue;
+            }
+
+            await this.page.keyboard.type(command);
+            await this.page.keyboard.press('Enter');
+            return;
+        }
     }
 
     async build(): Promise<void> {

@@ -43,6 +43,18 @@ export type TestDirectories = {
     userData: string;
 }
 
+// User settings applied to the isolated test profile. Recent VS Code versions auto-open the
+// Chat/Agent secondary side bar for new profiles. That panel grabs keyboard focus, which makes
+// the command palette (Ctrl+Shift+P) flaky in CI: command text can leak into the chat input and
+// get submitted as an agent prompt instead of running the command. Hiding the secondary side bar
+// and disabling the chat command center keeps focus on the editor so palette-driven steps stay
+// deterministic.
+const TEST_USER_SETTINGS = {
+    'workbench.secondarySideBar.defaultVisibility': 'hidden',
+    'chat.commandCenter.enabled': false,
+    'workbench.startupEditor': 'none',
+};
+
 export const createTestDirectories = async (): Promise<TestDirectories> => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'csolution-e2e-'));
     const extensions = path.join(root, 'extensions-dir');
@@ -53,8 +65,18 @@ export const createTestDirectories = async (): Promise<TestDirectories> => {
     await fs.mkdir(userData);
     await fs.mkdir(packCache);
     await fs.mkdir(workspace);
+    await writeUserSettings(userData);
     log('debug', `Created test directories in ${root}`);
     return { root, extensions, userData, workspace, packCache };
+};
+
+const writeUserSettings = async (userData: string): Promise<void> => {
+    const userDir = path.join(userData, 'User');
+    await fs.mkdir(userDir, { recursive: true });
+    await fs.writeFile(
+        path.join(userDir, 'settings.json'),
+        JSON.stringify(TEST_USER_SETTINGS, null, 4)
+    );
 };
 
 export type WorkspaceOptions = {
