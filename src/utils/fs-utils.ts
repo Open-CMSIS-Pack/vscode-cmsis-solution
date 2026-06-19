@@ -56,6 +56,54 @@ export function copyFolderRecursive(src: string, dest: string) {
     }
 }
 
+/**
+ * Copies only the immediate files (not subdirectories) from src to dest.
+ * Used to copy shared template files that live in a parent folder alongside
+ * device-specific solution subfolders (e.g. Blank.cproject.yml, main.c),
+ * ensuring they exist on disk before the .csolution.yml is written.
+ */
+export function copyFilesOnly(src: string, dest: string) {
+    if (!fs.existsSync(src) || !fs.statSync(src).isDirectory()) {
+        return;
+    }
+    fs.mkdirSync(dest, { recursive: true });
+    fs.readdirSync(src).forEach((item) => {
+        const srcItem = path.join(src, item);
+        const destItem = path.join(dest, item);
+        if (fs.statSync(srcItem).isFile()) {
+            fs.copyFileSync(srcItem, destItem);
+            removeReadOnly(destItem);
+        }
+    });
+}
+
+export function copyFolderRecursiveDeferred(src: string, dest: string, deferSuffix: string) {
+    if (!fs.existsSync(src)) {
+        throw new Error(`Could not find folder to copy ${src}`);
+    }
+    const deferred: Array<{ from: string; to: string }> = [];
+    collectAndCopy(src, dest, deferSuffix, deferred);
+    for (const { from, to } of deferred) {
+        fs.copyFileSync(from, to);
+        removeReadOnly(to);
+    }
+}
+
+function collectAndCopy(src: string, dest: string, deferSuffix: string, deferred: Array<{ from: string; to: string }>) {
+    if (fs.statSync(src).isDirectory()) {
+        fs.mkdirSync(dest, { recursive: true });
+        removeReadOnly(dest);
+        fs.readdirSync(src).forEach((item) => {
+            collectAndCopy(path.join(src, item), path.join(dest, item), deferSuffix, deferred);
+        });
+    } else if (path.basename(src).endsWith(deferSuffix)) {
+        deferred.push({ from: src, to: dest });
+    } else {
+        fs.copyFileSync(src, dest);
+        removeReadOnly(dest);
+    }
+}
+
 export function writeTextFile(filePath?: string, data?: string) {
     if (!filePath) {
         return;

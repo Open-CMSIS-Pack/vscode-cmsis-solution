@@ -22,7 +22,7 @@ import { tmpdir } from 'os';
 import extractZip from 'extract-zip';
 import { downloadFile } from '../file-download';
 import { workspaceFsProvider } from '../vscode-api/workspace-fs-provider';
-import { copyFolderRecursive } from '../utils/fs-utils';
+import { copyFolderRecursive, copyFilesOnly, copyFolderRecursiveDeferred } from '../utils/fs-utils';
 
 import { ExampleProject as CsolutionExampleProject, ExampleEnvironment as CsolutionExampleEnvironment, SolutionTemplate as CsolutionTemplate } from '../json-rpc/csolution-rpc-client';
 import { splitPackId } from '../json-rpc/csolution-rpc-helper';
@@ -260,6 +260,7 @@ export class CsolutionTemplateData extends BaseDraftProjectData {
     }
 
     public async copyTo(dest: string) {
-        return copyFolderRecursive(this.data.folder, dest);
+        copyFilesOnly(path.dirname(this.data.folder), path.dirname(dest));
+        copyFolderRecursiveDeferred(this.data.folder, dest, '.csolution.yml');
     }
 }
