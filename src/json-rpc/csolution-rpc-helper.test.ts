@@ -477,6 +477,64 @@ describe('csolution-rpc-client', () => {
             expect(service.pendingPackIdxChange).toBe(false);
             expect(service.packIdxWatcherSuspendDepth).toBe(0);
         });
+
+        it('gracefully handles missing pack.idx file', () => {
+            const packIdx = path.join('/cmsis-packs', 'pack.idx');
+            const error = new Error('ENOENT: no such file or directory');
+            (error as any).code = 'ENOENT';
+
+            (fs.statSync as unknown as jest.Mock).mockImplementation(() => {
+                throw error;
+            });
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, _listener: any) => ({ close: jest.fn() }));
+
+            // Should not throw
+            expect(() => service.watchPackIdxFile()).not.toThrow();
+
+            // Should still attempt to get pack root and call statSync
+            expect(pathUtils.getCmsisPackRoot).toHaveBeenCalledTimes(1);
+            expect(fs.statSync).toHaveBeenCalledWith(packIdx);
+
+            // fs.watch should not be set up since statSync failed
+            expect(fs.watch).not.toHaveBeenCalled();
+            expect(service.idxWatcher).toBeUndefined();
+            expect(console.warn).not.toHaveBeenCalled();
+        });
+
+        it('logs non-ENOENT errors and leaves watcher undefined', () => {
+            const permError = new Error('EACCES: permission denied');
+            (permError as any).code = 'EACCES';
+
+            (fs.statSync as unknown as jest.Mock).mockImplementation(() => {
+                throw permError;
+            });
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, _listener: any) => ({ close: jest.fn() }));
+
+            // Should not throw
+            expect(() => service.watchPackIdxFile()).not.toThrow();
+
+            // Should log the error
+            expect(console.warn).toHaveBeenCalledWith('Failed to watch pack.idx file:', permError);
+
+            // fs.watch should not be set up
+            expect(fs.watch).not.toHaveBeenCalled();
+            expect(service.idxWatcher).toBeUndefined();
+        });
+
+        it('resets idxWatcher to undefined after closing existing watcher', () => {
+            const prevClose = jest.fn();
+            service.idxWatcher = { close: prevClose };
+
+            (fs.statSync as unknown as jest.Mock).mockReturnValue({ mtimeMs: 1 });
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, _listener: any) => ({ close: jest.fn() }));
+
+            service.watchPackIdxFile();
+
+            expect(prevClose).toHaveBeenCalledTimes(1);
+            // idxWatcher should be set to the new watcher, not undefined
+            expect(service.idxWatcher).toBeDefined();
+            expect(service.idxWatcher.close).not.toBe(prevClose);
+        });
     });
 
     describe('csolution-rpc-client launch', () => {
