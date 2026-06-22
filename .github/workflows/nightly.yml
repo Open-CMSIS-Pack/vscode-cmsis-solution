@@ -301,7 +301,6 @@ jobs:
         with:
           name: e2e-report
           path: e2e-report
-          archive: false
 
       - name: Upload Screenshots
         if: always() && steps.tests.conclusion != 'skipped'
@@ -309,4 +308,3 @@ jobs:
         with:
           name: e2e-screenshots
           path: e2e-screenshots
-          archive: false
