@@ -502,7 +502,6 @@ describe('csolution-rpc-client', () => {
         });
 
         it('logs non-ENOENT errors and leaves watcher undefined', () => {
-            const packIdx = path.join('/cmsis-packs', 'pack.idx');
             const permError = new Error('EACCES: permission denied');
             (permError as any).code = 'EACCES';
 
