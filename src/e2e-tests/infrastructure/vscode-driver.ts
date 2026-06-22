@@ -30,7 +30,7 @@
  */
 
 import { Page, ElectronApplication } from 'playwright';
-import { ELECTRON_APPLICATION_CLOSED_MESSAGE, getPage, mockShowMessageBoxResponse, setupElectronLogging } from './electron';
+import { ELECTRON_APPLICATION_CLOSED_MESSAGE, getPage, mockShowMessageBoxResponse, MockShowMessageBoxOptions, setupElectronLogging } from './electron';
 import { TestDirectories, tryCleanTestDirectories, createTestDirectories, createWorkspace } from './test-directories';
 import { getVsCode, installExtension, launchVsCode } from './vscode';
 import { PageDriver } from '../drivers/page-driver';
@@ -184,10 +184,11 @@ export class VsCodeDriver {
     /**
      * Mock electron's native message box dialog.
      * @param buttonNameToClick Name of the button to click in the next dialog opened during the test run
+     * @param options Optional behaviour flags (e.g. `persist` to keep auto-answering subsequent dialogs)
      */
-    async mockShowMessageBoxResponse(buttonNameToClick: string) {
+    async mockShowMessageBoxResponse(buttonNameToClick: string, options?: MockShowMessageBoxOptions) {
         const runningApp = requireRunning(this.state);
-        await mockShowMessageBoxResponse(runningApp.electronApp, buttonNameToClick);
+        await mockShowMessageBoxResponse(runningApp.electronApp, buttonNameToClick, options);
     }
 
     /**
@@ -204,11 +205,19 @@ export class VsCodeDriver {
             testDirectories: runningApp.testDirectories
         });
 
-        await mockShowMessageBoxResponse(runningApp.electronApp, 'Always Allow');
+        // Install a persistent auto-response for the Arm Environment Manager "Always Allow" trust
+        // dialog before reloading. The dialog is a native modal that blocks the extension host and
+        // is shown when the Environment Manager activates after reload. The mock lives on the
+        // Electron main process, so it survives the renderer reload below.
+        await mockShowMessageBoxResponse(runningApp.electronApp, 'Always Allow', { persist: true });
 
-        // log('debug', '🔄 Reloading VS Code to load new workspace content...');
-        // await runningApp.pageDriver.getCommands().runCommandFromPalette('Developer: Reload Window');
-        // await new Promise(resolve => setTimeout(resolve, WORKSPACE_RELOAD_DELAY_MS));
+        // Reload the window so the extension host fully re-initializes against the freshly-copied
+        // workspace contents. This removes the race where the extension would otherwise pick up the
+        // new *.csolution.yml / vcpkg-configuration.json asynchronously via file watchers: after a
+        // reload the files are already on disk when the extension activates, making solution
+        // discovery and tool activation deterministic.
+        log('debug', '🔄 Reloading VS Code to load new workspace content...');
+        await runningApp.pageDriver.reloadWindow('CMSIS');
 
         log('info', `✅ Switched to workspace: ${runningApp.testDirectories.workspace}`);
     }

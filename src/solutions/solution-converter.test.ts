@@ -17,7 +17,7 @@
 import { expect, it, describe } from '@jest/globals';
 import * as path from 'path';
 import * as manifest from '../manifest';
-import { ExtensionContext } from 'vscode';
+import * as vscode from 'vscode';
 import { SolutionConverterImpl } from './solution-converter';
 import { MockOutputChannelProvider, outputChannelProviderFactory } from '../vscode-api/output-channel-provider.factories';
 import { MockConfigurationProvider, configurationProviderFactory } from '../vscode-api/configuration-provider.factories';
@@ -137,8 +137,8 @@ describe('SolutionConverter', () => {
         solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub);
 
         initUtils(mockConfigurationProvider, solutionManager);
-        converter.activate({ subscriptions: [] } as unknown as ExtensionContext);
-        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        converter.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+        await solutionProblems.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
 
         mockCsolutionService.listMissingPacks.mockResolvedValue({ success: true });
         mockCsolutionService.convertSolution.mockResolvedValue({ success: true });
@@ -432,6 +432,52 @@ describe('SolutionConverter', () => {
                 ]),
             })
         );
+    });
+
+    describe('failure handling', () => {
+        it('emits failed conversion completion and offers settings action for environment-related errors', async () => {
+            mockCsolutionService.listMissingPacks.mockRejectedValue(new Error('invalid environment variable name'));
+
+            await fireAndWaitForConversion();
+            await waitTimeout();
+
+            expect(completedListener).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    success: false,
+                    severity: 'error',
+                    detection: false,
+                })
+            );
+            expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+                expect.stringContaining('invalid environment variable settings'),
+                'Open Environment Variables Settings',
+            );
+        });
+
+        it('emits failed conversion completion and shows generic error when failure is not environment-related', async () => {
+            mockCsolutionService.listMissingPacks.mockRejectedValue(new Error('rpc unavailable'));
+
+            await fireAndWaitForConversion();
+            await waitTimeout();
+
+            expect(completedListener).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    success: false,
+                    severity: 'error',
+                    detection: false,
+                })
+            );
+            expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to load solution: rpc unavailable');
+        });
+
+        it('shows generic error for non-environment messages containing invalid', async () => {
+            mockCsolutionService.listMissingPacks.mockRejectedValue(new Error('invalid YAML in csolution file'));
+
+            await fireAndWaitForConversion();
+            await waitTimeout();
+
+            expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to load solution: invalid YAML in csolution file');
+        });
     });
 
 });

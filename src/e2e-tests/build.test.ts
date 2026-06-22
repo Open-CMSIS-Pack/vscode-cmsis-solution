@@ -24,7 +24,7 @@ import { OutputDriver } from './drivers/output-driver';
 import { TerminalDriver } from './drivers/Terminal-driver';
 import * as helpers from './utils/helper';
 import { log } from './utils/logger';
-import { CONTEXT_LINK_TIMEOUT_MS, DEFAULT_TIMEOUT_MS } from './constants';
+import { CONTEXT_LINK_TIMEOUT_MS, DEFAULT_TIMEOUT_MS, MEDIUM_TIMEOUT_MS } from './constants';
 
 /**
  * E2E Test Suite: CMSIS Solution Build Validation
@@ -142,30 +142,55 @@ test.describe('CMSIS Solution Build Validation', () => {
                     expect(vsCodeDriver.testWorkspaceDirectory).not.toBe(sourceWorkspace);
 
                     await vsCodeDriver.page.openCmsisPanel();
-                    await vsCodeDriver.page.getCommands().runCommandFromPalette('CMSIS: Open Solution in Workspace');
+
+                    // The "Open Solution in Workspace" quick pick is built from a STATIC snapshot of
+                    // the extension's cached solution list (promptUserToSelectSolution). That list is
+                    // populated by a debounced, asynchronous file scan, so if the command runs before
+                    // the scan completes the quick pick is rendered empty and stays empty forever for
+                    // that invocation. Polling the same quick pick cannot recover; instead re-invoke
+                    // the command (each invocation takes a fresh snapshot) until the rows appear.
                     const quickPickList = vsCodeDriver.page.getLocator('.quick-input-list');
-                    let quickPickVisible = true;
-                    try {
-                        await quickPickList.waitFor({ state: 'visible', timeout: DEFAULT_TIMEOUT_MS });
-                    } catch {
-                        quickPickVisible = false;
-                        log('info', 'Workspace quick-pick did not appear; assuming workspace opened directly');
-                    }
+                    const quickPickRows = quickPickList.locator('.monaco-list-row');
+                    const maxOpenAttempts = 10;
+                    let solutionSelected = false;
 
-                    if (quickPickVisible) {
-                        const quickPickRows = quickPickList.locator('.monaco-list-row');
-                        // Wait for rows to be rendered with exponential backoff and longer initial interval
-                        // to account for slower CI environments
-                        log('debug', '⏳ Waiting for quick pick rows to render...');
-                        await expect.poll(async () => quickPickRows.count(), {
-                            timeout: DEFAULT_TIMEOUT_MS,
-                            intervals: [1000, 2000, 3000]
-                        }).toBeGreaterThan(0);
+                    for (let attempt = 1; attempt <= maxOpenAttempts && !solutionSelected; attempt++) {
+                        log('debug', `⏳ Opening solution quick pick (attempt ${attempt}/${maxOpenAttempts})...`);
+                        await vsCodeDriver.page.getCommands().runCommandFromPalette('CMSIS: Open Solution in Workspace');
 
+                        // After a workspace reload the extension populates its solution list via a
+                        // debounced asynchronous scan. Until that finishes the command may open an
+                        // empty quick pick, or one that closes again so quickly it never registers as
+                        // visible. Both are transient "not ready yet" states (and slower machines such
+                        // as CI hit the second one), so in either case dismiss anything left over and
+                        // re-invoke the command rather than assuming the workspace opened directly.
+                        try {
+                            await quickPickList.waitFor({ state: 'visible', timeout: MEDIUM_TIMEOUT_MS });
+                        } catch {
+                            log('warn', `Quick pick did not appear on attempt ${attempt}; extension still scanning for solutions, retrying...`);
+                            continue;
+                        }
+
+                        try {
+                            await expect.poll(async () => quickPickRows.count(), {
+                                timeout: MEDIUM_TIMEOUT_MS,
+                                intervals: [1000, 2000, 3000]
+                            }).toBeGreaterThan(0);
+                        } catch {
+                            log('warn', `Quick pick had no rows on attempt ${attempt}; solution scan likely not finished, dismissing and retrying...`);
+                            await vsCodeDriver.page.getPage().keyboard.press('Escape');
+                            continue;
+                        }
+
+                        // Explicitly selecting the solution is what deterministically activates it;
+                        // relying on the extension's auto-activation alone proved unreliable in CI.
                         const firstWorkspaceItem = quickPickRows.first();
                         await firstWorkspaceItem.waitFor({ state: 'visible', timeout: DEFAULT_TIMEOUT_MS });
                         await firstWorkspaceItem.click();
+                        solutionSelected = true;
                     }
+
+                    expect(solutionSelected).toBe(true);
 
                     try {
                         // ==================== STEP 2: Wait for Tool Activation ====================

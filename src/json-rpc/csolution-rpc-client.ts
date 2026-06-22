@@ -128,21 +128,30 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
 
     private watchPackIdxFile() {
         this.idxWatcher?.close();
+        this.idxWatcher = undefined;
         const pack_idx = path.join(getCmsisPackRoot(), 'pack.idx');
-        let mtimeMs = fs.statSync(pack_idx)?.mtimeMs;
-        this.idxWatcher = fs.watch(pack_idx, eventType => {
-            if (eventType === 'change') {
-                const stat = fs.statSync(pack_idx);
-                if (stat?.mtimeMs !== mtimeMs) {
-                    mtimeMs = stat.mtimeMs;
-                    if (this.packIdxWatcherSuspendDepth > 0) {
-                        this.pendingPackIdxChange = true;
-                        return;
+        try {
+            let mtimeMs = fs.statSync(pack_idx)?.mtimeMs;
+            this.idxWatcher = fs.watch(pack_idx, eventType => {
+                if (eventType === 'change') {
+                    const stat = fs.statSync(pack_idx);
+                    if (stat?.mtimeMs !== mtimeMs) {
+                        mtimeMs = stat.mtimeMs;
+                        if (this.packIdxWatcherSuspendDepth > 0) {
+                            this.pendingPackIdxChange = true;
+                            return;
+                        }
+                        this.debouncedLoadPacks();
                     }
-                    this.debouncedLoadPacks();
                 }
+            });
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                // pack.idx may not exist yet, gracefully handle the error
+            } else {
+                console.warn('Failed to watch pack.idx file:', error);
             }
-        });
+        }
     }
 
     private async transceive<TResponse>(method: string, params?: unknown, ..._rest: unknown[]):

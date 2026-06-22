@@ -47,9 +47,6 @@ export const UI_STABILITY_DELAY_MS = 200;
 /** Delay for quick pick menu to appear (4 seconds) */
 export const QUICK_PICK_DELAY_MS = 4000;
 
-/** Delay after reloading VS Code window to allow reinitialization */
-export const WORKSPACE_RELOAD_DELAY_MS = DEFAULT_TIMEOUT_MS;
-
 // ==================== UI ELEMENT TIMEOUTS ====================
 
 /** Timeout for quick pick list to become visible */
@@ -72,3 +69,6 @@ export const ACTION_ITEM_TIMEOUT_MS = DEFAULT_TIMEOUT_MS;
 
 /** Timeout for pack installation dialog */
 export const PACK_INSTALL_TIMEOUT_MS = LONG_TIMEOUT_MS;
+
+/** Timeout for capturing diagnostic screenshots (kept short; failures are non-fatal) */
+export const SCREENSHOT_TIMEOUT_MS = MEDIUM_TIMEOUT_MS;
