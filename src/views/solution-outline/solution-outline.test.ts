@@ -299,12 +299,13 @@ describe('SolutionOutlineView', () => {
         expect(mockTreeViewProvider.updateTree).toHaveBeenCalled();
     });
 
-    it('does not refresh the tree on setup completion when no West project exists', async () => {
+    it('does not refresh the tree on compilation database update when no West project exists', async () => {
         const solutionLoadedState = activeSolutionLoadStateFactory();
         const mockCsolution = csolutionFactory({
             projects: new Map<string, CProjectYamlFile>(),
         });
         mockCsolution.hasWestProject = jest.fn().mockReturnValue(false);
+        mockCsolution.loadBuildFiles = jest.fn().mockResolvedValue(1 as any);
         const mockSolutionManager = solutionManagerFactory({
             loadState: solutionLoadedState,
             getCsolution: jest.fn().mockReturnValue(mockCsolution),
@@ -318,8 +319,8 @@ describe('SolutionOutlineView', () => {
         );
         await view.activate(extensionContextFactory());
 
-        mockTreeViewProvider.updateTree = jest.fn();
-        mockSolutionManager.onDidSetupCompletedEmitter.fire(['success', false]);
+        (mockTreeViewProvider.updateTree as jest.Mock).mockClear();
+        mockSolutionManager.onUpdatedCompileCommandsEmitter.fire();
         await waitForPromises();
 
         expect(mockTreeViewProvider.updateTree).not.toHaveBeenCalled();
