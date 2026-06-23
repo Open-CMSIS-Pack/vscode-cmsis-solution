@@ -471,6 +471,16 @@ export class CSolution {
         return this.csolutionYml.compilers;
     }
 
+    public hasWestProject(): boolean {
+        for (const project of this.projects.values()) {
+            if (project?.projectType === 'West') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
 };
 
 export function expandPath(path: string, csolution?: CSolution, targetType?: string,): string {

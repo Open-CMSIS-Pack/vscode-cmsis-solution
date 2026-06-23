@@ -21,6 +21,7 @@ import { CSolution } from './csolution';
 import { ETextFileResult } from '../generic/text-file';
 import { CTreeItem } from '../generic/tree-item';
 import { parseYamlToCTreeItem } from '../generic/tree-item-yaml-parser';
+import { CProjectYamlFile } from './files/cproject-yaml-file';
 
 describe('CSolution', () => {
     const testDataHandler = new TestDataHandler();
@@ -619,6 +620,37 @@ describe('CSolution', () => {
 
                 expect(csolution.getDefaultTargetTypeItem).toHaveBeenCalled();
             });
+        });
+    });
+
+    describe('hasWestProject', () => {
+        let csolution: CSolution;
+
+        beforeEach(() => {
+            csolution = new CSolution();
+            csolution.projects.clear();
+        });
+
+        it('returns true when at least one project is West', () => {
+            const westProject = { projectType: 'West' } as CProjectYamlFile;
+            const regularProject = { projectType: 'library' } as CProjectYamlFile;
+            csolution.projects.set('west', westProject);
+            csolution.projects.set('lib', regularProject);
+
+            expect(csolution.hasWestProject()).toBe(true);
+        });
+
+        it('returns false when no projects are West', () => {
+            const libProject = { projectType: 'library' } as CProjectYamlFile;
+            const exeProject = { projectType: 'executable' } as CProjectYamlFile;
+            csolution.projects.set('lib', libProject);
+            csolution.projects.set('exe', exeProject);
+
+            expect(csolution.hasWestProject()).toBe(false);
+        });
+
+        it('returns false when there are no projects', () => {
+            expect(csolution.hasWestProject()).toBe(false);
         });
     });
 });

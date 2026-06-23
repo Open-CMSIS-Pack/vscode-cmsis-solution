@@ -83,6 +83,7 @@ describe('CSolution', () => {
 
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
+        expect(csolution.hasWestProject).toBeFalsy();
 
         const cdefaultPath = csolution.cbuildIdxFile?.topItem?.getValue('cdefault');
         const hasCdefault = !!cdefaultPath && fsUtils.fileExists(
@@ -241,6 +242,7 @@ describe('CSolution', () => {
 
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
+        expect(csolution.hasWestProject).toBeTruthy();
 
         // get results from tree
         const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);

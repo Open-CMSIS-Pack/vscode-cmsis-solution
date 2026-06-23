@@ -25,6 +25,7 @@ import { CsolutionGlobalState, GlobalState } from '../../vscode-api/global-state
 import { globalStateFactory } from '../../vscode-api/global-state.factories';
 import { COutlineItem } from './tree-structure/solution-outline-item';
 import { csolutionFactory } from '../../solutions/csolution.factory';
+import { CProjectYamlFile } from '../../solutions/files/cproject-yaml-file';
 import { TreeViewFileDecorationProvider } from './treeview-decoration-provider';
 import { configurationProviderFactory, MockConfigurationProvider } from '../../vscode-api/configuration-provider.factories';
 import { CONFIG_AUTO_SHOW_CMSIS_VIEW } from '../../manifest';
@@ -35,6 +36,7 @@ describe('SolutionOutlineView', () => {
     let visibilityChangeEmitter: vscode.EventEmitter<Event>;
     let globalStateProvider: GlobalState<CsolutionGlobalState>;
     let configurationProvider: MockConfigurationProvider;
+    let executeCommandSpy: jest.SpyInstance;
 
     beforeEach(async () => {
         visibilityChangeEmitter = new vscode.EventEmitter();
@@ -54,6 +56,11 @@ describe('SolutionOutlineView', () => {
 
         globalStateProvider = globalStateFactory();
         configurationProvider = configurationProviderFactory();
+        executeCommandSpy = jest.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+        executeCommandSpy.mockRestore();
     });
 
 
@@ -214,7 +221,6 @@ describe('SolutionOutlineView', () => {
     });
 
     it('reveals the solution outline when a new solution is loaded and auto reveal is enabled', async () => {
-        const executeCommandSpy = jest.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
         const solutionLoadedState = activeSolutionLoadStateFactory();
         const mockSolutionManager = solutionManagerFactory({
             loadState: solutionLoadedState,
@@ -237,11 +243,9 @@ describe('SolutionOutlineView', () => {
 
         expect(executeCommandSpy).toHaveBeenCalledWith(`${SolutionOutlineView.treeViewId}.open`, { preserveFocus: true });
 
-        executeCommandSpy.mockRestore();
     });
 
     it('does not reveal the solution outline when auto reveal is disabled', async () => {
-        const executeCommandSpy = jest.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
         const solutionLoadedState = activeSolutionLoadStateFactory();
         const mockSolutionManager = solutionManagerFactory({
             loadState: solutionLoadedState,
@@ -267,7 +271,58 @@ describe('SolutionOutlineView', () => {
 
         expect(executeCommandSpy).not.toHaveBeenCalledWith(`${SolutionOutlineView.treeViewId}.open`, { preserveFocus: true });
 
-        executeCommandSpy.mockRestore();
+    });
+
+    it('refreshes the tree on setup completion when a West project exists', async () => {
+        const solutionLoadedState = activeSolutionLoadStateFactory();
+        const westProject = { projectType: 'West' } as unknown as CProjectYamlFile;
+        const mockCsolution = csolutionFactory({
+            projects: new Map<string, CProjectYamlFile>([['westProject', westProject]]),
+        });
+        mockCsolution.hasWestProject = jest.fn().mockReturnValue(true);
+        const mockSolutionManager = solutionManagerFactory({
+            loadState: solutionLoadedState,
+            getCsolution: jest.fn().mockReturnValue(mockCsolution),
+        });
+        const view = new SolutionOutlineView(
+            mockSolutionManager,
+            mockTreeViewProvider,
+            globalStateProvider,
+            mockTreeViewFileDecorationProvider,
+            configurationProvider
+        );
+        await view.activate(extensionContextFactory());
+
+        mockSolutionManager.onDidSetupCompletedEmitter.fire(['success', false]);
+        await waitForPromises();
+
+        expect(mockTreeViewProvider.updateTree).toHaveBeenCalled();
+    });
+
+    it('does not refresh the tree on setup completion when no West project exists', async () => {
+        const solutionLoadedState = activeSolutionLoadStateFactory();
+        const mockCsolution = csolutionFactory({
+            projects: new Map<string, CProjectYamlFile>(),
+        });
+        mockCsolution.hasWestProject = jest.fn().mockReturnValue(false);
+        const mockSolutionManager = solutionManagerFactory({
+            loadState: solutionLoadedState,
+            getCsolution: jest.fn().mockReturnValue(mockCsolution),
+        });
+        const view = new SolutionOutlineView(
+            mockSolutionManager,
+            mockTreeViewProvider,
+            globalStateProvider,
+            mockTreeViewFileDecorationProvider,
+            configurationProvider
+        );
+        await view.activate(extensionContextFactory());
+
+        mockTreeViewProvider.updateTree = jest.fn();
+        mockSolutionManager.onDidSetupCompletedEmitter.fire(['success', false]);
+        await waitForPromises();
+
+        expect(mockTreeViewProvider.updateTree).not.toHaveBeenCalled();
     });
 
 });
