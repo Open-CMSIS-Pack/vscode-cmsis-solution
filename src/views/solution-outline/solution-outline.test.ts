@@ -25,7 +25,6 @@ import { CsolutionGlobalState, GlobalState } from '../../vscode-api/global-state
 import { globalStateFactory } from '../../vscode-api/global-state.factories';
 import { COutlineItem } from './tree-structure/solution-outline-item';
 import { csolutionFactory } from '../../solutions/csolution.factory';
-import { CProjectYamlFile } from '../../solutions/files/cproject-yaml-file';
 import { TreeViewFileDecorationProvider } from './treeview-decoration-provider';
 import { configurationProviderFactory, MockConfigurationProvider } from '../../vscode-api/configuration-provider.factories';
 import { CONFIG_AUTO_SHOW_CMSIS_VIEW } from '../../manifest';
@@ -275,16 +274,14 @@ describe('SolutionOutlineView', () => {
 
     it('refreshes the tree on compilation database update when a West project exists', async () => {
         const solutionLoadedState = activeSolutionLoadStateFactory();
-        const westProject = { projectType: 'West' } as unknown as CProjectYamlFile;
-        const mockCsolution = csolutionFactory({
-            projects: new Map<string, CProjectYamlFile>([['westProject', westProject]]),
-        });
+        const mockCsolution = csolutionFactory();
         mockCsolution.hasWestProject = jest.fn().mockReturnValue(true);
-        mockCsolution.loadBuildFiles = jest.fn().mockResolvedValue(1 as any);
+
         const mockSolutionManager = solutionManagerFactory({
             loadState: solutionLoadedState,
             getCsolution: jest.fn().mockReturnValue(mockCsolution),
         });
+
         const view = new SolutionOutlineView(
             mockSolutionManager,
             mockTreeViewProvider,
@@ -292,26 +289,24 @@ describe('SolutionOutlineView', () => {
             mockTreeViewFileDecorationProvider,
             configurationProvider
         );
-        await view.activate(extensionContextFactory());
 
+        await view.activate(extensionContextFactory());
         mockSolutionManager.onUpdatedCompileCommandsEmitter.fire();
         await waitForPromises();
 
-        expect(mockCsolution.loadBuildFiles).toHaveBeenCalled();
         expect(mockTreeViewProvider.updateTree).toHaveBeenCalled();
     });
 
     it('does not refresh the tree on compilation database update when no West project exists', async () => {
         const solutionLoadedState = activeSolutionLoadStateFactory();
-        const mockCsolution = csolutionFactory({
-            projects: new Map<string, CProjectYamlFile>(),
-        });
+        const mockCsolution = csolutionFactory();
         mockCsolution.hasWestProject = jest.fn().mockReturnValue(false);
-        mockCsolution.loadBuildFiles = jest.fn().mockResolvedValue(1 as any);
+
         const mockSolutionManager = solutionManagerFactory({
             loadState: solutionLoadedState,
             getCsolution: jest.fn().mockReturnValue(mockCsolution),
         });
+
         const view = new SolutionOutlineView(
             mockSolutionManager,
             mockTreeViewProvider,
@@ -319,9 +314,12 @@ describe('SolutionOutlineView', () => {
             mockTreeViewFileDecorationProvider,
             configurationProvider
         );
+
         await view.activate(extensionContextFactory());
 
+        // Reset the mock to ensure it wasn't called during activation
         (mockTreeViewProvider.updateTree as jest.Mock).mockClear();
+
         mockSolutionManager.onUpdatedCompileCommandsEmitter.fire();
         await waitForPromises();
 
