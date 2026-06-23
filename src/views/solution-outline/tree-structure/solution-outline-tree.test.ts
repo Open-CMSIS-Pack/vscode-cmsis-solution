@@ -242,7 +242,7 @@ describe('CSolution', () => {
 
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
-        expect(csolution.hasWestProject).toBeTruthy();
+        expect(csolution.hasWestProject()).toBeTruthy();
 
         // get results from tree
         const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
