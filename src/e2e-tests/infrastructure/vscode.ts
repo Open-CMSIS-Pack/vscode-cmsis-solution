@@ -61,7 +61,6 @@ export const launchVsCode = async ({ vsCodeExecutablePath, testDirectories, defa
         '--disable-telemetry',
         '--no-cached-data',
         '--disable-updates',
-        '--disable-keytar',
         '--skip-add-to-recently-opened',
         `--user-data-dir=${testDirectories.userData}`,
         `--extensions-dir=${testDirectories.extensions}`,

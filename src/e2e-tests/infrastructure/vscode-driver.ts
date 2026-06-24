@@ -140,7 +140,7 @@ export class VsCodeDriver {
     private async setupPage(electronApp: ElectronApplication): Promise<Page> {
         let page: Page;
         try {
-            page = await getPage(electronApp);
+            page = await getPage(electronApp, DEFAULT_TIMEOUT_MS);
         } catch (e) {
             if (e instanceof Error && e.message === ELECTRON_APPLICATION_CLOSED_MESSAGE) {
                 throw new Error(

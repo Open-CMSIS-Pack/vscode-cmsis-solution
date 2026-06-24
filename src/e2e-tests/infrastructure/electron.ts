@@ -30,20 +30,45 @@
  */
 
 import * as playwright from 'playwright';
+import { log } from '../utils/logger';
 
 export const launchElectron = async (executablePath: string, args: string[], defaultTimeoutMillis: number, env: { [key: string]: string } = {}): Promise<playwright.ElectronApplication> => {
     const electronApp = await playwright._electron.launch({ executablePath, args, timeout: defaultTimeoutMillis, env: { ...process.env, ...env } as { [key: string]: string } });
     electronApp.context().setDefaultTimeout(defaultTimeoutMillis);
+
+    const proc = electronApp.process();
+
+    // Capture VS Code stderr so startup errors are visible in test logs.
+    proc.stderr?.on('data', (chunk: Buffer) => {
+        const text = chunk.toString().trim();
+        if (text) {
+            log('debug', `VS Code stderr: ${text}`);
+        }
+    });
+
+    // Log unexpected exits before the window appears to aid diagnosis.
+    proc.once('exit', (code, signal) => {
+        if (code !== 0 || signal) {
+            log('warn', `VS Code process exited: code=${code ?? 'null'}, signal=${signal ?? 'null'}`);
+        }
+    });
+
     return electronApp;
 };
 
 export const ELECTRON_APPLICATION_CLOSED_MESSAGE = 'Electron application is closed immediately after launch';
 
-export const getPage = async (electronApp: playwright.ElectronApplication): Promise<playwright.Page> => {
+/** Playwright error messages that indicate the Electron process exited before showing a window. */
+const ELECTRON_APP_CLOSED_PATTERNS = [
+    'electronApplication.firstWindow: Electron application closed',
+    'Target page, context or browser has been closed',
+];
+
+export const getPage = async (electronApp: playwright.ElectronApplication, timeout: number): Promise<playwright.Page> => {
     try {
-        return await electronApp.firstWindow();
+        return await electronApp.firstWindow({ timeout });
     } catch (e) {
-        if (e instanceof Error && e.message === 'electronApplication.firstWindow: Electron application closed') {
+        if (e instanceof Error && ELECTRON_APP_CLOSED_PATTERNS.some(p => e.message.includes(p))) {
             throw new Error(ELECTRON_APPLICATION_CLOSED_MESSAGE);
         } else {
             throw e;

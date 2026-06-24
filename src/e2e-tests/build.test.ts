@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import * as path from 'path';
-import { VsCodeDriver } from './infrastructure/vscode-driver';
 import { getExampleRepos, loadExamples } from './utils/examples';
-import { installRequiredExtensions } from './utils/install-extensions';
 import { VcpkgDriver } from './drivers/vcpkg-driver';
 import { OutputDriver } from './drivers/output-driver';
 import { TerminalDriver } from './drivers/Terminal-driver';
@@ -43,20 +41,7 @@ import { CONTEXT_LINK_TIMEOUT_MS, DEFAULT_TIMEOUT_MS, MEDIUM_TIMEOUT_MS } from '
  *
  */
 test.describe('CMSIS Solution Build Validation', () => {
-    let vsCodeDriver: VsCodeDriver;
-
-    test.beforeAll(async () => {
-        log('info', '🚀 Starting test setup...');
-
-        // Initialize single VS Code instance that will be reused across all tests
-        vsCodeDriver = new VsCodeDriver();
-        log('info', '🔧 Initializing VS Code driver...');
-        await vsCodeDriver.startWithWorkspaceContents(undefined);
-
-        // Install all required extensions once
-        log('info', '📦 Installing required extensions once...');
-        await installRequiredExtensions();
-
+    test.beforeAll(async ({ vsCodeDriver }) => {
         log('debug', '📸 Taking initial screenshot...');
         await vsCodeDriver.page.screenshot('Create Solution - after start');
 
@@ -65,19 +50,9 @@ test.describe('CMSIS Solution Build Validation', () => {
         log('info', '✅ Test setup completed');
     });
 
-    test.afterEach(async () => {
-        // Clean up test state after each test
-        if (vsCodeDriver) {
-            log('debug', '🧹 Cleaning up test state after test...');
-            await vsCodeDriver.cleanupTestState();
-        }
-    });
-
-    test.afterAll(async () => {
-        // Clean up VS Code instance after all tests complete
-        if (vsCodeDriver) {
-            await vsCodeDriver.stop();
-        }
+    test.afterEach(async ({ vsCodeDriver }) => {
+        log('debug', '🧹 Cleaning up test state after test...');
+        await vsCodeDriver.cleanupTestState();
     });
 
     /**
@@ -91,7 +66,7 @@ test.describe('CMSIS Solution Build Validation', () => {
      * 2. Opens the Running Extensions view via command palette
      * 3. Verifies "Arm CMSIS Solution" extension is visible and active
      */
-    test('should verify CMSIS extension is installed and running', async () => {
+    test('should verify CMSIS extension is installed and running', async ({ vsCodeDriver }) => {
         await vsCodeDriver.page.openCmsisPanel();
         log('info', '✅ CMSIS panel opened successfully');
 
@@ -126,7 +101,7 @@ test.describe('CMSIS Solution Build Validation', () => {
                  * - Build output contains "Build summary:" indicating completion
                  * - No build errors occur during the process
                  */
-                test('should build solution successfully for context', async ({ page: _page }, testInfo) => {
+                test('should build solution successfully for context', async ({ vsCodeDriver }, testInfo) => {
                     log('info', 'Executing Test:', testInfo.title, 'for:', example.name);
 
                     // ==================== STEP 1: Workspace Setup ====================
