@@ -1,0 +1,14 @@
+workflow: WF-001
+device: LPC55S69JBD100
+template: Blank solution
+solution_name_prefix: e2e_device_blank_solution
+
+expected_files:
+  required:
+    - "*.csolution.yml"
+    - "**/*.cproject.yml"
+    - "**/main.c"
+  
+expected_problems:
+  required:
+    - message: "No problems have been detected in the workspace."
