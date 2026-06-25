@@ -7,7 +7,7 @@ workflows:
     title: Create Solution from 'Blank Solution' Template for LPC55S69JBD100 Device
     automation:
       test: src/e2e-tests/use-cases/uc-001-create-solution-from-template/uc-001-create-solution-from-template.test.ts
-      fixture: src/e2e-tests/use-cases/uc-001-create-solution-from-template/fixtures/wf-001-device-blank-solution.yml      
+      fixture: src/e2e-tests/use-cases/uc-001-create-solution-from-template/fixtures/wf-001-device-blank-solution.yml
     steps:
       - Open the Create Solution wizard from the CMSIS extension.
       - Select the target device from the fixture.
