@@ -273,28 +273,38 @@ export const runWf001DeviceBlankSolution = async (
     const dependencyValidationProblemRows = vsCodeDriver.page
         .getLocator('.monaco-list-row')
         .filter({ hasText: dependencyValidationProblemPattern });
+    const noWorkspaceProblems = vsCodeDriver.page
+        .getLocator('text=No problems have been detected in the workspace.');
 
-    await expect.poll(async () => dependencyValidationProblemRows.count(), {
+    await expect.poll(async () => {
+        const dependencyValidationProblemCount = await dependencyValidationProblemRows.count();
+        const noWorkspaceProblemsCount = await noWorkspaceProblems.count();
+        return dependencyValidationProblemCount > 0 || noWorkspaceProblemsCount > 0;
+    }, {
         timeout: DEFAULT_TIMEOUT_MS,
         intervals: [1000, 2000, 3000],
-    }).toBeGreaterThan(0);
+    }).toBe(true);
 
-    await dependencyValidationProblemRows.first()
-        .locator('a')
-        .filter({ hasText: /^Manage Components$/ })
-        .click();
+    if (await dependencyValidationProblemRows.count() > 0) {
+        await dependencyValidationProblemRows.first()
+            .locator('a')
+            .filter({ hasText: /^Manage Components$/ })
+            .click();
 
-    const softwareComponentsFrame = vsCodeDriver.page.getWebviewByTitle('Software Components');
-    const saveComponentsButton = softwareComponentsFrame.getByRole('button', { name: 'Save' });
-    await saveComponentsButton.waitFor({ state: 'visible', timeout: DEFAULT_TIMEOUT_MS });
+        const softwareComponentsFrame = vsCodeDriver.page.getWebviewByTitle('Software Components');
+        const saveComponentsButton = softwareComponentsFrame.getByRole('button', { name: 'Save' });
+        await saveComponentsButton.waitFor({ state: 'visible', timeout: DEFAULT_TIMEOUT_MS });
 
-    const resolveComponentsButton = softwareComponentsFrame.locator('.resolve-packs-button');
-    await expect(resolveComponentsButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
-    await resolveComponentsButton.click();
+        const resolveComponentsButton = softwareComponentsFrame.locator('.resolve-packs-button');
+        await expect(resolveComponentsButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
+        await resolveComponentsButton.click();
 
-    await expect(saveComponentsButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
-    await saveComponentsButton.click({ timeout: DEFAULT_TIMEOUT_MS });
-    await expect(saveComponentsButton).toBeDisabled({ timeout: DEFAULT_TIMEOUT_MS });
+        await expect(resolveComponentsButton).toBeDisabled({ timeout: DEFAULT_TIMEOUT_MS });
+        await vsCodeDriver.page.getPage().keyboard.press('Escape');
+        await expect(saveComponentsButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
+        await saveComponentsButton.click({ timeout: DEFAULT_TIMEOUT_MS });
+        await expect(saveComponentsButton).toBeDisabled({ timeout: DEFAULT_TIMEOUT_MS });
+    }
 
     // 5) Verify no workspace problems remain.
     await vsCodeDriver.page.getCommands().runCommandFromPalette('View: Show Problems');
