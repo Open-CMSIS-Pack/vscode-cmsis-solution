@@ -40,6 +40,12 @@ export type CreateSolutionFixture = {
     device: string;
     template: string;
     solution_name_prefix?: string;
+    expected_files?: {
+        required?: string[];
+    };
+    expected_problems?: {
+        required?: { message: string }[];
+    };
 };
 
 // ---------------------------------------------------------------------------
@@ -98,6 +104,74 @@ const allPathsExist = async (pathsToCheck: string[]): Promise<boolean> => {
         }
     }));
     return checks.every(Boolean);
+};
+
+const globPatternToRegExp = (pattern: string): RegExp => {
+    const normalizedPattern = pattern.replace(/\\/g, '/');
+    let source = '^';
+
+    for (let index = 0; index < normalizedPattern.length;) {
+        const current = normalizedPattern[index];
+        const next = normalizedPattern[index + 1];
+        const afterNext = normalizedPattern[index + 2];
+
+        if (current === '*' && next === '*' && afterNext === '/') {
+            source += '(?:.*/)?';
+            index += 3;
+            continue;
+        }
+
+        if (current === '*' && next === '*') {
+            source += '.*';
+            index += 2;
+            continue;
+        }
+
+        if (current === '*') {
+            source += '[^/]*';
+            index += 1;
+            continue;
+        }
+
+        source += current.replace(/[\\^$+?.()|[\]{}]/g, '\\$&');
+        index += 1;
+    }
+
+    return new RegExp(`${source}$`);
+};
+
+const listRelativeFiles = async (
+    directory: string,
+    baseDirectory = directory,
+): Promise<string[]> => {
+    const entries = await fs.readdir(directory, { withFileTypes: true });
+    const files = await Promise.all(entries.map(async entry => {
+        const entryPath = path.join(directory, entry.name);
+
+        if (entry.isDirectory()) {
+            return listRelativeFiles(entryPath, baseDirectory);
+        }
+
+        if (entry.isFile()) {
+            return [path.relative(baseDirectory, entryPath).replace(/\\/g, '/')];
+        }
+
+        return [];
+    }));
+
+    return files.flat();
+};
+
+const allRequiredFilePatternsExist = async (
+    solutionDirectory: string,
+    requiredPatterns: string[],
+): Promise<boolean> => {
+    const relativeFiles = await listRelativeFiles(solutionDirectory);
+
+    return requiredPatterns.every(pattern => {
+        const matcher = globPatternToRegExp(pattern);
+        return relativeFiles.some(file => matcher.test(file));
+    });
 };
 
 // ---------------------------------------------------------------------------
@@ -177,6 +251,15 @@ export const runWf001DeviceBlankSolution = async (
         intervals: [1000, 2000, 3000],
     }).toBe(true);
 
+    const requiredFilePatterns = fixture.expected_files?.required ?? [];
+    await expect.poll(async () => allRequiredFilePatternsExist(
+        artifacts.solutionDirectory,
+        requiredFilePatterns,
+    ), {
+        timeout: DEFAULT_TIMEOUT_MS,
+        intervals: [1000, 2000, 3000],
+    }).toBe(true);
+
     // 3) Verify the generated solution is loaded in the CMSIS UI.
     await vsCodeDriver.page.openCmsisPanel();
     await expect(vsCodeDriver.page.getRoleByName('button', { name: 'Build solution' }))
@@ -215,8 +298,14 @@ export const runWf001DeviceBlankSolution = async (
 
     // 5) Verify no workspace problems remain.
     await vsCodeDriver.page.getCommands().runCommandFromPalette('View: Show Problems');
-    await expect(vsCodeDriver.page.getLocator('text=No problems have been detected in the workspace.'))
-        .toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+    const expectedProblems = fixture.expected_problems?.required ?? [
+        { message: 'No problems have been detected in the workspace.' },
+    ];
+
+    for (const expectedProblem of expectedProblems) {
+        await expect(vsCodeDriver.page.getLocator(`text=${expectedProblem.message}`))
+            .toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+    }
 
     // 6) Verify no error notifications or failed task notifications were raised.
     await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Show Notifications');
