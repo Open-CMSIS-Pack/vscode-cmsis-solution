@@ -179,7 +179,7 @@ const allRequiredFilePatternsExist = async (
 // ---------------------------------------------------------------------------
 
 /**
- * Loads and parses a YAML fixture file relative to a given base directory.
+ * Loads and parses a YAML fixture file from the provided path.
  */
 export const loadYamlFixture = async <T>(fixturePath: string): Promise<T> => {
     const text = await fs.readFile(fixturePath, 'utf8');
