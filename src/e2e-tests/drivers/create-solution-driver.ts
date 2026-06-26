@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2026 Arm Limited
+ * Copyright 2026 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,15 +55,21 @@ export class CreateSolutionDriver {
 
         await frame.locator('#create-solution-device-target').click();
 
-        const allItems = frame.locator('.components-tree-view-item');
+        const deviceDropdown = frame
+            .locator('.dropdown-select.expanded')
+            .filter({ has: frame.locator('#create-solution-device-target') });
+
+        await expect(deviceDropdown).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+
+        const allItems = deviceDropdown.locator('.components-tree-view-item');
         await expect.poll(async () => allItems.count(), {
             timeout: DEFAULT_TIMEOUT_MS,
             intervals: [1000, 2000, 3000],
         }).toBeGreaterThan(0);
 
-        await frame.getByPlaceholder('Search').first().fill(device);
+        await deviceDropdown.getByPlaceholder('Search').fill(device);
 
-        const matchingItems = frame
+        const matchingItems = deviceDropdown
             .locator('.components-tree-view-item')
             .filter({ hasText: devicePattern });
 

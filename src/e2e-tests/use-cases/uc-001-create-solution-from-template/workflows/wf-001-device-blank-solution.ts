@@ -217,97 +217,101 @@ export const runWf001DeviceBlankSolution = async (
     await createSolution.fillDetails(frame, solutionName, solutionFolder, solutionBaseFolder);
     await createSolution.create(frame);
 
-    // The extension opens the generated solution folder by default.
-    await vsCodeDriver.page.waitForVsCodeToBeReady();
-    await vsCodeDriver.page.waitForActionItem('CMSIS');
+    try {
+        // The extension opens the generated solution folder by default.
+        await vsCodeDriver.page.waitForVsCodeToBeReady();
+        await vsCodeDriver.page.waitForActionItem('CMSIS');
 
-    // 2) Validate the .csolution.yml exists before trying to parse it.
-    await expect.poll(async () => allPathsExist([solutionFilePath]), {
-        timeout: DEFAULT_TIMEOUT_MS,
-        intervals: [1000, 2000, 3000],
-    }).toBe(true);
-
-    let generatedArtifacts: GeneratedSolutionArtifacts | undefined;
-    await expect(async () => {
-        generatedArtifacts = await readGeneratedSolutionArtifacts(solutionFilePath);
-        expect(path.basename(generatedArtifacts.solutionFilePath)).toBe(solutionFileName);
-        expect(generatedArtifacts.projectFilePaths.length).toBeGreaterThan(0);
-    }).toPass({
-        timeout: DEFAULT_TIMEOUT_MS,
-        intervals: [250, 500, 1000, 2000, 3000],
-    });
-
-    if (!generatedArtifacts) {
-        throw new Error('Generated solution artifacts were not read.');
-    }
-    const artifacts = generatedArtifacts;
-
-    await expect.poll(async () => allPathsExist([
-        artifacts.solutionFilePath,
-        ...artifacts.projectFilePaths,
-        ...artifacts.mainFilePaths,
-    ]), {
-        timeout: DEFAULT_TIMEOUT_MS,
-        intervals: [1000, 2000, 3000],
-    }).toBe(true);
-
-    const requiredFilePatterns = fixture.expected_files?.required ?? [];
-    await expect.poll(async () => allRequiredFilePatternsExist(
-        artifacts.solutionDirectory,
-        requiredFilePatterns,
-    ), {
-        timeout: DEFAULT_TIMEOUT_MS,
-        intervals: [1000, 2000, 3000],
-    }).toBe(true);
-
-    // 3) Verify the generated solution is loaded in the CMSIS UI.
-    await vsCodeDriver.page.openCmsisPanel();
-    await expect(vsCodeDriver.page.getRoleByName('button', { name: 'Build solution' }))
-        .toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
-
-    // 4) Verify dependency validation does not report blocking problems.
-    const dependencyValidationProblemPattern = /dependency validation for context '[^']+' failed:/i;
-    const getDependencyValidationProblemRows = () => vsCodeDriver.page
-        .getLocator('.monaco-list-row:visible')
-        .filter({ hasText: dependencyValidationProblemPattern });
-    const getDependencyValidationProblemTexts = async () => (await getDependencyValidationProblemRows()
-        .allTextContents())
-        .map(text => text.replace(/\s+/g, ' ').trim());
-
-    await vsCodeDriver.page.getCommands().runCommandFromPalette('View: Show Problems');
-
-    const noWorkspaceProblems = vsCodeDriver.page
-        .getLocator('text=No problems have been detected in the workspace.');
-
-    const expectedProblems = fixture.expected_problems?.required ?? [];
-
-    if (expectedProblems.length > 0) {
-        for (const expectedProblem of expectedProblems) {
-            await expect(vsCodeDriver.page.getLocator(`text=${expectedProblem.message}`))
-                .toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
-        }
-    } else {
-        await expect.poll(async () => getDependencyValidationProblemTexts(), {
+        // 2) Validate the .csolution.yml exists before trying to parse it.
+        await expect.poll(async () => allPathsExist([solutionFilePath]), {
             timeout: DEFAULT_TIMEOUT_MS,
             intervals: [1000, 2000, 3000],
-        }).toEqual([]);
+        }).toBe(true);
+
+        let generatedArtifacts: GeneratedSolutionArtifacts | undefined;
+        await expect(async () => {
+            generatedArtifacts = await readGeneratedSolutionArtifacts(solutionFilePath);
+            expect(path.basename(generatedArtifacts.solutionFilePath)).toBe(solutionFileName);
+            expect(generatedArtifacts.projectFilePaths.length).toBeGreaterThan(0);
+        }).toPass({
+            timeout: DEFAULT_TIMEOUT_MS,
+            intervals: [250, 500, 1000, 2000, 3000],
+        });
+
+        if (!generatedArtifacts) {
+            throw new Error('Generated solution artifacts were not read.');
+        }
+        const artifacts = generatedArtifacts;
+
+        await expect.poll(async () => allPathsExist([
+            artifacts.solutionFilePath,
+            ...artifacts.projectFilePaths,
+            ...artifacts.mainFilePaths,
+        ]), {
+            timeout: DEFAULT_TIMEOUT_MS,
+            intervals: [1000, 2000, 3000],
+        }).toBe(true);
+
+        const requiredFilePatterns = fixture.expected_files?.required ?? [];
+        await expect.poll(async () => allRequiredFilePatternsExist(
+            artifacts.solutionDirectory,
+            requiredFilePatterns,
+        ), {
+            timeout: DEFAULT_TIMEOUT_MS,
+            intervals: [1000, 2000, 3000],
+        }).toBe(true);
+
+        // 3) Verify the generated solution is loaded in the CMSIS UI.
+        await vsCodeDriver.page.openCmsisPanel();
+        await expect(vsCodeDriver.page.getRoleByName('button', { name: 'Build solution' }))
+            .toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+
+        // 4) Verify dependency validation does not report blocking problems.
+        const dependencyValidationProblemPattern = /dependency validation for context '[^']+' failed:/i;
+        const getDependencyValidationProblemRows = () => vsCodeDriver.page
+            .getLocator('.monaco-list-row:visible')
+            .filter({ hasText: dependencyValidationProblemPattern });
+        const getDependencyValidationProblemTexts = async () => (await getDependencyValidationProblemRows()
+            .allTextContents())
+            .map(text => text.replace(/\s+/g, ' ').trim());
+
+        await vsCodeDriver.page.getCommands().runCommandFromPalette('View: Show Problems');
+
+        const noWorkspaceProblems = vsCodeDriver.page
+            .getLocator('text=No problems have been detected in the workspace.');
+
+        const expectedProblems = fixture.expected_problems?.required ?? [];
+
+        if (expectedProblems.length > 0) {
+            for (const expectedProblem of expectedProblems) {
+                await expect(vsCodeDriver.page.getPage().getByText(expectedProblem.message))
+                    .toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+            }
+        } else {
+            await expect.poll(async () => getDependencyValidationProblemTexts(), {
+                timeout: DEFAULT_TIMEOUT_MS,
+                intervals: [1000, 2000, 3000],
+            }).toEqual([]);
+        }
+
+        if (await noWorkspaceProblems.count() > 0) {
+            await expect(noWorkspaceProblems).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+        }
+
+        // 5) Verify no error notifications or failed task notifications were raised.
+        await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Show Notifications');
+
+        await expect(vsCodeDriver.page.getLocator('.notification-list-item .codicon-error'))
+            .toHaveCount(0);
+
+        await expect(
+            vsCodeDriver.page
+                .getLocator('.notification-list-item')
+                .filter({ hasText: /failed with exit code|terminated with exit code|task .* failed/i }),
+        ).toHaveCount(0);
+
+        await vsCodeDriver.page.getPage().keyboard.press('Escape');
+    } finally {
+        await vsCodeDriver.restoreTestWorkspace();
     }
-
-    if (await noWorkspaceProblems.count() > 0) {
-        await expect(noWorkspaceProblems).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
-    }
-
-    // 5) Verify no error notifications or failed task notifications were raised.
-    await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Show Notifications');
-
-    await expect(vsCodeDriver.page.getLocator('.notification-list-item .codicon-error'))
-        .toHaveCount(0);
-
-    await expect(
-        vsCodeDriver.page
-            .getLocator('.notification-list-item')
-            .filter({ hasText: /failed with exit code|terminated with exit code|task .* failed/i }),
-    ).toHaveCount(0);
-
-    await vsCodeDriver.page.getPage().keyboard.press('Escape');
 };

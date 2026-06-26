@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2026 Arm Limited
+ * Copyright 2026 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,10 +22,6 @@
  * instance). Tests use `switchToWorkspace` and `cleanupTestState` to isolate
  * themselves without paying the cost of a full restart per use case.
  *
- * Usage:
- *   import { test, expect } from '../../fixtures';
- *   // or
- *   import { test, expect } from './fixtures';
  */
 
 import { test as base } from '@playwright/test';
@@ -37,9 +33,19 @@ type WorkerFixtures = {
     vsCodeDriver: VsCodeDriver;
 };
 
+type TestFixtures = Record<never, never>;
+
 const MAX_START_ATTEMPTS = 2;
 
-export const test = base.extend<Record<string, never>, WorkerFixtures>({
+const stopStartedDriver = async (driver: VsCodeDriver) => {
+    try {
+        await driver.stop();
+    } catch (error) {
+        log('warn', 'Failed to stop VS Code after startup attempt failure:', error);
+    }
+};
+
+export const test = base.extend<TestFixtures, WorkerFixtures>({
     // eslint-disable-next-line no-empty-pattern
     vsCodeDriver: [async ({}, use) => {
         let startupError: unknown;
@@ -56,6 +62,9 @@ export const test = base.extend<Record<string, never>, WorkerFixtures>({
                 break;
             } catch (error) {
                 startupError = error;
+                if (driver) {
+                    await stopStartedDriver(driver);
+                }
                 driver = undefined;
                 log('warn', `VS Code startup attempt ${attempt}/${MAX_START_ATTEMPTS} failed:`, error);
             }

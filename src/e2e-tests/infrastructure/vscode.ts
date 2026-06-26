@@ -75,6 +75,12 @@ export type InstallExtensionOptions = {
     vsCodeExecutablePath: string;
 }
 
+export type OpenWorkspaceOptions = {
+    testDirectories: TestDirectories;
+    workspaceDir: string;
+    vsCodeExecutablePath: string;
+}
+
 const getCodeCliExecutableRelativePath = (platform: typeof process.platform): string => {
     switch (platform) {
         case 'win32': return '.\\bin\\code.cmd';
@@ -138,4 +144,41 @@ export const installExtension = async ({ extensionId, vsCodeExecutablePath, test
         log('error', '❌ Failed to install extension:', error);
         throw error;
     }
+};
+
+export const openWorkspaceInExistingWindow = async ({ testDirectories, workspaceDir, vsCodeExecutablePath }: OpenWorkspaceOptions): Promise<void> => {
+    const codeCliExecutablePath = path.resolve(path.dirname(vsCodeExecutablePath), getCodeCliExecutableRelativePath(process.platform));
+
+    log('info', '🔄 Opening workspace in existing VS Code window:', workspaceDir);
+
+    const codeCliProcess = spawn(codeCliExecutablePath, [
+        `--user-data-dir=${testDirectories.userData}`,
+        `--extensions-dir=${testDirectories.extensions}`,
+        '--reuse-window',
+        '--skip-add-to-recently-opened',
+        workspaceDir,
+    ], {
+        shell: true,
+        stdio: 'pipe'
+    });
+
+    let stderr = '';
+
+    codeCliProcess.stderr?.on('data', (data: Buffer) => {
+        stderr += data.toString();
+    });
+
+    await new Promise((resolve, reject) => {
+        codeCliProcess.on('close', (code: number) => {
+            if (code === 0) {
+                resolve(code);
+            } else {
+                reject(new Error(`Opening workspace failed with exit code ${code}: ${stderr}`));
+            }
+        });
+
+        codeCliProcess.on('error', (error: Error) => {
+            reject(error);
+        });
+    });
 };

@@ -32,7 +32,7 @@
 import { Page, ElectronApplication } from 'playwright';
 import { ELECTRON_APPLICATION_CLOSED_MESSAGE, getPage, mockShowMessageBoxResponse, MockShowMessageBoxOptions, setupElectronLogging } from './electron';
 import { TestDirectories, tryCleanTestDirectories, createTestDirectories, createWorkspace } from './test-directories';
-import { getVsCode, installExtension, launchVsCode } from './vscode';
+import { getVsCode, installExtension, launchVsCode, openWorkspaceInExistingWindow } from './vscode';
 import { PageDriver } from '../drivers/page-driver';
 import { initializeExtensionCache } from '../utils/install-extensions';
 import { log } from '../utils/logger';
@@ -42,6 +42,7 @@ type RunningApp = {
     pageDriver: PageDriver;
     electronApp: ElectronApplication;
     testDirectories: TestDirectories;
+    vsCodeExecutablePath: string;
 }
 
 type State
@@ -107,7 +108,7 @@ export class VsCodeDriver {
                     await pageDriver.screenshot('After failed start');
                     throw error;
                 }
-                return { pageDriver, electronApp, testDirectories };
+                return { pageDriver, electronApp, testDirectories, vsCodeExecutablePath };
             } catch (error) {
                 await electronApp.close();
                 throw error;
@@ -220,6 +221,22 @@ export class VsCodeDriver {
         await runningApp.pageDriver.reloadWindow('CMSIS');
 
         log('info', `✅ Switched to workspace: ${runningApp.testDirectories.workspace}`);
+    }
+
+    async restoreTestWorkspace(): Promise<void> {
+        const runningApp = requireRunning(this.state);
+        const navigation = runningApp.pageDriver.getPage()
+            .waitForEvent('framenavigated', { timeout: DEFAULT_TIMEOUT_MS })
+            .catch(() => undefined);
+
+        await openWorkspaceInExistingWindow({
+            testDirectories: runningApp.testDirectories,
+            workspaceDir: runningApp.testDirectories.workspace,
+            vsCodeExecutablePath: runningApp.vsCodeExecutablePath,
+        });
+        await navigation;
+        await runningApp.pageDriver.waitForVsCodeToBeReady();
+        await runningApp.pageDriver.waitForActionItem('CMSIS');
     }
 
     /**
