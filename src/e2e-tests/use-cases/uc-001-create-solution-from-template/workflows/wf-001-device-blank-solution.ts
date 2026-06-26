@@ -43,6 +43,9 @@ export type CreateSolutionFixture = {
     expected_files?: {
         required?: string[];
     };
+    required_components?: {
+        required?: string[];
+    };
     expected_problems?: {
         required?: { message: string }[];
     };
@@ -303,6 +306,22 @@ export const runWf001DeviceBlankSolution = async (
         await resolveComponentsButton.click();
 
         await expect(resolveComponentsButton).toBeDisabled({ timeout: DEFAULT_TIMEOUT_MS });
+
+        const requiredComponents = fixture.required_components?.required ?? [];
+        for (const requiredComponent of requiredComponents) {
+            await softwareComponentsFrame.getByPlaceholder('Search components').fill(requiredComponent);
+            const requiredComponentRow = softwareComponentsFrame
+                .locator('tr.ant-table-row')
+                .filter({ hasText: requiredComponent })
+                .first();
+            await expect(requiredComponentRow).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+
+            const requiredComponentCheckbox = requiredComponentRow.getByRole('checkbox').first();
+            if (!await requiredComponentCheckbox.isChecked()) {
+                await requiredComponentCheckbox.click();
+            }
+        }
+
         await vsCodeDriver.page.getPage().keyboard.press('Escape');
         await expect(saveComponentsButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
         await saveComponentsButton.click({ timeout: DEFAULT_TIMEOUT_MS });

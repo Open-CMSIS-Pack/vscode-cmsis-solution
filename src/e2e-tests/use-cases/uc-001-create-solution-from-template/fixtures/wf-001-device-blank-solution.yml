@@ -8,3 +8,7 @@ expected_files:
     - "*.csolution.yml"
     - "**/*.cproject.yml"
     - "**/main.c"
+
+required_components:
+  required:
+    - "Device:CMSIS:LPC55S69_system"
