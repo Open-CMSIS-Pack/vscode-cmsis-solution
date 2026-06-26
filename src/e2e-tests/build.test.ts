@@ -73,8 +73,7 @@ test.describe('CMSIS Solution Build Validation', () => {
         await vsCodeDriver.page.getCommands().runCommandFromPalette('Show Running Extensions');
         await vsCodeDriver.page.getTextByName('Running Extensions').waitFor({ state: 'visible' });
         await vsCodeDriver.page.screenshot('Check CMSIS csolution extension installation');
-        await expect(vsCodeDriver.page.getTextByName('Arm CMSIS Solution'))
-            .toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+        await expect(vsCodeDriver.page.getTextByName('Arm CMSIS Solution')).toBeVisible();
     });
 
     // Load example projects from test configuration

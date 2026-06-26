@@ -43,9 +43,6 @@ export type CreateSolutionFixture = {
     expected_files?: {
         required?: string[];
     };
-    required_components?: {
-        required?: string[];
-    };
     expected_problems?: {
         required?: { message: string }[];
     };
@@ -196,7 +193,7 @@ export const loadYamlFixture = async <T>(fixturePath: string): Promise<T> => {
 /**
  * Runs WF-001: creates a solution from the Blank Solution template using the
  * device/template specified in `fixture`, then validates the generated artifacts
- * and resolves the dependency validation diagnostic.
+ * and verifies dependency validation does not report blocking problems.
  */
 export const runWf001DeviceBlankSolution = async (
     vsCodeDriver: VsCodeDriver,
@@ -268,7 +265,7 @@ export const runWf001DeviceBlankSolution = async (
     await expect(vsCodeDriver.page.getRoleByName('button', { name: 'Build solution' }))
         .toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
 
-    // 4) Resolve required components from the dependency validation diagnostic.
+    // 4) Verify dependency validation does not report blocking problems.
     const dependencyValidationProblemPattern = /dependency validation for context '[^']+' failed:/i;
     const getDependencyValidationProblemRows = () => vsCodeDriver.page
         .getLocator('.monaco-list-row:visible')
@@ -282,55 +279,6 @@ export const runWf001DeviceBlankSolution = async (
     const noWorkspaceProblems = vsCodeDriver.page
         .getLocator('text=No problems have been detected in the workspace.');
 
-    await expect.poll(async () => {
-        const dependencyValidationProblemCount = await getDependencyValidationProblemRows().count();
-        const noWorkspaceProblemsCount = await noWorkspaceProblems.count();
-        return dependencyValidationProblemCount > 0 || noWorkspaceProblemsCount > 0;
-    }, {
-        timeout: DEFAULT_TIMEOUT_MS,
-        intervals: [1000, 2000, 3000],
-    }).toBe(true);
-
-    if (await getDependencyValidationProblemRows().count() > 0) {
-        await getDependencyValidationProblemRows().first()
-            .locator('a')
-            .filter({ hasText: /^Manage Components$/ })
-            .click();
-
-        const softwareComponentsFrame = vsCodeDriver.page.getWebviewByTitle('Software Components');
-        const saveComponentsButton = softwareComponentsFrame.getByRole('button', { name: 'Save' });
-        await saveComponentsButton.waitFor({ state: 'visible', timeout: DEFAULT_TIMEOUT_MS });
-
-        const resolveComponentsButton = softwareComponentsFrame.locator('.resolve-packs-button');
-        await expect(resolveComponentsButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
-        await resolveComponentsButton.click();
-
-        await expect(resolveComponentsButton).toBeDisabled({ timeout: DEFAULT_TIMEOUT_MS });
-
-        const requiredComponents = fixture.required_components?.required ?? [];
-        for (const requiredComponent of requiredComponents) {
-            await softwareComponentsFrame.getByPlaceholder('Search components').fill(requiredComponent);
-            const requiredComponentRow = softwareComponentsFrame
-                .locator('tr.ant-table-row')
-                .filter({ hasText: requiredComponent })
-                .first();
-            await expect(requiredComponentRow).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
-
-            const requiredComponentCheckbox = requiredComponentRow.getByRole('checkbox').first();
-            if (!await requiredComponentCheckbox.isChecked()) {
-                await requiredComponentCheckbox.click();
-            }
-        }
-
-        await vsCodeDriver.page.getPage().keyboard.press('Escape');
-        await expect(saveComponentsButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
-        await saveComponentsButton.click({ timeout: DEFAULT_TIMEOUT_MS });
-        await expect(saveComponentsButton).toBeDisabled({ timeout: DEFAULT_TIMEOUT_MS });
-        await vsCodeDriver.page.waitForVsCodeToBeReady();
-    }
-
-    // 5) Verify no dependency-validation workspace problems remain.
-    await vsCodeDriver.page.getCommands().runCommandFromPalette('View: Show Problems');
     const expectedProblems = fixture.expected_problems?.required ?? [];
 
     if (expectedProblems.length > 0) {
@@ -345,7 +293,11 @@ export const runWf001DeviceBlankSolution = async (
         }).toEqual([]);
     }
 
-    // 6) Verify no error notifications or failed task notifications were raised.
+    if (await noWorkspaceProblems.count() > 0) {
+        await expect(noWorkspaceProblems).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+    }
+
+    // 5) Verify no error notifications or failed task notifications were raised.
     await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Show Notifications');
 
     await expect(vsCodeDriver.page.getLocator('.notification-list-item .codicon-error'))

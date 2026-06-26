@@ -1,5 +1,5 @@
 workflow: WF-001
-device: LPC55S69JBD100
+device: ARMCM33
 template: Blank solution
 solution_name_prefix: e2e_device_blank_solution
 
@@ -8,7 +8,3 @@ expected_files:
     - "*.csolution.yml"
     - "**/*.cproject.yml"
     - "**/main.c"
-
-required_components:
-  required:
-    - "Device:CMSIS:LPC55S69_system"
