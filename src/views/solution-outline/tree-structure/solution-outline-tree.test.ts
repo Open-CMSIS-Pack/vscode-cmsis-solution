@@ -53,6 +53,17 @@ describe('CSolution', () => {
             .replace(/[ \t]+/g, ' ')     // collapse spaces/tabs
             .trim();                     // remove leading/trailing whitespace
 
+    function findComponentGenNodes(node: COutlineItem): COutlineItem[] {
+        const results: COutlineItem[] = [];
+        if (node.getAttribute('type') === 'component-gen') {
+            results.push(node);
+        }
+        for (const child of node.getChildren() as COutlineItem[]) {
+            results.push(...findComponentGenNodes(child));
+        }
+        return results;
+    }
+
 
     async function dumpOutline(tree: COutlineItem, solutionDir: string, dumpFileName: string, refFileName: string): Promise<{ dump: string; ref: string; }> {
         const res: { dump: string, ref: string } = { dump: '', ref: '' };
@@ -236,6 +247,44 @@ describe('CSolution', () => {
         expect(res.dump).toEqual(res.ref);
 
     });
+    it('uses the full TargetType@Set as activeTarget on component-gen nodes when a target set is active', async () => {
+        const fileName = path.join(tmpSolutionDir, 'USBD', 'USB_Device.csolution.yml');
+        const csolution = new CSolution();
+
+        const loadResult = await csolution.load(fileName);
+        expect(loadResult).toEqual(ETextFileResult.Success);
+
+        jest.spyOn(csolution, 'getActiveTargetSetName').mockReturnValue('B-U585I-IOT02A@fvp');
+
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const tree = solutionOutlineTree.createTree();
+
+        const componentGenNodes = findComponentGenNodes(tree as COutlineItem);
+        expect(componentGenNodes.length).toBeGreaterThan(0);
+        for (const node of componentGenNodes) {
+            expect(node.getAttribute('activeTarget')).toBe('B-U585I-IOT02A@fvp');
+        }
+    });
+
+    it('falls back to TargetType from context string as activeTarget when no target set is active', async () => {
+        const fileName = path.join(tmpSolutionDir, 'USBD', 'USB_Device.csolution.yml');
+        const csolution = new CSolution();
+
+        const loadResult = await csolution.load(fileName);
+        expect(loadResult).toEqual(ETextFileResult.Success);
+
+        jest.spyOn(csolution, 'getActiveTargetSetName').mockReturnValue(undefined);
+
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const tree = solutionOutlineTree.createTree();
+
+        const componentGenNodes = findComponentGenNodes(tree as COutlineItem);
+        expect(componentGenNodes.length).toBeGreaterThan(0);
+        for (const node of componentGenNodes) {
+            expect(node.getAttribute('activeTarget')).toBe('B-U585I-IOT02A');
+        }
+    });
+
     it('test tree content for West project', async () => {
         const fileName = path.join(tmpSolutionDir, 'WestSupport', 'solution.csolution.yml');
         const csolution = new CSolution();

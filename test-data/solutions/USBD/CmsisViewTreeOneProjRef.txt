@@ -351,7 +351,7 @@ solution
           layerUri=TEST_DIR/solutions/USBD/Board/B-U585I-IOT02A/Board.clayer.yml
           type=component-gen
           generator=CubeMX
-          cbuild-context=MassStorage.Debug+B-U585I-IOT02A
+          activeTarget=B-U585I-IOT02A
           tooltip=- component: ` Keil::Device:CubeMX@1.0.0 `
 - from pack: ` Keil::STM32U5xx_DFP@3.0.0-dev ` [$(link-external)](https://www.keil.arm.com/packs/stm32u5xx_dfp-keil/)
 - generator: ` CubeMX `
