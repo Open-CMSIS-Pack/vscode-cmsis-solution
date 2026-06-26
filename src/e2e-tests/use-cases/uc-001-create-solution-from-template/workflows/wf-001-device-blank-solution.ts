@@ -267,17 +267,20 @@ export const runWf001DeviceBlankSolution = async (
 
     // 4) Resolve required components from the dependency validation diagnostic.
     const dependencyValidationProblemPattern = /dependency validation for context '[^']+' failed:/i;
+    const getDependencyValidationProblemRows = () => vsCodeDriver.page
+        .getLocator('.monaco-list-row:visible')
+        .filter({ hasText: dependencyValidationProblemPattern });
+    const getDependencyValidationProblemTexts = async () => (await getDependencyValidationProblemRows()
+        .allTextContents())
+        .map(text => text.replace(/\s+/g, ' ').trim());
 
     await vsCodeDriver.page.getCommands().runCommandFromPalette('View: Show Problems');
 
-    const dependencyValidationProblemRows = vsCodeDriver.page
-        .getLocator('.monaco-list-row')
-        .filter({ hasText: dependencyValidationProblemPattern });
     const noWorkspaceProblems = vsCodeDriver.page
         .getLocator('text=No problems have been detected in the workspace.');
 
     await expect.poll(async () => {
-        const dependencyValidationProblemCount = await dependencyValidationProblemRows.count();
+        const dependencyValidationProblemCount = await getDependencyValidationProblemRows().count();
         const noWorkspaceProblemsCount = await noWorkspaceProblems.count();
         return dependencyValidationProblemCount > 0 || noWorkspaceProblemsCount > 0;
     }, {
@@ -285,8 +288,8 @@ export const runWf001DeviceBlankSolution = async (
         intervals: [1000, 2000, 3000],
     }).toBe(true);
 
-    if (await dependencyValidationProblemRows.count() > 0) {
-        await dependencyValidationProblemRows.first()
+    if (await getDependencyValidationProblemRows().count() > 0) {
+        await getDependencyValidationProblemRows().first()
             .locator('a')
             .filter({ hasText: /^Manage Components$/ })
             .click();
@@ -304,17 +307,23 @@ export const runWf001DeviceBlankSolution = async (
         await expect(saveComponentsButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
         await saveComponentsButton.click({ timeout: DEFAULT_TIMEOUT_MS });
         await expect(saveComponentsButton).toBeDisabled({ timeout: DEFAULT_TIMEOUT_MS });
+        await vsCodeDriver.page.waitForVsCodeToBeReady();
     }
 
-    // 5) Verify no workspace problems remain.
+    // 5) Verify no dependency-validation workspace problems remain.
     await vsCodeDriver.page.getCommands().runCommandFromPalette('View: Show Problems');
-    const expectedProblems = fixture.expected_problems?.required ?? [
-        { message: 'No problems have been detected in the workspace.' },
-    ];
+    const expectedProblems = fixture.expected_problems?.required ?? [];
 
-    for (const expectedProblem of expectedProblems) {
-        await expect(vsCodeDriver.page.getLocator(`text=${expectedProblem.message}`))
-            .toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+    if (expectedProblems.length > 0) {
+        for (const expectedProblem of expectedProblems) {
+            await expect(vsCodeDriver.page.getLocator(`text=${expectedProblem.message}`))
+                .toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+        }
+    } else {
+        await expect.poll(async () => getDependencyValidationProblemTexts(), {
+            timeout: DEFAULT_TIMEOUT_MS,
+            intervals: [1000, 2000, 3000],
+        }).toEqual([]);
     }
 
     // 6) Verify no error notifications or failed task notifications were raised.

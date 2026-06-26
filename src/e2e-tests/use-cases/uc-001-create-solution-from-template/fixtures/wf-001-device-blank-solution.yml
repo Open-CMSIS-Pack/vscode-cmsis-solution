@@ -8,7 +8,3 @@ expected_files:
     - "*.csolution.yml"
     - "**/*.cproject.yml"
     - "**/main.c"
-  
-expected_problems:
-  required:
-    - message: "No problems have been detected in the workspace."

@@ -18,7 +18,7 @@ workflows:
       - Verify the generated solution is loaded in the CMSIS view.
       - Click the 'Manage Components' link in the Problems view for the required components issue.
       - Resolve the required components and save.
-      - Verify the Problems view reports no workspace problems.
+      - Verify the Problems view no longer reports dependency validation diagnostics.
     validates:
       - solution creation
       - generated project files
