@@ -29,7 +29,4 @@ workflows:
         - generated solution and project artifacts
         - CMSIS view loading
         - Problems view dependency validation check
-      excludes:
-        - TrustZone solution template selection
-      rationale:
-        - TrustZone template coverage should use a separate workflow with a compatible device or board
+
