@@ -42,6 +42,7 @@ const buildCsolution = () => {
                 ['ctx', { fileName: '/work/ctx.cbuild.yml' }],
             ]),
         },
+        getActiveTargetSetName: () => undefined,
     };
 };
 
@@ -70,7 +71,7 @@ describe('SolutionProblems', () => {
 
         await solutionProblems.activate(context);
 
-        expect(context.subscriptions).toHaveLength(5);
+        expect(context.subscriptions).toHaveLength(6);
     });
 
     it('clears diagnostics when solution path changes', async () => {
@@ -366,7 +367,7 @@ describe('SolutionProblems', () => {
         const code = runGeneratorDiagnostics[0].code as { value: string; target: vscode.Uri };
         const [command, args] = code.target.toString().split('?');
         expect(command).toBe(`command:${RUN_GENERATOR_COMMAND_ID}`);
-        expect(JSON.parse(decodeURIComponent(args))).toEqual([{ generator: 'CubeMX2', context: 'CubeMX2.Debug+STM32C531CBT6' }]);
+        expect(JSON.parse(decodeURIComponent(args))).toEqual([{ generator: 'CubeMX2', activeTarget: 'STM32C531CBT6' }]);
     });
 
     it('falls back to the diagnostic file path for relative merge paths', async () => {

@@ -237,7 +237,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const mergeSessionCoordinator = new MergeSessionCoordinatorImpl(commandsProvider);
     const mergeCommand = new MergeCommand(commandsProvider, mergeSessionCoordinator, messageProvider);
     const buildCommand = new BuildCommand(buildTaskProvider, commandsProvider, buildTaskDefinitionBuilder);
-    const runGeneratorCommand = new GeneratorCommand(commandsProvider, solutionManager, outputChannelProvider, cmsisToolboxManager);
+    const runGeneratorCommand = new GeneratorCommand(commandsProvider, solutionManager, outputChannelProvider, cmsisToolboxManager, eventHub);
     const armclangDefineGetter = new ArmclangDefineGetter(processManager, workspaceFsProvider);
     const manageSolutionCustomEditorProvider = new ManageSolutionCustomEditorProvider(
         context,

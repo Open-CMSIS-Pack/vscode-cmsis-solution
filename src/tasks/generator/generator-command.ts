@@ -21,10 +21,13 @@ import { COutlineItem } from '../../views/solution-outline/tree-structure/soluti
 import { OutputChannelProvider } from '../../vscode-api/output-channel-provider';
 import { CmsisToolboxManager } from '../../solutions/cmsis-toolbox';
 import { SolutionManager } from '../../solutions/solution-manager';
+import { SolutionEventHub } from '../../solutions/solution-event-hub';
+import { getToolsSeverity } from '../../solutions/solution-problems';
 
 interface RunGeneratorRequest {
     generator: string;
-    context: string;
+    context?: string;
+    activeTarget?: string;
 }
 
 export class GeneratorCommand {
@@ -35,6 +38,7 @@ export class GeneratorCommand {
         private readonly solutionManager: SolutionManager,
         private readonly outputChannelProvider: OutputChannelProvider,
         private readonly cmsisToolboxManager: CmsisToolboxManager,
+        private readonly eventHub: SolutionEventHub,
     ) { }
 
     public async activate(context: vscode.ExtensionContext): Promise<void> {
@@ -43,7 +47,7 @@ export class GeneratorCommand {
             this.commandsProvider.registerCommand(GeneratorCommand.runGeneratorCommandType, async (input: unknown) => {
                 const request = this.getRunGeneratorRequest(input);
                 if (request) {
-                    await this.handleRunGenerator(request.generator, request.context);
+                    await this.handleRunGenerator(request.generator, request.context, request.activeTarget);
                 } else {
                     console.error(`Tried to execute ${GeneratorCommand.runGeneratorCommandType} without a generator component`);
                 }
@@ -60,37 +64,65 @@ export class GeneratorCommand {
 
             return {
                 generator: maybeNode.getAttribute('generator') ?? '',
-                context: maybeNode.getAttribute('cbuild-context') ?? '',
+                activeTarget: maybeNode.getAttribute('activeTarget') ?? undefined,
             };
         }
 
         const maybeRequest = input as Partial<RunGeneratorRequest> | undefined;
-        if (typeof maybeRequest?.generator !== 'string' || typeof maybeRequest.context !== 'string') {
+        if (typeof maybeRequest?.generator !== 'string') {
             return undefined;
         }
 
         return {
             generator: maybeRequest.generator,
-            context: maybeRequest.context,
+            context: typeof maybeRequest.context === 'string' ? maybeRequest.context : undefined,
+            activeTarget: typeof maybeRequest.activeTarget === 'string' ? maybeRequest.activeTarget : undefined,
         };
     }
 
-    public async handleRunGenerator(generator: string, context: string): Promise<void> {
+    public async handleRunGenerator(generator: string, context?: string, activeTarget?: string): Promise<void> {
         const solutionFilePath = this.solutionManager.getCsolution()?.solutionPath;
         if (!solutionFilePath) {
             vscode.window.showErrorMessage('Solution file does not exist');
             return;
         }
 
-        const msg = `Starting generator ${generator} for project ${context}...`;
+        const normalizedActiveTarget = activeTarget !== undefined ? (activeTarget || '""') : undefined;
+
+        const msg = context && normalizedActiveTarget
+            ? `Starting generator ${generator} for project ${context} and target ${normalizedActiveTarget}...`
+            : context
+                ? `Starting generator ${generator} for project ${context}...`
+                : normalizedActiveTarget
+                    ? `Starting generator ${generator} for target ${normalizedActiveTarget}...`
+                    : `Starting generator ${generator}...`;
         vscode.window.showInformationMessage(msg);
 
-        const executableArgs = ['run', solutionFilePath, '-g', generator, '-c', context];
+        const executableArgs = ['run', solutionFilePath, '-g', generator];
+        if (context) {
+            executableArgs.push('-c', context);
+        }
+        if (normalizedActiveTarget !== undefined) {
+            executableArgs.push('-a', normalizedActiveTarget);
+        }
         const outputChannel = this.outputChannelProvider.getOrCreate(CMSIS_SOLUTION_OUTPUT_CHANNEL);
         outputChannel.appendLine(msg);
 
-        const [result] = await this.cmsisToolboxManager.runCmsisTool('csolution', executableArgs, line => outputChannel.appendLine(line.trimEnd()), undefined,
-            undefined, true);
+        // Capture output lines for diagnostics
+        const outputLines: string[] = [];
+        const [result] = await this.cmsisToolboxManager.runCmsisTool('csolution', executableArgs, line => {
+            const trimmedLine = line.trimEnd();
+            outputChannel.appendLine(trimmedLine);
+            outputLines.push(trimmedLine);
+        }, undefined, undefined, true);
+
+        // Fire event with generator run result for diagnostics
+        const severity = getToolsSeverity(outputLines);
+        await this.eventHub.fireGeneratorRunCompleted({
+            success: result === 0,
+            severity: severity,
+            toolsOutputMessages: outputLines,
+        });
 
         if (result != 0) {
             outputChannel.show();

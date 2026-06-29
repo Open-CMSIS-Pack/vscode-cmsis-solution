@@ -233,7 +233,7 @@ export class SolutionProblemsImpl implements SolutionProblems {
 
     private readonly diagnosticCollection: vscode.DiagnosticCollection = vscode.languages.createDiagnosticCollection('csolution');
     private readonly environmentDiagnosticCollection: vscode.DiagnosticCollection = vscode.languages.createDiagnosticCollection('csolution-environment');
-    private readonly diagnosticActionResolver = new ProblemDiagnosticActionResolver();
+    private readonly diagnosticActionResolver: ProblemDiagnosticActionResolver;
     private readonly environmentVariablesSetting = '"cmsis-csolution.environmentVariables"';
     /**
     *  source files for diagnostics mapping
@@ -244,12 +244,16 @@ export class SolutionProblemsImpl implements SolutionProblems {
         private readonly solutionManager: SolutionManager,
         private readonly eventHub: SolutionEventHub,
     ) {
+        this.diagnosticActionResolver = new ProblemDiagnosticActionResolver(
+            () => this.solutionManager.getCsolution()?.getActiveTargetSetName(),
+        );
     }
 
     public async activate(context: vscode.ExtensionContext): Promise<void> {
         context.subscriptions.push(
             this.eventHub.onDidConvertCompleted(this.handleConvertCompleted, this),
             this.eventHub.onDidCbuildCompleted(this.handleCbuildCompleted, this),
+            this.eventHub.onDidGeneratorRunCompleted(this.handleGeneratorRunCompleted, this),
             this.solutionManager.onDidChangeLoadState(this.handleLoadStateChanged, this),
             this.diagnosticCollection,
             this.environmentDiagnosticCollection,
@@ -276,6 +280,14 @@ export class SolutionProblemsImpl implements SolutionProblems {
             this.updateEnvironmentDiagnosticsFromCbuild(data),
         ]);
         await this.showProblemsViewIfNeeded(hasGeneralDiagnostics || hasEnvironmentDiagnostics);
+    }
+
+    private async handleGeneratorRunCompleted(data: CbuildResultData): Promise<void> {
+        // Generator run diagnostics are additive. Do not clear.
+        // This preserves existing convert and cbuild diagnostics while adding generator issues.
+        const logMessages: LogMessages = { success: true, errors: [], warnings: [], info: [] };
+        const hasGeneralDiagnostics = await this.enrichAndUpdateDiagnostics(logMessages, data.toolsOutputMessages);
+        await this.showProblemsViewIfNeeded(hasGeneralDiagnostics);
     }
 
     private async updateEnvironmentDiagnosticsFromConvert(data: ConvertResultData): Promise<boolean> {

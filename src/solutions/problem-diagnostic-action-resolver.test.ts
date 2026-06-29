@@ -143,13 +143,24 @@ describe('ProblemDiagnosticActionResolver', () => {
 
     describe('run-generator action', () => {
 
-        it('encodes generator and context in the command URI arguments (CubeMX example)', () => {
+        it('uses active target set name when available', () => {
+            const resolverWithTargetSet = new ProblemDiagnosticActionResolver(() => 'STM32C531CBT6@fvp');
+
+            const { command, args } = decodeCodeTarget(resolverWithTargetSet, makeContext({
+                message: "cgen file was not found, run generator 'CubeMX' for context 'CubeMX.Debug+STM32C531CBT6'",
+            }));
+
+            expect(command).toBe(`command:${RUN_GENERATOR_COMMAND_ID}`);
+            expect(args).toEqual([{ generator: 'CubeMX', activeTarget: 'STM32C531CBT6@fvp' }]);
+        });
+
+        it('encodes generator and activeTarget in the command URI arguments (CubeMX example)', () => {
             const { command, args } = decodeCodeTarget(resolver, makeContext({
                 message: "cgen file was not found, run generator 'CubeMX' for context 'CubeMX.Debug+STM32C531CBT6'",
             }));
 
             expect(command).toBe(`command:${RUN_GENERATOR_COMMAND_ID}`);
-            expect(args).toEqual([{ generator: 'CubeMX', context: 'CubeMX.Debug+STM32C531CBT6' }]);
+            expect(args).toEqual([{ generator: 'CubeMX', activeTarget: 'STM32C531CBT6' }]);
         });
 
         it('returns a formatted message and a code', () => {
@@ -157,7 +168,7 @@ describe('ProblemDiagnosticActionResolver', () => {
                 message: "cgen file was not found, run generator 'CubeMX' for context 'MyProject.Debug+STM32'",
             }));
 
-            expect(result?.message).toBe("Run generator 'CubeMX' for project 'MyProject.Debug+STM32'");
+            expect(result?.message).toBe("Run generator 'CubeMX' for target 'STM32'");
             expect(result?.code).toBeDefined();
         });
 
@@ -175,7 +186,25 @@ describe('ProblemDiagnosticActionResolver', () => {
             }));
 
             expect(command).toBe(`command:${RUN_GENERATOR_COMMAND_ID}`);
-            expect(args).toEqual([{ generator: 'CubeMX', context: 'MyProject.Debug+STM32' }]);
+            expect(args).toEqual([{ generator: 'CubeMX', activeTarget: 'STM32' }]);
+        });
+
+        it('preserves @TargetSet in activeTarget when the context string contains one', () => {
+            const { command, args } = decodeCodeTarget(resolver, makeContext({
+                message: "cgen file was not found, run generator 'CubeMX' for context 'CubeMX.Debug+STM32C531CBT6@fvp'",
+            }));
+
+            expect(command).toBe(`command:${RUN_GENERATOR_COMMAND_ID}`);
+            expect(args).toEqual([{ generator: 'CubeMX', activeTarget: 'STM32C531CBT6@fvp' }]);
+        });
+
+        it('returns a message with TargetType@Set when the context string contains a target set', () => {
+            const result = resolver.resolve(makeContext({
+                message: "cgen file was not found, run generator 'CubeMX' for context 'MyProject.Debug+STM32@board'",
+            }));
+
+            expect(result?.message).toBe("Run generator 'CubeMX' for target 'STM32@board'");
+            expect(result?.code).toBeDefined();
         });
     });
 

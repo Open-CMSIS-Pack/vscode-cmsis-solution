@@ -101,6 +101,14 @@ export interface SolutionEventHub {
      */
     readonly onDidCbuildSetupRequested: vscode.Event<void>;
     /**
+     * Fire generator run completion event
+     */
+    fireGeneratorRunCompleted(data: CbuildResultData): Promise<void>;
+    /**
+     * Event fired when generator run is completed
+     */
+    readonly onDidGeneratorRunCompleted: vscode.Event<CbuildResultData>;
+    /**
      * Fire configure solution data ready event
      */
     fireConfigureSolutionDataReady(data: ConfigureSolutionData): Promise<void>;
@@ -124,6 +132,9 @@ class SolutionEventHubImpl {
     private readonly cbuildSetupRequestEmitter = new vscode.EventEmitter<void>();
     public readonly onDidCbuildSetupRequested: vscode.Event<void> = this.cbuildSetupRequestEmitter.event;
 
+    private readonly generatorRunCompleteEmitter = new vscode.EventEmitter<CbuildResultData>();
+    public readonly onDidGeneratorRunCompleted: vscode.Event<CbuildResultData> = this.generatorRunCompleteEmitter.event;
+
     private readonly configureSolutionDataEmitter = new vscode.EventEmitter<ConfigureSolutionData>();
     public readonly onDidConfigureSolutionDataReady: vscode.Event<ConfigureSolutionData> = this.configureSolutionDataEmitter.event;
 
@@ -132,6 +143,7 @@ class SolutionEventHubImpl {
         context.subscriptions.push(this.convertCompleteEmitter);
         context.subscriptions.push(this.cbuildCompleteEmitter);
         context.subscriptions.push(this.cbuildSetupRequestEmitter);
+        context.subscriptions.push(this.generatorRunCompleteEmitter);
         context.subscriptions.push(this.configureSolutionDataEmitter);
     }
 
@@ -149,6 +161,10 @@ class SolutionEventHubImpl {
 
     public async requestCbuildSetup(): Promise<void> {
         this.cbuildSetupRequestEmitter.fire();
+    }
+
+    public async fireGeneratorRunCompleted(data: CbuildResultData): Promise<void> {
+        this.generatorRunCompleteEmitter.fire(data);
     }
 
     public async fireConfigureSolutionDataReady(data: ConfigureSolutionData): Promise<void> {

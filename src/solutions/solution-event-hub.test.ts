@@ -34,7 +34,7 @@ describe('EventHub', () => {
         it('should register emitters with context subscriptions', async () => {
             await eventHub.activate(mockContext);
 
-            expect(mockContext.subscriptions).toHaveLength(5);
+            expect(mockContext.subscriptions).toHaveLength(6);
         });
     });
 
