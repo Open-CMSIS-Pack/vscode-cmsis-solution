@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/Open-CMSIS-Pack/devtools/main/tools/projmgr/schemas/cproject.schema.json
 
 project:
-  device: RteTest_ARMCM0
+  device: RteTest_ARMCM4
   components:
     - component: CORE
   groups:
@@ -10,4 +10,4 @@ project:
         - file: main.c
   layers:
     - layer: ./Board.clayer.yml
-      type: Board
+      type: Board        

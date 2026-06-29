@@ -1,0 +1,16 @@
+layer:
+  type: Board
+  description: Board layer for project1
+
+  packs:
+    - pack: ARM::CMSIS-Compiler@>=2.0.0
+
+  components:
+    - component: ARM::CMSIS-Compiler:CORE
+
+  groups:
+    - group: Board
+      files:
+        - file: ./retarget_stdio.c
+        - file: README.md
+
