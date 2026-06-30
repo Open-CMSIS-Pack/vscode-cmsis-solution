@@ -7,7 +7,7 @@ project:
   groups:
     - group: Sources
       files:
-        - file: main.
+        - file: main.c
   layers:
     - layer: ./Board.clayer.yml
       type: Board        
