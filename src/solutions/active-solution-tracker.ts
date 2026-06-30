@@ -90,6 +90,7 @@ type SolutionState = 'active' | 'inactive' | 'none';
 
 export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
     public static readonly GLOB_PATTERN = '**/*.csolution.{yaml,yml}';
+    public static readonly HIDDEN_DIRECTORIES_GLOB = '**/.*/**';
 
     public static readonly ACTIVE_SOLUTION_KEY = 'activeSolution';
     public static readonly ACTIVE_SOLUTION_STATE_KEY = 'activeSolutionState';
@@ -175,8 +176,26 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
     }
 
     private async getSolutionPaths(): Promise<string[]> {
-        const uris = await this.workspaceFoldersProvider.findFiles(ActiveSolutionTrackerImpl.GLOB_PATTERN, this.getExcludeGlob());
-        return uris.map(uri => uri.fsPath).sort();
+        const workspaceFolders = this.workspaceFoldersProvider.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return [];
+        }
+
+        const excludeGlob = this.getExcludeGlob();
+        const searches = workspaceFolders.map(async folder => {
+            try {
+                return await this.workspaceFoldersProvider.findFiles(
+                    new vscode.RelativePattern(folder, ActiveSolutionTrackerImpl.GLOB_PATTERN),
+                    excludeGlob,
+                );
+            } catch {
+                return [];
+            }
+        });
+        const solutionPaths = (await Promise.all(searches))
+            .flatMap(uris => uris.map(uri => uri.fsPath));
+
+        return [...new Set(solutionPaths)].sort();
     }
 
     /**
@@ -298,8 +317,12 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
         return this._activeSolution;
     }
 
-    private getExcludeGlob(): string | undefined {
-        return this.configurationProvider.getConfigVariable<string>(manifest.CONFIG_EXCLUDE) || undefined;
+    private getExcludeGlob(): string {
+        const configuredExclude = this.configurationProvider.getConfigVariable<string>(manifest.CONFIG_EXCLUDE)?.trim();
+        if (!configuredExclude) {
+            return ActiveSolutionTrackerImpl.HIDDEN_DIRECTORIES_GLOB;
+        }
+        return `{${ActiveSolutionTrackerImpl.HIDDEN_DIRECTORIES_GLOB},${configuredExclude}}`;
     }
 
     private triggerReload(): void {

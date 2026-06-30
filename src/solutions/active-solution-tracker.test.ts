@@ -103,7 +103,13 @@ describe('ActiveSolutionTracker', () => {
         activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
         await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);;
         expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledTimes(1);
-        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledWith(ActiveSolutionTrackerImpl.GLOB_PATTERN, undefined);
+        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledWith(
+            expect.objectContaining({ pattern: ActiveSolutionTrackerImpl.GLOB_PATTERN }),
+            ActiveSolutionTrackerImpl.HIDDEN_DIRECTORIES_GLOB,
+        );
+
+        const includePattern = workspaceFoldersProvider.findFiles.mock.calls[0][0] as vscode.RelativePattern;
+        expect(includePattern.pattern).toEqual(ActiveSolutionTrackerImpl.GLOB_PATTERN);
     });
 
     it('uses the configured glob pattern for searches', async () => {
@@ -114,7 +120,13 @@ describe('ActiveSolutionTracker', () => {
         await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);;
 
         expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledTimes(1);
-        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledWith(ActiveSolutionTrackerImpl.GLOB_PATTERN, testGlobPattern);
+        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledWith(
+            expect.objectContaining({ pattern: ActiveSolutionTrackerImpl.GLOB_PATTERN }),
+            `{${ActiveSolutionTrackerImpl.HIDDEN_DIRECTORIES_GLOB},${testGlobPattern}}`,
+        );
+
+        const includePattern = workspaceFoldersProvider.findFiles.mock.calls[0][0] as vscode.RelativePattern;
+        expect(includePattern.pattern).toEqual(ActiveSolutionTrackerImpl.GLOB_PATTERN);
     });
 
     it('sets the given solution as active before the initial refresh completes', async () => {
@@ -154,7 +166,29 @@ describe('ActiveSolutionTracker', () => {
         await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);;
 
         expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledTimes(1);
-        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledWith(ActiveSolutionTrackerImpl.GLOB_PATTERN, testGlobPattern);
+        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledWith(
+            expect.objectContaining({ pattern: ActiveSolutionTrackerImpl.GLOB_PATTERN }),
+            `{${ActiveSolutionTrackerImpl.HIDDEN_DIRECTORIES_GLOB},${testGlobPattern}}`,
+        );
+
+        const includePattern = workspaceFoldersProvider.findFiles.mock.calls[0][0] as vscode.RelativePattern;
+        expect(includePattern.pattern).toEqual(ActiveSolutionTrackerImpl.GLOB_PATTERN);
+    });
+
+    it('keeps results from other workspace folders when one folder search fails', async () => {
+        const workspaceFolder1 = { uri: URI.file(path.join(WORKSPACE_PATH, 'workspace-1')), name: 'Workspace Folder 1', index: 0 } as WorkspaceFolder;
+        const workspaceFolder2 = { uri: URI.file(path.join(WORKSPACE_PATH, 'workspace-2')), name: 'Workspace Folder 2', index: 1 } as WorkspaceFolder;
+        workspaceFoldersProvider.updateWorkspaceFolders([workspaceFolder1, workspaceFolder2]);
+
+        workspaceFoldersProvider.findFiles
+            .mockRejectedValueOnce(new Error('mock folder search failure'))
+            .mockResolvedValueOnce([SOLUTION_URI_BAZ]);
+
+        activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+        await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);
+
+        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledTimes(2);
+        expect(activeSolutionTracker.solutions).toEqual([SOLUTION_URI_BAZ.fsPath]);
     });
 
     describe('activated with no solutions in the workspace', () => {

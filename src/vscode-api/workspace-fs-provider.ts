@@ -51,8 +51,13 @@ export const workspaceFsProvider: WorkspaceFsProvider = {
         }
     },
     readDirectory: async (filePath: string) => {
-        const directoryEntries = await workspace.fs.readDirectory(Uri.file(filePath));
-        return directoryEntries.map(([fileName, fileTypeEnum]) => [fileName, fileTypeEnumToFileType(fileTypeEnum)]);
+        try {
+            const directoryEntries = await workspace.fs.readDirectory(Uri.file(filePath));
+            return directoryEntries.map(([fileName, fileTypeEnum]) => [fileName, fileTypeEnumToFileType(fileTypeEnum)]);
+        } catch (error) {
+            console.error(`Failed to read directory '${filePath}':`, error);
+            return [];
+        }
     },
     copy: async (sourcePath: string, destinationPath: string, overwrite?: boolean) => {
         await workspace.fs.copy(Uri.file(sourcePath), Uri.file(destinationPath), { overwrite });
