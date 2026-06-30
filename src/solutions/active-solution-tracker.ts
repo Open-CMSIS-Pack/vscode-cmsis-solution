@@ -319,10 +319,15 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
     }
 
     private getExcludeGlob(): string {
-        const configuredExclude = this.configurationProvider.getConfigVariable<string>(manifest.CONFIG_EXCLUDE)?.trim();
-        if (!configuredExclude) {
+        const configuredExcludeRaw = this.configurationProvider.getConfigVariable<string>(manifest.CONFIG_EXCLUDE)?.trim();
+        if (!configuredExcludeRaw) {
             return ActiveSolutionTrackerImpl.HIDDEN_DIRECTORIES_GLOB;
         }
+
+        const configuredExclude = configuredExcludeRaw.startsWith('{') && configuredExcludeRaw.endsWith('}')
+            ? configuredExcludeRaw.slice(1, -1).trim()
+            : configuredExcludeRaw;
+
         return `{${ActiveSolutionTrackerImpl.HIDDEN_DIRECTORIES_GLOB},${configuredExclude}}`;
     }
 
