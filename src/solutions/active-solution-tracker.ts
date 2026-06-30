@@ -188,7 +188,8 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
                     new vscode.RelativePattern(folder, ActiveSolutionTrackerImpl.GLOB_PATTERN),
                     excludeGlob,
                 );
-            } catch {
+            } catch (error) {
+                console.warn(`Failed to search for solutions in '${folder.uri.fsPath}':`, error);
                 return [];
             }
         });
