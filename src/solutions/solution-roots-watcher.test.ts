@@ -95,4 +95,46 @@ describe('SolutionRootsWatcher', () => {
 
         expect(commandsProvider.executeCommand).toHaveBeenCalledWith(...expectedArguments);
     });
+
+    it('excludes hidden directories from solution roots', async () => {
+        const workspacePath = '/path/to/workspace';
+        const workspaceUri = URI.file(workspacePath);
+        const visibleProjectFolder = 'project1';
+        const visibleProjectUri = URI.file(path.join(workspacePath, visibleProjectFolder));
+        const hiddenProjectFolder = '.hidden-project';
+        const hiddenProjectUri = URI.file(path.join(workspacePath, hiddenProjectFolder));
+        workspaceFoldersProvider.workspaceFolders = [
+            {
+                uri: workspaceUri,
+                name: 'workspace',
+                index: 0
+            }
+        ];
+        workspaceFsProvider.readDirectory.mockImplementation(async filePath => {
+            switch (filePath) {
+                case workspaceUri.fsPath:
+                    return [
+                        [visibleProjectFolder, 'directory'],
+                        [hiddenProjectFolder, 'directory'],
+                    ];
+                case visibleProjectUri.fsPath:
+                    return [
+                        ['mock.csolution.yml', 'file'],
+                    ];
+                case hiddenProjectUri.fsPath:
+                    return [
+                        ['mock.csolution.yml', 'file'],
+                    ];
+            }
+            throw Error(`${filePath} is not managed by the workspaceFsProvider.readDirectory mock`);
+        });
+        const solutionRootsContext = {
+            project1: true,
+        };
+        const expectedArguments = ['setContext', solutionRootsContextKey, solutionRootsContext];
+
+        await solutionRootsWatcher.activate({ subscriptions: [] });
+
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith(...expectedArguments);
+    });
 });
