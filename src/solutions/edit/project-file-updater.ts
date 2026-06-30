@@ -76,7 +76,7 @@ export class ProjectFileUpdaterImpl implements ProjectFileUpdater {
         return changed;
     }
 
-    // Extracted: update all layer files
+    // Update layer files belonging to the supplied context
     private async updateLayerFiles(clayers: CTreeItem[], usedItems: UsedItems): Promise<boolean> {
         let changed = false;
         if (clayers && clayers.length > 0) {
