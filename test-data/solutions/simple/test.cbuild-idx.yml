@@ -1,0 +1,27 @@
+build-idx:
+  generated-by: csolution version 2.13.0
+  csolution: test.csolution.yml
+  tmpdir: tmp
+  cprojects:
+    - cproject: project.cproject.yml
+      clayers:
+        - clayer: Board.clayer.yml
+  cbuilds:
+    - cbuild: out/project/TEST_TARGET/Debug/project.Debug+TEST_TARGET.cbuild.yml
+      project: project
+      configuration: .Debug+TEST_TARGET
+      clayers:
+        - clayer: Board.clayer.yml
+      errors: true
+      messages:
+        errors:
+          - "required pack: ARM::RteTest_DFP not installed"
+          - "specified device 'RteTest_ARMCM0' not found in the installed packs. Use:\n  cpackget add Vendor::PackName"
+          - processing context 'project.Debug+TEST_TARGET' failed
+        warnings:
+          - "project.cproject.yml - 'device: Dname' is deprecated at this level and accepted in *.csolution.yml only"
+        info:
+          - test.cbuild-pack.yml - file generated successfully
+          - project.Debug+TEST_TARGET.cbuild.yml - file generated successfully
+      packs-missing:
+        - pack: ARM::RteTest_DFP

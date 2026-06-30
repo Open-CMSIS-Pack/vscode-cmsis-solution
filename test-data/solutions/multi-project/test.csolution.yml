@@ -3,6 +3,11 @@
 solution:
   target-types:
     - type: TEST_TARGET
+      target-set:
+        - set: foo
+          images:
+            - project-context: project1.Debug
+            - project-context: project2.Debug
 
   build-types:
     - type: Debug

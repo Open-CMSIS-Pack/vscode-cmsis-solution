@@ -1,0 +1,5 @@
+cbuild-pack:
+  resolved-packs:
+    - resolved-pack: ARM::CMSIS-Compiler@2.1.0
+      selected-by-pack:
+        - ARM::CMSIS-Compiler@>=2.0.0

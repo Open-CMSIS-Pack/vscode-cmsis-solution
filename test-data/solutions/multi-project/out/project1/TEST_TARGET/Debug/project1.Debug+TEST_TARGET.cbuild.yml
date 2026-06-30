@@ -1,0 +1,15 @@
+build:
+  generated-by: csolution version 2.13.0
+  solution: ../../../../test.csolution.yml
+  project: ../../../../project1/project1.cproject.yml
+  context: project1.Debug+TEST_TARGET
+  compiler: AC6
+  output-dirs:
+    intdir: ../../../../tmp
+    outdir: .
+    rtedir: ../../../../project1/RTE
+  output:
+    - type: elf
+      file: project1.axf
+    - type: comp-db
+      file: compile_commands.json

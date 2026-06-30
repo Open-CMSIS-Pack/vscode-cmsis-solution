@@ -70,22 +70,24 @@ export class ProjectFileUpdaterImpl implements ProjectFileUpdater {
         if (await this.updateUsedItemsInYmlFile(projectFile, usedItems, true)) {
             changed = true;
         }
-        if (await this.updateAllLayerFiles(csolution.clayerYmlRoot, usedItems)) {
+        if (await this.updateLayerFiles(csolution.getClayersForContext(context), usedItems)) {
             changed = true;
         }
         return changed;
     }
 
     // Extracted: update all layer files
-    private async updateAllLayerFiles(clayerYmlRoot: Map<string, CTreeItem>, usedItems: UsedItems): Promise<boolean> {
+    private async updateLayerFiles(clayers: CTreeItem[], usedItems: UsedItems): Promise<boolean> {
         let changed = false;
-        for (const [key] of clayerYmlRoot) {
-            const fileName = backToForwardSlashes(path.resolve(key));
-            if (fileName.endsWith('.cgen.yml') || fileName.endsWith('.cgen.yaml')) {
-                continue;
-            }
-            if (await this.updateUsedItemsInYmlFile(fileName, usedItems, true, true)) {
-                changed = true;
+        if (clayers && clayers.length > 0) {
+            for (const layer of clayers) {
+                const fileName = backToForwardSlashes(path.resolve(layer.rootFileName));
+                if (fileName.endsWith('.cgen.yml') || fileName.endsWith('.cgen.yaml')) {
+                    continue;
+                }
+                if (await this.updateUsedItemsInYmlFile(fileName, usedItems, true, true)) {
+                    changed = true;
+                }
             }
         }
         return changed;

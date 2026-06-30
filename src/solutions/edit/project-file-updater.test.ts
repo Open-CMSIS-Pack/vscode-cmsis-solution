@@ -39,6 +39,9 @@ describe('ProjectFileUpdaterImpl', () => {
     const solutionManager: MockSolutionManager = solutionManagerFactory();
     const testDataHandler = new TestDataHandler();
     let tmpSolutionDir: string;
+    const contextDebug = 'project.Debug+TEST_TARGET';
+    const contextDebug1 = 'project1.Debug+TEST_TARGET';
+    const contextRelease = 'project.Release+TEST_TARGET';
 
     beforeAll(() => {
         tmpSolutionDir = testDataHandler.copyTestDataToTmp('solutions');
@@ -96,7 +99,7 @@ describe('ProjectFileUpdaterImpl', () => {
         };
 
         const updater = new ProjectFileUpdaterImpl(solutionManager);
-        let result = await updater.updateUsedItems('Debug', testProject, usedItems);
+        let result = await updater.updateUsedItems(contextDebug, testProject, usedItems);
         expect(result).toBe(true);
 
         // Reload and check file content
@@ -134,7 +137,7 @@ describe('ProjectFileUpdaterImpl', () => {
             ]
         };
 
-        result = await updater.updateUsedItems('Debug', testProject, usedItems);
+        result = await updater.updateUsedItems(contextDebug, testProject, usedItems);
         expect(result).toBe(true);
 
         await ymlFile.load(testProject);
@@ -155,9 +158,9 @@ describe('ProjectFileUpdaterImpl', () => {
         expect(pack).toBeDefined();
 
         // modify component to be context specific and save the file
-        c!.setValue('for-context', 'Release');
+        c!.setValue('for-context', contextRelease);
         c!.setValue('instances', '2');
-        pack?.setValue('not-for-context', 'Debug');
+        pack?.setValue('not-for-context', contextDebug);
         const saveResult = await ymlFile.save();
         expect(saveResult).toEqual(ETextFileResult.Success);
 
@@ -165,7 +168,7 @@ describe('ProjectFileUpdaterImpl', () => {
         usedItems.components[0].options = { explicitVersion: '@>=10.4.0' };
         usedItems.packs[0].pack = 'Keil::CMSIS-FreeRTOS@^10.4.7';
 
-        result = await updater.updateUsedItems('Debug', testProject, usedItems);
+        result = await updater.updateUsedItems(contextDebug, testProject, usedItems);
         expect(result).toBe(true);
         await ymlFile.load(testProject);
         top = ymlFile.topItem;
@@ -179,7 +182,7 @@ describe('ProjectFileUpdaterImpl', () => {
         c = components?.getChildByValue('component', 'ARM::CMSIS:RTOS2:FreeRTOS@>=10.4.0');
         expect(components?.indexOfChild(c)).toBe(1);
         expect(c?.getValue('instances')).toBe('3');
-        expect(c?.getValue('for-context')).toEqual('Debug');
+        expect(c?.getValue('for-context')).toEqual(contextDebug);
 
         packs = top?.getChild('packs');
         expect(packs).toBeDefined();
@@ -194,7 +197,7 @@ describe('ProjectFileUpdaterImpl', () => {
         // clear all debug
         usedItems = { success: true, components: [], packs: [] };
 
-        result = await updater.updateUsedItems('Debug', testProject, usedItems);
+        result = await updater.updateUsedItems(contextDebug, testProject, usedItems);
         expect(result).toBe(true);
         await ymlFile.load(testProject);
         top = ymlFile.topItem;
@@ -228,7 +231,7 @@ describe('ProjectFileUpdaterImpl', () => {
                 { pack: 'Keil::CMSIS-FreeRTOS', origin: testProject, selected: true }
             ]
         };
-        result = await updater.updateUsedItems('Release', testProject, usedItems);
+        result = await updater.updateUsedItems(contextRelease, testProject, usedItems);
         expect(result).toBe(true);
         await ymlFile.load(testProject);
         top = ymlFile.topItem;
@@ -241,7 +244,7 @@ describe('ProjectFileUpdaterImpl', () => {
 
         // try to use explicit version without @ prefix
         usedItems.components[0].options = { explicitVersion: '^10.4.0' };
-        result = await updater.updateUsedItems('Release', testProject, usedItems);
+        result = await updater.updateUsedItems(contextRelease, testProject, usedItems);
         expect(result).toBe(true);
         await ymlFile.load(testProject);
         top = ymlFile.topItem;
@@ -252,7 +255,7 @@ describe('ProjectFileUpdaterImpl', () => {
 
         // clear all Release
         usedItems = { success: true, components: [], packs: [] };
-        result = await updater.updateUsedItems('Release', testProject, usedItems);
+        result = await updater.updateUsedItems(contextRelease, testProject, usedItems);
         expect(result).toBe(true);
         await ymlFile.load(testProject);
         top = ymlFile.topItem;
@@ -280,12 +283,6 @@ describe('ProjectFileUpdaterImpl', () => {
 
         // load solution
         await csolution.load(testSolution);
-        // add layer infos manually, because they are taken from cbuild.idx
-        // add layer information
-        csolution!.clayerYmlRoot = new Map([
-            [testLayer, new CTreeItem()],
-            ['dummy.cgen.yml', new CTreeItem()]
-        ]);
 
         let top = csolution.csolutionYml.topItem;
         expect(top).toBeDefined();
@@ -296,7 +293,7 @@ describe('ProjectFileUpdaterImpl', () => {
         expect(pack).toBeDefined();
 
         const updater = new ProjectFileUpdaterImpl(solutionManager);
-        let result = await updater.updateUsedItems('Debug', testProject, usedItems);
+        let result = await updater.updateUsedItems(contextDebug, testProject, usedItems);
         expect(result).toBe(true);
 
         // Reload and check file content
@@ -333,7 +330,7 @@ describe('ProjectFileUpdaterImpl', () => {
         // Modify usedItems, now add component to project
         usedItems.components.push({ id: 'CMSIS:CORE', selectedCount: 1 });
 
-        result = await updater.updateUsedItems('Debug', testProject, usedItems);
+        result = await updater.updateUsedItems(contextDebug, testProject, usedItems);
         expect(result).toBe(true);
 
         await ymlFile.load(testProject);
@@ -369,7 +366,7 @@ describe('ProjectFileUpdaterImpl', () => {
         // move component to a layer
         usedItems.components[2].options = { layer: testLayer };
         usedItems.packs[2].origin = testLayer;
-        result = await updater.updateUsedItems('Debug', testProject, usedItems);
+        result = await updater.updateUsedItems(contextDebug, testProject, usedItems);
         expect(result).toBe(true);
         await ymlFile.load(testProject);
         top = ymlFile.topItem;
@@ -402,9 +399,10 @@ describe('ProjectFileUpdaterImpl', () => {
         expect(pack).toBeDefined();
 
 
-        // clear all Release: no context specific components =>  project, solution  and layer are cleared
+        // clear all Debug: no context specific components =>  project, solution  and layer are cleared
         usedItems = { success: true, components: [], packs: [] };
-        result = await updater.updateUsedItems('Release', testProject, usedItems);
+
+        result = await updater.updateUsedItems(contextDebug, testProject, usedItems);
         expect(result).toBe(true);
         await ymlFile.load(testProject);
         top = ymlFile.topItem;
@@ -457,7 +455,7 @@ describe('ProjectFileUpdaterImpl', () => {
         };
 
         const updater = new ProjectFileUpdaterImpl(solutionManager);
-        let result = await updater.updateUsedItems('Debug', testProject1, usedItems);
+        const result = await updater.updateUsedItems(contextDebug1, testProject1, usedItems);
         expect(result).toBe(true);
 
         const ymlFile = new CTreeItemYamlFile();

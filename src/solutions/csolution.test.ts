@@ -77,8 +77,8 @@ describe('CSolution', () => {
         loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Unchanged);
         expect(csolution.solutionPath).toEqual(fileName);
-        expect(csolution.cbuildIdxYmlRoot?.getChild()).toEqual(undefined);
-        expect(csolution.cbuildYmlRoot.size).toEqual(0);
+        expect(csolution.cbuildIdxYmlRoot?.getChild()).toBeDefined();
+        expect(csolution.cbuildYmlRoot.size).toEqual(1);
 
         const content = csolution.csolutionYml.text.trim(); // avoid whitespace noise
         expect(content).toContain('projects');
