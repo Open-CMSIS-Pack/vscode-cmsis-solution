@@ -160,15 +160,6 @@ jobs:
       - name: Package linux-arm64
         run: npm run package -- --target linux-arm64 --out "cmsis-csolution-nightly-linux-arm64-${NIGHTLY_VERSION}.vsix"
 
-      - name: Download dependencies (darwin-x64)
-        working-directory: .github/workflows
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./download-tools.sh darwin-x64
-
-      - name: Package darwin-x64
-        run: npm run package -- --target darwin-x64 --out "cmsis-csolution-nightly-darwin-x64-${NIGHTLY_VERSION}.vsix"
-
       - name: Download dependencies (darwin-arm64)
         working-directory: .github/workflows
         env:
@@ -203,13 +194,6 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           path: ./*linux-arm64*.vsix
-          retention-days: 1
-          archive: false
-
-      - name: Upload darwin-x64 VSIX package
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          path: ./*darwin-x64*.vsix
           retention-days: 1
           archive: false
 
