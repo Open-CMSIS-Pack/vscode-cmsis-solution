@@ -159,15 +159,6 @@ jobs:
       - name: Package linux-arm64
         run: npm run package -- --target linux-arm64
 
-      - name: Download dependencies (darwin-x64)
-        working-directory: .github/workflows
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./download-tools.sh darwin-x64
-
-      - name: Package darwin-x64
-        run: npm run package -- --target darwin-x64
-
       - name: Download dependencies (darwin-arm64)
         working-directory: .github/workflows
         env:
@@ -202,13 +193,6 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           path: ./*linux-arm64*.vsix
-          retention-days: 1
-          archive: false
-
-      - name: Upload darwin-x64 VSIX package
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          path: ./*darwin-x64*.vsix
           retention-days: 1
           archive: false
 
@@ -248,8 +232,6 @@ jobs:
             platform: ubuntu-24.04
           - target: darwin-arm64
             platform: macos-14
-          - target: darwin-x64
-            platform: macos-15-intel
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
