@@ -127,7 +127,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
 
     const globalStateProvider = new GlobalStateImpl(context.globalState);
     const activeSolutionTracker = new ActiveSolutionTrackerImpl(
-        messageProvider,
         commandsProvider,
         fileWatcherProvider,
         workspaceFoldersProvider,

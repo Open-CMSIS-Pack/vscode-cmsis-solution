@@ -64,6 +64,29 @@ export class CSolution {
         return this.cbuildIdxFile?.rootItem;
     }
 
+    public getSolutionYmlFiles(): string[] {
+        const ymlFiles: string[] = [];
+
+        // Add solution path
+        if (this.solutionPath) {
+            ymlFiles.push(this.solutionPath);
+        }
+
+        // Add project paths
+        for (const project of this.projects.values()) {
+            if (project?.fileName) {
+                ymlFiles.push(project.fileName);
+            }
+        }
+
+        // Add layer paths
+        for (const layerPath of this.clayerYmlRoot.keys()) {
+            ymlFiles.push(layerPath);
+        }
+
+        return ymlFiles;
+    }
+
     cbuildPackFile = new CbuildPackFile();
 
     cbuilds?: ITreeItem<CTreeItem>[];

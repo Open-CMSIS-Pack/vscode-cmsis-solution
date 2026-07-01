@@ -653,4 +653,69 @@ describe('CSolution', () => {
             expect(csolution.hasWestProject()).toBe(false);
         });
     });
+
+    describe('getSolutionYmlFiles', () => {
+        it('returns empty list when no solution is loaded', () => {
+            const csolution = new CSolution();
+            const files = csolution.getSolutionYmlFiles();
+            expect(files).toEqual([]);
+        });
+
+        it('returns solution path, project paths, and layer paths', async () => {
+            const csolution = new CSolution();
+            const fileName = path.join(testDataHandler.tmpDir, 'solutions', 'USBD', 'USB_Device.csolution.yml');
+
+            await csolution.load(fileName);
+
+            const files = csolution.getSolutionYmlFiles();
+
+            // Should contain the solution path
+            expect(files).toContain(fileName);
+
+            // Should contain all project paths
+            const projectPaths = Array.from(csolution.projects.values())
+                .map(p => p.fileName)
+                .filter(f => f !== undefined);
+            projectPaths.forEach(projectPath => {
+                expect(files).toContain(projectPath);
+            });
+
+            // Should contain all layer paths
+            const layerPaths = Array.from(csolution.clayerYmlRoot.keys());
+            layerPaths.forEach(layerPath => {
+                expect(files).toContain(layerPath);
+            });
+
+            // Verify counts: 1 solution + 3 projects + 2 layers = 6 files
+            expect(files).toHaveLength(6);
+        });
+
+        it('returns solution path and project paths without layers when no layers exist', async () => {
+            const csolution = new CSolution();
+            const fileName = path.join(testDataHandler.tmpDir, 'solutions', 'simple', 'test.csolution.yml');
+
+            await csolution.load(fileName);
+
+            const files = csolution.getSolutionYmlFiles();
+
+            // Should contain the solution path
+            expect(files).toContain(fileName);
+
+            // Should contain project path
+            const projectPaths = Array.from(csolution.projects.values())
+                .map(p => p.fileName)
+                .filter(f => f !== undefined);
+            projectPaths.forEach(projectPath => {
+                expect(files).toContain(projectPath);
+            });
+
+            // Should contain all layer paths
+            const layerPaths = Array.from(csolution.clayerYmlRoot.keys());
+            layerPaths.forEach(layerPath => {
+                expect(files).toContain(layerPath);
+            });
+
+            expect(files).toHaveLength(1 + projectPaths.length + layerPaths.length);
+        });
+    });
 });

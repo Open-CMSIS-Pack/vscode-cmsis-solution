@@ -20,7 +20,7 @@ import * as path from 'path';
 import { SolutionLoadState, SolutionManagerImpl } from './solution-manager';
 import * as manifest from '../manifest';
 import { EventEmitter, Event, ExtensionContext, ConfigurationChangeEvent, } from 'vscode';
-import { ActiveSolutionTracker, SolutionDetails, } from './active-solution-tracker';
+import { ActiveSolutionTracker } from './active-solution-tracker';
 import { waitTimeout } from '../__test__/test-waits';
 import { commandsProviderFactory, MockCommandsProvider, } from '../vscode-api/commands-provider.factories';
 import { SolutionEventHub, ConvertResultData } from './solution-event-hub';
@@ -47,8 +47,6 @@ describe('SolutionManager', () => {
         activeSolution: string | undefined;
         onDidChangeActiveSolution: Event<void>;
         onActiveSolutionFilesChanged: Event<void>;
-        getSolutionDetails: jest.Mock;
-        suspendWatch: boolean;
     };
     let changeActiveSolutionEmitter: EventEmitter<void>;
     let solutionManager: SolutionManagerImpl;
@@ -97,13 +95,6 @@ describe('SolutionManager', () => {
             activeSolution: testSolutionPath,
             onDidChangeActiveSolution: changeActiveSolutionEmitter.event,
             onActiveSolutionFilesChanged: changeSolutionFilesEmitter.event,
-            getSolutionDetails: jest.fn(
-                (solutionPath: string): SolutionDetails => ({
-                    path: solutionPath,
-                    displayName: path.basename(solutionPath),
-                }),
-            ),
-            suspendWatch: false,
         };
 
         eventHub = new SolutionEventHub();
