@@ -557,9 +557,6 @@ describe('ActiveSolutionTracker', () => {
     });
 });
 
-const debounceMillis = 5;
-const waitForDebounce = () => new Promise(resolve => setTimeout(resolve, 2 * debounceMillis));
-
 const solutionRoot = path.join(__dirname, 'root');
 const activeSolution = path.join(solutionRoot, 'My.csolution.yml');
 
@@ -597,7 +594,6 @@ describe('ActiveSolutionTracker solution file watching', () => {
             workspaceFsProvider,
             configurationProvider,
             0,
-            debounceMillis,
         );
 
         await tracker.activate(context as unknown as vscode.ExtensionContext);
@@ -619,48 +615,32 @@ describe('ActiveSolutionTracker solution file watching', () => {
 
     it('fires onActiveSolutionFilesChanged when the csolution file is modified', async () => {
         fileWatcherProvider.mockFireEvent(solutionFileWatchPattern, activeSolution, 'change');
-        await waitForDebounce();
 
         expect(changeListener).toHaveBeenCalledTimes(1);
+        expect(changeListener).toHaveBeenCalledWith(activeSolution);
     });
 
-    it('fires onActiveSolutionFilesChanged when a cproject file is modified in the active solution directory', async () => {
-        const projectFile = path.join(solutionRoot, 'My.cproject.yml');
+    it('fires onActiveSolutionFilesChanged when a cproject file is modified outside the active solution directory', async () => {
+        const projectFile = path.join(__dirname, 'external-project', 'My.cproject.yml');
         fileWatcherProvider.mockFireEvent(solutionFileWatchPattern, projectFile, 'change');
-        await waitForDebounce();
 
         expect(changeListener).toHaveBeenCalledTimes(1);
-    });
-
-    it('fires onActiveSolutionFilesChanged when a cproject file is modified in a directory beneath active solution directory', async () => {
-        const projectFile = path.join(solutionRoot, 'AProject', 'My.cproject.yml');
-        fileWatcherProvider.mockFireEvent(solutionFileWatchPattern, projectFile, 'change');
-        await waitForDebounce();
-
-        expect(changeListener).toHaveBeenCalledTimes(1);
+        expect(changeListener).toHaveBeenCalledWith(projectFile);
     });
 
     it('fires onActiveSolutionFilesChanged when a cgen.yml file is modified in the active solution directory', async () => {
         const packFile = path.join(solutionRoot, 'My.cgen.yml');
         fileWatcherProvider.mockFireEvent(solutionFileWatchPattern, packFile, 'change');
-        await waitForDebounce();
 
         expect(changeListener).toHaveBeenCalledTimes(1);
+        expect(changeListener).toHaveBeenCalledWith(packFile);
     });
 
-    it('does not fire onActiveSolutionFilesChanged when a file other than the active csolution file is modified', async () => {
-        const projectFile = path.join(solutionRoot, 'NotMy.csolution.yaml');
-        fileWatcherProvider.mockFireEvent(solutionFileWatchPattern, projectFile, 'change');
-        await waitForDebounce();
+    it('fires onActiveSolutionFilesChanged when an inactive csolution file is modified', async () => {
+        const inactiveSolution = path.join(__dirname, 'another-solution', 'NotMy.csolution.yaml');
+        fileWatcherProvider.mockFireEvent(solutionFileWatchPattern, inactiveSolution, 'change');
 
-        expect(changeListener).toHaveBeenCalledTimes(0);
-    });
-
-    it('does not fire onActiveSolutionFilesChanged when a file outside the solution directory is changed', async () => {
-        const projectFile = path.join(__dirname, 'another-solution', 'NotMy.csolution.yaml');
-        fileWatcherProvider.mockFireEvent(solutionFileWatchPattern, projectFile, 'change');
-        await waitForDebounce();
-
-        expect(changeListener).toHaveBeenCalledTimes(0);
+        expect(changeListener).toHaveBeenCalledTimes(1);
+        expect(changeListener).toHaveBeenCalledWith(inactiveSolution);
     });
 });

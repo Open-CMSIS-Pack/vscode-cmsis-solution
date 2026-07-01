@@ -25,7 +25,6 @@ import { isUri } from '../util';
 import { WorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { SOLUTION_SUFFIX } from './constants';
 import { ConfigurationProvider } from '../vscode-api/configuration-provider';
-import { pathIsAncestor, pathsEqual } from '../utils/path-utils';
 import { stripTwoExtensions } from '../utils/string-utils';
 
 export const COMMAND_OPEN_SOLUTION = `${manifest.PACKAGE_NAME}.openSolution`;
@@ -58,9 +57,9 @@ export interface ActiveSolutionTracker {
     readonly onDidChangeActiveSolution: vscode.Event<void>;
 
     /**
-     * Event fired when files that belong to the active solution change.
+     * Event fired when a watched solution YAML file changes.
      */
-    readonly onActiveSolutionFilesChanged: vscode.Event<void>;
+    readonly onActiveSolutionFilesChanged: vscode.Event<string>;
 
     /**
      * Get or set the absolute file path of the current active solution's csolution.yml.
@@ -86,9 +85,8 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
     public readonly onDidChangeActiveSolution = this.changeActiveSolutionEmitter.event;
 
     private readonly debouncedRefresh;
-    private readonly activeSolutionFilesChangedEmitter = new vscode.EventEmitter<void>();
+    private readonly activeSolutionFilesChangedEmitter = new vscode.EventEmitter<string>();
     public readonly onActiveSolutionFilesChanged = this.activeSolutionFilesChangedEmitter.event;
-    private readonly debouncedActiveSolutionFilesChanged: () => void;
 
     private _activeSolution: string | undefined;
     private _solutions: string[] = [];
@@ -101,12 +99,8 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
         protected readonly workspaceFsProvider: WorkspaceFsProvider,
         protected readonly configurationProvider: ConfigurationProvider,
         protected readonly debounceMillis = 1000,
-        protected readonly activeSolutionFilesDebounceMillis = 500,
     ) {
         this.debouncedRefresh = debounce(this.refresh, this.debounceMillis);
-        this.debouncedActiveSolutionFilesChanged = debounce(() => {
-            this.triggerReload();
-        }, this.activeSolutionFilesDebounceMillis);
     }
 
     public async activate(context: vscode.ExtensionContext): Promise<void> {
@@ -304,21 +298,7 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
         return `{${ActiveSolutionTrackerImpl.HIDDEN_DIRECTORIES_GLOB},${configuredExclude}}`;
     }
 
-    private triggerReload(): void {
-        this.activeSolutionFilesChangedEmitter.fire();
-    }
-
     private handleActiveSolutionFileChange(changedPath: string): void {
-        const solutionFilePath = this.activeSolution;
-
-        if (solutionFilePath) {
-            // Assume all projects and layers associated with a solution are ancestors of the solution file base directory
-            const solutionRoot = path.dirname(solutionFilePath);
-            const isSolutionFileChange = changedPath.endsWith('csolution.yml') || changedPath.endsWith('csolution.yaml');
-
-            if (pathsEqual(changedPath, solutionFilePath) || (pathIsAncestor(solutionRoot, changedPath) && !isSolutionFileChange)) {
-                this.debouncedActiveSolutionFilesChanged();
-            }
-        }
+        this.activeSolutionFilesChangedEmitter.fire(changedPath);
     }
 }

@@ -27,6 +27,7 @@ import { EnvironmentManagerApiV1 } from '@arm-software/vscode-environment-manage
 import { debounce } from 'lodash';
 import { SolutionRpcData } from './solution-rpc-data';
 import { EnvironmentManager } from '../desktop/env-manager';
+import { pathsEqual } from '../utils/path-utils';
 
 
 export interface SolutionLoadState {
@@ -82,6 +83,7 @@ export class SolutionManagerImpl implements SolutionManager {
     public readonly onUpdatedCompileCommands = this.updatedCompileCommandsEmitter.event;
 
     private readonly debouncedHandleEnvironmentChange = debounce(this.handleEnvironmentChange.bind(this), 500);
+    private readonly debouncedHandleActiveSolutionFileChange: () => void;
     private _loadState: Readonly<SolutionLoadState> = { solutionPath: undefined };
     private csolution?: CSolution;
     private loadingSolution = false;
@@ -93,7 +95,13 @@ export class SolutionManagerImpl implements SolutionManager {
         private readonly commandsProvider: CommandsProvider,
         private readonly environmentManagerApiProvider: ExtensionApiProvider<Pick<EnvironmentManagerApiV1, 'onDidActivate' | 'getActiveTools'>>,
         private readonly environmentManager: EnvironmentManager,
-    ) { }
+        activeSolutionFilesDebounceMillis = 500,
+    ) {
+        this.debouncedHandleActiveSolutionFileChange = debounce(
+            this.reloadActiveSolutionFiles.bind(this),
+            activeSolutionFilesDebounceMillis,
+        );
+    }
 
     public async activate(context: vscode.ExtensionContext): Promise<void> {
         context.subscriptions.push(
@@ -170,7 +178,15 @@ export class SolutionManagerImpl implements SolutionManager {
         }
     }
 
-    private async handleActiveSolutionFilesChanged(): Promise<void> {
+    private handleActiveSolutionFilesChanged(changedPath: string): void {
+        const solutionFiles = this.csolution?.getSolutionYmlFiles();
+        if (!solutionFiles?.some(solutionFile => pathsEqual(solutionFile, changedPath))) {
+            return;
+        }
+        this.debouncedHandleActiveSolutionFileChange();
+    }
+
+    private async reloadActiveSolutionFiles(): Promise<void> {
         if (!this.loadState.solutionPath) {
             return;
         }
@@ -181,7 +197,7 @@ export class SolutionManagerImpl implements SolutionManager {
 
     public async refresh() {
         // does the same as file change
-        await this.handleActiveSolutionFilesChanged();
+        await this.reloadActiveSolutionFiles();
     }
 
     private async requestConvert(updateRte?: boolean, restartRpc?: boolean, lockAbort?: boolean) {
