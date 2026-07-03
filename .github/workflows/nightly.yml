@@ -103,11 +103,11 @@ jobs:
             COMMIT_COUNT=$(git rev-list --count HEAD)
           fi
 
-          # Get short commit SHA
-          SHORT_SHA=$(git rev-parse --short HEAD)
+          # Get execution date
+          BUILD_DATE=$(date +%Y%m%d)
 
-          # Create nightly version: 1.64.2-12-abc1234
-          NIGHTLY_VERSION="${NEXT_PATCH_VERSION}-${COMMIT_COUNT}-${SHORT_SHA}"
+          # Create nightly version: 1.64.2-12-20260703
+          NIGHTLY_VERSION="${NEXT_PATCH_VERSION}-${COMMIT_COUNT}-${BUILD_DATE}"
           echo "Setting version to ${NIGHTLY_VERSION}"
 
           # Update package.json
