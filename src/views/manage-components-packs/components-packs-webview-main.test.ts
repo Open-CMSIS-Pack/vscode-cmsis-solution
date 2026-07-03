@@ -1334,6 +1334,32 @@ describe('ComponentsPacksWebviewMain', () => {
             (componentsPacksWebviewMain as any).getTargetSetData();
             expect((mockCsolution.getContextDescriptors as jest.Mock)).toHaveBeenCalledTimes(2);
         });
+
+        it('does not reload available pack metadata when the filtered cache is empty', async () => {
+            jest.spyOn(componentsPacksWebviewMain as any, 'getActiveContext').mockReturnValue('ctx');
+            jest.spyOn(componentsPacksWebviewMain as any, 'getTargetSetData').mockReturnValue([]);
+            jest.spyOn(componentsPacksWebviewMain as any, 'getSelectedTargetSetData').mockReturnValue(undefined);
+            jest.spyOn(solutionManager, 'getCsolution').mockReturnValue({
+                solutionDir: 'root',
+                solutionName: 'solution',
+                solutionPath: path.join('root', 'solution.csolution.yml'),
+            } as any);
+            const filterSpy = jest.spyOn(componentsPacksWebviewMain as any, 'filterAvailablePacks')
+                .mockResolvedValue({ packs: {}, indexTimestamp: new Date().toISOString() });
+            (componentsPacksWebviewMain as any).csolutionService.getComponentsTree = jest.fn().mockResolvedValue({ success: true, classes: [] });
+            (componentsPacksWebviewMain as any).csolutionService.validateComponents = jest.fn().mockResolvedValue({ success: true, validation: [] });
+            (componentsPacksWebviewMain as any).csolutionService.getPacksInfo = jest.fn().mockResolvedValue({ packs: [] });
+
+            await (componentsPacksWebviewMain as any).sendSolutionData();
+            await (componentsPacksWebviewMain as any).sendSolutionData();
+
+            expect(filterSpy).toHaveBeenCalledTimes(1);
+            expect(webviewManager.sendMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+                type: 'SOLUTION_LOADED',
+                availablePacks: {},
+                availablePacksIndexCurrent: true,
+            }));
+        });
     });
 
     describe('component change handlers', () => {

@@ -42,18 +42,15 @@ export type PackIndexInfo = {
 };
 
 export function isPackIndexCurrent(timestamp?: string, today: Date = new Date()): boolean {
-    if (!timestamp) {
+    const match = timestamp?.match(/^(\d{4})-(\d{2})-(\d{2})T/);
+    if (!match) {
         return false;
     }
 
-    const indexDate = new Date(timestamp);
-    if (Number.isNaN(indexDate.getTime())) {
-        return false;
-    }
-
-    return indexDate.getFullYear() === today.getFullYear() &&
-        indexDate.getMonth() === today.getMonth() &&
-        indexDate.getDate() === today.getDate();
+    const [, year, month, day] = match;
+    return Number(year) === today.getFullYear() &&
+        Number(month) === today.getMonth() + 1 &&
+        Number(day) === today.getDate();
 }
 
 

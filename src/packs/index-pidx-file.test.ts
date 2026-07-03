@@ -87,6 +87,14 @@ describe('isPackIndexCurrent', () => {
         expect(isPackIndexCurrent('2026-07-03T00:01:00', today)).toBe(true);
     });
 
+    it('uses the timestamp date instead of the timezone-converted local date', () => {
+        expect(isPackIndexCurrent('2026-07-03T23:30:00-02:00', today)).toBe(true);
+    });
+
+    it('supports pack index timestamps with long fractional seconds and offsets', () => {
+        expect(isPackIndexCurrent('2026-07-03T04:01:27.0418082+00:00', today)).toBe(true);
+    });
+
     it('returns false when timestamp is from yesterday', () => {
         expect(isPackIndexCurrent('2026-07-02T23:59:00', today)).toBe(false);
     });
