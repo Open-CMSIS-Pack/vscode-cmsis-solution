@@ -28,10 +28,40 @@ export interface IndexPidxFile extends ITreeItemFile {
      * @returns Map<string,string>
      */
     get packIds(): Map<string, string>;
+
+    /**
+     * Returns the timestamp from the root index element.
+     */
+    get timestamp(): string | undefined;
+}
+
+export type PackIndexInfo = {
+    packIds: Map<string, string>;
+    timestamp?: string;
+    isIndexCurrent: boolean;
+};
+
+export function isPackIndexCurrent(timestamp?: string, today: Date = new Date()): boolean {
+    if (!timestamp) {
+        return false;
+    }
+
+    const indexDate = new Date(timestamp);
+    if (Number.isNaN(indexDate.getTime())) {
+        return false;
+    }
+
+    return indexDate.getFullYear() === today.getFullYear() &&
+        indexDate.getMonth() === today.getMonth() &&
+        indexDate.getDate() === today.getDate();
 }
 
 
 class IndexPidxFileImpl extends CTreeItemXmlFile implements IndexPidxFile {
+    get timestamp(): string | undefined {
+        return this.ensureRootItem().getChild('timestamp')?.getText();
+    }
+
     get packIds(): Map<string, string> {
         const packs = new Map<string, string>();
         for (const item of this.ensureRootItem().getGrandChildren('pindex')) {
@@ -52,9 +82,16 @@ class IndexPidxFileImpl extends CTreeItemXmlFile implements IndexPidxFile {
 export const IndexPidxFile = constructor<typeof IndexPidxFileImpl, IndexPidxFile>(IndexPidxFileImpl);
 
 export async function getLatestAvailablePacks() {
+    return (await getLatestAvailablePacksInfo()).packIds;
+}
+
+export async function getLatestAvailablePacksInfo(): Promise<PackIndexInfo> {
     const pidxPath = getCmsisPackRoot() + '/.Web/index.pidx';
     const pidx = new IndexPidxFile(pidxPath);
     await pidx.load();
-    return pidx.packIds;
+    return {
+        packIds: pidx.packIds,
+        timestamp: pidx.timestamp,
+        isIndexCurrent: isPackIndexCurrent(pidx.timestamp),
+    };
 }
-

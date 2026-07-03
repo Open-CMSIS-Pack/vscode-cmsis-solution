@@ -79,6 +79,7 @@ describe('ManageComponents', () => {
                 packs: [],
                 solution: {},
                 availablePacks: {},
+                availablePacksIndexCurrent: false,
                 focusPackId: 'ARM::CMSIS@2.3.0'
             });
         });
@@ -102,7 +103,8 @@ describe('ManageComponents', () => {
                     cbuildPackPath: '',
                     packs: [],
                     solution: {},
-                    availablePacks: {}
+                    availablePacks: {},
+                    availablePacksIndexCurrent: false
                 });
             });
         });

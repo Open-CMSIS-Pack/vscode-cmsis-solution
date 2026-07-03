@@ -35,7 +35,7 @@ import { cloneDeep, uniqWith } from 'lodash';
 import { parsePackId } from './data/pack-parse';
 import { lineOf, readTextFile } from '../../utils/fs-utils';
 import { stripTwoExtensions } from '../../utils/string-utils';
-import { getLatestAvailablePacks } from '../../packs/index-pidx-file';
+import { getLatestAvailablePacksInfo } from '../../packs/index-pidx-file';
 import { isDeepStrictEqual } from 'util';
 import { openFileWithPolicy } from '../file-open-policy';
 import { FileOpenGroupOrchestrator, FileOpenGroupOrchestratorImpl } from '../file-open-group-orchestrator';
@@ -106,6 +106,7 @@ export class ComponentsPacksWebviewMain {
     private isLoading = false;
     private readonly unlinkRequests: Set<string> = new Set<string>();
     private availablePacksCache: Record<string, string> = {}; // this cache must be invalidated, if a new pack was installed
+    private availablePacksIndexCurrent = false;
     private pendingFocusPackId?: string;
 
     constructor(
@@ -151,6 +152,7 @@ export class ComponentsPacksWebviewMain {
             this.usedItems = { components: [], packs: [], success: false };
             this.cachedTargetSetData = undefined;
             this.availablePacksCache = {};
+            this.availablePacksIndexCurrent = false;
             this.unlinkRequests.clear();
             this.isLoading = false;
             this.scope = ComponentScope.Solution;
@@ -415,6 +417,7 @@ export class ComponentsPacksWebviewMain {
         try {
             if (reload) {
                 this.availablePacksCache = {};
+                this.availablePacksIndexCurrent = false;
                 this.unlinkRequests.clear();
                 await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Loading Solution data...' });
                 this.usedItems = await this.csolutionService.getUsedItems({ context: activeContext });
@@ -778,9 +781,10 @@ export class ComponentsPacksWebviewMain {
         }
     }
 
-    private async filterAvailablePacks(context: string) {
+    private async filterAvailablePacks(context: string): Promise<{ packs: Record<string, string>; isIndexCurrent: boolean }> {
         const allPacks = await this.csolutionService.getPacksInfo({ context: context, all: true });
-        const availablePacks = Object.fromEntries(await getLatestAvailablePacks());
+        const latestAvailablePacksInfo = await getLatestAvailablePacksInfo();
+        const availablePacks = Object.fromEntries(latestAvailablePacksInfo.packIds);
 
         // Build a Set for O(1) lookup
         const installedPackKeys = new Set(
@@ -799,7 +803,7 @@ export class ComponentsPacksWebviewMain {
                 return installedPackKeys.has(`${availablePack.vendor}:${availablePack.packName}`);
             })
         );
-        return filteredAvailablePacks;
+        return { packs: filteredAvailablePacks, isIndexCurrent: latestAvailablePacksInfo.isIndexCurrent };
     }
 
     private async sendSolutionData(): Promise<void> {
@@ -807,7 +811,9 @@ export class ComponentsPacksWebviewMain {
         const requestAll = this.scope === ComponentScope.All;
 
         if (!this.availablePacksCache || Object.keys(this.availablePacksCache).length === 0) {
-            this.availablePacksCache = await this.filterAvailablePacks(activeContext);
+            const availablePacksInfo = await this.filterAvailablePacks(activeContext);
+            this.availablePacksCache = availablePacksInfo.packs;
+            this.availablePacksIndexCurrent = availablePacksInfo.isIndexCurrent;
         }
 
         this.componentTree = this.manageComponentsActions.mapComponentsFromService(await this.csolutionService.getComponentsTree({ context: activeContext, all: requestAll }));
@@ -847,6 +853,7 @@ export class ComponentsPacksWebviewMain {
                 relativePath: backToForwardSlashes(path.relative(dirname(this.solutionManager.getCsolution()?.solutionPath || ''), this.solutionManager.getCsolution()?.solutionPath || ''))
             },
             availablePacks: this.availablePacksCache,
+            availablePacksIndexCurrent: this.availablePacksIndexCurrent,
             focusPackId,
         });
     }
@@ -1006,4 +1013,3 @@ const isSelectPackageMessage = (message: Messages.OutgoingMessage): message is M
 const isUnselectPackageMessage = (message: Messages.OutgoingMessage): message is Messages.OutgoingMessage & { target: string; packId: string } => {
     return message.type === 'UNSELECT_PACKAGE' && 'target' in message && 'packId' in message;
 };
-
