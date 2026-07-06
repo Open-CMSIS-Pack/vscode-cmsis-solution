@@ -236,6 +236,10 @@ describe('csolution-rpc-client', () => {
         it('resets cached version on terminate and fetches again on next getVersion', async () => {
             const transceiveSpy = jest.spyOn(service as any, 'transceive')
                 .mockResolvedValue({ success: true, version: '1.2.3', apiVersion: '0.0.9' });
+            const idxWatcherClose = jest.fn();
+            const localRepositoryIdxWatcherClose = jest.fn();
+            service.idxWatcher = { close: idxWatcherClose };
+            service.localRepositoryIdxWatcher = { close: localRepositoryIdxWatcherClose };
 
             await service.getVersion();
             expect(transceiveSpy).toHaveBeenCalledTimes(1);
@@ -243,6 +247,10 @@ describe('csolution-rpc-client', () => {
             // Simulate daemon termination lifecycle.
             service.onTerminate();
             expect(service.cachedVersion).toEqual({ success: false });
+            expect(idxWatcherClose).toHaveBeenCalledTimes(1);
+            expect(localRepositoryIdxWatcherClose).toHaveBeenCalledTimes(1);
+            expect(service.idxWatcher).toBeUndefined();
+            expect(service.localRepositoryIdxWatcher).toBeUndefined();
 
             await service.getVersion();
             expect(transceiveSpy).toHaveBeenCalledTimes(2);
@@ -250,6 +258,7 @@ describe('csolution-rpc-client', () => {
 
         it('primes version cache in loadPacks before LoadPacks RPC', async () => {
             service.idxWatcher = { close: jest.fn() };
+            service.localRepositoryIdxWatcher = { close: jest.fn() };
             const sequence: string[] = [];
 
             const transceiveSpy = jest.spyOn(service as any, 'transceive').mockImplementation(async (...args: unknown[]) => {
@@ -279,6 +288,7 @@ describe('csolution-rpc-client', () => {
                 registerCommand: jest.fn(),
             });
             service.idxWatcher = { close: jest.fn() };
+            service.localRepositoryIdxWatcher = { close: jest.fn() };
             jest.spyOn(service as any, 'transceive').mockImplementation(async (...args: unknown[]) => {
                 const method = String(args[0]);
                 if (method === 'GetVersion') {
@@ -315,6 +325,35 @@ describe('csolution-rpc-client', () => {
             (fs.watch as unknown as jest.Mock).mockReset();
         });
 
+        it('loadPacks watches pack.idx and local_repository.pidx when watchers are missing', async () => {
+            const packIdx = path.join('/cmsis-packs', 'pack.idx');
+            const localRepositoryPidx = path.join('/cmsis-packs', '.Local', 'local_repository.pidx');
+
+            (fs.statSync as unknown as jest.Mock).mockReturnValue({ mtimeMs: 1 });
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, _listener: any) => ({ close: jest.fn() }));
+            jest.spyOn(service as any, 'transceive').mockImplementation(async (...args: unknown[]) => {
+                const method = String(args[0]);
+                if (method === 'GetVersion') {
+                    return { success: true, version: '1.2.3', apiVersion: '0.0.9' };
+                }
+                if (method === 'LoadPacks') {
+                    return { success: true };
+                }
+                return { success: false };
+            });
+
+            await service.loadPacks();
+
+            expect(pathUtils.getCmsisPackRoot).toHaveBeenCalledTimes(2);
+            expect(fs.statSync).toHaveBeenCalledWith(packIdx);
+            expect(fs.statSync).toHaveBeenCalledWith(localRepositoryPidx);
+            expect(fs.watch).toHaveBeenCalledTimes(2);
+            expect((fs.watch as unknown as jest.Mock).mock.calls[0][0]).toBe(packIdx);
+            expect((fs.watch as unknown as jest.Mock).mock.calls[1][0]).toBe(localRepositoryPidx);
+            expect(service.idxWatcher).toBeDefined();
+            expect(service.localRepositoryIdxWatcher).toBeDefined();
+        });
+
         it('watches <packRoot>/pack.idx and reads initial mtime', () => {
             const packIdx = path.join('/cmsis-packs', 'pack.idx');
 
@@ -335,6 +374,28 @@ describe('csolution-rpc-client', () => {
 
             expect(service.idxWatcher).toBeDefined();
             expect(service.idxWatcher.close).toBe(close);
+        });
+
+        it('watches <packRoot>/.Local/local_repository.pidx and reads initial mtime', () => {
+            const localRepositoryPidx = path.join('/cmsis-packs', '.Local', 'local_repository.pidx');
+
+            (fs.statSync as unknown as jest.Mock).mockReturnValue({ mtimeMs: 1 });
+
+            const close = jest.fn();
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, _listener: any) => ({ close }));
+
+            service.watchLocalRepositoryPidxFile();
+
+            expect(pathUtils.getCmsisPackRoot).toHaveBeenCalledTimes(1);
+            expect(fs.statSync).toHaveBeenCalledTimes(1);
+            expect(fs.statSync).toHaveBeenCalledWith(localRepositoryPidx);
+
+            expect(fs.watch).toHaveBeenCalledTimes(1);
+            expect((fs.watch as unknown as jest.Mock).mock.calls[0][0]).toBe(localRepositoryPidx);
+            expect(typeof (fs.watch as unknown as jest.Mock).mock.calls[0][1]).toBe('function');
+
+            expect(service.localRepositoryIdxWatcher).toBeDefined();
+            expect(service.localRepositoryIdxWatcher.close).toBe(close);
         });
 
         it('calls debouncedLoadPacks when pack.idx mtime changes on change event', () => {
@@ -361,6 +422,30 @@ describe('csolution-rpc-client', () => {
             expect(service.debouncedLoadPacks).toHaveBeenCalledTimes(1);
         });
 
+        it('calls debouncedLoadPacks when local_repository.pidx mtime changes on change event', () => {
+            const localRepositoryPidx = path.join('/cmsis-packs', '.Local', 'local_repository.pidx');
+
+            let watcherCallback: ((eventType: string) => void) | undefined;
+
+            (fs.statSync as unknown as jest.Mock)
+                .mockReturnValueOnce({ mtimeMs: 10 }) // initial
+                .mockReturnValueOnce({ mtimeMs: 11 }); // after change
+
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, listener: any) => {
+                watcherCallback = listener;
+                return { close: jest.fn() };
+            });
+
+            service.watchLocalRepositoryPidxFile();
+
+            expect(watcherCallback).toBeDefined();
+            watcherCallback!('change');
+
+            expect(fs.statSync).toHaveBeenCalledTimes(2);
+            expect(fs.statSync).toHaveBeenLastCalledWith(localRepositoryPidx);
+            expect(service.debouncedLoadPacks).toHaveBeenCalledTimes(1);
+        });
+
         it('does not call debouncedLoadPacks when pack.idx mtime does not change on change event', () => {
             let watcherCallback: ((eventType: string) => void) | undefined;
 
@@ -374,6 +459,26 @@ describe('csolution-rpc-client', () => {
             });
 
             service.watchPackIdxFile();
+
+            watcherCallback!('change');
+
+            expect(fs.statSync).toHaveBeenCalledTimes(2);
+            expect(service.debouncedLoadPacks).not.toHaveBeenCalled();
+        });
+
+        it('does not call debouncedLoadPacks when local_repository.pidx mtime does not change on change event', () => {
+            let watcherCallback: ((eventType: string) => void) | undefined;
+
+            (fs.statSync as unknown as jest.Mock)
+                .mockReturnValueOnce({ mtimeMs: 20 }) // initial
+                .mockReturnValueOnce({ mtimeMs: 20 }); // unchanged
+
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, listener: any) => {
+                watcherCallback = listener;
+                return { close: jest.fn() };
+            });
+
+            service.watchLocalRepositoryPidxFile();
 
             watcherCallback!('change');
 
@@ -399,6 +504,24 @@ describe('csolution-rpc-client', () => {
             expect(service.debouncedLoadPacks).not.toHaveBeenCalled();
         });
 
+        it('ignores non-change events for local_repository.pidx (does not stat or reload)', () => {
+            let watcherCallback: ((eventType: string) => void) | undefined;
+
+            (fs.statSync as unknown as jest.Mock).mockReturnValue({ mtimeMs: 30 });
+
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, listener: any) => {
+                watcherCallback = listener;
+                return { close: jest.fn() };
+            });
+
+            service.watchLocalRepositoryPidxFile();
+
+            watcherCallback!('rename');
+
+            expect(fs.statSync).toHaveBeenCalledTimes(1); // only initial
+            expect(service.debouncedLoadPacks).not.toHaveBeenCalled();
+        });
+
         it('closes existing watcher before creating a new one', () => {
             const prevClose = jest.fn();
             service.idxWatcher = { close: prevClose };
@@ -407,6 +530,19 @@ describe('csolution-rpc-client', () => {
             (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, _listener: any) => ({ close: jest.fn() }));
 
             service.watchPackIdxFile();
+
+            expect(prevClose).toHaveBeenCalledTimes(1);
+            expect(fs.watch).toHaveBeenCalledTimes(1);
+        });
+
+        it('closes existing local repository watcher before creating a new one', () => {
+            const prevClose = jest.fn();
+            service.localRepositoryIdxWatcher = { close: prevClose };
+
+            (fs.statSync as unknown as jest.Mock).mockReturnValue({ mtimeMs: 1 });
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, _listener: any) => ({ close: jest.fn() }));
+
+            service.watchLocalRepositoryPidxFile();
 
             expect(prevClose).toHaveBeenCalledTimes(1);
             expect(fs.watch).toHaveBeenCalledTimes(1);
@@ -425,6 +561,28 @@ describe('csolution-rpc-client', () => {
             });
 
             service.watchPackIdxFile();
+            service.suspendPackIdxWatcher();
+
+            watcherCallback!('change');
+            expect(service.debouncedLoadPacks).not.toHaveBeenCalled();
+
+            service.resumePackIdxWatcher();
+            expect(service.debouncedLoadPacks).toHaveBeenCalledTimes(1);
+        });
+
+        it('suppresses local_repository.pidx-triggered reload while suspended and runs once after resume', () => {
+            let watcherCallback: ((eventType: string) => void) | undefined;
+
+            (fs.statSync as unknown as jest.Mock)
+                .mockReturnValueOnce({ mtimeMs: 40 }) // initial
+                .mockReturnValueOnce({ mtimeMs: 41 }); // changed
+
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, listener: any) => {
+                watcherCallback = listener;
+                return { close: jest.fn() };
+            });
+
+            service.watchLocalRepositoryPidxFile();
             service.suspendPackIdxWatcher();
 
             watcherCallback!('change');
@@ -501,6 +659,29 @@ describe('csolution-rpc-client', () => {
             expect(console.warn).not.toHaveBeenCalled();
         });
 
+        it('gracefully handles missing local_repository.pidx file', () => {
+            const localRepositoryPidx = path.join('/cmsis-packs', '.Local', 'local_repository.pidx');
+            const error = new Error('ENOENT: no such file or directory');
+            (error as any).code = 'ENOENT';
+
+            (fs.statSync as unknown as jest.Mock).mockImplementation(() => {
+                throw error;
+            });
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, _listener: any) => ({ close: jest.fn() }));
+
+            // Should not throw
+            expect(() => service.watchLocalRepositoryPidxFile()).not.toThrow();
+
+            // Should still attempt to get pack root and call statSync
+            expect(pathUtils.getCmsisPackRoot).toHaveBeenCalledTimes(1);
+            expect(fs.statSync).toHaveBeenCalledWith(localRepositoryPidx);
+
+            // fs.watch should not be set up since statSync failed
+            expect(fs.watch).not.toHaveBeenCalled();
+            expect(service.localRepositoryIdxWatcher).toBeUndefined();
+            expect(console.warn).not.toHaveBeenCalled();
+        });
+
         it('logs non-ENOENT errors and leaves watcher undefined', () => {
             const permError = new Error('EACCES: permission denied');
             (permError as any).code = 'EACCES';
@@ -521,6 +702,26 @@ describe('csolution-rpc-client', () => {
             expect(service.idxWatcher).toBeUndefined();
         });
 
+        it('logs non-ENOENT errors for local_repository.pidx and leaves watcher undefined', () => {
+            const permError = new Error('EACCES: permission denied');
+            (permError as any).code = 'EACCES';
+
+            (fs.statSync as unknown as jest.Mock).mockImplementation(() => {
+                throw permError;
+            });
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, _listener: any) => ({ close: jest.fn() }));
+
+            // Should not throw
+            expect(() => service.watchLocalRepositoryPidxFile()).not.toThrow();
+
+            // Should log the error
+            expect(console.warn).toHaveBeenCalledWith('Failed to watch local_repository.pidx file:', permError);
+
+            // fs.watch should not be set up
+            expect(fs.watch).not.toHaveBeenCalled();
+            expect(service.localRepositoryIdxWatcher).toBeUndefined();
+        });
+
         it('resets idxWatcher to undefined after closing existing watcher', () => {
             const prevClose = jest.fn();
             service.idxWatcher = { close: prevClose };
@@ -534,6 +735,21 @@ describe('csolution-rpc-client', () => {
             // idxWatcher should be set to the new watcher, not undefined
             expect(service.idxWatcher).toBeDefined();
             expect(service.idxWatcher.close).not.toBe(prevClose);
+        });
+
+        it('resets localRepositoryIdxWatcher to undefined after closing existing watcher', () => {
+            const prevClose = jest.fn();
+            service.localRepositoryIdxWatcher = { close: prevClose };
+
+            (fs.statSync as unknown as jest.Mock).mockReturnValue({ mtimeMs: 1 });
+            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, _listener: any) => ({ close: jest.fn() }));
+
+            service.watchLocalRepositoryPidxFile();
+
+            expect(prevClose).toHaveBeenCalledTimes(1);
+            // localRepositoryIdxWatcher should be set to the new watcher, not undefined
+            expect(service.localRepositoryIdxWatcher).toBeDefined();
+            expect(service.localRepositoryIdxWatcher.close).not.toBe(prevClose);
         });
     });
 

@@ -35,6 +35,10 @@ export interface CsolutionService extends RpcInterface {
     resumePackIdxWatcher(skipPendingReload?: boolean): void;
 }
 
+/**
+ *  CsolutionServiceImpl watches pack.idx and .Local/local_repository.pidx changes and
+ *  triggers pack reloads. Reloads are deferred while the toolbox manager suspends the watcher.
+ */
 class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     public static readonly reloadPacksCommandId = `${manifest.PACKAGE_NAME}.reloadPacks`;
 
@@ -42,6 +46,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     private child: ChildProcess | undefined;
     private connection: MessageConnection | undefined;
     private idxWatcher: Optional<fs.FSWatcher> = undefined;
+    private localRepositoryIdxWatcher: Optional<fs.FSWatcher> = undefined;
     private readonly debouncedLoadPacks = debounce(this.reloadPacks.bind(this), 1000);
     private csolutionBin = 'csolution';
     private exitPromise: Promise<void> | undefined;
@@ -89,6 +94,9 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         if (this.idxWatcher === undefined) {
             this.watchPackIdxFile();
         }
+        if (this.localRepositoryIdxWatcher === undefined) {
+            this.watchLocalRepositoryPidxFile();
+        }
         // ensure version is cached
         await this.getVersion();
         return super.loadPacks();
@@ -127,14 +135,28 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     }
 
     private watchPackIdxFile() {
-        this.idxWatcher?.close();
-        this.idxWatcher = undefined;
-        const pack_idx = path.join(getCmsisPackRoot(), 'pack.idx');
+        this.idxWatcher = this.watchPackIndexFile(
+            this.idxWatcher,
+            path.join(getCmsisPackRoot(), 'pack.idx'),
+            'pack.idx'
+        );
+    }
+
+    private watchLocalRepositoryPidxFile() {
+        this.localRepositoryIdxWatcher = this.watchPackIndexFile(
+            this.localRepositoryIdxWatcher,
+            path.join(getCmsisPackRoot(), '.Local', 'local_repository.pidx'),
+            'local_repository.pidx'
+        );
+    }
+
+    private watchPackIndexFile(currentWatcher: Optional<fs.FSWatcher>, filePath: string, label: string): Optional<fs.FSWatcher> {
+        currentWatcher?.close();
         try {
-            let mtimeMs = fs.statSync(pack_idx)?.mtimeMs;
-            this.idxWatcher = fs.watch(pack_idx, eventType => {
+            let mtimeMs = fs.statSync(filePath)?.mtimeMs;
+            return fs.watch(filePath, eventType => {
                 if (eventType === 'change') {
-                    const stat = fs.statSync(pack_idx);
+                    const stat = fs.statSync(filePath);
                     if (stat?.mtimeMs !== mtimeMs) {
                         mtimeMs = stat.mtimeMs;
                         if (this.packIdxWatcherSuspendDepth > 0) {
@@ -147,10 +169,11 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
             });
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-                // pack.idx may not exist yet, gracefully handle the error
+                // Index files may not exist yet, gracefully handle the error
             } else {
-                console.warn('Failed to watch pack.idx file:', error);
+                console.warn(`Failed to watch ${label} file:`, error);
             }
+            return undefined;
         }
     }
 
@@ -182,6 +205,8 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         this.child = undefined;
         this.idxWatcher?.close();
         this.idxWatcher = undefined;
+        this.localRepositoryIdxWatcher?.close();
+        this.localRepositoryIdxWatcher = undefined;
         this.connection?.dispose();
         this.connection = undefined;
         this.cachedVersion = { success: false };

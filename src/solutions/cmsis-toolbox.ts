@@ -100,8 +100,8 @@ export interface CmsisToolboxManager {
 
 /**
  *  CmsisToolboxManagerImpl maintains queue of calls to run cbuild and other toolbox executables.
- *  The executables may install CMSIS packs. Therefore the class also watches for pack.idx file changes and
- *  triggers reload of core tools to be in sync with toolbox. The reload is done once after queue gets empty.
+ *  The executables may install CMSIS packs as well as users may add/remove packs manually.
+ *  Pack reloads are suspended while toolbox calls are running and resumed once the queue gets empty.
  */
 export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
 
