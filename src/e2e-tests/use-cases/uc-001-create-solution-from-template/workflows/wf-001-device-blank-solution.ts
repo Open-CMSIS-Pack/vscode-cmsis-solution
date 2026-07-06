@@ -202,8 +202,12 @@ export const runWf001DeviceBlankSolution = async (
     const solutionName = createUniqueSolutionName(fixture.solution_name_prefix);
     const solutionFolder = `${solutionName}_folder`;
     const solutionFileName = `${solutionName}.csolution.yml`;
-    const solutionBaseFolder = path.dirname(vsCodeDriver.testWorkspaceDirectory);
+    const solutionBaseFolder = path.join(vsCodeDriver.testWorkspaceDirectory, '.generated-solutions');
     const solutionFilePath = path.join(solutionBaseFolder, solutionFolder, solutionFileName);
+    const relativeSolutionFilePath = path.relative(vsCodeDriver.testWorkspaceDirectory, solutionFilePath);
+
+    expect(relativeSolutionFilePath.startsWith('..')).toBe(false);
+    expect(path.isAbsolute(relativeSolutionFilePath)).toBe(false);
 
     // Start from a clean notification state so error checks only include this workflow.
     await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Clear All Notifications');
