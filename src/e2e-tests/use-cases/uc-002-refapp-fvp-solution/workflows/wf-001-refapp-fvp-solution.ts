@@ -27,32 +27,57 @@ import { expect } from '@playwright/test';
 import { VsCodeDriver } from '../../../infrastructure/vscode-driver';
 import { DEFAULT_TIMEOUT_MS } from '../../../constants';
 import {
+    addPackToCsolution,
     createSolutionFromWizard,
+    expectGeneratedFileExists,
     expectGeneratedSolutionFiles,
     ExpectedFiles,
     ExpectedProblems,
     readAndValidateGeneratedSolutionArtifacts,
+    resolveGeneratedFile,
 } from '../../../utils/usecases';
+import { TerminalDriver } from '../../../drivers/Terminal-driver';
+import { ManageSolutionSettingsDriver } from '../../../drivers/manage-solution-settings-driver';
+import { ArmToolsDriver } from '../../../drivers/arm-tools-driver';
+import { copyTerminalText } from '../../../utils/helper';
 
 export { loadYamlFixture } from '../../../utils/usecases';
 
-// ---------------------------------------------------------------------------
-// Fixture type
-// ---------------------------------------------------------------------------
+const SCREENSHOT_PREFIX = 'uc-002-refapp-fvp-solution/wf-001';
 
+// Fixture type
 export type CreateSolutionFixture = {
     board: string;
     device?: string;
     reference_application: string;
     template?: string;
     solution_name_prefix?: string;
+    fvp: {
+        pack: string;
+        debug_adapter: string;
+        model: string;
+        config_file: string;
+        misc: string;
+    };
+    arm_tools: {
+        environment: string;
+        version: string;
+    };
+    expected_run: {
+        terminal: string;
+        command_contains?: string[];
+        output_contains?: string[];
+    };
     expected_files?: ExpectedFiles;
     expected_problems?: ExpectedProblems;
 };
 
-// ---------------------------------------------------------------------------
-// Workflow entry point
-// ---------------------------------------------------------------------------
+const confirmConfigureSolution = async (vsCodeDriver: VsCodeDriver): Promise<void> => {
+    const frame = vsCodeDriver.page.getWebviewByTitle('Configure Solution');
+
+    await frame.getByRole('button', { name: 'OK' }).click();
+    await vsCodeDriver.page.waitForVsCodeToBeReady();
+};
 
 /**
  * Runs WF-001: Creates a solution from a reference application using the FVP
@@ -67,7 +92,7 @@ export const runWf001RefAppFVPSolution = async (
     await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Clear All Notifications');
     await vsCodeDriver.page.openCmsisPanel();
 
-    // 1) Open wizard and fill in FVP, reference application, and solution details.
+    // 1) Create the FVP reference application solution from the Create Solution wizard.
     const createdSolution = await createSolutionFromWizard(vsCodeDriver, {
         target: fixture.board,
         template: fixture.reference_application,
@@ -87,17 +112,70 @@ export const runWf001RefAppFVPSolution = async (
             createdSolution.solutionFileName,
         );
 
-        const requiredFilePatterns = fixture.expected_files?.required ?? [];
-        await expectGeneratedSolutionFiles(artifacts, requiredFilePatterns);
+        // 3) Add the FVP support pack to the generated reference application solution.
+        const referenceApplicationSolutionFilePath = await expectGeneratedFileExists(
+            artifacts,
+            './Blinky.csolution.yml',
+        );
+        await addPackToCsolution(referenceApplicationSolutionFilePath, fixture.fvp.pack);
+        await confirmConfigureSolution(vsCodeDriver);
 
-        // 3) Verify the generated solution is loaded in the CMSIS UI.
+        const createdFiles = fixture.expected_files?.created ?? [];
+        await expectGeneratedSolutionFiles(artifacts, createdFiles);
+
+        // 4) Configure FVP debug settings in Manage Solution Settings.
+        const manageSolutionSettings = new ManageSolutionSettingsDriver(vsCodeDriver);
+        const manageSolutionFrame = await manageSolutionSettings.open();
+
+        await manageSolutionSettings.selectDebugAdapter(manageSolutionFrame, fixture.fvp.debug_adapter);
+        await manageSolutionSettings.selectModel(manageSolutionFrame, fixture.fvp.model);
+        await manageSolutionSettings.setConfigFile(
+            manageSolutionFrame,
+            resolveGeneratedFile(artifacts, fixture.fvp.config_file),
+        );
+        await manageSolutionSettings.setMisc(manageSolutionFrame, fixture.fvp.misc);
+        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/Manage Solution Settings FVP configuration`);
+        await manageSolutionSettings.save();
+
+        // 5) Configure Arm Tools environment.
+        const armTools = new ArmToolsDriver(vsCodeDriver);
+        const armToolsFrame = await armTools.openConfigureArmToolsEnvironment();
+
+        await armTools.selectEnvironment(armToolsFrame, fixture.arm_tools.environment);
+        await armTools.selectVersion(armToolsFrame, fixture.arm_tools.version);
+        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/Arm Tools environment configuration`);
+        await armTools.save();
+
+        // 6) Build the solution and verify build artifacts.
+        await vsCodeDriver.page.getCommands().build();
+
+        const terminalDriver = new TerminalDriver(vsCodeDriver);
+        await terminalDriver.switchTerminal('Build');
+        await terminalDriver.waitForTerminalEntry(/Build summary:|Program Size:/i);
+        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/Build terminal after successful build`);
+        const builtFiles = fixture.expected_files?.built ?? [];
+        await expectGeneratedSolutionFiles(artifacts, builtFiles);
+
+        // 7) Run the application on the FVP and verify terminal output.
+        await vsCodeDriver.page.getCommands().runCommandFromPalette('CMSIS: Load & Run Application');
+        await terminalDriver.switchTerminal(fixture.expected_run.terminal);
+
+        for (const expectedOutput of fixture.expected_run.output_contains ?? []) {
+            await terminalDriver.waitForTerminalEntry(expectedOutput);
+        }
+
+        const runTerminalText = await copyTerminalText(vsCodeDriver);
+        for (const expectedCommandPart of fixture.expected_run.command_contains ?? []) {
+            expect(runTerminalText).toContain(expectedCommandPart);
+        }
+        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/Run terminal after FVP output`);
+
+        // 8) Verify the generated solution is loaded in the CMSIS UI.
         await vsCodeDriver.page.openCmsisPanel();
         await expect(vsCodeDriver.page.getRoleByName('button', { name: 'Build solution' }))
             .toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
 
-        await vsCodeDriver.page.screenshot('uc-002-refapp-fvp-solution/wf-001/CMSIS view after solution load');
-
-        // 4) Verify dependency validation does not report blocking problems.
+        // 9) Verify dependency validation does not report blocking problems.
         const dependencyValidationProblemPattern = /dependency validation for context '[^']+' failed:/i;
         const getDependencyValidationProblemRows = () => vsCodeDriver.page
             .getLocator('.monaco-list-row:visible')
@@ -129,9 +207,9 @@ export const runWf001RefAppFVPSolution = async (
             await expect(noWorkspaceProblems).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
         }
 
-        await vsCodeDriver.page.screenshot('uc-002-refapp-fvp-solution/wf-001/Problems view after validation');
+        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/Problems view after validation`);
 
-        // 5) Verify no error notifications or failed task notifications were raised.
+        // 10) Verify no error notifications or failed task notifications were raised.
         await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Show Notifications');
 
         await expect(vsCodeDriver.page.getLocator('.notification-list-item .codicon-error'))

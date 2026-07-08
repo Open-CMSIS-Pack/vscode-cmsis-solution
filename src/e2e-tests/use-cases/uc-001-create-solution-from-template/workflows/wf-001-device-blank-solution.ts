@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// generated with AI
 /**
  * WF-001: Create Solution from Blank Solution Template for a Device
  *
@@ -37,10 +36,7 @@ import {
 
 export { loadYamlFixture } from '../../../utils/usecases';
 
-// ---------------------------------------------------------------------------
 // Fixture type
-// ---------------------------------------------------------------------------
-
 export type CreateSolutionFixture = {
     device: string;
     template: string;
@@ -48,10 +44,6 @@ export type CreateSolutionFixture = {
     expected_files?: ExpectedFiles;
     expected_problems?: ExpectedProblems;
 };
-
-// ---------------------------------------------------------------------------
-// Workflow entry point
-// ---------------------------------------------------------------------------
 
 /**
  * Runs WF-001: creates a solution from the Blank Solution template using the
@@ -66,7 +58,7 @@ export const runWf001DeviceBlankSolution = async (
     await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Clear All Notifications');
     await vsCodeDriver.page.openCmsisPanel();
 
-    // 1) Open wizard and fill in device, template, and solution details.
+    // 1) Create the 'Blank Solution' from the Create Solution wizard.
     const createdSolution = await createSolutionFromWizard(vsCodeDriver, {
         target: fixture.device,
         template: fixture.template,

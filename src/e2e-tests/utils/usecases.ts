@@ -24,6 +24,8 @@ import { VsCodeDriver } from '../infrastructure/vscode-driver';
 
 export type ExpectedFiles = {
     required?: string[];
+    created?: string[];
+    built?: string[];
 };
 
 export type ExpectedProblems = {
@@ -42,7 +44,6 @@ export type GeneratedSolutionArtifacts = {
     solutionDirectory: string;
     solutionFilePath: string;
     projectFilePaths: string[];
-    mainFilePaths: string[];
 };
 
 export type CreatedSolution = {
@@ -57,9 +58,12 @@ export type CreatedSolution = {
 
 type ParsedProjectEntry = string | { project?: string };
 
+type ParsedPackEntry = string | { pack?: string };
+
 type ParsedCsolution = {
     solution?: {
         projects?: ParsedProjectEntry[];
+        packs?: ParsedPackEntry[];
     };
 };
 
@@ -71,7 +75,7 @@ export const loadYamlFixture = async <T>(fixturePath: string): Promise<T> => {
     return YAML.parse(text) as T;
 };
 
-export const createUniqueSolutionName = (prefix = 'e2e_device_template_solution'): string => {
+const createUniqueSolutionName = (prefix = 'e2e_solution'): string => {
     const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '');
     return `${prefix}_${timestamp}`;
 };
@@ -115,10 +119,7 @@ export const readGeneratedSolutionArtifacts = async (
     const projectFilePaths = projectReferences
         .map(reference => path.resolve(solutionDirectory, reference));
 
-    const mainFilePaths = projectFilePaths
-        .map(projectFilePath => path.join(path.dirname(projectFilePath), 'main.c'));
-
-    return { solutionDirectory, solutionFilePath, projectFilePaths, mainFilePaths };
+    return { solutionDirectory, solutionFilePath, projectFilePaths };
 };
 
 export const allPathsExist = async (pathsToCheck: string[]): Promise<boolean> => {
@@ -201,6 +202,48 @@ export const allRequiredFilePatternsExist = async (
     });
 };
 
+export const resolveGeneratedFile = (
+    artifacts: GeneratedSolutionArtifacts,
+    relativePath: string,
+): string => path.resolve(
+    artifacts.solutionDirectory,
+    relativePath.replace(/\\/g, path.sep),
+);
+
+export const expectGeneratedFileExists = async (
+    artifacts: GeneratedSolutionArtifacts,
+    relativePath: string,
+): Promise<string> => {
+    const filePath = resolveGeneratedFile(artifacts, relativePath);
+
+    await expect.poll(async () => allPathsExist([filePath]), {
+        timeout: DEFAULT_TIMEOUT_MS,
+        intervals: [1000, 2000, 3000],
+    }).toBe(true);
+
+    return filePath;
+};
+
+export const addPackToCsolution = async (
+    solutionFilePath: string,
+    pack: string,
+): Promise<void> => {
+    const fileText = await fs.readFile(solutionFilePath, 'utf8');
+    const parsed = YAML.parse(fileText) as ParsedCsolution;
+
+    parsed.solution ??= {};
+    parsed.solution.packs ??= [];
+
+    const packAlreadyExists = parsed.solution.packs.some(entry =>
+        typeof entry === 'string' ? entry === pack : entry.pack === pack,
+    );
+
+    if (!packAlreadyExists) {
+        parsed.solution.packs.push({ pack });
+        await fs.writeFile(solutionFilePath, YAML.stringify(parsed), 'utf8');
+    }
+};
+
 export const createSolutionFromWizard = async (
     vsCodeDriver: VsCodeDriver,
     input: CreateSolutionInput,
@@ -253,7 +296,6 @@ export const expectGeneratedSolutionFiles = async (
     await expect.poll(async () => allPathsExist([
         artifacts.solutionFilePath,
         ...artifacts.projectFilePaths,
-        ...artifacts.mainFilePaths,
     ]), {
         timeout: DEFAULT_TIMEOUT_MS,
         intervals: [1000, 2000, 3000],
