@@ -334,13 +334,24 @@ export class ComponentsPacksWebviewMain {
     private getValidProjectId(): string | undefined {
         const csolution = this.solutionManager.getCsolution();
         if (csolution) {
-            if (this.currentProject?.project.projectId && csolution.getCproject(this.currentProject.project.projectId)) {
-                return this.currentProject.project.projectId;
+            const activeProjectPaths = csolution.getContextDescriptors()
+                .map(ctx => ctx.projectPath)
+                .filter((projectPath): projectPath is string => !!projectPath);
+            const currentProjectId = this.currentProject?.project.projectId;
+
+            if (activeProjectPaths.length > 0) {
+                if (currentProjectId && activeProjectPaths.some(projectPath =>
+                    normalizeForCompare(projectPath) === normalizeForCompare(currentProjectId)
+                )) {
+                    return currentProjectId;
+                }
+                return activeProjectPaths[0];
             }
-            const firstProjectPath = csolution?.getContextDescriptors()
-                .find(ctx => ctx.targetType === csolution.getActiveTargetSetName())
-                ?.projectPath;
-            return firstProjectPath ?? csolution.getCprojectPath();
+
+            if (currentProjectId && csolution.getCproject(currentProjectId)) {
+                return currentProjectId;
+            }
+            return csolution.getCprojectPath();
         }
         return undefined;
     }
@@ -456,11 +467,22 @@ export class ComponentsPacksWebviewMain {
     }
 
     private getSelectedTargetSetData(): TargetSetData | undefined {
+        const targetSetData = this.getTargetSetData();
+        const targetSetExists = (target: TargetSetData): boolean =>
+            targetSetData.some(project =>
+                normalizeForCompare(project.path) === normalizeForCompare(target.path) ||
+                project.children?.some(layer => normalizeForCompare(layer.path) === normalizeForCompare(target.path))
+            );
+
+        if (this.selectedContext && !targetSetExists(this.selectedContext)) {
+            this.selectedContext = undefined;
+        }
+
         if (!this.selectedContext) {
             const normalizedProjectId = normalizeForCompare(this.currentProject?.project.projectId || '');
-            this.selectedContext = this.getTargetSetData().find(ts => normalizeForCompare(ts.path) === normalizedProjectId);
+            this.selectedContext = targetSetData.find(ts => normalizeForCompare(ts.path) === normalizedProjectId);
             if (!this.selectedContext) {
-                this.selectedContext = this.getTargetSetData()?.at(0);
+                this.selectedContext = targetSetData.at(0);
             }
         }
         return this.selectedContext;
@@ -669,7 +691,9 @@ export class ComponentsPacksWebviewMain {
             const path = selectedTarget.type === 'project'
                 ? selectedTarget.path
                 : this.projectFromLayer(selectedTarget.path);
-            await this.debounce_load(path || '', false);
+            const reload = this.currentProject === undefined ||
+                this.projectFromPath(this.currentProject?.project.projectId) !== this.projectFromPath(path);
+            await this.debounce_load(path || '', reload);
         }
     }
 
@@ -706,7 +730,7 @@ export class ComponentsPacksWebviewMain {
                     await this.handleChangeComponentBundle(message);
                     break;
                 case 'CHANGE_TARGET':
-                    this.handleChangeTarget(message);
+                    await this.handleChangeTarget(message);
                     break;
                 case 'UNLINK_PACKAGE':
                     await this.handleUnlinkPackage(message.packName);
