@@ -32,6 +32,14 @@ import { VsCodeDriver } from '../infrastructure/vscode-driver';
 import { DEFAULT_TIMEOUT_MS } from '../constants';
 import { escapeRegExp } from '../utils/helper';
 
+export type CreateSolutionOptions = {
+    target: string;
+    template: string;
+    solutionName: string;
+    solutionFolder: string;
+    solutionBaseFolder: string;
+};
+
 export class CreateSolutionDriver {
     constructor(private readonly vscode: VsCodeDriver) {}
 
@@ -152,5 +160,19 @@ export class CreateSolutionDriver {
         await createButton.waitFor({ state: 'visible', timeout: DEFAULT_TIMEOUT_MS });
         await expect(createButton).toBeEnabled();
         await createButton.click();
+    }
+
+    async createSolution(options: CreateSolutionOptions): Promise<void> {
+        const frame = await this.open();
+
+        await this.selectDevice(frame, options.target);
+        await this.selectTemplate(frame, options.template);
+        await this.fillDetails(
+            frame,
+            options.solutionName,
+            options.solutionFolder,
+            options.solutionBaseFolder,
+        );
+        await this.create(frame);
     }
 }

@@ -1,0 +1,14 @@
+workflow: WF-001
+board: V2M-MPS3-SSE-300-FVP
+device: SSE-300-MPS3 
+reference_application: Blinky (CMSIS-RTOS2 based Blinky application using FreeRTOS and pack arm::cmsis-freertos@11.3.0)
+solution_name_prefix: e2e_refapp_fvp_solution
+
+expected_files:
+  required:
+    - "./Blinky.csolution.yml"
+    - "./Blinky/Blinky.c"
+    - "./Blinky/Blinky.cproject.yml"
+    - ./out/Blinky+SSE-300-MPS3.cbuild-run.yml
+    - ./out/Blinky/SSE-300-MPS3/Debug/Blinky.axf
+    - ./out/Blinky/SSE-300-MPS3/Debug/Blinky.hex

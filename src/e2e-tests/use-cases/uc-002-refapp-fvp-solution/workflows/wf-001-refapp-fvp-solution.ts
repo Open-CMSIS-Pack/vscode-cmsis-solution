@@ -13,15 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// generated with AI
 /**
- * WF-001: Create Solution from Blank Solution Template for a Device
+ * WF-001: Create CMSIS Solution from Reference Application with FVP
  *
  * Executable implementation of the workflow steps described in the accompanying
- * wf-001-device-blank-solution.yml specification.
+ * wf-001-refapp-fvp-solution.yml specification.
  *
  * Accepts a typed fixture so the same steps can be driven with different
- * device/template combinations by simply providing a different fixture object.
+ * FVP/Reference Application combinations by simply providing a different fixture object.
  */
 
 import { expect } from '@playwright/test';
@@ -42,8 +41,10 @@ export { loadYamlFixture } from '../../../utils/usecases';
 // ---------------------------------------------------------------------------
 
 export type CreateSolutionFixture = {
-    device: string;
-    template: string;
+    board: string;
+    device?: string;
+    reference_application: string;
+    template?: string;
     solution_name_prefix?: string;
     expected_files?: ExpectedFiles;
     expected_problems?: ExpectedProblems;
@@ -54,11 +55,11 @@ export type CreateSolutionFixture = {
 // ---------------------------------------------------------------------------
 
 /**
- * Runs WF-001: creates a solution from the Blank Solution template using the
- * device/template specified in `fixture`, then validates the generated artifacts
- * and verifies dependency validation does not report blocking problems.
+ * Runs WF-001: Creates a solution from a reference application using the FVP
+ * specified in `fixture`, then verifies the generated solution, builds it,
+ * loads and runs it on the FVP, and validates the expected runtime output.
  */
-export const runWf001DeviceBlankSolution = async (
+export const runWf001RefAppFVPSolution = async (
     vsCodeDriver: VsCodeDriver,
     fixture: CreateSolutionFixture,
 ): Promise<void> => {
@@ -66,10 +67,10 @@ export const runWf001DeviceBlankSolution = async (
     await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Clear All Notifications');
     await vsCodeDriver.page.openCmsisPanel();
 
-    // 1) Open wizard and fill in device, template, and solution details.
+    // 1) Open wizard and fill in FVP, reference application, and solution details.
     const createdSolution = await createSolutionFromWizard(vsCodeDriver, {
-        target: fixture.device,
-        template: fixture.template,
+        target: fixture.board,
+        template: fixture.reference_application,
         solutionNamePrefix: fixture.solution_name_prefix,
         expectedFiles: fixture.expected_files,
         expectedProblems: fixture.expected_problems,
@@ -94,7 +95,7 @@ export const runWf001DeviceBlankSolution = async (
         await expect(vsCodeDriver.page.getRoleByName('button', { name: 'Build solution' }))
             .toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
 
-        await vsCodeDriver.page.screenshot('uc-001-create-solution-from-template/wf-001/CMSIS view after solution load');
+        await vsCodeDriver.page.screenshot('uc-002-refapp-fvp-solution/wf-001/CMSIS view after solution load');
 
         // 4) Verify dependency validation does not report blocking problems.
         const dependencyValidationProblemPattern = /dependency validation for context '[^']+' failed:/i;
@@ -128,7 +129,7 @@ export const runWf001DeviceBlankSolution = async (
             await expect(noWorkspaceProblems).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
         }
 
-        await vsCodeDriver.page.screenshot('uc-001-create-solution-from-template/wf-001/Problems view after validation');
+        await vsCodeDriver.page.screenshot('uc-002-refapp-fvp-solution/wf-001/Problems view after validation');
 
         // 5) Verify no error notifications or failed task notifications were raised.
         await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Show Notifications');
