@@ -34,7 +34,9 @@ import { escapeRegExp } from '../utils/helper';
 
 export type CreateSolutionOptions = {
     target: string;
+    targetKind?: 'board' | 'device';
     template: string;
+    templateKind?: 'referenceApplication' | 'template';
     solutionName: string;
     solutionFolder: string;
     solutionBaseFolder: string;
@@ -59,27 +61,40 @@ export class CreateSolutionDriver {
      * matching item, and confirms via the "Select" button.
      */
     async selectDevice(frame: FrameLocator, device: string): Promise<void> {
-        const devicePattern = new RegExp(escapeRegExp(device), 'i');
+        await this.selectHardware(frame, 'device', device);
+    }
+ 
+    async selectBoard(frame: FrameLocator, board: string): Promise<void> {
+        await this.selectHardware(frame, 'board', board);
+    }
 
-        await frame.locator('#create-solution-device-target').click();
+    private async selectHardware(
+        frame: FrameLocator,
+        targetKind: 'board' | 'device',
+        target: string,
+    ): Promise<void> {
+        const targetPattern = new RegExp(escapeRegExp(target), 'i');
+        const targetSelector = `#create-solution-${targetKind}-target`;
 
-        const deviceDropdown = frame
+        await frame.locator(targetSelector).click();
+
+        const hardwareDropdown = frame
             .locator('.dropdown-select.expanded')
-            .filter({ has: frame.locator('#create-solution-device-target') });
+            .filter({ has: frame.locator(targetSelector) });
 
-        await expect(deviceDropdown).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+        await expect(hardwareDropdown).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
 
-        const allItems = deviceDropdown.locator('.components-tree-view-item');
+        const allItems = hardwareDropdown.locator('.components-tree-view-item');
         await expect.poll(async () => allItems.count(), {
             timeout: DEFAULT_TIMEOUT_MS,
             intervals: [1000, 2000, 3000],
         }).toBeGreaterThan(0);
 
-        await deviceDropdown.getByPlaceholder('Search').fill(device);
+        await hardwareDropdown.getByPlaceholder('Search').fill(target);
 
-        const matchingItems = deviceDropdown
+        const matchingItems = hardwareDropdown
             .locator('.components-tree-view-item')
-            .filter({ hasText: devicePattern });
+            .filter({ hasText: targetPattern });
 
         await expect.poll(async () => matchingItems.count(), {
             timeout: DEFAULT_TIMEOUT_MS,
@@ -88,15 +103,24 @@ export class CreateSolutionDriver {
 
         await matchingItems.first().click();
         await frame.getByRole('button', { name: 'Select' }).click();
-        await expect(frame.locator('#create-solution-device-target')).toContainText(devicePattern);
+        await expect(frame.locator(targetSelector)).toContainText(targetPattern);
     }
 
-    /**
-     * Opens the template dropdown, searches for `template`, selects the first
-     * matching item, and confirms the selection is reflected in the trigger.
-     */
+    
     async selectTemplate(frame: FrameLocator, template: string): Promise<void> {
-        const templatePattern = new RegExp(escapeRegExp(template), 'i');
+        await this.selectProject(frame, 'template', template);
+    }
+
+    async selectReferenceApplication(frame: FrameLocator, referenceApplication: string): Promise<void> {
+        await this.selectProject(frame, 'refapp', referenceApplication);
+    }
+
+    private async selectProject(
+        frame: FrameLocator,
+        itemClass: 'refapp' | 'template',
+        project: string,
+    ): Promise<void> {
+        const projectPattern = new RegExp(escapeRegExp(project), 'i');
 
         await frame.locator('#create-solution-template').click();
 
@@ -106,26 +130,26 @@ export class CreateSolutionDriver {
 
         await expect(templateDropdown).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
 
-        const allTemplateItems = templateDropdown.locator('.components-tree-view-item.template');
-        await expect.poll(async () => allTemplateItems.count(), {
+        const allProjectItems = templateDropdown.locator(`.components-tree-view-item.${itemClass}`);
+        await expect.poll(async () => allProjectItems.count(), {
             timeout: DEFAULT_TIMEOUT_MS,
             intervals: [1000, 2000, 3000],
         }).toBeGreaterThan(0);
 
-        await templateDropdown.getByPlaceholder('Search').fill(template);
+        await templateDropdown.getByPlaceholder('Search').fill(project);
 
-        const matchingTemplates = templateDropdown
-            .locator('.components-tree-view-item.template')
-            .filter({ hasText: templatePattern });
+        const matchingProjects = templateDropdown
+            .locator(`.components-tree-view-item.${itemClass}`)
+            .filter({ hasText: projectPattern });
 
-        await expect.poll(async () => matchingTemplates.count(), {
+        await expect.poll(async () => matchingProjects.count(), {
             timeout: DEFAULT_TIMEOUT_MS,
             intervals: [1000, 2000, 3000],
         }).toBeGreaterThan(0);
 
-        await matchingTemplates.first().scrollIntoViewIfNeeded();
-        await matchingTemplates.first().click();
-        await expect(frame.locator('#create-solution-template')).toContainText(templatePattern);
+        await matchingProjects.first().scrollIntoViewIfNeeded();
+        await matchingProjects.first().click();
+        await expect(frame.locator('#create-solution-template')).toContainText(projectPattern);
     }
 
     /**
@@ -165,8 +189,16 @@ export class CreateSolutionDriver {
     async createSolution(options: CreateSolutionOptions): Promise<void> {
         const frame = await this.open();
 
-        await this.selectDevice(frame, options.target);
-        await this.selectTemplate(frame, options.template);
+        if (options.targetKind === 'board') {
+            await this.selectBoard(frame, options.target);
+        } else {
+            await this.selectDevice(frame, options.target);
+        }
+        if (options.templateKind === 'referenceApplication') {
+            await this.selectReferenceApplication(frame, options.template);
+        } else {
+            await this.selectTemplate(frame, options.template);
+        }
         await this.fillDetails(
             frame,
             options.solutionName,

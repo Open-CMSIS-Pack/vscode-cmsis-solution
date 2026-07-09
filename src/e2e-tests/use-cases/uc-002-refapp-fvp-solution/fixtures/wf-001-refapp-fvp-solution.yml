@@ -1,7 +1,7 @@
 workflow: WF-001
 board: V2M-MPS3-SSE-300-FVP
 device: SSE-300-MPS3 
-reference_application: Blinky (CMSIS-RTOS2 based Blinky application using FreeRTOS and pack arm::cmsis-freertos@11.3.0)
+reference_application: Blinky
 solution_name_prefix: e2e_refapp_fvp_solution
 
 fvp:

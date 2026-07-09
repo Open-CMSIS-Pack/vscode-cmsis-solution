@@ -34,7 +34,9 @@ export type ExpectedProblems = {
 
 export type CreateSolutionInput = {
     target: string;
+    targetKind?: 'board' | 'device';
     template: string;
+    templateKind?: 'referenceApplication' | 'template';
     solutionNamePrefix?: string;
     expectedFiles?: ExpectedFiles;
     expectedProblems?: ExpectedProblems;
@@ -254,7 +256,9 @@ export const createSolutionFromWizard = async (
 
     await createSolution.createSolution({
         target: input.target,
+        targetKind: input.targetKind,
         template: input.template,
+        templateKind: input.templateKind,
         solutionName: createdSolution.solutionName,
         solutionFolder: createdSolution.solutionFolder,
         solutionBaseFolder: createdSolution.solutionBaseFolder,

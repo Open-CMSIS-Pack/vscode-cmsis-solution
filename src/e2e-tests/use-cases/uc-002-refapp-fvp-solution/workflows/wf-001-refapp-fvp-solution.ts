@@ -95,7 +95,9 @@ export const runWf001RefAppFVPSolution = async (
     // 1) Create the FVP reference application solution from the Create Solution wizard.
     const createdSolution = await createSolutionFromWizard(vsCodeDriver, {
         target: fixture.board,
+        targetKind: 'board',
         template: fixture.reference_application,
+        templateKind: 'referenceApplication',
         solutionNamePrefix: fixture.solution_name_prefix,
         expectedFiles: fixture.expected_files,
         expectedProblems: fixture.expected_problems,
