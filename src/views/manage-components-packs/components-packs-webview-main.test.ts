@@ -563,7 +563,7 @@ describe('ComponentsPacksWebviewMain', () => {
         });
 
         it('applies component set, updates used items and clears edit cache when updateUsedItems returns true', async () => {
-            await (componentsPacksWebviewMain as any).handleApplyComponentSet();
+            const result = await (componentsPacksWebviewMain as any).handleApplyComponentSet();
 
             expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'SET_SOLUTION_STATE', stateMessage: 'Saving changes...' });
             expect(applyMock).toHaveBeenCalledWith({ context: 'ctx1' });
@@ -580,12 +580,13 @@ describe('ComponentsPacksWebviewMain', () => {
             // No extra error state message on success
             const stateMessages = webviewManager.sendMessage.mock.calls.filter(c => c[0].type === 'SET_SOLUTION_STATE');
             expect(stateMessages.length).toBe(1); // Saving changes..., then clearing state
+            expect(result).toBe(true);
         });
 
         it('sends error state message when apply fails', async () => {
             applyMock.mockResolvedValue({ success: false, message: 'Failed to apply' });
 
-            await (componentsPacksWebviewMain as any).handleApplyComponentSet();
+            const result = await (componentsPacksWebviewMain as any).handleApplyComponentSet();
 
             // Expect extra SET_SOLUTION_STATE with error
             const stateMessages = webviewManager.sendMessage.mock.calls
@@ -596,6 +597,7 @@ describe('ComponentsPacksWebviewMain', () => {
                 'Saving changes...',
                 'Failed to apply'
             ]);
+            expect(result).toBe(false);
         });
 
         it('uses default error message when apply fails without message', async () => {
@@ -611,6 +613,44 @@ describe('ComponentsPacksWebviewMain', () => {
                 'Saving changes...',
                 'Unspecified error when writing solution information'
             ]);
+        });
+    });
+
+    describe('saveChangesBeforeBuild', () => {
+        it('returns true without applying when the view has no loaded baseline', async () => {
+            (componentsPacksWebviewMain as any).usedItems = undefined;
+            const isDirtySpy = jest.spyOn(componentsPacksWebviewMain as any, 'isDirty');
+            const applySpy = jest.spyOn(componentsPacksWebviewMain as any, 'handleApplyComponentSet');
+
+            const result = await componentsPacksWebviewMain.saveChangesBeforeBuild();
+
+            expect(result).toBe(true);
+            expect(isDirtySpy).not.toHaveBeenCalled();
+            expect(applySpy).not.toHaveBeenCalled();
+        });
+
+        it('returns true without applying when the view is not dirty', async () => {
+            (componentsPacksWebviewMain as any).usedItems = usedItemsReturn;
+            jest.spyOn(componentsPacksWebviewMain as any, 'isDirty').mockResolvedValue(false);
+            const applySpy = jest.spyOn(componentsPacksWebviewMain as any, 'handleApplyComponentSet');
+
+            const result = await componentsPacksWebviewMain.saveChangesBeforeBuild();
+
+            expect(result).toBe(true);
+            expect(applySpy).not.toHaveBeenCalled();
+        });
+
+        it('applies dirty view changes and returns the apply result', async () => {
+            (componentsPacksWebviewMain as any).usedItems = usedItemsReturn;
+            jest.spyOn(componentsPacksWebviewMain as any, 'isDirty').mockResolvedValue(true);
+            const applySpy = jest
+                .spyOn(componentsPacksWebviewMain as any, 'handleApplyComponentSet')
+                .mockResolvedValue(false);
+
+            const result = await componentsPacksWebviewMain.saveChangesBeforeBuild();
+
+            expect(applySpy).toHaveBeenCalledTimes(1);
+            expect(result).toBe(false);
         });
     });
 

@@ -212,6 +212,7 @@ const workspace = {
     onWillSaveTextDocument: jest.fn(() => ({ dispose: jest.fn() })),
     applyEdit: jest.fn().mockResolvedValue(true),
     openTextDocument: jest.fn(),
+    saveAll: jest.fn().mockResolvedValue(true),
     updateWorkspaceFolders: jest.fn(),
 };
 const extensions = {

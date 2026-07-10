@@ -16,18 +16,21 @@
 
 import 'jest';
 import * as vscode from 'vscode';
-import { BuildCommand } from './build-command';
+import { BuildCommand, BuildCommandSaveParticipant } from './build-command';
 import { BuildTaskProvider, BuildTaskProviderImpl } from './build-task-provider';
 import { commandsProviderFactory, MockCommandsProvider } from '../../vscode-api/commands-provider.factories';
 import { MockBuildTaskDefinitionBuilder, buildTaskDefinitionBuilderFactory } from './build-task-definition-builder.factories';
 import { BuildTaskDefinition } from './build-task-definition';
 
 const mockExecuteTask = vscode.tasks.executeTask as jest.Mock;
+const mockShowWarningMessage = vscode.window.showWarningMessage as jest.Mock;
+const mockSaveAll = vscode.workspace.saveAll as jest.Mock;
 
 describe('BuildCommand', () => {
     let mockBuildTaskProvider: BuildTaskProvider;
     let commandsProvider: MockCommandsProvider;
     let buildTaskDefinitionBuilder: MockBuildTaskDefinitionBuilder;
+    let saveParticipant: jest.Mocked<BuildCommandSaveParticipant>;
 
     const buildTaskDefinition: BuildTaskDefinition = {
         type: BuildTaskProviderImpl.taskType,
@@ -54,6 +57,11 @@ describe('BuildCommand', () => {
         buildTaskDefinitionBuilder = buildTaskDefinitionBuilderFactory();
         buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode.mockResolvedValue(buildTaskDefinition);
         commandsProvider.executeCommand.mockResolvedValue(undefined);
+        saveParticipant = {
+            saveChangesBeforeBuild: jest.fn().mockResolvedValue(true),
+        };
+        mockShowWarningMessage.mockResolvedValue(undefined);
+        mockSaveAll.mockResolvedValue(true);
     });
 
     it('registers the build, clean and rebuild commands on activation', async () => {
@@ -61,6 +69,7 @@ describe('BuildCommand', () => {
             mockBuildTaskProvider,
             commandsProvider,
             buildTaskDefinitionBuilder,
+            saveParticipant,
         );
 
         await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
@@ -77,17 +86,21 @@ describe('BuildCommand', () => {
                 mockBuildTaskProvider,
                 commandsProvider,
                 buildTaskDefinitionBuilder,
+                saveParticipant,
             );
             await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
 
             await commandsProvider.mockRunRegistered(BuildCommand.buildCommandType, undefined);
 
-            expect(commandsProvider.executeCommand).toHaveBeenCalledWith('workbench.action.files.save');
+            expect(mockSaveAll).toHaveBeenCalledWith(false);
+            expect(saveParticipant.saveChangesBeforeBuild).toHaveBeenCalledTimes(1);
             expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).toHaveBeenCalledWith('build', undefined);
 
-            const saveCommandCallOrder = commandsProvider.executeCommand.mock.invocationCallOrder[0];
+            const saveCommandCallOrder = mockSaveAll.mock.invocationCallOrder[0];
+            const saveParticipantCallOrder = saveParticipant.saveChangesBeforeBuild.mock.invocationCallOrder[0];
             const createDefinitionCallOrder = buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode.mock.invocationCallOrder[0];
             expect(saveCommandCallOrder).toBeLessThan(createDefinitionCallOrder);
+            expect(saveParticipantCallOrder).toBeLessThan(createDefinitionCallOrder);
 
             expect(mockExecuteTask).toHaveBeenCalledTimes(1);
             expect(mockExecuteTask).toHaveBeenCalledWith({
@@ -125,6 +138,7 @@ describe('BuildCommand', () => {
                 mockBuildTaskProvider,
                 commandsProvider,
                 buildTaskDefinitionBuilder,
+                saveParticipant,
             );
             await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
 
@@ -162,6 +176,7 @@ describe('BuildCommand', () => {
                 mockBuildTaskProvider,
                 commandsProvider,
                 buildTaskDefinitionBuilder,
+                saveParticipant,
             );
             await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
 
@@ -173,6 +188,48 @@ describe('BuildCommand', () => {
             expect(mockExecuteTask).toHaveBeenCalledTimes(1);
         });
 
+        it('aborts build when saving modified editors fails or is cancelled', async () => {
+            mockSaveAll.mockResolvedValue(false);
+
+            const buildCommand = new BuildCommand(
+                mockBuildTaskProvider,
+                commandsProvider,
+                buildTaskDefinitionBuilder,
+                saveParticipant,
+            );
+            await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+
+            const result = await commandsProvider.mockRunRegistered(BuildCommand.buildCommandType, undefined);
+
+            expect(result).toBeUndefined();
+            expect(mockSaveAll).toHaveBeenCalledWith(false);
+            expect(saveParticipant.saveChangesBeforeBuild).not.toHaveBeenCalled();
+            expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).not.toHaveBeenCalled();
+            expect(mockExecuteTask).not.toHaveBeenCalled();
+            expect(mockShowWarningMessage).toHaveBeenCalledWith('Build cancelled because modified files could not be saved.');
+        });
+
+        it('aborts build when Software Components changes cannot be saved', async () => {
+            saveParticipant.saveChangesBeforeBuild.mockResolvedValue(false);
+
+            const buildCommand = new BuildCommand(
+                mockBuildTaskProvider,
+                commandsProvider,
+                buildTaskDefinitionBuilder,
+                saveParticipant,
+            );
+            await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+
+            const result = await commandsProvider.mockRunRegistered(BuildCommand.buildCommandType, undefined);
+
+            expect(result).toBeUndefined();
+            expect(mockSaveAll).toHaveBeenCalledWith(false);
+            expect(saveParticipant.saveChangesBeforeBuild).toHaveBeenCalledTimes(1);
+            expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).not.toHaveBeenCalled();
+            expect(mockExecuteTask).not.toHaveBeenCalled();
+            expect(mockShowWarningMessage).toHaveBeenCalledWith('Build cancelled because Software Components changes could not be saved.');
+        });
+
     });
 
     describe('rebuild command', () => {
@@ -181,12 +238,14 @@ describe('BuildCommand', () => {
                 mockBuildTaskProvider,
                 commandsProvider,
                 buildTaskDefinitionBuilder,
+                saveParticipant,
             );
             await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
 
             await commandsProvider.mockRunRegistered(BuildCommand.rebuildCommandType);
 
-            expect(commandsProvider.executeCommand).toHaveBeenCalledWith('workbench.action.files.save');
+            expect(mockSaveAll).toHaveBeenCalledWith(false);
+            expect(saveParticipant.saveChangesBeforeBuild).toHaveBeenCalledTimes(1);
             expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).toHaveBeenCalledWith('rebuild', undefined);
             expect(mockExecuteTask).toHaveBeenCalledTimes(1);
             expect(mockExecuteTask).toHaveBeenCalledWith({
@@ -205,12 +264,14 @@ describe('BuildCommand', () => {
                 mockBuildTaskProvider,
                 commandsProvider,
                 buildTaskDefinitionBuilder,
+                saveParticipant,
             );
             await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
 
             await commandsProvider.mockRunRegistered(BuildCommand.cleanCommandType);
 
-            expect(commandsProvider.executeCommand).toHaveBeenCalledWith('workbench.action.files.save');
+            expect(mockSaveAll).toHaveBeenCalledWith(false);
+            expect(saveParticipant.saveChangesBeforeBuild).toHaveBeenCalledTimes(1);
             expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).toHaveBeenCalledWith('clean', undefined);
             expect(mockExecuteTask).toHaveBeenCalledTimes(1);
             expect(mockExecuteTask).toHaveBeenCalledWith({

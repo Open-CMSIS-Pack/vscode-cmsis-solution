@@ -356,6 +356,18 @@ export class ComponentsPacksWebviewMain {
         return undefined;
     }
 
+    public async saveChangesBeforeBuild(): Promise<boolean> {
+        if (this.usedItems === undefined) {
+            return true;
+        }
+
+        if (!await this.isDirty()) {
+            return true;
+        }
+
+        return this.handleApplyComponentSet();
+    }
+
     private async isDirty(usedItems?: UsedItems): Promise<boolean> {
         const actx = this.getActiveContext();
 
@@ -566,7 +578,7 @@ export class ComponentsPacksWebviewMain {
         await this.debounce_load(this.project?.project.projectId ?? '', false);
     }
 
-    private async handleApplyComponentSet(): Promise<void> {
+    private async handleApplyComponentSet(): Promise<boolean> {
         await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Saving changes...' });
 
         const cbuildPackModified = this.solutionManager.getCsolution()?.cbuildPackFile.isModified() ?? false;
@@ -598,6 +610,7 @@ export class ComponentsPacksWebviewMain {
             this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: state.message ?? 'Unspecified error when writing solution information' });
         }
         await this.sendDirtyState({ skipApply: true, usedItems: usedItemsForProjectFileUpdate });
+        return state.success !== false;
     }
 
     private async handleOpenFile(message: Messages.OutgoingMessage): Promise<void> {
