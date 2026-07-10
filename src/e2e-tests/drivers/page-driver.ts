@@ -31,7 +31,7 @@
 import { FrameLocator, Locator, Page } from 'playwright';
 import { expect } from '@playwright/test';
 import { CommandDriver } from './command-driver';
-import { DEFAULT_TIMEOUT_MS, SCREENSHOT_TIMEOUT_MS } from '../constants';
+import { DEFAULT_TIMEOUT_MS, SCREENSHOT_TIMEOUT_MS, SHORT_TIMEOUT_MS } from '../constants';
 import { log } from '../utils/logger';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -41,6 +41,28 @@ export class PageDriver {
 
     async waitForVsCodeToBeReady(): Promise<void> {
         await this.page.waitForSelector('.monaco-workbench');
+        await this.dismissWelcomeOverlay();
+    }
+
+    // Dismiss VS Code's first-run welcome modal when present so it cannot block
+    // Playwright clicks in extension webviews during shared-instance E2E runs.
+    async dismissWelcomeOverlay(): Promise<void> {
+        const welcomeDialog = this.page.getByRole('dialog', { name: 'Welcome to Visual Studio Code' });
+
+        try {
+            await welcomeDialog.waitFor({ state: 'visible', timeout: SHORT_TIMEOUT_MS });
+        } catch {
+            return;
+        }
+
+        const closeButton = welcomeDialog.getByRole('button', { name: /close/i });
+        if (await closeButton.count() > 0) {
+            await closeButton.first().click();
+        } else {
+            await this.page.keyboard.press('Escape');
+        }
+
+        await welcomeDialog.waitFor({ state: 'hidden', timeout: SHORT_TIMEOUT_MS }).catch(() => undefined);
     }
 
     async waitForActionItem(name: string): Promise<void> {

@@ -44,6 +44,7 @@ export class CreateSolutionDriver {
         await this.vscode.page.getCommands().runCommandFromPalette('CMSIS: Create Solution');
         const frame = this.vscode.page.getWebviewByTitle('Create Solution');
         await frame.getByRole('heading', { name: 'Create Solution' }).waitFor({ timeout: DEFAULT_TIMEOUT_MS });
+        await this.vscode.page.dismissWelcomeOverlay();
         return frame;
     }
 
