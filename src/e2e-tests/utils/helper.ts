@@ -56,6 +56,18 @@ export async function copyTerminalText(vscode: VsCodeDriver): Promise<string> {
     return copiedText;
 }
 
+export async function copyLastTerminalCommandAndOutput(vscode: VsCodeDriver): Promise<string> {
+    const page = vscode.page.getPage();
+
+    await page.context().grantPermissions(['clipboard-read']);
+
+    await vscode.page.getCommands().runCommandFromPalette('Terminal: Copy Last Command and Output');
+
+    return page.evaluate(() =>
+        navigator.clipboard.readText(),
+    );
+}
+
 export async function waitForBuild(
     taskLocator: playwright.Locator,
 ): Promise<void> {

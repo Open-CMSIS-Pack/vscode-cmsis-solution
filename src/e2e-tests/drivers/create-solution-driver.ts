@@ -13,18 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// generated with AI
 /**
  * Create Solution Driver
  *
  * Encapsulates all UI interactions with the Create Solution webview wizard.
  *
- * Key responsibilities:
- * - Open the Create Solution webview via the command palette
- * - Select a target device from the device-target dropdown
- * - Select a software template from the template dropdown
- * - Fill in solution name, folder, and base location
- * - Trigger the final Create action
  */
 
 import { expect, FrameLocator } from '@playwright/test';
@@ -43,12 +36,10 @@ export type CreateSolutionOptions = {
 };
 
 export class CreateSolutionDriver {
-    constructor(private readonly vscode: VsCodeDriver) {}
+    constructor(private readonly vscode: VsCodeDriver) { }
 
-    /**
-     * Opens the Create Solution wizard via the command palette and returns
-     * the webview FrameLocator once the heading is visible.
-     */
+    // Opens the Create Solution wizard via the command palette and returns
+    // the webview FrameLocator once the heading is visible.
     async open(): Promise<FrameLocator> {
         await this.vscode.page.getCommands().runCommandFromPalette('CMSIS: Create Solution');
         const frame = this.vscode.page.getWebviewByTitle('Create Solution');
@@ -56,14 +47,10 @@ export class CreateSolutionDriver {
         return frame;
     }
 
-    /**
-     * Opens the device-target dropdown, searches for `device`, selects the first
-     * matching item, and confirms via the "Select" button.
-     */
     async selectDevice(frame: FrameLocator, device: string): Promise<void> {
         await this.selectHardware(frame, 'device', device);
     }
- 
+
     async selectBoard(frame: FrameLocator, board: string): Promise<void> {
         await this.selectHardware(frame, 'board', board);
     }
@@ -106,18 +93,18 @@ export class CreateSolutionDriver {
         await expect(frame.locator(targetSelector)).toContainText(targetPattern);
     }
 
-    
+
     async selectTemplate(frame: FrameLocator, template: string): Promise<void> {
-        await this.selectProject(frame, 'template', template);
+        await this.selectProject(frame, ['Templates'], template);
     }
 
     async selectReferenceApplication(frame: FrameLocator, referenceApplication: string): Promise<void> {
-        await this.selectProject(frame, 'refapp', referenceApplication);
+        await this.selectProject(frame, ['Local', 'Reference Applications'], referenceApplication);
     }
 
     private async selectProject(
         frame: FrameLocator,
-        itemClass: 'refapp' | 'template',
+        categoryPath: string[],
         project: string,
     ): Promise<void> {
         const projectPattern = new RegExp(escapeRegExp(project), 'i');
@@ -130,16 +117,28 @@ export class CreateSolutionDriver {
 
         await expect(templateDropdown).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
 
-        const allProjectItems = templateDropdown.locator(`.components-tree-view-item.${itemClass}`);
-        await expect.poll(async () => allProjectItems.count(), {
-            timeout: DEFAULT_TIMEOUT_MS,
-            intervals: [1000, 2000, 3000],
-        }).toBeGreaterThan(0);
-
         await templateDropdown.getByPlaceholder('Search').fill(project);
 
-        const matchingProjects = templateDropdown
-            .locator(`.components-tree-view-item.${itemClass}`)
+        let category = templateDropdown.locator('.components-tree-view-category');
+        for (const [index, categoryName] of categoryPath.entries()) {
+            if (index > 0) {
+                category = category.locator(
+                    'xpath=../following-sibling::div//div[contains(concat(" ", normalize-space(@class), " "), " components-tree-view-category ")]'
+                );
+            }
+
+            const categoryPattern = new RegExp(`^${escapeRegExp(categoryName)} \\(\\d+\\)$`, 'i');
+            category = category.filter({ hasText: categoryPattern }).first();
+            await expect.poll(async () => category.count(), {
+                timeout: DEFAULT_TIMEOUT_MS,
+                intervals: [1000, 2000, 3000],
+            }).toBeGreaterThan(0);
+        }
+
+        const matchingProjects = category
+            .locator(
+                'xpath=../following-sibling::div[1]//div[contains(concat(" ", normalize-space(@class), " "), " components-tree-view-item ")]'
+            )
             .filter({ hasText: projectPattern });
 
         await expect.poll(async () => matchingProjects.count(), {
@@ -152,20 +151,20 @@ export class CreateSolutionDriver {
         await expect(frame.locator('#create-solution-template')).toContainText(projectPattern);
     }
 
-    /**
-     * Fills in the solution name, folder, and base location fields.
-     */
+    // Fills solution details
     async fillDetails(
         frame: FrameLocator,
-        solutionName: string,
+        solutionName: string | undefined,
         solutionFolder: string,
         baseFolder: string,
     ): Promise<void> {
-        const solutionNameInput = frame.locator('#create-solution-solution-name');
         const solutionFolderInput = frame.locator('#create-solution-solution-folder');
 
-        await solutionNameInput.fill(solutionName);
-        await expect(solutionNameInput).toHaveValue(solutionName);
+        if (solutionName !== undefined) {
+            const solutionNameInput = frame.locator('#create-solution-solution-name');
+            await solutionNameInput.fill(solutionName);
+            await expect(solutionNameInput).toHaveValue(solutionName);
+        }
 
         await solutionFolderInput.fill(solutionFolder);
         await expect(solutionFolderInput).toHaveValue(solutionFolder);
@@ -176,9 +175,7 @@ export class CreateSolutionDriver {
         await expect(locationInput).toHaveValue(baseFolder);
     }
 
-    /**
-     * Clicks the "Create Solution" button to trigger solution generation.
-     */
+    // Clicks the "Create Solution" button to trigger solution generation.
     async create(frame: FrameLocator): Promise<void> {
         const createButton = frame.locator('button[title="Create Solution"]');
         await createButton.waitFor({ state: 'visible', timeout: DEFAULT_TIMEOUT_MS });
@@ -201,7 +198,7 @@ export class CreateSolutionDriver {
         }
         await this.fillDetails(
             frame,
-            options.solutionName,
+            options.templateKind === 'referenceApplication' ? undefined : options.solutionName,
             options.solutionFolder,
             options.solutionBaseFolder,
         );

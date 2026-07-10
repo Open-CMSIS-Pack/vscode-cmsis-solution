@@ -22,9 +22,13 @@ export class ManageSolutionSettingsDriver {
     constructor(private readonly vscode: VsCodeDriver) {}
 
     async open(): Promise<FrameLocator> {
-        await this.vscode.page.getCommands().runCommandFromPalette('CMSIS: Manage Solution Settings');
+        await this.vscode.page
+            .getRoleByName('button', { name: 'Manage Solution Settings' })
+            .click();
 
-        const frame = this.vscode.page.getWebviewByTitle('Manage Solution');
+        // Manage Solution is a custom editor, so VS Code titles its inner iframe from
+        // the active .csolution.yml document instead of the webview's HTML title.
+        const frame = this.vscode.page.getActiveWebview();
 
         await expect(
             frame.getByRole('heading', { name: /Manage Solution/i }),
@@ -34,12 +38,20 @@ export class ManageSolutionSettingsDriver {
     }
 
     async selectDebugAdapter(frame: FrameLocator, adapter: string): Promise<void> {
-        const dropdown = frame.locator('.debug-adapter-dropdown');
+        const section = frame.locator('section.debug-adapter').filter({
+            has: frame.getByRole('heading', { name: /Debug Adapter for Target/i }),
+        });
+        const enabledCheckbox = section.locator('.hasDebugAdapter input[type="checkbox"]');
+        const dropdown = section.locator('.debug-adapter-dropdown');
+        const trigger = dropdown.getByRole('combobox');
 
-        await dropdown.locator('.compact-dropdown-trigger').click();
-        await dropdown.locator(`.search-list-values li[data-value="${this.cssString(adapter)}"]`).click();
+        if (!(await trigger.textContent())?.includes(adapter)) {
+            await trigger.click();
+            await dropdown.locator(`.search-list-values li[data-value="${this.cssString(adapter)}"]`).click();
+        }
 
-        await expect(dropdown.locator('.compact-dropdown-trigger')).toContainText(adapter);
+        await expect(trigger).toContainText(adapter);
+        await expect(enabledCheckbox).toBeChecked();
     }
 
     async selectModel(frame: FrameLocator, model: string): Promise<void> {
@@ -90,4 +102,3 @@ export class ManageSolutionSettingsDriver {
         return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     }
 }
-

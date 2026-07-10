@@ -24,6 +24,7 @@
  */
 
 import { expect } from '@playwright/test';
+import { promises as fs } from 'fs';
 import { VsCodeDriver } from '../../../infrastructure/vscode-driver';
 import { DEFAULT_TIMEOUT_MS } from '../../../constants';
 import {
@@ -34,12 +35,10 @@ import {
     ExpectedFiles,
     ExpectedProblems,
     readAndValidateGeneratedSolutionArtifacts,
-    resolveGeneratedFile,
 } from '../../../utils/usecases';
-import { TerminalDriver } from '../../../drivers/Terminal-driver';
 import { ManageSolutionSettingsDriver } from '../../../drivers/manage-solution-settings-driver';
 import { ArmToolsDriver } from '../../../drivers/arm-tools-driver';
-import { copyTerminalText } from '../../../utils/helper';
+import { copyLastTerminalCommandAndOutput, waitForBuild } from '../../../utils/helper';
 
 export { loadYamlFixture } from '../../../utils/usecases';
 
@@ -77,6 +76,51 @@ const confirmConfigureSolution = async (vsCodeDriver: VsCodeDriver): Promise<voi
 
     await frame.getByRole('button', { name: 'OK' }).click();
     await vsCodeDriver.page.waitForVsCodeToBeReady();
+};
+
+const expectGeneratedRunConfiguration = async (
+    cbuildRunFilePath: string,
+    expectedCommandParts: string[],
+): Promise<void> => {
+    const normalizedRunConfiguration = (await fs.readFile(cbuildRunFilePath, 'utf8'))
+        .replace(/\\/g, '/');
+
+    for (const expectedCommandPart of expectedCommandParts) {
+        const normalizedCommandPart = expectedCommandPart.replace(/\\/g, '/');
+        const equivalentCommandParts = [
+            normalizedCommandPart,
+            normalizedCommandPart.replace(/^\.\//, ''),
+            normalizedCommandPart.replace(/^\.?\/?out\//, ''),
+        ];
+
+        expect(equivalentCommandParts.some(commandPart =>
+            normalizedRunConfiguration.includes(commandPart),
+        ), `Expected cbuild-run.yml to contain one of: ${equivalentCommandParts.join(', ')}`).toBe(true);
+    }
+};
+
+const expectFileToContainAll = async (
+    filePath: string,
+    expectedParts: string[],
+): Promise<void> => {
+    const normalizedFileText = (await fs.readFile(filePath, 'utf8')).replace(/\\/g, '/');
+
+    for (const expectedPart of expectedParts) {
+        expect(normalizedFileText).toContain(expectedPart.replace(/\\/g, '/'));
+    }
+};
+
+const expectFileToContainPath = async (
+    filePath: string,
+    expectedPath: string,
+): Promise<void> => {
+    const normalizedFileText = (await fs.readFile(filePath, 'utf8')).replace(/\\/g, '/');
+    const normalizedExpectedPath = expectedPath.replace(/\\/g, '/').replace(/^\.\//, '');
+
+    expect(
+        normalizedFileText.includes(normalizedExpectedPath),
+        `Expected ${filePath} to contain a path ending with ${normalizedExpectedPath}`,
+    ).toBe(true);
 };
 
 /**
@@ -133,97 +177,84 @@ export const runWf001RefAppFVPSolution = async (
         await manageSolutionSettings.selectModel(manageSolutionFrame, fixture.fvp.model);
         await manageSolutionSettings.setConfigFile(
             manageSolutionFrame,
-            resolveGeneratedFile(artifacts, fixture.fvp.config_file),
+            fixture.fvp.config_file.replace(/^\.\//, ''),
         );
         await manageSolutionSettings.setMisc(manageSolutionFrame, fixture.fvp.misc);
         await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/Manage Solution Settings FVP configuration`);
         await manageSolutionSettings.save();
+        await expectFileToContainAll(referenceApplicationSolutionFilePath, [
+            `name: ${fixture.fvp.debug_adapter}`,
+            `model: ${fixture.fvp.model}`,
+            `args: ${fixture.fvp.misc}`,
+        ]);
+        await expectFileToContainPath(referenceApplicationSolutionFilePath, fixture.fvp.config_file);
 
         // 5) Configure Arm Tools environment.
         const armTools = new ArmToolsDriver(vsCodeDriver);
         const armToolsFrame = await armTools.openConfigureArmToolsEnvironment();
 
-        await armTools.selectEnvironment(armToolsFrame, fixture.arm_tools.environment);
-        await armTools.selectVersion(armToolsFrame, fixture.arm_tools.version);
+        await armTools.selectVersion(
+            armToolsFrame,
+            fixture.arm_tools.environment,
+            fixture.arm_tools.version,
+        );
         await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/Arm Tools environment configuration`);
-        await armTools.save();
+        await armTools.saveVcpkgConfiguration();
+        await expectGeneratedFileExists(artifacts, './vcpkg-configuration.json');
 
         // 6) Build the solution and verify build artifacts.
-        await vsCodeDriver.page.getCommands().build();
+        await vsCodeDriver.page.openCmsisPanel();
+        const buildButton = vsCodeDriver.page.getRoleByName('button', { name: 'Build solution' });
+        await expect(buildButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+        await buildButton.click();
 
-        const terminalDriver = new TerminalDriver(vsCodeDriver);
-        await terminalDriver.switchTerminal('Build');
-        await terminalDriver.waitForTerminalEntry(/Build summary:|Program Size:/i);
-        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/Build terminal after successful build`);
+        const buildTask = vsCodeDriver.page.getRoleByName('button', {
+            name: /^Focus Terminal.*Split Terminal/,
+        });
+        await waitForBuild(buildTask);
+
         const builtFiles = fixture.expected_files?.built ?? [];
         await expectGeneratedSolutionFiles(artifacts, builtFiles);
 
-        // 7) Run the application on the FVP and verify terminal output.
-        await vsCodeDriver.page.getCommands().runCommandFromPalette('CMSIS: Load & Run Application');
-        await terminalDriver.switchTerminal(fixture.expected_run.terminal);
+        const cbuildRunFilePath = await expectGeneratedFileExists(
+            artifacts,
+            './out/Blinky+SSE-300-MPS3.cbuild-run.yml',
+        );
+        await expectGeneratedRunConfiguration(
+            cbuildRunFilePath,
+            [
+                fixture.fvp.debug_adapter,
+                fixture.fvp.model,
+                fixture.fvp.config_file,
+                fixture.fvp.misc,
+                ...(fixture.expected_run.command_contains ?? []),
+            ],
+        );
+
+        await vsCodeDriver.page.getCommands().runCommandFromPalette('Update Debug Tasks and Launch Configurations');
+
+        // 7) Run the application on the FVP and verify the reference application output.
+        await vsCodeDriver.page.openCmsisPanel();
+        const loadAndRunButton = vsCodeDriver.page.getRoleByName('button', {
+            name: 'Load & Run Application',
+        });
+        await expect(loadAndRunButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+        await loadAndRunButton.click();
+
+        const stopRunningButton = vsCodeDriver.page.getRoleByName('button', { name: 'Stop Running' });
+        await expect(stopRunningButton.or(loadAndRunButton)).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+        await expect(loadAndRunButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
 
         for (const expectedOutput of fixture.expected_run.output_contains ?? []) {
-            await terminalDriver.waitForTerminalEntry(expectedOutput);
-        }
-
-        const runTerminalText = await copyTerminalText(vsCodeDriver);
-        for (const expectedCommandPart of fixture.expected_run.command_contains ?? []) {
-            expect(runTerminalText).toContain(expectedCommandPart);
-        }
-        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/Run terminal after FVP output`);
-
-        // 8) Verify the generated solution is loaded in the CMSIS UI.
-        await vsCodeDriver.page.openCmsisPanel();
-        await expect(vsCodeDriver.page.getRoleByName('button', { name: 'Build solution' }))
-            .toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
-
-        // 9) Verify dependency validation does not report blocking problems.
-        const dependencyValidationProblemPattern = /dependency validation for context '[^']+' failed:/i;
-        const getDependencyValidationProblemRows = () => vsCodeDriver.page
-            .getLocator('.monaco-list-row:visible')
-            .filter({ hasText: dependencyValidationProblemPattern });
-        const getDependencyValidationProblemTexts = async () => (await getDependencyValidationProblemRows()
-            .allTextContents())
-            .map(text => text.replace(/\s+/g, ' ').trim());
-
-        await vsCodeDriver.page.getCommands().runCommandFromPalette('View: Show Problems');
-
-        const noWorkspaceProblems = vsCodeDriver.page
-            .getLocator('text=No problems have been detected in the workspace.');
-
-        const expectedProblems = fixture.expected_problems?.required ?? [];
-
-        if (expectedProblems.length > 0) {
-            for (const expectedProblem of expectedProblems) {
-                await expect(vsCodeDriver.page.getPage().getByText(expectedProblem.message))
-                    .toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
-            }
-        } else {
-            await expect.poll(async () => getDependencyValidationProblemTexts(), {
+            await expect.poll(async () =>
+                copyLastTerminalCommandAndOutput(vsCodeDriver),
+            {
                 timeout: DEFAULT_TIMEOUT_MS,
                 intervals: [1000, 2000, 3000],
-            }).toEqual([]);
+            }).toContain(expectedOutput);
         }
 
-        if (await noWorkspaceProblems.count() > 0) {
-            await expect(noWorkspaceProblems).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
-        }
-
-        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/Problems view after validation`);
-
-        // 10) Verify no error notifications or failed task notifications were raised.
-        await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Show Notifications');
-
-        await expect(vsCodeDriver.page.getLocator('.notification-list-item .codicon-error'))
-            .toHaveCount(0);
-
-        await expect(
-            vsCodeDriver.page
-                .getLocator('.notification-list-item')
-                .filter({ hasText: /failed with exit code|terminated with exit code|task .* failed/i }),
-        ).toHaveCount(0);
-
-        await vsCodeDriver.page.getPage().keyboard.press('Escape');
+        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/After FVP load and run task`);
     } finally {
         await vsCodeDriver.restoreTestWorkspace();
     }

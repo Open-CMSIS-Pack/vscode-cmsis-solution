@@ -69,9 +69,7 @@ type ParsedCsolution = {
     };
 };
 
-/**
- * Loads and parses a YAML fixture file from the provided path.
- */
+//Loads and parses a YAML fixture file from the provided path.
 export const loadYamlFixture = async <T>(fixturePath: string): Promise<T> => {
     const text = await fs.readFile(fixturePath, 'utf8');
     return YAML.parse(text) as T;
@@ -82,13 +80,24 @@ const createUniqueSolutionName = (prefix = 'e2e_solution'): string => {
     return `${prefix}_${timestamp}`;
 };
 
+const createUniqueSolutionFolderName = (solutionName: string): string => {
+    const timestamp = solutionName.match(/_(\d+)$/)?.[1];
+
+    if (timestamp) {
+        return `s${timestamp.slice(-9)}`;
+    }
+
+    return `s${solutionName.replace(/[^a-zA-Z0-9]/g, '').slice(-9)}`;
+};
+
 export const createGeneratedSolution = (
     vsCodeDriver: VsCodeDriver,
     solutionName: string,
+    solutionFileBaseName = solutionName,
 ): Omit<CreatedSolution, 'artifacts'> => {
-    const solutionFolder = `${solutionName}_folder`;
-    const solutionFileName = `${solutionName}.csolution.yml`;
-    const solutionBaseFolder = path.join(vsCodeDriver.testWorkspaceDirectory, '.generated-solutions');
+    const solutionFolder = createUniqueSolutionFolderName(solutionName);
+    const solutionFileName = `${solutionFileBaseName}.csolution.yml`;
+    const solutionBaseFolder = path.join(vsCodeDriver.testWorkspaceDirectory, '.generated');
     const solutionFilePath = path.join(solutionBaseFolder, solutionFolder, solutionFileName);
     const relativeSolutionFilePath = path.relative(vsCodeDriver.testWorkspaceDirectory, solutionFilePath);
 
@@ -251,7 +260,8 @@ export const createSolutionFromWizard = async (
     input: CreateSolutionInput,
 ): Promise<Omit<CreatedSolution, 'artifacts'>> => {
     const solutionName = createUniqueSolutionName(input.solutionNamePrefix);
-    const createdSolution = createGeneratedSolution(vsCodeDriver, solutionName);
+    const solutionFileBaseName = input.templateKind === 'referenceApplication' ? input.template : solutionName;
+    const createdSolution = createGeneratedSolution(vsCodeDriver, solutionName, solutionFileBaseName);
     const createSolution = new CreateSolutionDriver(vsCodeDriver);
 
     await createSolution.createSolution({

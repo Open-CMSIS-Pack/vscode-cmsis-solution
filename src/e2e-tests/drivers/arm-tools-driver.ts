@@ -16,7 +16,6 @@
 import { expect, FrameLocator } from '@playwright/test';
 import { DEFAULT_TIMEOUT_MS } from '../constants';
 import { VsCodeDriver } from '../infrastructure/vscode-driver';
-import { escapeRegExp } from '../utils/helper';
 
 export class ArmToolsDriver {
     constructor(private readonly vscode: VsCodeDriver) {}
@@ -24,34 +23,35 @@ export class ArmToolsDriver {
     async openConfigureArmToolsEnvironment(): Promise<FrameLocator> {
         await this.vscode.page.getCommands().runCommandFromPalette('Arm Tools: Configure Arm Tools Environment');
 
-        const frame = this.vscode.page.getWebviewByTitle('Configure Arm Tools Environment');
+        const frame = this.vscode.page.getActiveWebview();
 
-        await expect(
-            frame.getByRole('heading', { name: /Configure Arm Tools Environment/i }),
-        ).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+        await expect(frame.getByRole('combobox').first()).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
 
         return frame;
     }
 
-    async selectEnvironment(frame: FrameLocator, name: string): Promise<void> {
-        const environmentPattern = new RegExp(escapeRegExp(name), 'i');
+    async selectVersion(frame: FrameLocator, toolName: string, version: string): Promise<void> {
+        const tool = frame
+            .getByText(toolName, { exact: true })
+            .locator('xpath=ancestor::*[.//*[@role="combobox"]][1]');
+        const versionDropdown = tool.getByRole('combobox');
 
-        await frame.getByLabel(/environment/i).click();
-        await frame.getByRole('option', { name: environmentPattern }).click();
+        await expect(versionDropdown).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+        await versionDropdown.click();
+        await frame.getByRole('option', { name: version, exact: true }).click();
 
-        await expect(frame.getByLabel(/environment/i)).toContainText(environmentPattern);
+        await expect(versionDropdown).toContainText(version);
     }
 
-    async selectVersion(frame: FrameLocator, version: string): Promise<void> {
-        const versionPattern = new RegExp(escapeRegExp(version), 'i');
+    async saveVcpkgConfiguration(): Promise<void> {
+        const configurationTab = this.vscode.page
+            .getPage()
+            .getByRole('tab', { name: /vcpkg-configuration\.json/i });
 
-        await frame.getByLabel(/version/i).click();
-        await frame.getByRole('option', { name: versionPattern }).click();
+        await expect(configurationTab).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+        await configurationTab.click();
+        await expect(configurationTab).toHaveAttribute('aria-selected', 'true');
 
-        await expect(frame.getByLabel(/version/i)).toContainText(versionPattern);
-    }
-
-    async save(): Promise<void> {
         await this.vscode.page.getPage().keyboard.press('Control+KeyS');
         await this.vscode.page.waitForVsCodeToBeReady();
     }

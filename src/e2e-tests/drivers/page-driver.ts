@@ -29,6 +29,7 @@
  */
 
 import { FrameLocator, Locator, Page } from 'playwright';
+import { expect } from '@playwright/test';
 import { CommandDriver } from './command-driver';
 import { DEFAULT_TIMEOUT_MS, SCREENSHOT_TIMEOUT_MS } from '../constants';
 import { log } from '../utils/logger';
@@ -102,11 +103,28 @@ export class PageDriver {
     }
 
     async openCmsisPanel(): Promise<void> {
-        await this.page.getByRole('tab', { name: 'CMSIS' }).click();
+        const cmsisTab = this.page
+            .getByRole('tablist', { name: 'Active View Switcher' })
+            .getByRole('tab', { name: 'CMSIS' });
+
+        await expect(cmsisTab).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+
+        // Activity-bar tabs are toggles: clicking the active tab hides the sidebar.
+        if (await cmsisTab.getAttribute('aria-selected') !== 'true') {
+            await cmsisTab.click();
+        }
+
+        await expect(cmsisTab).toHaveAttribute('aria-selected', 'true', {
+            timeout: DEFAULT_TIMEOUT_MS,
+        });
     }
 
     getWebviewByTitle(title: string): FrameLocator {
         return this.page.frameLocator('.webview.ready').frameLocator(`[title="${title}"]`);
+    }
+
+    getActiveWebview(): FrameLocator {
+        return this.page.frameLocator('.webview.ready:visible').frameLocator('iframe');
     }
 
     getCommands(): CommandDriver {
@@ -130,9 +148,7 @@ export class PageDriver {
         return this.page.pause();
     }
 
-    /**
-     * Get the underlying Playwright Page object for advanced operations
-     */
+    // Get the underlying Playwright Page object for advanced operations
     getPage(): Page {
         return this.page;
     }
