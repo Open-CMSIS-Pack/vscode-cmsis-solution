@@ -20,10 +20,11 @@
  *
  */
 
-import { expect, FrameLocator } from '@playwright/test';
+import { expect, FrameLocator, Locator } from '@playwright/test';
 import { VsCodeDriver } from '../infrastructure/vscode-driver';
 import { DEFAULT_TIMEOUT_MS } from '../constants';
 import { escapeRegExp } from '../utils/helper';
+import { log } from '../utils/logger';
 
 export type CreateSolutionOptions = {
     target: string;
@@ -103,6 +104,22 @@ export class CreateSolutionDriver {
         await this.selectProject(frame, ['Local', 'Reference Applications'], referenceApplication);
     }
 
+    private async captureProjectDropdownDiagnostics(
+        templateDropdown: Locator,
+        project: string,
+        reason: string,
+    ): Promise<void> {
+        const categories = await templateDropdown.locator('.components-tree-view-category').allTextContents();
+        const items = await templateDropdown.locator('.components-tree-view-item').allTextContents();
+        log('debug', `[CreateSolutionDriver] Project dropdown diagnostics (${reason})`);
+        log('debug', `[CreateSolutionDriver] Search value: "${project}"`);
+        log('debug', `[CreateSolutionDriver] Categories (${categories.length}): ${JSON.stringify(categories)}`);
+        log('debug', `[CreateSolutionDriver] Items (${items.length}): ${JSON.stringify(items)}`);
+
+        const safeName = project.replace(/[^a-zA-Z0-9._-]+/g, '-');
+        await this.vscode.page.screenshot(`create-solution/project-dropdown-${safeName}-${reason}`);
+    }
+
     private async selectProject(
         frame: FrameLocator,
         categoryPath: string[],
@@ -130,10 +147,19 @@ export class CreateSolutionDriver {
 
             const categoryPattern = new RegExp(`^${escapeRegExp(categoryName)} \\(\\d+\\)$`, 'i');
             category = category.filter({ hasText: categoryPattern }).first();
-            await expect.poll(async () => category.count(), {
-                timeout: DEFAULT_TIMEOUT_MS,
-                intervals: [1000, 2000, 3000],
-            }).toBeGreaterThan(0);
+            try {
+                await expect.poll(async () => category.count(), {
+                    timeout: DEFAULT_TIMEOUT_MS,
+                    intervals: [1000, 2000, 3000],
+                }).toBeGreaterThan(0);
+            } catch (error) {
+                await this.captureProjectDropdownDiagnostics(
+                    templateDropdown,
+                    project,
+                    `missing-category-${categoryName.replace(/[^a-zA-Z0-9._-]+/g, '-')}`,
+                );
+                throw error;
+            }
         }
 
         const matchingProjects = category
@@ -142,10 +168,15 @@ export class CreateSolutionDriver {
             )
             .filter({ hasText: projectPattern });
 
-        await expect.poll(async () => matchingProjects.count(), {
-            timeout: DEFAULT_TIMEOUT_MS,
-            intervals: [1000, 2000, 3000],
-        }).toBeGreaterThan(0);
+        try {
+            await expect.poll(async () => matchingProjects.count(), {
+                timeout: DEFAULT_TIMEOUT_MS,
+                intervals: [1000, 2000, 3000],
+            }).toBeGreaterThan(0);
+        } catch (error) {
+            await this.captureProjectDropdownDiagnostics(templateDropdown, project, 'missing-project');
+            throw error;
+        }
 
         await matchingProjects.first().scrollIntoViewIfNeeded();
         await matchingProjects.first().click();
