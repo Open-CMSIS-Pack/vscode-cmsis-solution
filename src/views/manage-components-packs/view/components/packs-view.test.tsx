@@ -88,7 +88,8 @@ describe('PacksView', () => {
         errorMessages: [],
         availableTargetTypes: [],
         unlilnkRequestStack: [],
-        availablePacks: {}
+        availablePacks: {},
+        availablePacksIndexCurrent: false
     };
 
     beforeEach(() => {
@@ -252,6 +253,70 @@ describe('PacksView', () => {
                 });
                 expect(container.querySelectorAll('.ant-modal').length).toBeGreaterThanOrEqual(0);
             }
+        });
+
+        it('shows latest online version when the pack index is current', () => {
+            const localContainer = document.createElement('div');
+            const root = createRoot(localContainer);
+            const state = {
+                ...defaultState,
+                availablePacks: { 'ARM::CMSIS@6.2.0': 'https://www.keil.arm.com/packs/cmsis-arm/versions/' },
+                availablePacksIndexCurrent: true
+            };
+
+            React.act(() => {
+                root.render(
+                    <PacksView
+                        state={state}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={state.availablePacks}
+                    />
+                );
+            });
+
+            React.act(() => {
+                (localContainer.querySelector('.packs-edit-cell button') as HTMLButtonElement).click();
+            });
+
+            expect(document.body.textContent).toContain('Latest version available online: 6.2.0');
+
+            React.act(() => {
+                root.unmount();
+            });
+            localContainer.remove();
+        });
+
+        it('hides latest online version when the pack index is stale', () => {
+            const localContainer = document.createElement('div');
+            const root = createRoot(localContainer);
+            const state = {
+                ...defaultState,
+                availablePacks: { 'ARM::CMSIS@6.2.0': 'https://www.keil.arm.com/packs/cmsis-arm/versions/' },
+                availablePacksIndexCurrent: false
+            };
+
+            React.act(() => {
+                root.render(
+                    <PacksView
+                        state={state}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={state.availablePacks}
+                    />
+                );
+            });
+
+            React.act(() => {
+                (localContainer.querySelector('.packs-edit-cell button') as HTMLButtonElement).click();
+            });
+
+            expect(document.body.textContent).not.toContain('Latest version available online');
+
+            React.act(() => {
+                root.unmount();
+            });
+            localContainer.remove();
         });
     });
 

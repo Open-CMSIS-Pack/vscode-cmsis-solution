@@ -24,6 +24,10 @@ import { COutlineItem } from '../../views/solution-outline/tree-structure/soluti
 
 type UriOrSolutionNode = vscode.Uri | COutlineItem;
 
+export interface BuildCommandSaveParticipant {
+    saveChangesBeforeBuild(): Promise<boolean>;
+}
+
 export class BuildCommand {
     public static readonly buildCommandType = `${PACKAGE_NAME}.build`;
     public static readonly cleanCommandType = `${PACKAGE_NAME}.clean`;
@@ -33,6 +37,7 @@ export class BuildCommand {
         private readonly buildTaskProvider: BuildTaskProvider,
         private readonly commandsProvider: CommandsProvider,
         private readonly buildTaskDefinitionBuilder: BuildTaskDefinitionBuilder,
+        private readonly saveParticipant?: BuildCommandSaveParticipant,
     ) {}
 
     public async activate(context: vscode.ExtensionContext): Promise<void> {
@@ -47,18 +52,20 @@ export class BuildCommand {
         return this.createAndExecuteTaskDefinition('build', uriOrSolutionNode);
     }
 
-    private async handleClean(uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution> {
+    private async handleClean(uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution | undefined> {
         return this.createAndExecuteTaskDefinition('clean', uriOrSolutionNode);
     }
 
-    private async handleRebuild(uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution> {
+    private async handleRebuild(uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution | undefined> {
         return this.createAndExecuteTaskDefinition('rebuild', uriOrSolutionNode);
     }
 
-    private async createAndExecuteTaskDefinition(action: 'build' | 'clean' | 'rebuild', uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution> {
+    private async createAndExecuteTaskDefinition(action: 'build' | 'clean' | 'rebuild', uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution | undefined> {
         await this.stopActiveSetupTaskIfRunning();
         await waitForActiveBuildTasksCompletion();
-        await this.saveDirtyManageSolutionTarget();
+        if (!await this.saveChangesBeforeBuild()) {
+            return undefined;
+        }
         const definition = await this.buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode(action, uriOrSolutionNode);
         return this.executeTaskDefinition(definition);
     }
@@ -78,8 +85,25 @@ export class BuildCommand {
         }
     }
 
-    private async saveDirtyManageSolutionTarget(): Promise<void> {
-        await this.commandsProvider.executeCommand('workbench.action.files.save');
+    private async saveChangesBeforeBuild(): Promise<boolean> {
+        try {
+            const savedEditors = await vscode.workspace.saveAll(false);
+            if (!savedEditors) {
+                await vscode.window.showWarningMessage('Build cancelled because modified files could not be saved.');
+                return false;
+            }
+
+            const savedViewChanges = await (this.saveParticipant?.saveChangesBeforeBuild() ?? Promise.resolve(true));
+            if (!savedViewChanges) {
+                await vscode.window.showWarningMessage('Build cancelled because Software Components changes could not be saved.');
+                return false;
+            }
+
+            return true;
+        } catch (error) {
+            await vscode.window.showErrorMessage(`Build cancelled while saving changes: ${error}`);
+            return false;
+        }
     }
 
     private async executeTaskDefinition(definition: BuildTaskDefinition): Promise<vscode.TaskExecution> {

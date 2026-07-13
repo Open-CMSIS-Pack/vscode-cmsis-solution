@@ -251,7 +251,7 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                                     </Tooltip>
                                 </Col>
                                 <Col flex={1}>
-                                    <Tooltip title={<><div>Software pack versions</div>{onlineTooltip}</>}>
+                                    <Tooltip title={<><div>Visit web portal for version information and release history</div>{onlineTooltip}</>}>
                                         <Button
                                             type="text"
                                             style={{ color: onlineTooltip ? 'var(--vscode-list-warningForeground)' : undefined }}

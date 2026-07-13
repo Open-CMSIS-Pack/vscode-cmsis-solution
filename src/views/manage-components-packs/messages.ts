@@ -78,6 +78,7 @@ export type IncomingMessage
         solution: SolutionInfo,
         isDirty?: boolean,
         availablePacks: Record<string, string>,
+        availablePacksIndexCurrent: boolean,
         focusPackId?: string,
     }
     ;

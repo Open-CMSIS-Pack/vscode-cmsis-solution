@@ -55,6 +55,7 @@ export type ComponentsState = {
     selectedTargetType: TargetSetData | undefined; // Currently selected target type
     unlilnkRequestStack: string[]; // Stack of unlink requests
     availablePacks: Record<string, string>; // Map of available packs (id to URL)
+    availablePacksIndexCurrent: boolean;
 }
 
 export type ComponentsAction
@@ -89,6 +90,7 @@ export const initialState: ComponentsState = {
     selectedTargetType: undefined, // Initialize selectedTargetType
     unlilnkRequestStack: [], // Initialize unlinkRequests
     availablePacks: {}, // Initialize availablePacks
+    availablePacksIndexCurrent: false,
 };
 
 const incomingMessageReducer = (
@@ -137,7 +139,8 @@ const incomingMessageReducer = (
                 stateMessage: undefined,
                 cbuildPackPath: message.cbuildPackPath,
                 errorMessages: [],
-                availablePacks: message.availablePacks
+                availablePacks: message.availablePacks,
+                availablePacksIndexCurrent: message.availablePacksIndexCurrent
             };
         }
         case 'SET_UNLINKREQUESTS_STACK': {

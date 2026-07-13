@@ -202,8 +202,12 @@ export const runWf001DeviceBlankSolution = async (
     const solutionName = createUniqueSolutionName(fixture.solution_name_prefix);
     const solutionFolder = `${solutionName}_folder`;
     const solutionFileName = `${solutionName}.csolution.yml`;
-    const solutionBaseFolder = path.dirname(vsCodeDriver.testWorkspaceDirectory);
+    const solutionBaseFolder = path.join(vsCodeDriver.testWorkspaceDirectory, '.generated-solutions');
     const solutionFilePath = path.join(solutionBaseFolder, solutionFolder, solutionFileName);
+    const relativeSolutionFilePath = path.relative(vsCodeDriver.testWorkspaceDirectory, solutionFilePath);
+
+    expect(relativeSolutionFilePath.startsWith('..')).toBe(false);
+    expect(path.isAbsolute(relativeSolutionFilePath)).toBe(false);
 
     // Start from a clean notification state so error checks only include this workflow.
     await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Clear All Notifications');
@@ -215,6 +219,7 @@ export const runWf001DeviceBlankSolution = async (
     await createSolution.selectDevice(frame, fixture.device);
     await createSolution.selectTemplate(frame, fixture.template);
     await createSolution.fillDetails(frame, solutionName, solutionFolder, solutionBaseFolder);
+    await vsCodeDriver.page.screenshot('uc-001-create-solution-from-template/wf-001/Create Solution form before submit');
     await createSolution.create(frame);
 
     try {
@@ -266,6 +271,8 @@ export const runWf001DeviceBlankSolution = async (
         await expect(vsCodeDriver.page.getRoleByName('button', { name: 'Build solution' }))
             .toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
 
+        await vsCodeDriver.page.screenshot('uc-001-create-solution-from-template/wf-001/CMSIS view after solution load');
+
         // 4) Verify dependency validation does not report blocking problems.
         const dependencyValidationProblemPattern = /dependency validation for context '[^']+' failed:/i;
         const getDependencyValidationProblemRows = () => vsCodeDriver.page
@@ -297,6 +304,8 @@ export const runWf001DeviceBlankSolution = async (
         if (await noWorkspaceProblems.count() > 0) {
             await expect(noWorkspaceProblems).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
         }
+
+        await vsCodeDriver.page.screenshot('uc-001-create-solution-from-template/wf-001/Problems view after validation');
 
         // 5) Verify no error notifications or failed task notifications were raised.
         await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Show Notifications');

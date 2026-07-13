@@ -68,11 +68,13 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
         const recordPack = parsePackId(record.key);
         let latestOnlineVersion: string | undefined;
 
-        for (const packId of Object.keys(availablePacks ?? {})) {
-            const pack = parsePackId(packId);
-            if (pack?.vendor === recordPack?.vendor && pack?.packName === recordPack?.packName) {
-                latestOnlineVersion = pack?.version;
-                break;
+        if (state.availablePacksIndexCurrent) {
+            for (const packId of Object.keys(availablePacks ?? {})) {
+                const pack = parsePackId(packId);
+                if (pack?.vendor === recordPack?.vendor && pack?.packName === recordPack?.packName) {
+                    latestOnlineVersion = pack?.version;
+                    break;
+                }
             }
         }
 
@@ -80,7 +82,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
             ...record,
             latestOnlineVersion,
         });
-    }, [availablePacks]);
+    }, [availablePacks, state.availablePacksIndexCurrent]);
 
     const columns: TableColumnsType<PackRowDataType> = React.useMemo(() => {
         const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {

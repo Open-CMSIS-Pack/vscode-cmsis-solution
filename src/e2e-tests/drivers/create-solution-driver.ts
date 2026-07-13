@@ -129,8 +129,14 @@ export class CreateSolutionDriver {
         solutionFolder: string,
         baseFolder: string,
     ): Promise<void> {
-        await frame.locator('#create-solution-solution-name').fill(solutionName);
-        await frame.locator('#create-solution-solution-folder').fill(solutionFolder);
+        const solutionNameInput = frame.locator('#create-solution-solution-name');
+        const solutionFolderInput = frame.locator('#create-solution-solution-folder');
+
+        await solutionNameInput.fill(solutionName);
+        await expect(solutionNameInput).toHaveValue(solutionName);
+
+        await solutionFolderInput.fill(solutionFolder);
+        await expect(solutionFolderInput).toHaveValue(solutionFolder);
 
         const locationInput = frame.locator('#create-solution-file-locator');
         await expect(locationInput).toHaveValue(/.+/);
