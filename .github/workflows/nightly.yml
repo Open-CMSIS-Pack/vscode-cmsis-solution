@@ -277,6 +277,9 @@ jobs:
         run: |
           echo "CMSIS_PACK_ROOT=$RUNNER_TEMP/cmsis-packs" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/cmsis-packs"
+
+      - name: Show CMSIS environment
+        run: cbuild list environment
       
       - name: Initialize CMSIS pack root folder
         run: |
