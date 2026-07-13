@@ -292,12 +292,12 @@
     "viewsWelcome": [
       {
         "view": "cmsis-csolution.outline",
-        "contents": "Create a solution from scratch, import an example, or open an existing μVision project to convert it to a CMSIS solution. \n [Create Solution](command:cmsis-csolution.createSolution)\n [Convert a μVision Project to CMSIS Solution](command:cmsis-csolution.convertMicroVisionToCsolution)\n Need help? [Verify the Installation](https://mdk-packs.github.io/vscode-cmsis-solution-docs/installation.html#verify-the-installation) or explore the [overview](https://marketplace.visualstudio.com/items?itemName=Arm.cmsis-csolution).",
+        "contents": "Create a solution from scratch, import an example, or open an existing μVision project to convert it to a CMSIS solution. \n [Create Solution](command:cmsis-csolution.createSolution)\n [Convert a μVision Project to CMSIS Solution](command:cmsis-csolution.convertMicroVisionToCsolution)\n [Browse Arm Examples](command:cmsis-csolution.openArmExamples)\n Need help? [Verify the Installation](https://mdk-packs.github.io/vscode-cmsis-solution-docs/installation.html#verify-the-installation) or explore the [overview](https://marketplace.visualstudio.com/items?itemName=Arm.cmsis-csolution).",
         "when": "!view.arm.cmsis-csolution.welcome.hidden && cmsis-csolution.activeSolutionState == none"
       },
       {
         "view": "cmsis-csolution.outline",
-        "contents": "Create a solution from scratch, import an example, or open an existing μVision project to convert it to a CMSIS solution. \n [Open Solution in Workspace](command:cmsis-csolution.openSolution)\n [Create Solution](command:cmsis-csolution.createSolution)\n [Convert a μVision Project to CMSIS Solution](command:cmsis-csolution.convertMicroVisionToCsolution)\n Need help? [Verify the Installation](https://mdk-packs.github.io/vscode-cmsis-solution-docs/installation.html#verify-the-installation) or explore the [overview](https://marketplace.visualstudio.com/items?itemName=Arm.cmsis-csolution).",
+        "contents": "Create a solution from scratch, import an example, or open an existing μVision project to convert it to a CMSIS solution. \n [Open Solution in Workspace](command:cmsis-csolution.openSolution)\n [Create Solution](command:cmsis-csolution.createSolution)\n [Convert a μVision Project to CMSIS Solution](command:cmsis-csolution.convertMicroVisionToCsolution)\n [Browse Arm Examples](command:cmsis-csolution.openArmExamples)\n Need help? [Verify the Installation](https://mdk-packs.github.io/vscode-cmsis-solution-docs/installation.html#verify-the-installation) or explore the [overview](https://marketplace.visualstudio.com/items?itemName=Arm.cmsis-csolution).",
         "when": "!view.arm.cmsis-csolution.welcome.hidden && cmsis-csolution.activeSolutionState == inactive"
       },
       {
@@ -597,6 +597,11 @@
         "command": "cmsis-csolution.openHelp",
         "title": "Help",
         "shortTitle": "Help"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.openArmExamples",
+        "title": "Browse Arm Examples"
       },
       {
         "category": "CMSIS",
