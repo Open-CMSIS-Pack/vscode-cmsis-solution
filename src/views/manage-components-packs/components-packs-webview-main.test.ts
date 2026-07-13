@@ -654,6 +654,27 @@ describe('ComponentsPacksWebviewMain', () => {
         });
     });
 
+    describe('isModifiedBeforeBuild', () => {
+        it('returns false without dirty check when the view has no loaded baseline', async () => {
+            (componentsPacksWebviewMain as any).usedItems = undefined;
+            const isDirtySpy = jest.spyOn(componentsPacksWebviewMain as any, 'isDirty');
+
+            const result = await componentsPacksWebviewMain.isModifiedBeforeBuild();
+
+            expect(result).toBe(false);
+            expect(isDirtySpy).not.toHaveBeenCalled();
+        });
+
+        it('returns the current dirty state when the view has a loaded baseline', async () => {
+            (componentsPacksWebviewMain as any).usedItems = usedItemsReturn;
+            jest.spyOn(componentsPacksWebviewMain as any, 'isDirty').mockResolvedValue(true);
+
+            const result = await componentsPacksWebviewMain.isModifiedBeforeBuild();
+
+            expect(result).toBe(true);
+        });
+    });
+
     describe('ComponentsWebviewMain loadSolution', () => {
         const componentTreeReturn = { success: true, classes: [{ id: 'cls1', bundles: [{ aggregates: [{ options: { layer: 'Board1.clayer.yml' }, variants: [] }] }] }] } as any;
         const validationsReturn = { success: true, result: 'OK', validation: [{ id: 'val1' }] } as any;

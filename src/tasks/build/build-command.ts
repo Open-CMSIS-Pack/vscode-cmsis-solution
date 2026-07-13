@@ -26,6 +26,7 @@ type UriOrSolutionNode = vscode.Uri | COutlineItem;
 type SaveBeforeRun = 'always' | 'never' | 'prompt';
 
 export interface BuildCommandSaveParticipant {
+    isModifiedBeforeBuild(): Promise<boolean>;
     saveChangesBeforeBuild(): Promise<boolean>;
 }
 
@@ -95,8 +96,12 @@ export class BuildCommand {
             if (saveBeforeRun === 'never') {
                 return true;
             }
-if (saveBeforeRun === 'prompt' && vscode.workspace.textDocuments.some((document) => document.isDirty && !document.isUntitled)) {
+
+            const hasModifiedChanges = await this.hasModifiedChangesBeforeBuild();
             if (saveBeforeRun === 'prompt') {
+                if (!hasModifiedChanges) {
+                    return true;
+                }
                 const selection = await vscode.window.showWarningMessage(
                     'Save modified files before building?',
                     { modal: true },
@@ -131,6 +136,11 @@ if (saveBeforeRun === 'prompt' && vscode.workspace.textDocuments.some((document)
             await vscode.window.showErrorMessage(`Build cancelled while saving changes: ${error}`);
             return false;
         }
+    }
+
+    private async hasModifiedChangesBeforeBuild(): Promise<boolean> {
+        return vscode.workspace.textDocuments.some((document) => document.isDirty && !document.isUntitled)
+            || await (this.saveParticipant?.isModifiedBeforeBuild() ?? Promise.resolve(false));
     }
 
     private async executeTaskDefinition(definition: BuildTaskDefinition): Promise<vscode.TaskExecution> {

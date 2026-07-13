@@ -357,15 +357,19 @@ export class ComponentsPacksWebviewMain {
     }
 
     public async saveChangesBeforeBuild(): Promise<boolean> {
-        if (this.usedItems === undefined) {
-            return true;
-        }
-
-        if (!await this.isDirty()) {
+        if (!await this.isModifiedBeforeBuild()) {
             return true;
         }
 
         return this.handleApplyComponentSet();
+    }
+
+    public async isModifiedBeforeBuild(): Promise<boolean> {
+        if (this.usedItems === undefined) {
+            return false;
+        }
+
+        return this.isDirty();
     }
 
     private async isDirty(usedItems?: UsedItems): Promise<boolean> {

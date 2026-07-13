@@ -60,6 +60,7 @@ describe('BuildCommand', () => {
         buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode.mockResolvedValue(buildTaskDefinition);
         commandsProvider.executeCommand.mockResolvedValue(undefined);
         saveParticipant = {
+            isModifiedBeforeBuild: jest.fn().mockResolvedValue(false),
             saveChangesBeforeBuild: jest.fn().mockResolvedValue(true),
         };
         taskSaveBeforeRun = 'always';
@@ -73,6 +74,7 @@ describe('BuildCommand', () => {
         });
         mockShowWarningMessage.mockResolvedValue(undefined);
         mockSaveAll.mockResolvedValue(true);
+        (vscode.workspace as unknown as { textDocuments: vscode.TextDocument[] }).textDocuments = [];
     });
 
     const createBuildCommand = () => new BuildCommand(
@@ -135,6 +137,7 @@ describe('BuildCommand', () => {
 
         it('respects task.saveBeforeRun prompt and saves when the user chooses Save', async () => {
             taskSaveBeforeRun = 'prompt';
+            saveParticipant.isModifiedBeforeBuild.mockResolvedValue(true);
             mockShowWarningMessage.mockResolvedValue({ title: 'Save' });
             const buildCommand = createBuildCommand();
             await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
@@ -155,6 +158,7 @@ describe('BuildCommand', () => {
 
         it('respects task.saveBeforeRun prompt and starts build without saving when the user chooses Don\'t Save', async () => {
             taskSaveBeforeRun = 'prompt';
+            saveParticipant.isModifiedBeforeBuild.mockResolvedValue(true);
             mockShowWarningMessage.mockResolvedValue({ title: 'Don\'t Save' });
             const buildCommand = createBuildCommand();
             await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
@@ -169,6 +173,7 @@ describe('BuildCommand', () => {
 
         it('respects task.saveBeforeRun prompt and aborts build when the user chooses Cancel', async () => {
             taskSaveBeforeRun = 'prompt';
+            saveParticipant.isModifiedBeforeBuild.mockResolvedValue(true);
             mockShowWarningMessage.mockResolvedValue({ title: 'Cancel' });
             const buildCommand = createBuildCommand();
             await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
@@ -180,6 +185,50 @@ describe('BuildCommand', () => {
             expect(saveParticipant.saveChangesBeforeBuild).not.toHaveBeenCalled();
             expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).not.toHaveBeenCalled();
             expect(mockExecuteTask).not.toHaveBeenCalled();
+        });
+
+        it('respects task.saveBeforeRun prompt and skips prompt when nothing is modified', async () => {
+            taskSaveBeforeRun = 'prompt';
+            const buildCommand = createBuildCommand();
+            await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+
+            await commandsProvider.mockRunRegistered(BuildCommand.buildCommandType, undefined);
+
+            expect(saveParticipant.isModifiedBeforeBuild).toHaveBeenCalledTimes(1);
+            expect(mockShowWarningMessage).not.toHaveBeenCalledWith(
+                'Save modified files before building?',
+                expect.anything(),
+                expect.anything(),
+                expect.anything(),
+                expect.anything(),
+            );
+            expect(mockSaveAll).not.toHaveBeenCalled();
+            expect(saveParticipant.saveChangesBeforeBuild).not.toHaveBeenCalled();
+            expect(mockExecuteTask).toHaveBeenCalledTimes(1);
+        });
+
+        it('respects task.saveBeforeRun prompt and prompts when an editor is modified', async () => {
+            taskSaveBeforeRun = 'prompt';
+            (vscode.workspace as unknown as { textDocuments: vscode.TextDocument[] }).textDocuments = [
+                { isDirty: true, isUntitled: false } as unknown as vscode.TextDocument
+            ];
+            mockShowWarningMessage.mockResolvedValue({ title: 'Save' });
+            const buildCommand = createBuildCommand();
+            await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+
+            await commandsProvider.mockRunRegistered(BuildCommand.buildCommandType, undefined);
+
+            expect(saveParticipant.isModifiedBeforeBuild).not.toHaveBeenCalled();
+            expect(mockShowWarningMessage).toHaveBeenCalledWith(
+                'Save modified files before building?',
+                { modal: true },
+                { title: 'Save' },
+                { title: 'Don\'t Save' },
+                { title: 'Cancel', isCloseAffordance: true },
+            );
+            expect(mockSaveAll).toHaveBeenCalledWith(false);
+            expect(saveParticipant.saveChangesBeforeBuild).toHaveBeenCalledTimes(1);
+            expect(mockExecuteTask).toHaveBeenCalledTimes(1);
         });
 
         it('stops active setup task via provider before starting build', async () => {
