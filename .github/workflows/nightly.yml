@@ -267,6 +267,12 @@ jobs:
       - name: Install Playwright
         run: npx playwright install chromium
 
+      - name: Add CMSIS Toolbox to PATH
+        run: echo "$GITHUB_WORKSPACE/tools/cmsis-toolbox/bin" >> "$GITHUB_PATH"
+
+      - name: Verify cpackget
+        run: cpackget --version
+      
       - name: Initialize CMSIS pack root folder
         run: |
           cpackget init https://www.keil.com/pack/index.pidx
