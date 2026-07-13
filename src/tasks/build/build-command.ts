@@ -95,7 +95,7 @@ export class BuildCommand {
             if (saveBeforeRun === 'never') {
                 return true;
             }
-
+if (saveBeforeRun === 'prompt' && vscode.workspace.textDocuments.some((document) => document.isDirty && !document.isUntitled)) {
             if (saveBeforeRun === 'prompt') {
                 const selection = await vscode.window.showWarningMessage(
                     'Save modified files before building?',
