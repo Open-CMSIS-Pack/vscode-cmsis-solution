@@ -272,6 +272,11 @@ jobs:
 
       - name: Verify cpackget
         run: cpackget --version
+
+      - name: Configure CMSIS pack root
+        run: |
+          echo "CMSIS_PACK_ROOT=$RUNNER_TEMP/cmsis-packs" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/cmsis-packs"
       
       - name: Initialize CMSIS pack root folder
         run: |
