@@ -23,6 +23,7 @@ import { BuildTaskDefinitionBuilder } from './build-task-definition-builder';
 import { COutlineItem } from '../../views/solution-outline/tree-structure/solution-outline-item';
 
 type UriOrSolutionNode = vscode.Uri | COutlineItem;
+type SaveBeforeRun = 'always' | 'never' | 'prompt';
 
 export interface BuildCommandSaveParticipant {
     saveChangesBeforeBuild(): Promise<boolean>;
@@ -87,6 +88,32 @@ export class BuildCommand {
 
     private async saveChangesBeforeBuild(): Promise<boolean> {
         try {
+            const saveBeforeRun = vscode.workspace
+                .getConfiguration('task')
+                .get<SaveBeforeRun>('saveBeforeRun', 'always');
+
+            if (saveBeforeRun === 'never') {
+                return true;
+            }
+
+            if (saveBeforeRun === 'prompt') {
+                const selection = await vscode.window.showWarningMessage(
+                    'Save modified files before building?',
+                    { modal: true },
+                    { title: 'Save' },
+                    { title: 'Don\'t Save' },
+                    { title: 'Cancel', isCloseAffordance: true },
+                );
+
+                if (!selection || selection.title === 'Cancel') {
+                    return false;
+                }
+
+                if (selection.title === 'Don\'t Save') {
+                    return true;
+                }
+            }
+
             const savedEditors = await vscode.workspace.saveAll(false);
             if (!savedEditors) {
                 await vscode.window.showWarningMessage('Build cancelled because modified files could not be saved.');
