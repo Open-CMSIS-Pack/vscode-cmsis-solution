@@ -92,6 +92,7 @@ import { SolutionEventHub } from '../solutions/solution-event-hub';
 import { SolutionRpcData } from '../solutions/solution-rpc-data';
 import { ManageSolutionCustomEditorProvider, registerManageSolutionCommand } from '../views/manage-solution/manage-solution-custom-editor';
 import { FileOpenGroupOrchestratorImpl } from '../views/file-open-group-orchestrator';
+import { OpenArmExamplesCommand } from '../views/solution-outline/commands/open-arm-examples-command';
 
 let installDefaultToolsetProcess: Promise<void> | undefined;
 
@@ -268,6 +269,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const solutionLanguageFeatures = new SolutionLanguageFeaturesProvider(solutionManager);
     const packInstallCommands = new PackInstallCommands(commandsProvider, cmsisToolboxManager, outputChannelProvider);
     const protocolHandler = new ProtocolHandler(cmsisToolboxManager, outputChannelProvider);
+    const openArmExamplesCommand = new OpenArmExamplesCommand(commandsProvider, externalFileOpener);
 
     const activations = [
         eventHub.activate(context),
@@ -310,6 +312,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         envManager.activate(context),
         serialMonitorExtension.activate(context),
         solutionRootsWatcher.activate(context),
+        openArmExamplesCommand.activate(context),
         // activeSolutionTracker triggers an event by activation that can be consumed only if the receiver is already activated ,
         activeSolutionTracker.activate(context),
     ];
