@@ -136,30 +136,34 @@ describe('PackPropertiesDialog', () => {
         expect(screen.getAllByText('Manage Pack: Pack2')).toBeDefined();
     });
 
-    it('shows current pack as latest installed and disables update button when no upgrades are available', () => {
+    it('shows current pack as latest installed, disables update button and explains no unlock is needed', () => {
         const pack = createMockPack({
             references: [{ pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project1.cproject.yml', relOrigin: 'path/to/project1.cproject.yml', selected: true }],
         });
 
-        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);
+        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} cbuildPackPath={'SDS.cbuild-pack.yml'} onClose={mockOnClose} />);
 
         expect(screen.getAllByText('ARM::CMSIS@6.1.0')).toBeDefined();
+        expect(screen.getByText((content) => content.includes('Uses already latest installed pack version in'))).toBeDefined();
 
         const [updateButton] = getUpdatePackButtons();
         expect(updateButton).toBeDefined();
+        expect(updateButton).toHaveProperty('disabled', true);
     });
 
-    it('shows upgrade pack version and marks unlock request when update is clicked', async () => {
+    it('shows upgrade pack version, enables update button and explains the unlock action', async () => {
         const pack = createMockPack({
             references: [{ pack: 'ARM::CMSIS@6.1.0', resolvedPack: 'ARM::CMSIS@6.1.0', origin: 'path/to/project1.cproject.yml', relOrigin: 'path/to/project1.cproject.yml', selected: true, upgrade: '6.2.0' }],
         });
 
-        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} onClose={mockOnClose} />);
+        render(<PackPropertiesDialog pack={pack} state={{ unlilnkRequestStack: [], selectedTargetType: selectedTargetType }} allOrigins={createMockAllOrigins()} cbuildPackPath={'SDS.cbuild-pack.yml'} onClose={mockOnClose} />);
 
         expect(screen.getByText('CMSIS@6.2.0')).toBeDefined();
+        expect(screen.getByText((content) => content.includes('Remove lock in'))).toBeDefined();
 
         const [updateButton] = getUpdatePackButtons();
         expect(updateButton).toBeDefined();
+        expect(updateButton).toHaveProperty('disabled', false);
 
         fireEvent.click(updateButton);
 
