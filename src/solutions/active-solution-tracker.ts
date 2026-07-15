@@ -34,11 +34,11 @@ export const COMMAND_GET_SOLUTION_FILE = `${manifest.PACKAGE_NAME}.getSolutionFi
 /** @deprecated */
 export const COMMAND_GET_SOLUTION_PATH = `${manifest.PACKAGE_NAME}.getSolutionPath`;
 
-
 // this pattern covers csolution, project, layer and global generator files
 export const solutionFileWatchPattern =
     '**/{cdefault,*.csolution,*.cproject,*.clayer,*.cgen}.{yaml,yml}';
 
+export const dbgconfFileWatchPattern = '**/*.dbgconf';
 
 interface SolutionDetails {
     displayName: string;
@@ -57,7 +57,7 @@ export interface ActiveSolutionTracker {
     readonly onDidChangeActiveSolution: vscode.Event<void>;
 
     /**
-     * Event fired when a watched solution YAML file changes.
+     * Event fired when a watched solution-related file changes.
      */
     readonly onActiveSolutionFilesChanged: vscode.Event<string>;
 
@@ -120,6 +120,9 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
             this.fileWatcherProvider.watchFiles(solutionFileWatchPattern, {
                 onChange: this.handleActiveSolutionFileChange,
                 onCreate: this.handleActiveSolutionFileChange,
+            }, this),
+            this.fileWatcherProvider.watchFiles(dbgconfFileWatchPattern, {
+                onChange: this.handleActiveSolutionFileChange,
             }, this),
             this.commandsProvider.registerCommand(COMMAND_OPEN_SOLUTION, this.handleActivateSolution, this),
             this.commandsProvider.registerCommand(COMMAND_ACTIVATE_SOLUTION, this.handleActivateSolution, this),

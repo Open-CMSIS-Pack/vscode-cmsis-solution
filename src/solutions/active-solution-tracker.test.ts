@@ -15,7 +15,14 @@
  */
 
 import 'jest';
-import { ActiveSolutionTrackerImpl, COMMAND_ACTIVATE_SOLUTION, COMMAND_DEACTIVATE_SOLUTION, solutionFileWatchPattern } from './active-solution-tracker';
+import {
+    ActiveSolutionTrackerImpl,
+    COMMAND_ACTIVATE_SOLUTION,
+    COMMAND_DEACTIVATE_SOLUTION,
+    cmsisDbgconfFileWatchPattern,
+    dbgconfFileWatchPattern,
+    solutionFileWatchPattern,
+} from './active-solution-tracker';
 import * as vscode from 'vscode';
 import { WorkspaceFolder } from 'vscode';
 import { URI } from 'vscode-uri';
@@ -611,6 +618,8 @@ describe('ActiveSolutionTracker solution file watching', () => {
 
     it('registers a file watcher on activation', () => {
         expect(fileWatcherProvider.watchFiles).toHaveBeenCalledWith(solutionFileWatchPattern, expect.any(Object), expect.anything());
+        expect(fileWatcherProvider.watchFiles).toHaveBeenCalledWith(dbgconfFileWatchPattern, expect.any(Object), expect.anything());
+        expect(fileWatcherProvider.watchFiles).toHaveBeenCalledWith(cmsisDbgconfFileWatchPattern, expect.any(Object), expect.anything());
     });
 
     it('fires onActiveSolutionFilesChanged when the csolution file is modified', async () => {
@@ -634,6 +643,22 @@ describe('ActiveSolutionTracker solution file watching', () => {
 
         expect(changeListener).toHaveBeenCalledTimes(1);
         expect(changeListener).toHaveBeenCalledWith(packFile);
+    });
+
+    it('fires onActiveSolutionFilesChanged when a dbgconf file is modified', async () => {
+        const dbgconfFile = path.join(solutionRoot, 'DebugConfig', 'My.dbgconf');
+        fileWatcherProvider.mockFireEvent(dbgconfFileWatchPattern, dbgconfFile, 'change');
+
+        expect(changeListener).toHaveBeenCalledTimes(1);
+        expect(changeListener).toHaveBeenCalledWith(dbgconfFile);
+    });
+
+    it('fires onActiveSolutionFilesChanged when a dbgconf file in .cmsis is modified', async () => {
+        const dbgconfFile = path.join(solutionRoot, '.cmsis', 'My.dbgconf');
+        fileWatcherProvider.mockFireEvent(cmsisDbgconfFileWatchPattern, dbgconfFile, 'change');
+
+        expect(changeListener).toHaveBeenCalledTimes(1);
+        expect(changeListener).toHaveBeenCalledWith(dbgconfFile);
     });
 
     it('fires onActiveSolutionFilesChanged when an inactive csolution file is modified', async () => {
