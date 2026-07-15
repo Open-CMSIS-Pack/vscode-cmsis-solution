@@ -19,7 +19,6 @@ import {
     ActiveSolutionTrackerImpl,
     COMMAND_ACTIVATE_SOLUTION,
     COMMAND_DEACTIVATE_SOLUTION,
-    cmsisDbgconfFileWatchPattern,
     dbgconfFileWatchPattern,
     solutionFileWatchPattern,
 } from './active-solution-tracker';
@@ -619,7 +618,6 @@ describe('ActiveSolutionTracker solution file watching', () => {
     it('registers a file watcher on activation', () => {
         expect(fileWatcherProvider.watchFiles).toHaveBeenCalledWith(solutionFileWatchPattern, expect.any(Object), expect.anything());
         expect(fileWatcherProvider.watchFiles).toHaveBeenCalledWith(dbgconfFileWatchPattern, expect.any(Object), expect.anything());
-        expect(fileWatcherProvider.watchFiles).toHaveBeenCalledWith(cmsisDbgconfFileWatchPattern, expect.any(Object), expect.anything());
     });
 
     it('fires onActiveSolutionFilesChanged when the csolution file is modified', async () => {
