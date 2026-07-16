@@ -653,7 +653,7 @@ describe('ActiveSolutionTracker solution file watching', () => {
 
     it('fires onActiveSolutionFilesChanged when a dbgconf file in .cmsis is modified', async () => {
         const dbgconfFile = path.join(solutionRoot, '.cmsis', 'My.dbgconf');
-        fileWatcherProvider.mockFireEvent(cmsisDbgconfFileWatchPattern, dbgconfFile, 'change');
+        fileWatcherProvider.mockFireEvent(dbgconfFileWatchPattern, dbgconfFile, 'change');
 
         expect(changeListener).toHaveBeenCalledTimes(1);
         expect(changeListener).toHaveBeenCalledWith(dbgconfFile);
