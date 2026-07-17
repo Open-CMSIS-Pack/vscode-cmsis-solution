@@ -38,7 +38,6 @@ import {
 } from '../../../utils/usecases';
 import { ManageSolutionSettingsDriver } from '../../../drivers/manage-solution-settings-driver';
 import { ArmToolsDriver } from '../../../drivers/arm-tools-driver';
-import { VcpkgDriver } from '../../../drivers/vcpkg-driver';
 import { copyLastTerminalCommandAndOutput, waitForBuild } from '../../../utils/helper';
 
 export { loadYamlFixture } from '../../../utils/usecases';
@@ -167,9 +166,7 @@ export const runWf001RefAppFVPSolution = async (
         await addPackToCsolution(referenceApplicationSolutionFilePath, fixture.fvp.pack);
         await confirmConfigureSolution(vsCodeDriver);
 
-        // Wait for tools and clear notifications that could block webview clicks.
-        const vcpkg = new VcpkgDriver(vsCodeDriver);
-        await vcpkg.waitForActivation();
+        // Clear notifications that could block webview clicks.
         await vsCodeDriver.page.logAndClearNotifications();
 
         const createdFiles = fixture.expected_files?.created ?? [];
