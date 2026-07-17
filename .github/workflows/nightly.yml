@@ -261,6 +261,12 @@ jobs:
         with:
           config: './src/e2e-tests/vcpkg-configuration.json'
 
+      - name: Verify Corstone SSE-300 FVP
+        shell: pwsh
+        run: |
+          Get-Command FVP_Corstone_SSE-300.exe -ErrorAction Stop
+          where.exe FVP_Corstone_SSE-300.exe
+
       - name: Activate Arm tool license
         run: armlm activate --server https://mdk-preview.keil.arm.com --product KEMDK-COM0
 

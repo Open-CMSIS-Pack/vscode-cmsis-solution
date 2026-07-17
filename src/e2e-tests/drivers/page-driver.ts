@@ -124,6 +124,20 @@ export class PageDriver {
         await this.page.getByRole('button', { name: 'Toggle Do Not Disturb Mode' }).click();
     }
 
+    async logAndClearNotifications(): Promise<void> {
+        const visibleNotifications = this.page.locator('.notification-toast-container:visible');
+        const notificationTexts = (await visibleNotifications.allTextContents())
+            .map(text => text.replace(/\s+/g, ' ').trim())
+            .filter(text => text.length > 0);
+
+        if (notificationTexts.length > 0) {
+            log('debug', `Clearing visible VS Code notifications: ${JSON.stringify(notificationTexts)}`);
+        }
+
+        await this.getCommands().runCommandFromPalette('Notifications: Clear All Notifications');
+        await expect(visibleNotifications).toHaveCount(0, { timeout: SHORT_TIMEOUT_MS });
+    }
+
     async openCmsisPanel(): Promise<void> {
         const cmsisTab = this.page
             .getByRole('tablist', { name: 'Active View Switcher' })
