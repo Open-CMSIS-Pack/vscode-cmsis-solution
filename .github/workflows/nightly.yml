@@ -266,6 +266,11 @@ jobs:
         run: |
           Get-Command FVP_Corstone_SSE-300.exe -ErrorAction Stop
           where.exe FVP_Corstone_SSE-300.exe
+          $pluginDirectory = [IO.Path]::TrimEndingDirectorySeparator(
+            [IO.Path]::GetFullPath($env:AVH_FVP_PLUGINS)
+          )
+          Get-Item -LiteralPath (Join-Path $pluginDirectory 'GDBServer.dll') -ErrorAction Stop
+          "AVH_FVP_PLUGINS=$pluginDirectory" >> $env:GITHUB_ENV
 
       - name: Activate Arm tool license
         run: armlm activate --server https://mdk-preview.keil.arm.com --product KEMDK-COM0
