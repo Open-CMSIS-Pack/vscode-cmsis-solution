@@ -240,6 +240,14 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=8192
         run: npm ci
 
+      - name: Inspect FVP debug-adapter template
+        shell: pwsh
+        run: |
+          Write-Host 'Debug adapter registry revision:'
+          Get-Content -LiteralPath 'templates/debug/version.txt' -ErrorAction Stop
+          Write-Host 'FVP adapter template:'
+          Get-Content -LiteralPath 'templates/debug/FVP.adapter.json' -ErrorAction Stop
+
       - name: Run build
         run: npm run build
 
