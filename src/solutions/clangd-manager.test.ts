@@ -16,8 +16,8 @@
 
 import 'jest';
 import * as path from 'path';
+import yaml from 'yaml';
 import dedent from 'dedent';
-import { setContext as setContextImport } from '@eclipse-cdt-cloud/clangd-contexts';
 import { clangDActiveContextKey, ClangdManager, ClangdConfig } from './clangd-manager';
 import { MockConfigurationProvider, configurationProviderFactory } from '../vscode-api/configuration-provider.factories';
 import { ArmclangDefineGetter } from './intellisense/armclang-define-getter';
@@ -33,13 +33,9 @@ import { faker } from '@faker-js/faker';
 import { ContextDescriptor } from './descriptors/descriptors';
 import { CSolution } from './csolution';
 import { cbuildIdxFileFactory } from './files/cbuild-idx-file.factory';
+import { cbuildFileFactory } from './files/cbuild-file.factory';
 import { URI } from 'vscode-uri';
 
-jest.mock('@eclipse-cdt-cloud/clangd-contexts', () => ({
-    setContext: jest.fn()
-}));
-
-const mockSetContext = setContextImport as jest.Mock;
 type MockArmclangDefineGetter = jest.Mocked<ArmclangDefineGetter>;
 type MockCompileCommandsParser = jest.Mocked<Pick<CompileCommandsParser, 'getAllIncludeCommands'>>;
 const mockFs = workspaceFsProviderFactory();
@@ -210,7 +206,7 @@ describe('ClangdManager', () => {
 
         await waitTimeout();
 
-        expect(mockSetContext).toHaveBeenCalledTimes(2);
+        expect(mockFs.writeUtf8File).toHaveBeenCalledTimes(2);
 
         expect(mockConfigurationProvider.setConfigVariable).toHaveBeenCalledWith(
             CONFIG_CLANGD_ARGUMENTS,
@@ -307,17 +303,19 @@ describe('ClangdManager', () => {
         mockSolutionManager.onUpdatedCompileCommandsEmitter.fire();
         await waitTimeout();
 
-        expect(mockSetContext).toHaveBeenCalledTimes(0);
+        expect(mockFs.writeUtf8File).not.toHaveBeenCalled();
     });
 
-    it('generates a clangd file when compile_macros.h is available', async () => {
+    it('generates language-specific clangd fragments when compile macros headers are available', async () => {
         mockConfigurationProvider.getConfigVariable.mockReturnValue(true);
         mockConfigurationProvider.setConfigVariable.mockReturnValue(Promise.resolve());
         const csolution = mockSolutionManager.getCsolution();
         csolution!.getContextDescriptors = jest.fn().mockReturnValue([activeContexts[0]]);
         mockFs.exists.mockResolvedValue(true);
 
-        const compileMacrosFile = path.join(path.dirname(activeContexts[0].projectPath!), 'out', 'compile_macros.h');
+        const outputDirectory = path.join(path.dirname(activeContexts[0].projectPath!), 'out');
+        const compileMacrosCFile = path.join(outputDirectory, 'compile_macros_c.h');
+        const compileMacrosCxxFile = path.join(outputDirectory, 'compile_macros_cxx.h');
 
         mockSolutionManager.onUpdatedCompileCommandsEmitter.fire();
         await waitTimeout();
@@ -325,8 +323,68 @@ describe('ClangdManager', () => {
         expect(mockFs.writeUtf8File).toHaveBeenCalledTimes(1);
         const [writtenPath, writtenContent] = mockFs.writeUtf8File.mock.calls[0];
         expect(writtenPath).toEqual(expect.lowercaseEquals(path.join(path.dirname(activeContexts[0].projectPath!), '.clangd')));
-        expect(writtenContent).toContain('-include');
-        expect(writtenContent.toLowerCase()).toContain(compileMacrosFile.toLowerCase());
+        const generatedFragments = yaml.parseAllDocuments(writtenContent)
+            .map(document => document.toJS())
+            .filter(fragment => fragment.If?.PathMatch?.startsWith('.*'));
+        expect(generatedFragments).toHaveLength(2);
+        expect(generatedFragments).toContainEqual(expect.objectContaining({
+            If: { PathMatch: '.*\\.(c|h)' },
+            CompileFlags: expect.objectContaining({ Add: ['-include', expect.lowercaseEquals(compileMacrosCFile)] })
+        }));
+        expect(generatedFragments).toContainEqual(expect.objectContaining({
+            If: { PathMatch: '.*\\.(cpp|cxx|cc|hpp)' },
+            CompileFlags: expect.objectContaining({ Add: ['-include', expect.lowercaseEquals(compileMacrosCxxFile)] })
+        }));
+    });
+
+    it.each([
+        ['C', 'compile_macros_c.h', '.*\\.(c|h)'],
+        ['C++', 'compile_macros_cxx.h', '.*\\.(cpp|cxx|cc|hpp)'],
+    ])('generates a clangd fragment for a %s-only project', async (_, availableFile, expectedPathMatch) => {
+        mockConfigurationProvider.getConfigVariable.mockReturnValue(true);
+        mockConfigurationProvider.setConfigVariable.mockReturnValue(Promise.resolve());
+        const csolution = mockSolutionManager.getCsolution();
+        csolution!.getContextDescriptors = jest.fn().mockReturnValue([activeContexts[0]]);
+        mockFs.exists.mockImplementation(async filePath => filePath.endsWith(availableFile));
+
+        mockSolutionManager.onUpdatedCompileCommandsEmitter.fire();
+        await waitTimeout();
+
+        expect(mockFs.writeUtf8File).toHaveBeenCalledTimes(1);
+        const [, writtenContent] = mockFs.writeUtf8File.mock.calls[0];
+        const generatedFragments = yaml.parseAllDocuments(writtenContent)
+            .map(document => document.toJS())
+            .filter(fragment => fragment.If?.PathMatch?.startsWith('.*'));
+        expect(generatedFragments).toEqual([
+            expect.objectContaining({
+                If: { PathMatch: expectedPathMatch },
+                CompileFlags: expect.objectContaining({
+                    Add: ['-include', expect.lowercaseEquals(path.join(path.dirname(activeContexts[0].projectPath!), 'out', availableFile))]
+                })
+            })
+        ]);
+    });
+
+    it('does not generate compile macros fragments for CLANG', async () => {
+        mockConfigurationProvider.getConfigVariable.mockReturnValue(true);
+        mockConfigurationProvider.setConfigVariable.mockReturnValue(Promise.resolve());
+        const csolution = mockSolutionManager.getCsolution();
+        csolution!.getContextDescriptors = jest.fn().mockReturnValue([activeContexts[0]]);
+        const cbuildFiles = csolution!.cbuildIdxFile!.cbuildFiles;
+        const cbuild = cbuildFiles.get(activeContexts[0].projectName)!;
+        cbuildFiles.set(activeContexts[0].projectName, cbuildFileFactory({
+            compiler: 'CLANG',
+            outDir: cbuild.outDir,
+        }));
+        mockFs.exists.mockResolvedValue(true);
+
+        mockSolutionManager.onUpdatedCompileCommandsEmitter.fire();
+        await waitTimeout();
+
+        expect(mockFs.writeUtf8File).toHaveBeenCalled();
+        for (const [, writtenContent] of mockFs.writeUtf8File.mock.calls) {
+            expect(writtenContent).not.toContain('compile_macros');
+        }
     });
 
     it('writes diagnostics suppress .clangd in outDir when missing', async () => {
