@@ -87,6 +87,26 @@ export class CSolution {
         return ymlFiles;
     }
 
+    public getUsedDbgconfFiles(): string[] {
+        const dbgconfFiles: string[] = [];
+        const seen = new Set<string>();
+
+        for (const cbuild of this.cbuildYmlRoot.values()) {
+            for (const dbgConfigFile of cbuild.getChildItem()?.getGrandChildren('dbgconf') ?? []) {
+                const fileName = dbgConfigFile.getValue('file');
+                if (!fileName) {
+                    continue;
+                }
+                const filePath = cbuild.resolvePath(fileName);
+                if (!seen.has(filePath)) {
+                    seen.add(filePath);
+                    dbgconfFiles.push(filePath);
+                }
+            }
+        }
+        return dbgconfFiles;
+    }
+
     cbuildPackFile = new CbuildPackFile();
 
     cbuilds?: ITreeItem<CTreeItem>[];

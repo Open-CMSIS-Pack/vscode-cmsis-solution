@@ -180,7 +180,10 @@ export class SolutionManagerImpl implements SolutionManager {
 
     private handleActiveSolutionFilesChanged(changedPath: string): void {
         const solutionFiles = this.csolution?.getSolutionYmlFiles();
-        if (!solutionFiles?.some(solutionFile => pathsEqual(solutionFile, changedPath))) {
+        const isSolutionYmlFile = solutionFiles?.some(solutionFile => pathsEqual(solutionFile, changedPath));
+        const isUsedDbgconfFile = changedPath.toLowerCase().endsWith('.dbgconf')
+            && this.csolution?.getUsedDbgconfFiles().some(dbgconfFile => pathsEqual(dbgconfFile, changedPath));
+        if (!isSolutionYmlFile && !isUsedDbgconfFile) {
             return;
         }
         this.debouncedHandleActiveSolutionFileChange();

@@ -316,6 +316,42 @@ describe('SolutionManager', () => {
         );
     });
 
+    it('reloads the solution when a changed dbgconf file is used by the active solution', async () => {
+        await activateTestSolution();
+        const dbgconfPath = path.join(path.dirname(testSolutionPath), '.cmsis', 'Used.Debug+B-U585I-IOT02A.dbgconf');
+        jest.spyOn(solutionManager.getCsolution()!, 'getUsedDbgconfFiles').mockReturnValue([dbgconfPath]);
+        convertMock.mockClear();
+        loadBuildFilesListener.mockClear();
+
+        changeSolutionFilesEmitter.fire(dbgconfPath);
+        await waitTimeout(100);
+
+        expect(convertMock).toHaveBeenCalledTimes(1);
+        expect(convertMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+                solutionPath: testSolutionPath,
+                updateRte: true,
+                restartRpc: false,
+                lockAbort: false,
+            }),
+        );
+        expect(loadBuildFilesListener).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not reload when a changed dbgconf file is not used by the active solution', async () => {
+        await activateTestSolution();
+        const dbgconfPath = path.join(path.dirname(testSolutionPath), '.cmsis', 'Inactive.Debug+B-U585I-IOT02A.dbgconf');
+        jest.spyOn(solutionManager.getCsolution()!, 'getUsedDbgconfFiles').mockReturnValue([
+            path.join(path.dirname(testSolutionPath), '.cmsis', 'Used.Debug+B-U585I-IOT02A.dbgconf'),
+        ]);
+        convertMock.mockClear();
+
+        changeSolutionFilesEmitter.fire(dbgconfPath);
+        await waitTimeout(100);
+
+        expect(convertMock).not.toHaveBeenCalled();
+    });
+
     it('does not reload for a watched YAML file inside the solution directory when it is not in the active solution model', async () => {
         await activateTestSolution();
         const unrelatedProjectPath = path.join(path.dirname(testSolutionPath), 'Unrelated.cproject.yml');

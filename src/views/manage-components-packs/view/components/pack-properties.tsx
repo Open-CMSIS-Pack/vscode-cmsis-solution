@@ -128,8 +128,18 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
         : '';
     const errorRowStyle = { color: 'var(--vscode-list-errorForeground)' };
     const latestInstalledPack = latestUpgradable ? `${pack?.name}@${latestUpgradable}` : packDisplayName;
+    const isUsingLatestInstalledPack = Boolean(latestInstalledPack) && latestInstalledPack === pack?.packId;
+    const isUnlockPending = unlockOf === pack?.name;
+    const isUnlockAvailable = Boolean(latestInstalledPack) && !isUsingLatestInstalledPack && !isUnlockPending;
     const hasNewerOnlineVersion = !!pack?.latestOnlineVersion && !latestInstalledPack?.endsWith(pack.latestOnlineVersion);
     const onlineTooltip = hasNewerOnlineVersion ? <div>Latest version available online: {pack.latestOnlineVersion}</div> : undefined;
+    const cbuildPackLink = <><a onClick={() => { if (openFile && cbuildPackPath) openFile(cbuildPackPath, false); }}><EditFilled /></a>{cbuildPackPath}</>;
+    const unlockTooltip = (
+        <span>
+            {isUsingLatestInstalledPack ? <>Uses already latest installed pack version in {cbuildPackLink}</> : <>Remove lock in {cbuildPackLink} to use latest installed pack version</>}
+            {unlockOf && <><br />Pending unlock request will be committed on save</>}
+        </span>
+    );
 
     return (
         <Modal
@@ -240,10 +250,10 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                                 <Col flex={3}>Latest Compliant Pack Installed:</Col>
                                 <Col flex={5}>{latestInstalledPack}</Col>
                                 <Col flex={1}>
-                                    <Tooltip title={<span>Update and remove lock in <a onClick={() => { if (openFile && cbuildPackPath) openFile(cbuildPackPath, false); }}><EditFilled /></a>{cbuildPackPath} {unlockOf && <><br />Pending unlock request will be committed on save</>}</span>}>
+                                    <Tooltip title={unlockTooltip}>
                                         <Button
                                             type="text"
-                                            disabled={!latestInstalledPack || latestInstalledPack === pack.packId || unlockOf === pack.name}
+                                            disabled={!isUnlockAvailable}
                                             style={{ border: unlockOf ? '1px dashed var(--vscode-foreground)' : 'none' }}
                                             onClick={requestUnlock}
                                             icon={<CmsisCodicon name="update-arrow" />}
