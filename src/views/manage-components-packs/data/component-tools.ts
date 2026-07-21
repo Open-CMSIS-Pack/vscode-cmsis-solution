@@ -265,7 +265,8 @@ const subGroups = (
                 data: {
                     id: g.name,
                     pack: '',
-                    description: '',
+                    description: g.api?.description ?? g.taxonomy?.description ?? '',
+                    doc: g.api?.doc ?? g.taxonomy?.doc ?? undefined,
                 },
                 api: g.api,
                 parsed: {
