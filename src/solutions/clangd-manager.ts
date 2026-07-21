@@ -308,7 +308,7 @@ export class ClangdManager {
         if (compileMacrosCFile) {
             const cFlags = ['-include', compileMacrosCFile.fsPath];
             fragments.push({
-                If: { PathMatch: '.*\\.(c|h)' },
+                If: { PathMatch: '.*\\.(c|C|h)' },
                 CompileFlags: { Add: cFlags }
             });
             flags.push(...cFlags);
@@ -316,7 +316,7 @@ export class ClangdManager {
         if (compileMacrosCxxFile) {
             const cxxFlags = ['-include', compileMacrosCxxFile.fsPath];
             fragments.push({
-                If: { PathMatch: '.*\\.(cpp|cxx|cc|hpp)' },
+                If: { PathMatch: '.*\\.(cpp|c\\+\\+|C\\+\\+|cxx|cc|CC|hpp)' },
                 CompileFlags: { Add: cxxFlags }
             });
             flags.push(...cxxFlags);

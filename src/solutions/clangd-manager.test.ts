@@ -328,18 +328,18 @@ describe('ClangdManager', () => {
             .filter(fragment => fragment.If?.PathMatch?.startsWith('.*'));
         expect(generatedFragments).toHaveLength(2);
         expect(generatedFragments).toContainEqual(expect.objectContaining({
-            If: { PathMatch: '.*\\.(c|h)' },
+            If: { PathMatch: '.*\\.(c|C|h)' },
             CompileFlags: expect.objectContaining({ Add: ['-include', expect.lowercaseEquals(compileMacrosCFile)] })
         }));
         expect(generatedFragments).toContainEqual(expect.objectContaining({
-            If: { PathMatch: '.*\\.(cpp|cxx|cc|hpp)' },
+            If: { PathMatch: '.*\\.(cpp|c\\+\\+|C\\+\\+|cxx|cc|CC|hpp)' },
             CompileFlags: expect.objectContaining({ Add: ['-include', expect.lowercaseEquals(compileMacrosCxxFile)] })
         }));
     });
 
     it.each([
-        ['C', 'compile_macros_c.h', '.*\\.(c|h)'],
-        ['C++', 'compile_macros_cxx.h', '.*\\.(cpp|cxx|cc|hpp)'],
+        ['C', 'compile_macros_c.h', '.*\\.(c|C|h)'],
+        ['C++', 'compile_macros_cxx.h', '.*\\.(cpp|c\\+\\+|C\\+\\+|cxx|cc|CC|hpp)'],
     ])('generates a clangd fragment for a %s-only project', async (_, availableFile, expectedPathMatch) => {
         mockConfigurationProvider.getConfigVariable.mockReturnValue(true);
         mockConfigurationProvider.setConfigVariable.mockReturnValue(Promise.resolve());
