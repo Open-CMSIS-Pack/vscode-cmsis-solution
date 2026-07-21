@@ -718,4 +718,41 @@ describe('CSolution', () => {
             expect(files).toHaveLength(1 + projectPaths.length + layerPaths.length);
         });
     });
+
+    describe('getUsedDbgconfFiles', () => {
+        it('returns empty list when no solution is loaded', () => {
+            const csolution = new CSolution();
+
+            expect(csolution.getUsedDbgconfFiles()).toEqual([]);
+        });
+
+        it('returns deduplicated absolute dbgconf paths from cbuild files', async () => {
+            const csolution = new CSolution();
+            const fileName = path.join(testDataHandler.tmpDir, 'solutions', 'WestSupport', 'solution.csolution.yml');
+
+            await csolution.load(fileName);
+
+            expect(csolution.getUsedDbgconfFiles()).toEqual([
+                path.join(testDataHandler.tmpDir, 'solutions', 'WestSupport', '.cmsis', 'solution+CM0.dbgconf'),
+            ]);
+        });
+
+        it('returns all dbgconf file entries from a cbuild file', () => {
+            const csolution = new CSolution();
+            const cbuildPath = path.join(testDataHandler.tmpDir, 'solutions', 'multiple-dbgconf.cbuild.yml');
+            csolution.cbuildYmlRoot.set(cbuildPath, parseYamlToCTreeItem(YAML.stringify({
+                build: {
+                    dbgconf: [
+                        { file: 'first.dbgconf' },
+                        { file: 'debug/second.dbgconf' },
+                    ],
+                },
+            }), cbuildPath) as CTreeItem);
+
+            expect(csolution.getUsedDbgconfFiles()).toEqual([
+                path.join(testDataHandler.tmpDir, 'solutions', 'first.dbgconf'),
+                path.join(testDataHandler.tmpDir, 'solutions', 'debug', 'second.dbgconf'),
+            ]);
+        });
+    });
 });
