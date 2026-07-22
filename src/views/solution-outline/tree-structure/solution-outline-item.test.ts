@@ -59,6 +59,33 @@ describe('COutlineItem', () => {
         expect(childItem.getFeatures()).toEqual('');
     });
 
+    it('stores header choices without exposing mutable internal state', () => {
+        childItem.setHeaderChoices([{
+            include: 'api.h',
+            origins: ['api'],
+            resourcePath: '/path/to/api.h',
+        }]);
+
+        const choices = childItem.getHeaderChoices();
+        (choices[0].origins as string[]).push('component');
+
+        expect(childItem.getHeaderChoices()).toEqual([{
+            include: 'api.h',
+            origins: ['api'],
+            resourcePath: '/path/to/api.h',
+        }]);
+    });
+
+    it('returns the existing header as a single fallback choice', () => {
+        childItem.setAttribute('header', 'header.h');
+
+        expect(childItem.getHeaderChoices()).toEqual([{
+            include: 'header.h',
+            origins: ['component'],
+            resourcePath: undefined,
+        }]);
+    });
+
     it('sorts groups before files and keeps labels alphabetical', () => {
         rootItem.createChild('group').setAttribute('label', 'Z_subfolder3');
 

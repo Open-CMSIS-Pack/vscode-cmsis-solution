@@ -15,6 +15,9 @@
  */
 
 import { CTreeItem } from '../../../generic/tree-item';
+import { HeaderChoice } from './header-choice';
+
+const HEADER_CHOICES_PROPERTY = 'headerChoices';
 
 export class COutlineItem extends CTreeItem {
     constructor(tag: string, parent?: COutlineItem) {
@@ -107,6 +110,27 @@ export class COutlineItem extends CTreeItem {
             return this.getAttribute('label');
         }
         return undefined;
+    }
+
+    setHeaderChoices(choices: readonly HeaderChoice[]): void {
+        const storedChoices = choices.map(choice => ({
+            ...choice,
+            origins: [...choice.origins],
+        }));
+        this.setProperty(HEADER_CHOICES_PROPERTY, storedChoices.length > 0 ? storedChoices : undefined);
+    }
+
+    getHeaderChoices(): readonly HeaderChoice[] {
+        const choices = this.getProperty(HEADER_CHOICES_PROPERTY) as HeaderChoice[] | undefined;
+        if (choices) {
+            return choices.map(choice => ({
+                ...choice,
+                origins: [...choice.origins],
+            }));
+        }
+
+        const header = this.getHeader();
+        return header ? [{ include: header, origins: ['component'], resourcePath: this.getResourcePath() }] : [];
     }
 
     getResourcePath(): string | undefined {

@@ -28,9 +28,9 @@ export function setContextMenuAttributes(item: COutlineItem, fileUri: string, ro
     }
 }
 
-export function setHeaderContext(node: COutlineItem): void {
+export function setHeaderContext(node: COutlineItem, header = node.getAttribute('label')): void {
     node.addFeature(`${manifest.HEADER_CONTEXT}`);
-    node.setAttribute('header', node.getAttribute('label'));
+    node.setAttribute('header', header);
 }
 
 export function setDocContext(node: COutlineItem): void {
@@ -100,4 +100,3 @@ function findFirstMapFile(dirPath: string): string | undefined {
     }
     return undefined;
 }
-

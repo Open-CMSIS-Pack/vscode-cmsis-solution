@@ -64,6 +64,19 @@ describe('CSolution', () => {
         return results;
     }
 
+    function findNodeByLabel(node: COutlineItem, tag: string, label: string): COutlineItem | undefined {
+        if (node.getTag() === tag && node.getAttribute('label') === label) {
+            return node;
+        }
+        for (const child of node.getChildren() as COutlineItem[]) {
+            const result = findNodeByLabel(child, tag, label);
+            if (result) {
+                return result;
+            }
+        }
+        return undefined;
+    }
+
 
     async function dumpOutline(tree: COutlineItem, solutionDir: string, dumpFileName: string, refFileName: string): Promise<{ dump: string; ref: string; }> {
         const res: { dump: string, ref: string } = { dump: '', ref: '' };
@@ -195,6 +208,14 @@ describe('CSolution', () => {
 
         const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
         let tree = solutionOutlineTree.createTree();
+
+        const rtxComponent = findNodeByLabel(tree, 'component', 'ARM::CMSIS:RTOS2:Keil RTX5&Source');
+        expect(rtxComponent?.getHeaderChoices()[0].include).toBe('cmsis_os2.h');
+        expect(rtxComponent?.getHeaderChoices().map(choice => choice.include)).toContain('rtx_os.h');
+
+        const usartComponent = findNodeByLabel(tree, 'component', 'Keil::CMSIS Driver:USART');
+        expect(usartComponent?.getHeaderChoices()[0].include).toBe('Driver_USART.h');
+        expect(usartComponent?.getHeaderChoices().map(choice => choice.include)).toContain('USART_STM32.h');
 
         let topItems = tree.getChildren();
         expect(topItems.length).toBe(5); // device, board, cdefault and two projects
