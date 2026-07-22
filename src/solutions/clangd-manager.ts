@@ -32,16 +32,6 @@ import { COutlineItem } from '../views/solution-outline/tree-structure/solution-
 import { CompileFlags } from '@eclipse-cdt-cloud/clangd-contexts';
 import { ContextDescriptor } from './descriptors/descriptors';
 
-export const DEFAULT_CLANGD_CONFIG: ClangdConfig = {
-    If: {
-
-    },
-    CompileFlags: {
-        CompilationDatabase: undefined,
-        Add: []
-    }
-};
-
 export interface CompileFlags2 extends CompileFlags {
     Compiler?: string;
 }
@@ -300,28 +290,23 @@ export class ClangdManager {
         compileMacrosCxxFile: URI | undefined,
         compileCommandsFileDirectory: string,
     ): Promise<string[]> {
-        const currentFragments = await this.getConfigFragments(clangdFile);
-        const contextFragment = currentFragments.find(fragment => !fragment.If) ?? { CompileFlags: {} };
-        contextFragment.CompileFlags.CompilationDatabase = compileCommandsFileDirectory;
-        const fragments: ClangdConfig[] = [contextFragment];
+        const fragments: ClangdConfig[] = [{
+            CompileFlags: { CompilationDatabase: compileCommandsFileDirectory }
+        }];
         const flags: string[] = [];
+        const cPathMatch = '.*\\.(c|C|h)$';
+        const cxxPathMatch = '.*\\.(cpp|c\\+\\+|C\\+\\+|cxx|cc|CC|hpp)$';
         if (compileMacrosCFile) {
             const cFlags = ['-include', compileMacrosCFile.fsPath];
-            fragments.push({
-                If: { PathMatch: '.*\\.(c|C|h)' },
-                CompileFlags: { Add: cFlags }
-            });
+            fragments.push({ If: { PathMatch: cPathMatch }, CompileFlags: { Add: cFlags } });
             flags.push(...cFlags);
         }
         if (compileMacrosCxxFile) {
             const cxxFlags = ['-include', compileMacrosCxxFile.fsPath];
-            fragments.push({
-                If: { PathMatch: '.*\\.(cpp|c\\+\\+|C\\+\\+|cxx|cc|CC|hpp)' },
-                CompileFlags: { Add: cxxFlags }
-            });
+            fragments.push({ If: { PathMatch: cxxPathMatch }, CompileFlags: { Add: cxxFlags } });
             flags.push(...cxxFlags);
         }
-        await this.writeConfigFragments(fragments, clangdFile);
+        await this.writeConfig(fragments, clangdFile);
         return flags;
     }
 
@@ -332,20 +317,17 @@ export class ClangdManager {
      * @returns the flags retrieved.
      */
     private async generateContextAddFlags(clangdFile: URI, compileCommandsFile: URI): Promise<string[]> {
-        // Update clangd AddFlags flags for intellisense uplift
-        // We make an assumption that project .clangd files only have one fragment
-        const fragments = await this.getConfigFragments(clangdFile);
-        if (fragments.length < 1) {
-            fragments[0] = DEFAULT_CLANGD_CONFIG;
-        }
-        fragments[0].CompileFlags.CompilationDatabase = path.dirname(compileCommandsFile.fsPath);
         try {
             const flags = [
                 ...(await this.armclangDefineGetter.getClangdDefineFlags(compileCommandsFile)),
                 ...(await this.compileCommandParser.getAllIncludeCommands(compileCommandsFile.fsPath))
             ];
-            fragments[0].CompileFlags.Add = flags;
-            await this.writeConfigFragments([fragments[0]], clangdFile);
+            await this.writeConfig([{
+                CompileFlags: {
+                    CompilationDatabase: path.dirname(compileCommandsFile.fsPath),
+                    Add: flags,
+                }
+            }], clangdFile);
             return flags;
         } catch (err) {
             console.log(`Clangd compile flag query failed: ${err}`);
@@ -359,100 +341,38 @@ export class ClangdManager {
      * @param context The SolutionContext.
      */
     private async clearContextAddFlags(clangdFile: URI, compileCommandsFileDirectory: string | undefined): Promise<void> {
-        const fragments = await this.getConfigFragments(clangdFile);
-        if (fragments.length < 1) {
-            fragments.push({ CompileFlags: {} });
-        }
-        const contextFragment = fragments.find(fragment => !fragment.If) ?? fragments[0];
-        contextFragment.CompileFlags.CompilationDatabase = compileCommandsFileDirectory;
-        for (const f of fragments) {
-            f.CompileFlags.Add = [];
-        }
-        await this.writeConfigFragments(fragments, clangdFile);
+        await this.writeConfig([{
+            CompileFlags: {
+                CompilationDatabase: compileCommandsFileDirectory,
+                Add: [],
+            }
+        }], clangdFile);
     }
 
     private isAutoGenerateEnabled(): boolean {
         return this.configurationProvider.getConfigVariable<boolean>(CONFIG_CLANGD_GENERATE_SETUP) ?? true;
     }
 
-    /**
-     * Writes back a given clangd config fragment to a config file.
-     * If the fragment has an If property that will be used to determine
-     * if it should be replacing a matching fragment in the file or being appended.
-     *
-     * If there is no If and the file only contains one config, then it will instead replace that config.
-     *
-     * @param newFragments An array of clangd config fragments.
-     * @param configFilePath A path to a clangd config file.
-     */
-    protected async writeConfigFragments(newFragments: ClangdConfig[], configFilePath: URI): Promise<void> {
-        const currentFragments = await this.getConfigFragments(configFilePath);
-        for (const f of newFragments) {
-            const index = currentFragments.findIndex(cf => this.configFragmentsMatch(cf, f));
-            if (currentFragments.length <= 1 && (!f.If)) {
-                currentFragments[0] = f;
-            } else if (index > -1) {
-                currentFragments[index] = f;
-            } else {
-                currentFragments.push(f);
-            }
-        }
+    private async writeConfig(fragments: ClangdConfig[], configFilePath: URI): Promise<void> {
         try {
-            // Create parent directory if it doesn't exist before attempting write
             await this.workspaceFsProvider.createDirectory(path.dirname(configFilePath.fsPath));
-            await this.workspaceFsProvider.writeUtf8File(configFilePath.fsPath, currentFragments.map(cf => yaml.stringify(cf)).join('\n---\n'));
+            await this.workspaceFsProvider.writeUtf8File(
+                configFilePath.fsPath,
+                fragments.map(fragment => yaml.stringify(fragment)).join('\n---\n')
+            );
         } catch (err) {
             if (err instanceof FileSystemError) {
                 switch (err.code) {
                     case 'NoPermissions':
-                        console.log(`VS Code doesn't have permission to write clangd config fragment: ${err}`);
+                        console.log(`VS Code doesn't have permission to write clangd config: ${err}`);
                         break;
                     default:
                         console.log(`Failed to write clangd config due to a FileSystemError: ${err}`);
                 }
             } else {
-                console.log(`Failed to write clangd config fragment with unknown error: ${err}`);
+                console.log(`Failed to write clangd config with unknown error: ${err}`);
             }
         }
-    }
-
-    /**
-     * Reads a given clangd config file and returns an array of
-     * clang configs representing its fragments.
-     *
-     * @param configFilePath A path to the clangd config file.
-     */
-    protected async getConfigFragments(configFilePath: URI): Promise<ClangdConfig[]> {
-        const userConfigPath = configFilePath;
-        try {
-            const content = await this.workspaceFsProvider.readUtf8File(userConfigPath.fsPath);
-            if (!content) {
-                return [];
-            }
-            const configs = yaml.parseAllDocuments(content).map(doc => doc.toJS() as ClangdConfig);
-            return configs;
-        } catch (err) {
-            console.log(`Unable to read clangd configs: ${err}`);
-            return [];
-        }
-    }
-
-    /**
-     * Check if two ClangdConfigs (fragments) match using
-     * their If properties as a unique identifier.
-     *
-     * @param f1
-     * @param f2
-     * @returns true if the two configs match
-     */
-    private configFragmentsMatch(f1: ClangdConfig, f2: ClangdConfig) {
-        if (f1.If?.PathMatch !== f2.If?.PathMatch) {
-            return false;
-        }
-        if (f1.If?.PathExclude !== f2.If?.PathExclude) {
-            return false;
-        }
-        return true;
     }
 
     /**
