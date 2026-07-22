@@ -31,6 +31,7 @@ import { validationError } from './validation-message';
 import { Button, Checkbox, ConfigProvider, theme, Tooltip } from 'antd';
 import { useVSCodeTheme } from '../../../hooks/use-vscode-theme';
 import { SettingOutlined } from '@ant-design/icons';
+import { useDisableContextMenu } from '../../../hooks/use-disable-context-menu';
 
 export interface CreateSolutionProps {
     /**
@@ -164,6 +165,7 @@ export const CreateSolution = ({ creationActions, messageHandler }: CreateSoluti
     const targetTypeFieldEnabled = enableSetSolutionName || draftProjectType == 'Template';
 
     const isDarkTheme = useVSCodeTheme();
+    useDisableContextMenu();
 
     return (
         <React.StrictMode>
