@@ -76,7 +76,7 @@ describe('parseYamlToCTreeItem', () => {
             #comment after prime
             - two
             #comment before three
-            - three #comment on the line three
+            - three    #comment on the line three
             - seven
         `;
 

@@ -215,10 +215,6 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
         selectPack(undefined);
     };
 
-    const referenceFromContext = (relativePath: string, pack: PackRowDataType): PackRowDataType['references'] => {
-        return pack.references.filter(ref => ref.relOrigin.endsWith(relativePath));
-    };
-
     const allOrigins = React.useMemo(
         () => {
             const currentProjectTargetType = state.availableTargetTypes.find(t => t.path == state.selectedProject?.projectId);
@@ -282,11 +278,12 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
 
     const rowClassName = (record: PackRowDataType): string => {
         const relativePath = state.selectedTargetType?.relativePath || '';
-        const selectedInCurrentTarget = referenceFromContext(relativePath, record).length > 0;
+        const selectedReferences = record.references.filter(ref => ref.selected);
+        const selectedInCurrentTarget = selectedReferences.some(ref => ref.relOrigin.endsWith(relativePath));
         const hasMissingReferences = record.references.some(ref => ref.missing);
 
         const classes: string[] = [];
-        if (selectedInCurrentTarget) {
+        if (selectedReferences.length > 0 && !selectedInCurrentTarget) {
             classes.push('ant-table-row-disabled');
         }
         if (hasMissingReferences) {

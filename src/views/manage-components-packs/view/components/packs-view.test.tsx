@@ -183,6 +183,52 @@ describe('PacksView', () => {
         expect(row?.classList.contains('packs-missing-row')).toBe(true);
     });
 
+    it('keeps unselected packs on the default row styling', () => {
+        const row = container.querySelector('tr.ant-table-row');
+
+        expect(row?.classList.contains('ant-table-row-disabled')).toBe(false);
+    });
+
+    it('keeps selected packs in the current layer on the default row styling', () => {
+        const currentLayerState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                references: [{ ...mockPack.references[0], origin: 'path/to/context', relOrigin: 'path/to/context', selected: true }]
+            }]
+        };
+        const localContainer = document.createElement('div');
+
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView state={currentLayerState} openFile={openFileMock} messageHandler={messageHandler} availablePacks={defaultState.availablePacks} />
+            );
+        });
+
+        const row = localContainer.querySelector('tr.ant-table-row');
+        expect(row?.classList.contains('ant-table-row-disabled')).toBe(false);
+    });
+
+    it('dims selected packs that are outside the current layer', () => {
+        const outsideLayerState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                references: [{ ...mockPack.references[0], origin: 'path/to/other-layer.clayer.yml', relOrigin: 'path/to/other-layer.clayer.yml', selected: true }]
+            }]
+        };
+        const localContainer = document.createElement('div');
+
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView state={outsideLayerState} openFile={openFileMock} messageHandler={messageHandler} availablePacks={defaultState.availablePacks} />
+            );
+        });
+
+        const row = localContainer.querySelector('tr.ant-table-row');
+        expect(row?.classList.contains('ant-table-row-disabled')).toBe(true);
+    });
+
     it('shows empty version when no version is given in the pack id', () => {
         const noVersionPackState: ComponentsState = {
             ...defaultState,

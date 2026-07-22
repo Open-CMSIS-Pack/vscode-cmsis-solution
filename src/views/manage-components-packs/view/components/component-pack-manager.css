@@ -65,6 +65,7 @@
 
 .ant-table-row-disabled {
     background-color: var(--vscode-editorStickyScrollHover-background) !important;
+    color: var(--vscode-disabledForeground, var(--vscode-descriptionForeground)) !important;
 }
 
 .ant-table-row .group-toggle.codicon {
