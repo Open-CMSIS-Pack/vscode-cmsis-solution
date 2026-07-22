@@ -27,6 +27,7 @@ import { ComponentsView } from './components-view';
 import { PacksView } from './packs-view';
 import { useVSCodeTheme } from '../../../hooks/use-vscode-theme';
 import { PackTitleLink } from './pack-title-link';
+import { useDisableContextMenu } from '../../../hooks/use-disable-context-menu';
 
 // Import the necessary components and types from Ant Design
 
@@ -45,6 +46,7 @@ export const ComponentPackManager = (props: ComponentProps) => {
     const [focusPackId, setFocusPackId] = React.useState<string | undefined>(undefined);
 
     const isDarkTheme = useVSCodeTheme();
+    useDisableContextMenu();
 
     // Ref to store component row references (DOM) for setting the focus
     const componentRefs = React.useRef<Record<string, HTMLInputElement | null>>({});

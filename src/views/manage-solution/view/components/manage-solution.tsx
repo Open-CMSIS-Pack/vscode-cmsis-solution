@@ -30,6 +30,7 @@ import { ProjectsTable } from './projects-table';
 import { TargetsTable } from './targets-table';
 import { PathType } from '../../types';
 import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
+import { useDisableContextMenu } from '../../../hooks/use-disable-context-menu';
 
 export interface ManageSolutionProps {
     messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>;
@@ -78,6 +79,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
     }, []);
 
     const isDarkTheme = useVSCodeTheme();
+    useDisableContextMenu();
 
     React.useEffect(() => {
         props.messageHandler.push({ type: 'GET_CONTEXT_SELECTION_DATA' });
