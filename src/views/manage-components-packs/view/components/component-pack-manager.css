@@ -82,6 +82,12 @@
     width: 16px;
 }
 
+.different-partition-control,
+.different-partition-control-wrapper,
+.component-properties-edit:disabled {
+    cursor: not-allowed;
+}
+
 .ant-radio-button-wrapper:first-child {
     border-start-start-radius: var(--arm-border-radius);
     border-end-start-radius: var(--arm-border-radius);

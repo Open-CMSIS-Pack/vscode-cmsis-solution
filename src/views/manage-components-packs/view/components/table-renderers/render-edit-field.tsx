@@ -16,7 +16,7 @@
 
 import React from 'react';
 import { ComponentRowDataType } from '../../../data/component-tools';
-import { Button } from 'antd';
+import { Button, Tooltip } from 'antd';
 import { isInActiveLayer } from '../../helpers/components-packs-helpers';
 import { TargetSetData } from '../../../components-data';
 
@@ -34,7 +34,8 @@ export const renderEditField = (
     state: { activeLayer?: string, selectedTargetType: TargetSetData | undefined }
 ): React.ReactNode => {
     if (record.children?.length) return null;
-    return (
+    const differentPartition = !isInActiveLayer(record, state) && Boolean(record.aggregate.selectedCount);
+    const editButton = (
         <Button
             onClick={() => setSelectedComponent(record)}
             disabled={!isInActiveLayer(record, state)}
@@ -45,4 +46,10 @@ export const renderEditField = (
             &middot;&middot;&middot;
         </Button>
     );
+
+    return differentPartition ? (
+        <Tooltip title='Component is in different project partition, change selection to modify'>
+            <span className='different-partition-control-wrapper'>{editButton}</span>
+        </Tooltip>
+    ) : editButton;
 };
