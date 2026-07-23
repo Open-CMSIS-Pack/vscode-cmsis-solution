@@ -209,7 +209,30 @@ describe('PacksView', () => {
         expect(row?.classList.contains('ant-table-row-disabled')).toBe(false);
     });
 
-    it('dims selected packs that are outside the current layer', () => {
+    it('bolds a pack name listed in the current layer', () => {
+        const currentLayerState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                references: [{ ...mockPack.references[0], origin: 'path/to/context', relOrigin: 'path/to/context', selected: false }]
+            }]
+        };
+        const localContainer = document.createElement('div');
+
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView state={currentLayerState} openFile={openFileMock} messageHandler={messageHandler} availablePacks={defaultState.availablePacks} />
+            );
+        });
+
+        expect(localContainer.querySelector('.current-layer-name')?.textContent).toContain('CMSIS');
+    });
+
+    it('does not bold a pack name outside the current layer', () => {
+        expect(container.querySelector('.current-layer-name')).toBeNull();
+    });
+
+    it('keeps selected packs outside the current layer on the default row styling', () => {
         const outsideLayerState: ComponentsState = {
             ...defaultState,
             packs: [{
@@ -226,7 +249,7 @@ describe('PacksView', () => {
         });
 
         const row = localContainer.querySelector('tr.ant-table-row');
-        expect(row?.classList.contains('ant-table-row-disabled')).toBe(true);
+        expect(row?.classList.contains('ant-table-row-disabled')).toBe(false);
     });
 
     it('shows empty version when no version is given in the pack id', () => {

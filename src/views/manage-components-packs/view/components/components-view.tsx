@@ -121,7 +121,7 @@ export const ComponentsView: React.FC<ComponentsViewProps> = ({
 
     const columns: TableColumnsType<ComponentRowDataType> = React.useMemo(() => [
         Table.EXPAND_COLUMN,
-        { title: 'Component', dataIndex: 'name', key: 'name', minWidth: 140, render: (value: string, record: ComponentRowDataType) => renderNameCell(value, record, openFile), ellipsis: false },
+        { title: 'Component', dataIndex: 'name', key: 'name', minWidth: 140, render: (value: string, record: ComponentRowDataType) => renderNameCell(value, record, openFile, state), ellipsis: false },
         { title: '', width: 40, render: (record: ComponentRowDataType) => renderWarningCell(record, state) },
         Table.SELECTION_COLUMN,
         { title: '', width: 40, render: (record: ComponentRowDataType) => renderEditField(record, setSelectedComponent, state) },

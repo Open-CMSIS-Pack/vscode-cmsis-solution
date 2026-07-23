@@ -59,6 +59,10 @@
     margin-left: 0;
 }
 
+.current-layer-name {
+    font-weight: 600;
+}
+
 .ant-table-row.leaf-node .ant-table-cell {
     border-color: transparent !important;
 }

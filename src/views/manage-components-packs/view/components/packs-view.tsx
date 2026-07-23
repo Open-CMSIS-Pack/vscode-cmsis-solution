@@ -91,8 +91,21 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
             openFile(e.currentTarget.getAttribute('href') || '', false);
         };
 
+        const activeLayer = state.selectedTargetType?.relativePath?.replaceAll('\\', '/').toLowerCase() || '';
+        const isInCurrentLayer = (record: PackRowDataType): boolean => {
+            if (!activeLayer) {
+                return false;
+            }
+
+            return record.references.some(ref => {
+                const origin = ref.relOrigin.replaceAll('\\', '/').toLowerCase();
+                return origin === activeLayer || origin.endsWith(`/${activeLayer}`);
+            });
+        };
+
         const renderPackColumn = (_value: string, record: PackRowDataType) => {
             const packTitle = <PackTitleLink packId={record.packId} packName={record.name} openFile={openFile} />;
+            const nameClassName = isInCurrentLayer(record) ? 'current-layer-name' : undefined;
             const referencedFrom = [
                 <div key='pack-name'>{packTitle}</div>,
                 ...(record.references?.map((ref, index) => {
@@ -129,7 +142,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
                             title={referencedFrom}
                             placement='bottomLeft'
                         >
-                            <span>{record.name}</span>
+                            <span className={nameClassName}>{record.name}</span>
                         </Tooltip>
                     </span>
                 </div>
@@ -277,19 +290,9 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
     }, [focusPackId, normalizeExactPackId, normalizePackLookupId, onFocusPackConsumed, state.packs]);
 
     const rowClassName = (record: PackRowDataType): string => {
-        const relativePath = state.selectedTargetType?.relativePath || '';
-        const selectedReferences = record.references.filter(ref => ref.selected);
-        const selectedInCurrentTarget = selectedReferences.some(ref => ref.relOrigin.endsWith(relativePath));
         const hasMissingReferences = record.references.some(ref => ref.missing);
 
-        const classes: string[] = [];
-        if (selectedReferences.length > 0 && !selectedInCurrentTarget) {
-            classes.push('ant-table-row-disabled');
-        }
-        if (hasMissingReferences) {
-            classes.push('packs-missing-row');
-        }
-        return classes.join(' ');
+        return hasMissingReferences ? 'packs-missing-row' : '';
     };
 
     return (
