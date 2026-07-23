@@ -40,8 +40,17 @@ describe('createHeaderChoices', () => {
         expect(choices).toEqual([{
             include: 'include/common.h',
             origins: ['api', 'component'],
-            resourcePath: '/api/common.h',
+            resourcePaths: ['/api/common.h', '/component/common.h'],
         }]);
+    });
+
+    it('retains distinct paths when the same origin contributes the same include', () => {
+        const choices = createHeaderChoices([
+            { include: 'common.h', origin: 'component', resourcePath: '/first/common.h' },
+            { include: 'common.h', origin: 'component', resourcePath: '/second/common.h' },
+        ]);
+
+        expect(choices[0].resourcePaths).toEqual(['/first/common.h', '/second/common.h']);
     });
 
     it('keeps equal basenames with different include expressions separate', () => {

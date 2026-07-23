@@ -25,7 +25,7 @@ export interface HeaderCandidate {
 export interface HeaderChoice {
     include: string;
     origins: readonly HeaderOrigin[];
-    resourcePath?: string;
+    resourcePaths: readonly string[];
 }
 
 // Combines candidates in their supplied priority order. Candidates producing
@@ -39,15 +39,20 @@ export function createHeaderChoices(candidates: readonly HeaderCandidate[]): Hea
             choicesByInclude.set(candidate.include, {
                 include: candidate.include,
                 origins: [candidate.origin],
-                resourcePath: candidate.resourcePath,
+                resourcePaths: candidate.resourcePath ? [candidate.resourcePath] : [],
             });
             continue;
         }
 
-        if (!existingChoice.origins.includes(candidate.origin)) {
+        const hasOrigin = existingChoice.origins.includes(candidate.origin);
+        const hasResourcePath = !candidate.resourcePath || existingChoice.resourcePaths.includes(candidate.resourcePath);
+        if (!hasOrigin || !hasResourcePath) {
             choicesByInclude.set(candidate.include, {
                 ...existingChoice,
-                origins: [...existingChoice.origins, candidate.origin],
+                origins: hasOrigin ? existingChoice.origins : [...existingChoice.origins, candidate.origin],
+                resourcePaths: hasResourcePath
+                    ? existingChoice.resourcePaths
+                    : [...existingChoice.resourcePaths, candidate.resourcePath!],
             });
         }
     }

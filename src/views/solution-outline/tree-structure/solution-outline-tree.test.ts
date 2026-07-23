@@ -217,6 +217,10 @@ describe('CSolution', () => {
         expect(usartComponent?.getHeaderChoices()[0].include).toBe('Driver_USART.h');
         expect(usartComponent?.getHeaderChoices().map(choice => choice.include)).toContain('USART_STM32.h');
 
+        const massStorageProject = findNodeByLabel(tree, 'project', 'MassStorage.Debug+B-U585I-IOT02A');
+        const stderrComponent = findNodeByLabel(massStorageProject!, 'component', 'ARM::CMSIS-Compiler:STDERR:Custom');
+        expect(stderrComponent?.getHeaderChoices().map(choice => choice.include)).toContain('retarget_stderr.h');
+
         let topItems = tree.getChildren();
         expect(topItems.length).toBe(5); // device, board, cdefault and two projects
         const project = topItems[3];

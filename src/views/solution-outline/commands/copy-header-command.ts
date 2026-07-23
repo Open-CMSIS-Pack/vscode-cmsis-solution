@@ -68,7 +68,7 @@ export class CopyHeaderCommand {
         return {
             label: choice.include,
             description,
-            detail: choice.resourcePath,
+            detail: choice.resourcePaths.length > 0 ? choice.resourcePaths.join(' · ') : undefined,
             choice,
         };
     }

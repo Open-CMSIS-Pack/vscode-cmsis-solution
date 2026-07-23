@@ -255,6 +255,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
 
     private addComponentDataFromCbuild(componentNodes: Map<string, COutlineItem>, cbuild: CTreeItem) {
         const apis = cbuild.getChild('apis');
+        const headerCandidatesByComponent = new Map<COutlineItem, HeaderCandidate[]>();
 
         // look for components
         for (const component of cbuild.getGrandChildren('components')) {
@@ -273,7 +274,13 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
             }
 
             const componentHeaderCandidates = this.addComponentData(node, component, cbuild);
-            const headerChoices = createHeaderChoices([...apiHeaderCandidates, ...componentHeaderCandidates]);
+            const headerCandidates = headerCandidatesByComponent.get(node) ?? [];
+            headerCandidates.push(...apiHeaderCandidates, ...componentHeaderCandidates);
+            headerCandidatesByComponent.set(node, headerCandidates);
+        }
+
+        for (const [node, headerCandidates] of headerCandidatesByComponent) {
+            const headerChoices = createHeaderChoices(headerCandidates);
             node.setHeaderChoices(headerChoices);
             if (headerChoices.length > 0) {
                 setHeaderContext(node, headerChoices[0].include);
@@ -329,10 +336,8 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
             }));
     }
 
-    private isHeaderCandidate({ source, node }: CreatedFileNode): boolean {
-        return source.getValue('category') === 'header'
-            && node.getAttribute('excluded') !== '1'
-            && node.getHeader() !== undefined;
+    private isHeaderCandidate({ node }: CreatedFileNode): boolean {
+        return node.getHeader() !== undefined;
     }
 
     private addDocFile(node: COutlineItem, docFile?: ITreeItem<CTreeItem>) {

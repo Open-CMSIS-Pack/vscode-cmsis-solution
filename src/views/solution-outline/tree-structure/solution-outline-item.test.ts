@@ -63,7 +63,7 @@ describe('COutlineItem', () => {
         childItem.setHeaderChoices([{
             include: 'api.h',
             origins: ['api'],
-            resourcePath: '/path/to/api.h',
+            resourcePaths: ['/path/to/api.h'],
         }]);
 
         const choices = childItem.getHeaderChoices();
@@ -72,7 +72,7 @@ describe('COutlineItem', () => {
         expect(childItem.getHeaderChoices()).toEqual([{
             include: 'api.h',
             origins: ['api'],
-            resourcePath: '/path/to/api.h',
+            resourcePaths: ['/path/to/api.h'],
         }]);
     });
 
@@ -82,7 +82,7 @@ describe('COutlineItem', () => {
         expect(childItem.getHeaderChoices()).toEqual([{
             include: 'header.h',
             origins: ['component'],
-            resourcePath: undefined,
+            resourcePaths: [],
         }]);
     });
 

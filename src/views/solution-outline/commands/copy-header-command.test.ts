@@ -62,6 +62,7 @@ describe('CopyHeaderCommand', () => {
         componentItem.setHeaderChoices([{
             include: 'arm_math.h',
             origins: ['component'],
+            resourcePaths: [],
         }]);
 
         await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
@@ -75,8 +76,8 @@ describe('CopyHeaderCommand', () => {
         await new CopyHeaderCommand(commandsProvider).activate(extensionContextFactory());
         const componentItem = new COutlineItem('component');
         componentItem.setHeaderChoices([
-            { include: 'cmsis_os2.h', origins: ['api'], resourcePath: '/api/cmsis_os2.h' },
-            { include: 'rtx_os.h', origins: ['component'], resourcePath: '/component/rtx_os.h' },
+            { include: 'cmsis_os2.h', origins: ['api'], resourcePaths: ['/api/cmsis_os2.h'] },
+            { include: 'rtx_os.h', origins: ['component'], resourcePaths: ['/component/rtx_os.h'] },
         ]);
         (vscode.window.showQuickPick as jest.Mock).mockImplementation(async (items) => items[1]);
 
@@ -97,8 +98,8 @@ describe('CopyHeaderCommand', () => {
         await new CopyHeaderCommand(commandsProvider).activate(extensionContextFactory());
         const componentItem = new COutlineItem('component');
         componentItem.setHeaderChoices([
-            { include: 'api.h', origins: ['api'] },
-            { include: 'component.h', origins: ['component'] },
+            { include: 'api.h', origins: ['api'], resourcePaths: [] },
+            { include: 'component.h', origins: ['component'], resourcePaths: [] },
         ]);
         (vscode.window.showQuickPick as jest.Mock).mockResolvedValue(undefined);
 
@@ -106,5 +107,31 @@ describe('CopyHeaderCommand', () => {
 
         expect(vscode.window.showQuickPick).toHaveBeenCalledTimes(1);
         expect(vscode.env.clipboard.writeText).not.toHaveBeenCalled();
+    });
+
+    it('shows every resource path retained for a grouped include', async () => {
+        const commandsProvider = commandsProviderFactory();
+        await new CopyHeaderCommand(commandsProvider).activate(extensionContextFactory());
+        const componentItem = new COutlineItem('component');
+        componentItem.setHeaderChoices([
+            {
+                include: 'common.h',
+                origins: ['api', 'component'],
+                resourcePaths: ['/api/common.h', '/component/common.h'],
+            },
+            { include: 'other.h', origins: ['component'], resourcePaths: [] },
+        ]);
+        (vscode.window.showQuickPick as jest.Mock).mockResolvedValue(undefined);
+
+        await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
+
+        expect(vscode.window.showQuickPick).toHaveBeenCalledWith([
+            expect.objectContaining({
+                label: 'common.h',
+                description: 'API · Component',
+                detail: '/api/common.h · /component/common.h',
+            }),
+            expect.objectContaining({ label: 'other.h', detail: undefined }),
+        ], expect.anything());
     });
 });

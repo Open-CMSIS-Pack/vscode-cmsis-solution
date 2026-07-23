@@ -116,6 +116,7 @@ export class COutlineItem extends CTreeItem {
         const storedChoices = choices.map(choice => ({
             ...choice,
             origins: [...choice.origins],
+            resourcePaths: [...choice.resourcePaths],
         }));
         this.setProperty(HEADER_CHOICES_PROPERTY, storedChoices.length > 0 ? storedChoices : undefined);
     }
@@ -126,11 +127,17 @@ export class COutlineItem extends CTreeItem {
             return choices.map(choice => ({
                 ...choice,
                 origins: [...choice.origins],
+                resourcePaths: [...choice.resourcePaths],
             }));
         }
 
         const header = this.getHeader();
-        return header ? [{ include: header, origins: ['component'], resourcePath: this.getResourcePath() }] : [];
+        const resourcePath = this.getResourcePath();
+        return header ? [{
+            include: header,
+            origins: ['component'],
+            resourcePaths: resourcePath ? [resourcePath] : [],
+        }] : [];
     }
 
     getResourcePath(): string | undefined {
