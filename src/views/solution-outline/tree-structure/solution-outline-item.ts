@@ -15,9 +15,6 @@
  */
 
 import { CTreeItem } from '../../../generic/tree-item';
-import { HeaderChoice } from './header-choice';
-
-const HEADER_CHOICES_PROPERTY = 'headerChoices';
 
 export class COutlineItem extends CTreeItem {
     constructor(tag: string, parent?: COutlineItem) {
@@ -112,32 +109,19 @@ export class COutlineItem extends CTreeItem {
         return undefined;
     }
 
-    setHeaderChoices(choices: readonly HeaderChoice[]): void {
-        const storedChoices = choices.map(choice => ({
-            ...choice,
-            origins: [...choice.origins],
-            resourcePaths: [...choice.resourcePaths],
-        }));
-        this.setProperty(HEADER_CHOICES_PROPERTY, storedChoices.length > 0 ? storedChoices : undefined);
+    isApiHeader(): boolean {
+        return this.getAttribute('description') === ' (API)';
     }
 
-    getHeaderChoices(): readonly HeaderChoice[] {
-        const choices = this.getProperty(HEADER_CHOICES_PROPERTY) as HeaderChoice[] | undefined;
-        if (choices) {
-            return choices.map(choice => ({
-                ...choice,
-                origins: [...choice.origins],
-                resourcePaths: [...choice.resourcePaths],
-            }));
-        }
-
-        const header = this.getHeader();
-        const resourcePath = this.getResourcePath();
-        return header ? [{
-            include: header,
-            origins: ['component'],
-            resourcePaths: resourcePath ? [resourcePath] : [],
-        }] : [];
+    getHeaders(): COutlineItem[] {
+        const items = this.getTag() === 'component'
+            ? this.getChildren() as COutlineItem[]
+            : [this];
+        const headers = items.filter(item => item.getHeader());
+        return [
+            ...headers.filter(item => item.isApiHeader()),
+            ...headers.filter(item => !item.isApiHeader()),
+        ];
     }
 
     getResourcePath(): string | undefined {

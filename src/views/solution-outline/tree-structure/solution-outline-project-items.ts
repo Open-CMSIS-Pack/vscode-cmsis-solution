@@ -17,7 +17,7 @@
 import path from 'path';
 import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
 import { buildDocFilePath } from '../../../util';
-import { CreatedFileNode, FileItemBuilder } from './solution-outline-file-item';
+import { FileItemBuilder } from './solution-outline-file-item';
 import { COutlineItem } from './solution-outline-item';
 import * as manifest from '../../../manifest';
 import { CSolution } from '../../../solutions/csolution';
@@ -26,7 +26,6 @@ import { CProjectYamlFile } from '../../../solutions/files/cproject-yaml-file';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 import { buildPackOverviewLink } from './pack-tooltip';
 import { contextDescriptorFromString } from '../../../solutions/descriptors/descriptors';
-import { createHeaderChoices, HeaderCandidate, HeaderOrigin } from './header-choice';
 
 export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
     private readonly _lastPrioritizedComponentList: COutlineItem[] = [];
@@ -255,7 +254,6 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
 
     private addComponentDataFromCbuild(componentNodes: Map<string, COutlineItem>, cbuild: CTreeItem) {
         const apis = cbuild.getChild('apis');
-        const headerCandidatesByComponent = new Map<COutlineItem, HeaderCandidate[]>();
 
         // look for components
         for (const component of cbuild.getGrandChildren('components')) {
@@ -267,51 +265,45 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
 
             // look for api
             const api = component.getValueAsString('implements');
-            let apiHeaderCandidates: HeaderCandidate[] = [];
             if (api) {
                 const apiChild = apis?.getChildByValue('api', api);
-                apiHeaderCandidates = this.addApiData(apiChild, node);
+                this.addApiData(apiChild, node);
             }
 
-            const componentHeaderCandidates = this.addComponentData(node, component, cbuild);
-            const headerCandidates = headerCandidatesByComponent.get(node) ?? [];
-            headerCandidates.push(...apiHeaderCandidates, ...componentHeaderCandidates);
-            headerCandidatesByComponent.set(node, headerCandidates);
+            this.addComponentData(node, component, cbuild);
         }
 
-        for (const [node, headerCandidates] of headerCandidatesByComponent) {
-            const headerChoices = createHeaderChoices(headerCandidates);
-            node.setHeaderChoices(headerChoices);
-            if (headerChoices.length > 0) {
-                setHeaderContext(node, headerChoices[0].include);
+        for (const node of componentNodes.values()) {
+            const preferredHeader = node.getHeaders()[0];
+            if (preferredHeader) {
+                setHeaderContext(node, preferredHeader.getHeader());
             }
         }
     }
 
-    private addApiData(apiChild: ITreeItem<CTreeItem> | undefined, node: COutlineItem): HeaderCandidate[] {
+    private addApiData(apiChild: ITreeItem<CTreeItem> | undefined, node: COutlineItem): void {
         if (apiChild == undefined) {
-            return [];
+            return;
         }
 
         const docs: ITreeItem<CTreeItem>[] = [];
         const apiFiles = apiChild.getGrandChildren('files');
 
         const fileTreeItem = new FileItemBuilder(this.csolution, this.rpcData, this.context);
-        const createdFileNodes = fileTreeItem.createFileNodes(node, apiFiles, docs, true);
+        fileTreeItem.createFileNodes(node, apiFiles, docs, true);
 
         const fileNodes = node.getChildren();
         for (const fileNode of fileNodes) {
             this.addDocFile(fileNode as COutlineItem, docs?.[0]);
         }
-        return this.getHeaderCandidates(createdFileNodes, 'api');
     }
 
-    private addComponentData(node: COutlineItem, component: ITreeItem<CTreeItem>, cbuild: CTreeItem): HeaderCandidate[] {
+    private addComponentData(node: COutlineItem, component: ITreeItem<CTreeItem>, cbuild: CTreeItem): void {
         // add files
         const docs: ITreeItem<CTreeItem>[] = [];
         const fileTreeItem = new FileItemBuilder(this.csolution, this.rpcData, this.context);
         const componentFiles = component.getGrandChildren('files');
-        const createdFileNodes = fileTreeItem.createFileNodes(node, componentFiles, docs);
+        fileTreeItem.createFileNodes(node, componentFiles, docs);
 
         // add doc file
         if (docs.length > 0) {
@@ -323,21 +315,6 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
 
         const children = node.getChildren();
         node.setAttribute('expandable', children.length > 0 ? '1' : '0');
-        return this.getHeaderCandidates(createdFileNodes, 'component');
-    }
-
-    private getHeaderCandidates(createdFileNodes: readonly CreatedFileNode[], origin: HeaderOrigin): HeaderCandidate[] {
-        return createdFileNodes
-            .filter(createdFileNode => this.isHeaderCandidate(createdFileNode))
-            .map(({ node }) => ({
-                include: node.getHeader()!,
-                origin,
-                resourcePath: node.getResourcePath(),
-            }));
-    }
-
-    private isHeaderCandidate({ node }: CreatedFileNode): boolean {
-        return node.getHeader() !== undefined;
     }
 
     private addDocFile(node: COutlineItem, docFile?: ITreeItem<CTreeItem>) {

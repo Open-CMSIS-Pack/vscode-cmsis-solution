@@ -19,12 +19,18 @@ import * as vscode from 'vscode';
 import * as manifest from '../../../manifest';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
-import { HeaderChoice } from '../tree-structure/header-choice';
+
+type HeaderOrigin = 'api' | 'component';
+
+interface HeaderChoice {
+    include: string;
+    origins: readonly HeaderOrigin[];
+    resourcePaths: readonly string[];
+}
 
 interface HeaderQuickPickItem extends vscode.QuickPickItem {
     choice: HeaderChoice;
 }
-
 
 export class CopyHeaderCommand {
     public static readonly copyHeaderCommandId = `${manifest.PACKAGE_NAME}.copyHeaderFile`;
@@ -37,7 +43,7 @@ export class CopyHeaderCommand {
     public async activate(context: Pick<ExtensionContext, 'subscriptions'>) {
         context.subscriptions.push(
             this.commandsProvider.registerCommand(CopyHeaderCommand.copyHeaderCommandId, async (node: COutlineItem) => {
-                const choices = node.getHeaderChoices();
+                const choices = this.createHeaderChoices(node.getHeaders());
                 if (choices.length === 0) {
                     return;
                 }
@@ -59,6 +65,42 @@ export class CopyHeaderCommand {
                 }
             }, this),
         );
+    }
+
+    private createHeaderChoices(items: readonly COutlineItem[]): HeaderChoice[] {
+        const choicesByInclude = new Map<string, HeaderChoice>();
+
+        for (const item of items) {
+            const include = item.getHeader();
+            if (!include) {
+                continue;
+            }
+            const origin = item.isApiHeader() ? 'api' : 'component';
+            const resourcePath = item.getResourcePath();
+            const existingChoice = choicesByInclude.get(include);
+            if (!existingChoice) {
+                choicesByInclude.set(include, {
+                    include,
+                    origins: [origin],
+                    resourcePaths: resourcePath ? [resourcePath] : [],
+                });
+                continue;
+            }
+
+            const hasOrigin = existingChoice.origins.includes(origin);
+            const hasResourcePath = !resourcePath || existingChoice.resourcePaths.includes(resourcePath);
+            if (!hasOrigin || !hasResourcePath) {
+                choicesByInclude.set(include, {
+                    ...existingChoice,
+                    origins: hasOrigin ? existingChoice.origins : [...existingChoice.origins, origin],
+                    resourcePaths: hasResourcePath
+                        ? existingChoice.resourcePaths
+                        : [...existingChoice.resourcePaths, resourcePath!],
+                });
+            }
+        }
+
+        return [...choicesByInclude.values()];
     }
 
     private createQuickPickItem(choice: HeaderChoice): HeaderQuickPickItem {

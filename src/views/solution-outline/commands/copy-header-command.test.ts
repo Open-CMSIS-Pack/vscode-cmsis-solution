@@ -22,6 +22,20 @@ import { CopyHeaderCommand } from './copy-header-command';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 
 const extensionContextFactory = (): Pick<ExtensionContext, 'subscriptions'> => ({ subscriptions: [] });
+
+function addHeader(
+    component: COutlineItem,
+    include: string,
+    origin: 'api' | 'component',
+    resourcePath?: string,
+): COutlineItem {
+    const header = component.createChild('file');
+    header.setAttribute('header', include);
+    header.setAttribute('description', origin === 'api' ? ' (API)' : undefined);
+    header.setAttribute('resourcePath', resourcePath);
+    return header;
+}
+
 describe('CopyHeaderCommand', () => {
     beforeEach(() => {
         jest.clearAllMocks();
@@ -59,11 +73,7 @@ describe('CopyHeaderCommand', () => {
         const commandsProvider = commandsProviderFactory();
         await new CopyHeaderCommand(commandsProvider).activate(extensionContextFactory());
         const componentItem = new COutlineItem('component');
-        componentItem.setHeaderChoices([{
-            include: 'arm_math.h',
-            origins: ['component'],
-            resourcePaths: [],
-        }]);
+        addHeader(componentItem, 'arm_math.h', 'component');
 
         await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
 
@@ -75,10 +85,8 @@ describe('CopyHeaderCommand', () => {
         const commandsProvider = commandsProviderFactory();
         await new CopyHeaderCommand(commandsProvider).activate(extensionContextFactory());
         const componentItem = new COutlineItem('component');
-        componentItem.setHeaderChoices([
-            { include: 'cmsis_os2.h', origins: ['api'], resourcePaths: ['/api/cmsis_os2.h'] },
-            { include: 'rtx_os.h', origins: ['component'], resourcePaths: ['/component/rtx_os.h'] },
-        ]);
+        addHeader(componentItem, 'cmsis_os2.h', 'api', '/api/cmsis_os2.h');
+        addHeader(componentItem, 'rtx_os.h', 'component', '/component/rtx_os.h');
         (vscode.window.showQuickPick as jest.Mock).mockImplementation(async (items) => items[1]);
 
         await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
@@ -97,10 +105,8 @@ describe('CopyHeaderCommand', () => {
         const commandsProvider = commandsProviderFactory();
         await new CopyHeaderCommand(commandsProvider).activate(extensionContextFactory());
         const componentItem = new COutlineItem('component');
-        componentItem.setHeaderChoices([
-            { include: 'api.h', origins: ['api'], resourcePaths: [] },
-            { include: 'component.h', origins: ['component'], resourcePaths: [] },
-        ]);
+        addHeader(componentItem, 'api.h', 'api');
+        addHeader(componentItem, 'component.h', 'component');
         (vscode.window.showQuickPick as jest.Mock).mockResolvedValue(undefined);
 
         await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
@@ -113,14 +119,9 @@ describe('CopyHeaderCommand', () => {
         const commandsProvider = commandsProviderFactory();
         await new CopyHeaderCommand(commandsProvider).activate(extensionContextFactory());
         const componentItem = new COutlineItem('component');
-        componentItem.setHeaderChoices([
-            {
-                include: 'common.h',
-                origins: ['api', 'component'],
-                resourcePaths: ['/api/common.h', '/component/common.h'],
-            },
-            { include: 'other.h', origins: ['component'], resourcePaths: [] },
-        ]);
+        addHeader(componentItem, 'common.h', 'api', '/api/common.h');
+        addHeader(componentItem, 'common.h', 'component', '/component/common.h');
+        addHeader(componentItem, 'other.h', 'component');
         (vscode.window.showQuickPick as jest.Mock).mockResolvedValue(undefined);
 
         await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
@@ -132,6 +133,60 @@ describe('CopyHeaderCommand', () => {
                 detail: '/api/common.h · /component/common.h',
             }),
             expect.objectContaining({ label: 'other.h', detail: undefined }),
+        ], expect.anything());
+    });
+
+    it('preserves the order of headers with the same priority', async () => {
+        const commandsProvider = commandsProviderFactory();
+        await new CopyHeaderCommand(commandsProvider).activate(extensionContextFactory());
+        const componentItem = new COutlineItem('component');
+        addHeader(componentItem, 'z_api.h', 'api');
+        addHeader(componentItem, 'a_api.h', 'api');
+        addHeader(componentItem, 'component.h', 'component');
+        (vscode.window.showQuickPick as jest.Mock).mockResolvedValue(undefined);
+
+        await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
+
+        expect(vscode.window.showQuickPick).toHaveBeenCalledWith([
+            expect.objectContaining({ label: 'z_api.h' }),
+            expect.objectContaining({ label: 'a_api.h' }),
+            expect.objectContaining({ label: 'component.h' }),
+        ], expect.anything());
+    });
+
+    it('retains distinct paths when one origin contributes the same include', async () => {
+        const commandsProvider = commandsProviderFactory();
+        await new CopyHeaderCommand(commandsProvider).activate(extensionContextFactory());
+        const componentItem = new COutlineItem('component');
+        addHeader(componentItem, 'common.h', 'component', '/first/common.h');
+        addHeader(componentItem, 'common.h', 'component', '/second/common.h');
+        addHeader(componentItem, 'other.h', 'component');
+        (vscode.window.showQuickPick as jest.Mock).mockResolvedValue(undefined);
+
+        await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
+
+        expect(vscode.window.showQuickPick).toHaveBeenCalledWith([
+            expect.objectContaining({
+                label: 'common.h',
+                detail: '/first/common.h · /second/common.h',
+            }),
+            expect.objectContaining({ label: 'other.h' }),
+        ], expect.anything());
+    });
+
+    it('keeps equal basenames with different include expressions separate', async () => {
+        const commandsProvider = commandsProviderFactory();
+        await new CopyHeaderCommand(commandsProvider).activate(extensionContextFactory());
+        const componentItem = new COutlineItem('component');
+        addHeader(componentItem, 'api/common.h', 'api');
+        addHeader(componentItem, 'component/common.h', 'component');
+        (vscode.window.showQuickPick as jest.Mock).mockResolvedValue(undefined);
+
+        await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
+
+        expect(vscode.window.showQuickPick).toHaveBeenCalledWith([
+            expect.objectContaining({ label: 'api/common.h' }),
+            expect.objectContaining({ label: 'component/common.h' }),
         ], expect.anything());
     });
 });

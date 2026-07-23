@@ -210,16 +210,16 @@ describe('CSolution', () => {
         let tree = solutionOutlineTree.createTree();
 
         const rtxComponent = findNodeByLabel(tree, 'component', 'ARM::CMSIS:RTOS2:Keil RTX5&Source');
-        expect(rtxComponent?.getHeaderChoices()[0].include).toBe('cmsis_os2.h');
-        expect(rtxComponent?.getHeaderChoices().map(choice => choice.include)).toContain('rtx_os.h');
+        expect(rtxComponent?.getHeader()).toBe('cmsis_os2.h');
+        expect(rtxComponent?.getHeaders().map(item => item.getHeader())).toContain('rtx_os.h');
 
         const usartComponent = findNodeByLabel(tree, 'component', 'Keil::CMSIS Driver:USART');
-        expect(usartComponent?.getHeaderChoices()[0].include).toBe('Driver_USART.h');
-        expect(usartComponent?.getHeaderChoices().map(choice => choice.include)).toContain('USART_STM32.h');
+        expect(usartComponent?.getHeader()).toBe('Driver_USART.h');
+        expect(usartComponent?.getHeaders().map(item => item.getHeader())).toContain('USART_STM32.h');
 
         const massStorageProject = findNodeByLabel(tree, 'project', 'MassStorage.Debug+B-U585I-IOT02A');
         const stderrComponent = findNodeByLabel(massStorageProject!, 'component', 'ARM::CMSIS-Compiler:STDERR:Custom');
-        expect(stderrComponent?.getHeaderChoices().map(choice => choice.include)).toContain('retarget_stderr.h');
+        expect(stderrComponent?.getHeaders().map(item => item.getHeader())).toContain('retarget_stderr.h');
 
         let topItems = tree.getChildren();
         expect(topItems.length).toBe(5); // device, board, cdefault and two projects
