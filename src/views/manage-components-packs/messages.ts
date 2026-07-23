@@ -77,6 +77,8 @@ export type IncomingMessage
         cbuildPackPath: string,
         solution: SolutionInfo,
         isDirty?: boolean,
-        availablePacks: Record<string, string>
+        availablePacks: Record<string, string>,
+        availablePacksIndexCurrent: boolean,
+        focusPackId?: string,
     }
     ;

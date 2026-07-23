@@ -33,6 +33,32 @@ class MarkdownString extends String {
     }
 }
 
+class TreeItem {
+    constructor(label, collapsibleState) {
+        this.label = label;
+        this.collapsibleState = collapsibleState;
+    }
+}
+
+class ThemeIcon {
+    constructor(id) {
+        this.id = id;
+    }
+}
+
+class TabInputCustom {
+    constructor(uri, viewType) {
+        this.uri = uri;
+        this.viewType = viewType;
+    }
+}
+
+class TabInputText {
+    constructor(uri) {
+        this.uri = uri;
+    }
+}
+
 // Classes
 const Disposable = jest.fn(() => {
     return { dispose: jest.fn() };
@@ -107,6 +133,11 @@ const ViewColumn = {
     Beside: -2
 }
 const ProgressLocation = { Notification: 1 };
+const TreeItemCollapsibleState = {
+    None: 0,
+    Collapsed: 1,
+    Expanded: 2,
+};
 
 // Namespaces
 const commands = {
@@ -137,6 +168,13 @@ const tasks = {
 };
 const window = {
     activeColorTheme: { kind: 1 },
+    tabGroups: {
+        all: [],
+        activeTabGroup: undefined,
+        onDidChangeTabGroups: new EventEmitter().event,
+        onDidChangeTabs: new EventEmitter().event,
+        close: jest.fn(),
+    },
     createStatusBarItem: jest.fn(() => ({ show: jest.fn(), hide: jest.fn() })),
     createTerminal: jest.fn(() => ({ show: jest.fn(), hide: jest.fn(), dispose: jest.fn() })),
     createWebviewPanel: jest.fn(),
@@ -151,6 +189,11 @@ const window = {
     showWarningMessage: jest.fn(),
     showErrorMessage: jest.fn(),
     registerUriHandler: jest.fn(),
+    createTreeView: jest.fn(() => ({
+        onDidChangeVisibility: jest.fn(),
+        onDidCollapseElement: jest.fn(),
+        onDidExpandElement: jest.fn(),
+    })),
 };
 const fs = {
     readFile: jest.fn(),
@@ -169,6 +212,8 @@ const workspace = {
     onWillSaveTextDocument: jest.fn(() => ({ dispose: jest.fn() })),
     applyEdit: jest.fn().mockResolvedValue(true),
     openTextDocument: jest.fn(),
+    textDocuments: [],
+    saveAll: jest.fn().mockResolvedValue(true),
     updateWorkspaceFolders: jest.fn(),
 };
 const extensions = {
@@ -216,9 +261,14 @@ module.exports = {
     QuickPickItemKind,
     Range,
     Diagnostic,
+    TreeItem,
+    ThemeIcon,
+    TreeItemCollapsibleState,
     RelativePattern,
     ShellExecution,
     Task,
+    TabInputCustom,
+    TabInputText,
     Uri,
     WorkspaceEdit,
     ShellQuoting,

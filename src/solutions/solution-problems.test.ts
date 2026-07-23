@@ -15,15 +15,15 @@
  */
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { ExtensionContext } from 'vscode';
 import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
-import * as fsUtils from '../utils/fs-utils';
-import * as vscodeUtils from '../utils/vscode-utils';
 import { solutionManagerFactory, MockSolutionManager } from './solution-manager.factories';
 import { SolutionEventHub } from './solution-event-hub';
 import { enrichLogMessagesFromToolOutput, SolutionProblemsImpl, hasToolError, hasToolWarning, getToolsSeverity, getSeverity } from './solution-problems';
 import { waitTimeout } from '../__test__/test-waits';
+import * as fsUtils from '../utils/fs-utils';
 
 const solutionPath = '/work/app.csolution.yml';
 const layerPath = '/work/config/mylayer.clayer.yml';
@@ -42,6 +42,7 @@ const buildCsolution = () => {
                 ['ctx', { fileName: '/work/ctx.cbuild.yml' }],
             ]),
         },
+        getActiveTargetSetName: () => undefined,
     };
 };
 
@@ -70,7 +71,7 @@ describe('SolutionProblems', () => {
 
         await solutionProblems.activate(context);
 
-        expect(context.subscriptions).toHaveLength(4);
+        expect(context.subscriptions).toHaveLength(6);
     });
 
     it('clears diagnostics when solution path changes', async () => {
@@ -82,7 +83,7 @@ describe('SolutionProblems', () => {
             { solutionPath: '/work/old.csolution.yml' }
         );
 
-        expect(clearSpy).toHaveBeenCalledTimes(1);
+        expect(clearSpy).toHaveBeenCalledTimes(2);
     });
 
     it('clears diagnostics when solution is closed', async () => {
@@ -94,7 +95,7 @@ describe('SolutionProblems', () => {
             { solutionPath: '/work/old.csolution.yml' }
         );
 
-        expect(clearSpy).toHaveBeenCalledTimes(1);
+        expect(clearSpy).toHaveBeenCalledTimes(2);
     });
     it('does not clear diagnostics when solution path is unchanged', async () => {
         await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
@@ -126,7 +127,7 @@ describe('SolutionProblems', () => {
         });
         await waitTimeout();
 
-        expect(clearSpy).toHaveBeenCalledTimes(1);
+        expect(clearSpy).toHaveBeenCalledTimes(2);
         expect(setSpy).toHaveBeenCalledTimes(3);
         expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
     });
@@ -150,6 +151,28 @@ describe('SolutionProblems', () => {
 
         const [uri] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
         expect(uri.fsPath).toContain('mylayer.clayer.yml');
+    });
+
+    it('maps diagnostics to absolute filename from log when source map has no match', async () => {
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+        await eventHub.fireConvertCompleted({
+            success: false,
+            severity: 'error',
+            detection: false,
+            logMessages: {
+                success: false,
+                errors: ['C:\\external\\build\\..\\outside.clayer.yml:2:1 - invalid value'],
+                warnings: [],
+                info: [],
+            },
+        });
+        await waitTimeout();
+
+        const [uri] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+        expect(uri.fsPath).toContain('outside.clayer.yml');
+        expect(uri.fsPath).not.toContain('app.csolution.yml');
     });
 
     it('does not open problems view when all messages are excluded', async () => {
@@ -190,27 +213,71 @@ describe('SolutionProblems', () => {
         expect(messages.warnings).toEqual(['generated warning']);
     });
 
-    it('formats west-related messages with settings location', async () => {
-        jest.spyOn(vscodeUtils, 'getWorkspaceFolder').mockReturnValue('/workspace/folder');
-        jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
-        (vscode.workspace as { workspaceFile?: vscode.Uri }).workspaceFile = undefined;
-        (vscode.workspace.openTextDocument as jest.Mock).mockResolvedValue({
-            getText: () => '{"cmsis-csolution.environmentVariables":{}}',
-            positionAt: () => ({ line: 2, character: 4 }),
-            lineCount: 100,
-            lineAt: () => ({ range: { end: { character: 80 } } }),
-        });
-
+    it('filters west-related environment messages from enriched tool output', async () => {
         const messages = { success: true, errors: [], warnings: [], info: [] };
         await enrichLogMessagesFromToolOutput(messages, [
             'warning cbuild: missing ZEPHYR_BASE environment variable',
             'error cbuild: exec: "west": executable file not found in $PATH',
         ]);
 
-        expect(messages.warnings[0]).toContain('.vscode');
-        expect(messages.warnings[0]).toContain('settings.json:3:5 - missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"');
-        expect(messages.errors[0]).toContain('.vscode');
-        expect(messages.errors[0]).toContain('settings.json:3:5 - exec: "west": executable file not found in $PATH; review "cmsis-csolution.environmentVariables"');
+        expect(messages.warnings).toEqual([]);
+        expect(messages.errors).toEqual([]);
+    });
+
+    describe('tool output normalization through enrichment', () => {
+        it('parses warning/error messages when wrapped in CSI ANSI sequences', async () => {
+            const messages = { success: true, errors: [], warnings: [], info: [] };
+            const esc = String.fromCharCode(27);
+
+            await enrichLogMessagesFromToolOutput(messages, [
+                `${esc}[2Kwarning cbuild: generated warning${esc}[0m\r\n`,
+                `${esc}[31merror cbuild: generated error${esc}[0m\r\n`,
+            ]);
+
+            expect(messages.warnings).toEqual(['generated warning']);
+            expect(messages.errors).toEqual(['generated error']);
+        });
+
+        it('parses warning/error messages when preceded by OSC sequences terminated by BEL or ST', async () => {
+            const messages = { success: true, errors: [], warnings: [], info: [] };
+            const esc = String.fromCharCode(27);
+            const bel = String.fromCharCode(7);
+
+            await enrichLogMessagesFromToolOutput(messages, [
+                `${esc}]0;term-title${bel}warning cbuild: generated warning\r\n`,
+                `${esc}]0;term-title${esc}\\error cbuild: generated error\r\n`,
+            ]);
+
+            expect(messages.warnings).toEqual(['generated warning']);
+            expect(messages.errors).toEqual(['generated error']);
+        });
+
+        it('ignores single-character escape sequences while preserving parseable text', async () => {
+            const messages = { success: true, errors: [], warnings: [], info: [] };
+            const esc = String.fromCharCode(27);
+
+            await enrichLogMessagesFromToolOutput(messages, [
+                `${esc}7warning cbuild: generated warning\r\n`,
+                `${esc}8error cbuild: generated error\r\n`,
+            ]);
+
+            expect(messages.warnings).toEqual(['generated warning']);
+            expect(messages.errors).toEqual(['generated error']);
+        });
+    });
+
+    it('enriches tool messages when warning/error prefixes are split across PTY chunks', async () => {
+        const messages = { success: true, errors: [], warnings: [], info: [] };
+
+        await enrichLogMessagesFromToolOutput(messages, [
+            'warning cbui',
+            'ld: generated warning\r\n',
+            'error cbu',
+            'ild: generated error\r\n',
+        ]);
+
+        expect(messages.warnings).toEqual(['generated warning']);
+        expect(messages.errors).toEqual(['generated error']);
     });
 
     it('creates manage components command link with context argument', async () => {
@@ -300,7 +367,7 @@ describe('SolutionProblems', () => {
         const code = runGeneratorDiagnostics[0].code as { value: string; target: vscode.Uri };
         const [command, args] = code.target.toString().split('?');
         expect(command).toBe(`command:${RUN_GENERATOR_COMMAND_ID}`);
-        expect(JSON.parse(decodeURIComponent(args))).toEqual([{ generator: 'CubeMX2', context: 'CubeMX2.Debug+STM32C531CBT6' }]);
+        expect(JSON.parse(decodeURIComponent(args))).toEqual([{ generator: 'CubeMX2', activeTarget: 'STM32C531CBT6' }]);
     });
 
     it('falls back to the diagnostic file path for relative merge paths', async () => {
@@ -384,6 +451,32 @@ describe('SolutionProblems', () => {
         expect(code.target.toString()).toContain('command:workbench.action.findInFiles');
     });
 
+    it.each([
+        'missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"',
+        'ZEPHYR_BASE environment variable specifies non-existent directory: C:/zephyr/base; review "cmsis-csolution.environmentVariables"',
+        'VIRTUAL_ENV environment variable specifies non-existent directory: C:\\Users\\myuser/zephyrproject/.venv; review "cmsis-csolution.environmentVariables"',
+        'exec: "west": executable file not found in $PATH; review "cmsis-csolution.environmentVariables"',
+    ])('does not create diagnostics for environment-variable message "%s"', async message => {
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+        await eventHub.fireConvertCompleted({
+            success: false,
+            severity: 'error',
+            detection: false,
+            logMessages: {
+                success: false,
+                errors: [`mylayer.clayer.yml:10:2 - ${message}`],
+                warnings: [],
+                info: [],
+            },
+        });
+        await waitTimeout();
+
+        expect(setSpy).not.toHaveBeenCalled();
+        expect(vscode.commands.executeCommand).not.toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
+    });
+
     describe('handleCbuildCompleted', () => {
         it('creates diagnostics from cbuild error output messages', async () => {
             await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
@@ -400,7 +493,7 @@ describe('SolutionProblems', () => {
             await waitTimeout();
 
             expect(setSpy).toHaveBeenCalledTimes(1);
-            expect(clearSpy).not.toHaveBeenCalled();
+            expect(clearSpy).toHaveBeenCalledTimes(1);
             expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
         });
 
@@ -419,7 +512,7 @@ describe('SolutionProblems', () => {
             await waitTimeout();
 
             expect(setSpy).toHaveBeenCalledTimes(1);
-            expect(clearSpy).not.toHaveBeenCalled();
+            expect(clearSpy).toHaveBeenCalledTimes(1);
             expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
         });
 
@@ -469,6 +562,161 @@ describe('SolutionProblems', () => {
             await waitTimeout();
 
             expect(setSpy).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('environment diagnostics updates', () => {
+        beforeEach(() => {
+            (vscode.workspace as typeof vscode.workspace & {
+                workspaceFolders?: readonly vscode.WorkspaceFolder[];
+                workspaceFile?: vscode.Uri;
+            }).workspaceFolders = [{
+                uri: vscode.Uri.file(path.join(path.sep, 'workspace')),
+                name: 'workspace',
+                index: 0,
+            }];
+            (vscode.workspace as typeof vscode.workspace & {
+                workspaceFolders?: readonly vscode.WorkspaceFolder[];
+                workspaceFile?: vscode.Uri;
+            }).workspaceFile = undefined;
+
+            jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
+            (vscode.workspace.openTextDocument as unknown as jest.Mock).mockImplementation(async (filePath: string) => {
+                if (filePath.includes('settings.json')) {
+                    return {
+                        getText: () => '{"cmsis-csolution.environmentVariables": {}}',
+                        positionAt: () => ({ line: 0, character: 2 }),
+                        lineAt: () => ({ range: { end: { character: 42 } } }),
+                    } as unknown as vscode.TextDocument;
+                }
+                return {
+                    lineCount: 200,
+                    lineAt: () => ({ range: { end: { character: 80 } } }),
+                } as unknown as vscode.TextDocument;
+            });
+        });
+
+        it('creates environment diagnostics and opens Problems view', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireConvertCompleted({
+                success: false,
+                severity: 'error',
+                detection: false,
+                logMessages: {
+                    success: false,
+                    errors: ['missing ZEPHYR_BASE environment variable'],
+                    warnings: ['missing ZEPHYR_BASE environment variable'],
+                    info: [],
+                },
+                toolsOutputMessages: [
+                    'warning cbuild: ZEPHYR_BASE environment variable specifies non-existent directory: /missing',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).toHaveBeenCalledTimes(1);
+            const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+            expect(diagnostics).toHaveLength(2);
+            expect(diagnostics?.map(diagnostic => diagnostic.message)).toEqual(expect.arrayContaining([
+                'missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"',
+                'ZEPHYR_BASE environment variable specifies non-existent directory: /missing; review "cmsis-csolution.environmentVariables"',
+            ]));
+            expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
+        });
+
+        it('opens Problems view once when both general and environment diagnostics exist', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireConvertCompleted({
+                success: false,
+                severity: 'error',
+                detection: false,
+                logMessages: {
+                    success: false,
+                    errors: [
+                        'mylayer.clayer.yml:10:2 - missing node',
+                        'missing ZEPHYR_BASE environment variable',
+                    ],
+                    warnings: [],
+                    info: [],
+                },
+                toolsOutputMessages: [
+                    'warning cbuild: ZEPHYR_BASE environment variable specifies non-existent directory: /missing',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).toHaveBeenCalledTimes(2);
+            expect(vscode.commands.executeCommand).toHaveBeenCalledTimes(1);
+            expect(vscode.commands.executeCommand).toHaveBeenCalledWith('workbench.actions.view.problems', { preserveFocus: true });
+        });
+
+        it('targets environment diagnostics at workspace file path when present', async () => {
+            const workspaceFilePath = 'C:\\workspace\\my.code-workspace';
+            (vscode.workspace as typeof vscode.workspace & {
+                workspaceFile?: vscode.Uri;
+            }).workspaceFile = vscode.Uri.file(workspaceFilePath);
+
+            jest.spyOn(fsUtils, 'fileExists').mockReturnValue(false);
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireCbuildCompleted({
+                success: false,
+                severity: 'error',
+                toolsOutputMessages: [
+                    'error cbuild: missing ZEPHYR_BASE environment variable',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).toHaveBeenCalledTimes(1);
+            const [uri] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+            expect(uri.fsPath).toBe(vscode.Uri.file(workspaceFilePath).fsPath);
+        });
+
+        it('reassembles split PTY chunks for environment warning diagnostics', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireCbuildCompleted({
+                success: false,
+                severity: 'error',
+                toolsOutputMessages: [
+                    'warning cbui',
+                    'ld: missing ZEPHYR_BASE environment variable\r\n',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).toHaveBeenCalledTimes(1);
+            const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+            expect(diagnostics?.map(diagnostic => diagnostic.message)).toEqual(expect.arrayContaining([
+                'missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"',
+            ]));
+        });
+
+        it('strips control characters from environment diagnostics tool output', async () => {
+            await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+            const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+            await eventHub.fireCbuildCompleted({
+                success: false,
+                severity: 'error',
+                toolsOutputMessages: [
+                    '\u0007warning cbuild: missing ZEPHYR_BASE environment variable\u0007\r\n',
+                ],
+            });
+            await waitTimeout();
+
+            expect(setSpy).toHaveBeenCalledTimes(1);
+            const [, diagnostics] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
+            expect(diagnostics?.map(diagnostic => diagnostic.message)).toEqual(expect.arrayContaining([
+                'missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"',
+            ]));
         });
     });
 

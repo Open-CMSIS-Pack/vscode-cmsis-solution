@@ -16,7 +16,7 @@
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import * as vscode from 'vscode';
-import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
+import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, OPEN_ENV_VAR_SETTINGS_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
 import { ProblemDiagnosticActionResolver, ProblemDiagnosticActionContext } from './problem-diagnostic-action-resolver';
 
 const diagnosticFilePath = '/work/app.csolution.yml';
@@ -142,36 +142,39 @@ describe('ProblemDiagnosticActionResolver', () => {
     });
 
     describe('run-generator action', () => {
-        it('encodes generator and context in the command URI arguments', () => {
-            const { command, args } = decodeCodeTarget(resolver, makeContext({
-                message: "cgen file was not found, run generator 'CubeMX' for context 'App.Debug+STM32'",
+
+        it('uses active target set name when available', () => {
+            const resolverWithTargetSet = new ProblemDiagnosticActionResolver(() => 'STM32C531CBT6@fvp');
+
+            const { command, args } = decodeCodeTarget(resolverWithTargetSet, makeContext({
+                message: "cgen file was not found, run generator 'CubeMX' for context 'CubeMX.Debug+STM32C531CBT6'",
             }));
 
             expect(command).toBe(`command:${RUN_GENERATOR_COMMAND_ID}`);
-            expect(args).toEqual([{ generator: 'CubeMX', context: 'App.Debug+STM32' }]);
+            expect(args).toEqual([{ generator: 'CubeMX', activeTarget: 'STM32C531CBT6@fvp' }]);
         });
 
-        it('returns no message field, only a code', () => {
-            const result = resolver.resolve(makeContext({
-                message: "cgen file was not found, run generator 'CubeMX' for context 'App.Debug+STM32'",
+        it('encodes generator and activeTarget in the command URI arguments (CubeMX example)', () => {
+            const { command, args } = decodeCodeTarget(resolver, makeContext({
+                message: "cgen file was not found, run generator 'CubeMX' for context 'CubeMX.Debug+STM32C531CBT6'",
             }));
 
-            expect(result?.message).toBeUndefined();
+            expect(command).toBe(`command:${RUN_GENERATOR_COMMAND_ID}`);
+            expect(args).toEqual([{ generator: 'CubeMX', activeTarget: 'STM32C531CBT6' }]);
+        });
+
+        it('returns a formatted message and a code', () => {
+            const result = resolver.resolve(makeContext({
+                message: "cgen file was not found, run generator 'CubeMX' for context 'MyProject.Debug+STM32'",
+            }));
+
+            expect(result?.message).toBe("Run generator 'CubeMX' for target 'STM32'");
             expect(result?.code).toBeDefined();
-        });
-
-        it('is suppressed when hasLocation is true', () => {
-            const result = resolver.resolve(makeContext({
-                message: "cgen file was not found, run generator 'CubeMX' for context 'App.Debug+STM32'",
-                hasLocation: true,
-            }));
-
-            expect(result).toBeUndefined();
         });
 
         it('matches alternate wording with trailing context description', () => {
             const result = resolver.resolve(makeContext({
-                message: "run generator 'CubeMX2' for context 'CubeMX2.Debug+STM32C531CBT6' to generate missing cgen artifacts",
+                message: "run generator 'CubeMX' for context 'CubeMX.Debug+STM32C531CBT6' to generate missing cgen artifacts",
             }));
 
             expect((result?.code as { value: string } | undefined)?.value).toBe('Run Generator');
@@ -179,11 +182,29 @@ describe('ProblemDiagnosticActionResolver', () => {
 
         it('matches generator messages with irregular whitespace', () => {
             const { command, args } = decodeCodeTarget(resolver, makeContext({
-                message: "cgen file was not found,\n  run generator   'CubeMX'\nfor context   'App.Debug+STM32'",
+                message: "cgen file was not found,\n  run generator   'CubeMX'\nfor context   'MyProject.Debug+STM32'",
             }));
 
             expect(command).toBe(`command:${RUN_GENERATOR_COMMAND_ID}`);
-            expect(args).toEqual([{ generator: 'CubeMX', context: 'App.Debug+STM32' }]);
+            expect(args).toEqual([{ generator: 'CubeMX', activeTarget: 'STM32' }]);
+        });
+
+        it('preserves @TargetSet in activeTarget when the context string contains one', () => {
+            const { command, args } = decodeCodeTarget(resolver, makeContext({
+                message: "cgen file was not found, run generator 'CubeMX' for context 'CubeMX.Debug+STM32C531CBT6@fvp'",
+            }));
+
+            expect(command).toBe(`command:${RUN_GENERATOR_COMMAND_ID}`);
+            expect(args).toEqual([{ generator: 'CubeMX', activeTarget: 'STM32C531CBT6@fvp' }]);
+        });
+
+        it('returns a message with TargetType@Set when the context string contains a target set', () => {
+            const result = resolver.resolve(makeContext({
+                message: "cgen file was not found, run generator 'CubeMX' for context 'MyProject.Debug+STM32@board'",
+            }));
+
+            expect(result?.message).toBe("Run generator 'CubeMX' for target 'STM32@board'");
+            expect(result?.code).toBeDefined();
         });
     });
 
@@ -208,6 +229,47 @@ describe('ProblemDiagnosticActionResolver', () => {
         it('is suppressed when hasLocation is true', () => {
             const result = resolver.resolve(makeContext({
                 message: "dependency validation for context 'App.Debug+STM32' failed:",
+                hasLocation: true,
+            }));
+
+            expect(result).toBeUndefined();
+        });
+    });
+
+    describe('manage-pack action', () => {
+        it('creates an Open Software Packs action for pack download failures', () => {
+            const { code, command, args } = decodeCodeTarget(resolver, makeContext({
+                message: "downloading pack 'ARM::CMSIS@2.3.0' failed",
+            }));
+
+            expect(code?.value).toBe('Open Software Packs');
+            expect(command).toBe(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}`);
+            expect(args).toEqual([{ type: 'pack', value: 'ARM::CMSIS@2.3.0' }]);
+        });
+
+        it('creates an Open Software Packs action for required packs that are not installed', () => {
+            const { code, command, args } = decodeCodeTarget(resolver, makeContext({
+                message: "required pack 'ARM::CMSIS@2.3.0' not installed",
+            }));
+
+            expect(code?.value).toBe('Open Software Packs');
+            expect(command).toBe(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}`);
+            expect(args).toEqual([{ type: 'pack', value: 'ARM::CMSIS@2.3.0' }]);
+        });
+
+        it('creates an Open Software Packs action for multiple selected versions diagnostics', () => {
+            const { code, command, args } = decodeCodeTarget(resolver, makeContext({
+                message: "selected multiple versions of pack 'Keil::MDK-Middleware': '8.1.0', '8.2.0' Review pack selection",
+            }));
+
+            expect(code?.value).toBe('Open Software Packs');
+            expect(command).toBe(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}`);
+            expect(args).toEqual([{ type: 'pack', value: 'Keil::MDK-Middleware' }]);
+        });
+
+        it('is suppressed when hasLocation is true', () => {
+            const result = resolver.resolve(makeContext({
+                message: "downloading pack 'ARM::CMSIS@2.3.0' failed",
                 hasLocation: true,
             }));
 
@@ -288,6 +350,49 @@ describe('ProblemDiagnosticActionResolver', () => {
 
             expect(result?.message).toBeUndefined();
             expect(result?.code).toBeDefined();
+        });
+    });
+
+    describe('environment variables settings action', () => {
+        it('creates configure environment variables action for missing environment variable', () => {
+            const { code, command, args } = decodeCodeTarget(resolver, makeContext({
+                message: 'missing ZEPHYR_BASE environment variable; review "cmsis-csolution.environmentVariables"',
+                hasLocation: true,
+            }));
+
+            expect(code?.value).toBe('Configure Environment Variables');
+            expect(command).toBe(`command:${OPEN_ENV_VAR_SETTINGS_COMMAND_ID}`);
+            expect(args).toEqual(['cmsis-csolution.environmentVariables']);
+        });
+
+        it('creates configure environment variables action for non-existent environment variable directory', () => {
+            const { code, command, args } = decodeCodeTarget(resolver, makeContext({
+                message: 'ZEPHYR_BASE environment variable specifies non-existent directory: C:/zephyr/base; review "cmsis-csolution.environmentVariables"',
+            }));
+
+            expect(code?.value).toBe('Configure Environment Variables');
+            expect(command).toBe(`command:${OPEN_ENV_VAR_SETTINGS_COMMAND_ID}`);
+            expect(args).toEqual(['cmsis-csolution.environmentVariables']);
+        });
+
+        it('creates configure environment variables action for non-existent VIRTUAL_ENV directory', () => {
+            const { code, command, args } = decodeCodeTarget(resolver, makeContext({
+                message: 'VIRTUAL_ENV environment variable specifies non-existent directory: C:\\Users\\myuser/zephyrproject/.venv; review "cmsis-csolution.environmentVariables"',
+            }));
+
+            expect(code?.value).toBe('Configure Environment Variables');
+            expect(command).toBe(`command:${OPEN_ENV_VAR_SETTINGS_COMMAND_ID}`);
+            expect(args).toEqual(['cmsis-csolution.environmentVariables']);
+        });
+
+        it('creates configure environment variables action for missing west executable', () => {
+            const { code, command, args } = decodeCodeTarget(resolver, makeContext({
+                message: 'exec: "west": executable file not found in $PATH; review "cmsis-csolution.environmentVariables"',
+            }));
+
+            expect(code?.value).toBe('Configure Environment Variables');
+            expect(command).toBe(`command:${OPEN_ENV_VAR_SETTINGS_COMMAND_ID}`);
+            expect(args).toEqual(['cmsis-csolution.environmentVariables']);
         });
     });
 });

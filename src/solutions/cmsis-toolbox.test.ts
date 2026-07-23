@@ -165,4 +165,38 @@ describe('CmsisToolbox', () => {
             'error: context1.build+target fails',
         ]);
     });
+
+    describe('runCsolutionRpc failure handling', () => {
+        it('emits stop event when rpc call fails', async () => {
+            const states: boolean[] = [];
+            toolbox.onRunCmsisTool(([running]) => states.push(running));
+            mockCsolutionService.convertSolution.mockRejectedValue(new Error('rpc failed'));
+
+            await expect(toolbox.runCsolutionRpc('ConvertSolution', {
+                solution: 'path/to/solution.csolution.yml',
+                activeTarget: '',
+                updateRte: false,
+            })).rejects.toThrow('rpc failed');
+
+            expect(states).toEqual([true, false]);
+        });
+
+        it('allows subsequent rpc requests after a failed rpc call', async () => {
+            mockCsolutionService.convertSolution
+                .mockRejectedValueOnce(new Error('first failure'))
+                .mockResolvedValueOnce({ success: true });
+
+            await expect(toolbox.runCsolutionRpc('ConvertSolution', {
+                solution: 'path/to/solution.csolution.yml',
+                activeTarget: '',
+                updateRte: false,
+            })).rejects.toThrow('first failure');
+
+            await expect(toolbox.runCsolutionRpc('ConvertSolution', {
+                solution: 'path/to/solution.csolution.yml',
+                activeTarget: '',
+                updateRte: false,
+            })).resolves.toEqual({ success: true });
+        });
+    });
 });

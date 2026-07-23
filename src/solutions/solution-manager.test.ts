@@ -20,7 +20,7 @@ import * as path from 'path';
 import { SolutionLoadState, SolutionManagerImpl } from './solution-manager';
 import * as manifest from '../manifest';
 import { EventEmitter, Event, ExtensionContext, ConfigurationChangeEvent, } from 'vscode';
-import { ActiveSolutionTracker, SolutionDetails, } from './active-solution-tracker';
+import { ActiveSolutionTracker } from './active-solution-tracker';
 import { waitTimeout } from '../__test__/test-waits';
 import { commandsProviderFactory, MockCommandsProvider, } from '../vscode-api/commands-provider.factories';
 import { SolutionEventHub, ConvertResultData } from './solution-event-hub';
@@ -42,13 +42,13 @@ const convertResultData: ConvertResultData = {
     logMessages: { success: true, errors: [], warnings: [], info: [] },
 };
 
+const activeSolutionFilesDebounceMillis = 5;
+
 describe('SolutionManager', () => {
     let mockActiveSolutionTracker: {
         activeSolution: string | undefined;
         onDidChangeActiveSolution: Event<void>;
-        onActiveSolutionFilesChanged: Event<void>;
-        getSolutionDetails: jest.Mock;
-        suspendWatch: boolean;
+        onActiveSolutionFilesChanged: Event<string>;
     };
     let changeActiveSolutionEmitter: EventEmitter<void>;
     let solutionManager: SolutionManagerImpl;
@@ -56,7 +56,7 @@ describe('SolutionManager', () => {
     let changeConfigurationEmitter: EventEmitter<ConfigurationChangeEvent>;
     let commandsProvider: MockCommandsProvider;
     let configurationProviderMock: MockConfigurationProvider;
-    let changeSolutionFilesEmitter: EventEmitter<void>;
+    let changeSolutionFilesEmitter: EventEmitter<string>;
     let vcpkgActivateEmitter: EventEmitter<VcpkgResults>;
     let environmentManagerApi: Pick<EnvironmentManagerApiV1, 'onDidActivate' | 'getActiveTools'>;
     let environmentManager: EnvironmentManager;
@@ -89,7 +89,7 @@ describe('SolutionManager', () => {
         ).onDidChangeConfiguration = changeConfigurationEmitter.event;
 
         changeActiveSolutionEmitter = new EventEmitter<void>();
-        changeSolutionFilesEmitter = new EventEmitter<void>();
+        changeSolutionFilesEmitter = new EventEmitter<string>();
 
         testSolutionPath = path.join(tmpSolutionsDir, 'USBD', 'USB_Device.csolution.yml');
 
@@ -97,13 +97,6 @@ describe('SolutionManager', () => {
             activeSolution: testSolutionPath,
             onDidChangeActiveSolution: changeActiveSolutionEmitter.event,
             onActiveSolutionFilesChanged: changeSolutionFilesEmitter.event,
-            getSolutionDetails: jest.fn(
-                (solutionPath: string): SolutionDetails => ({
-                    path: solutionPath,
-                    displayName: path.basename(solutionPath),
-                }),
-            ),
-            suspendWatch: false,
         };
 
         eventHub = new SolutionEventHub();
@@ -143,6 +136,7 @@ describe('SolutionManager', () => {
             commandsProvider,
             extensionApiProviderFactory(environmentManagerApi),
             environmentManager,
+            activeSolutionFilesDebounceMillis,
         );
         loadStateChangeListener = jest.fn();
         solutionManager.onDidChangeLoadState(loadStateChangeListener);
@@ -152,6 +146,18 @@ describe('SolutionManager', () => {
             subscriptions: [],
         } as unknown as ExtensionContext);
     });
+
+    const activateTestSolution = async (): Promise<void> => {
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(100);
+    };
+
+    const getLoadedSolutionFile = (suffix: string): string => {
+        const file = solutionManager.getCsolution()?.getSolutionYmlFiles().find(filePath => filePath.endsWith(suffix));
+        expect(file).toBeDefined();
+        return file!;
+    };
 
 
     it('register the command on activation', async () => {
@@ -215,7 +221,7 @@ describe('SolutionManager', () => {
         changeActiveSolutionEmitter.fire();
         await waitTimeout(100);
 
-        changeSolutionFilesEmitter.fire();
+        changeSolutionFilesEmitter.fire(getLoadedSolutionFile('.cproject.yml'));
 
         await waitTimeout(100);
 
@@ -260,6 +266,129 @@ describe('SolutionManager', () => {
                 restartRpc: false,
                 updateRte: true,
                 lockAbort: false,
+            }),
+        );
+    });
+
+    it.each([
+        ['cproject', '.cproject.yml'],
+        ['clayer', '.clayer.yml'],
+        ['cgen', '.cgen.yml'],
+    ])('reloads the solution when a changed %s file belongs to the active solution', async (_fileType, suffix) => {
+        await activateTestSolution();
+        const changedPath = getLoadedSolutionFile(suffix);
+        convertMock.mockClear();
+        loadBuildFilesListener.mockClear();
+
+        changeSolutionFilesEmitter.fire(changedPath);
+        await waitTimeout(100);
+
+        expect(convertMock).toHaveBeenCalledTimes(1);
+        expect(convertMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+                solutionPath: testSolutionPath,
+                updateRte: true,
+                restartRpc: false,
+                lockAbort: false,
+            }),
+        );
+        expect(loadBuildFilesListener).toHaveBeenCalledTimes(1);
+    });
+
+    it('reloads the solution when an outside workspace file is listed by the active solution model', async () => {
+        await activateTestSolution();
+        const outsideProjectPath = path.join(tmpSolutionsDir, 'external', 'External.cproject.yml');
+        jest.spyOn(solutionManager.getCsolution()!, 'getSolutionYmlFiles').mockReturnValue([
+            testSolutionPath,
+            outsideProjectPath,
+        ]);
+        convertMock.mockClear();
+
+        changeSolutionFilesEmitter.fire(outsideProjectPath);
+        await waitTimeout(100);
+
+        expect(convertMock).toHaveBeenCalledTimes(1);
+        expect(convertMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+                solutionPath: testSolutionPath,
+                updateRte: true,
+            }),
+        );
+    });
+
+    it('reloads the solution when a changed dbgconf file is used by the active solution', async () => {
+        await activateTestSolution();
+        const dbgconfPath = path.join(path.dirname(testSolutionPath), '.cmsis', 'Used.Debug+B-U585I-IOT02A.dbgconf');
+        jest.spyOn(solutionManager.getCsolution()!, 'getUsedDbgconfFiles').mockReturnValue([dbgconfPath]);
+        convertMock.mockClear();
+        loadBuildFilesListener.mockClear();
+
+        changeSolutionFilesEmitter.fire(dbgconfPath);
+        await waitTimeout(100);
+
+        expect(convertMock).toHaveBeenCalledTimes(1);
+        expect(convertMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+                solutionPath: testSolutionPath,
+                updateRte: true,
+                restartRpc: false,
+                lockAbort: false,
+            }),
+        );
+        expect(loadBuildFilesListener).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not reload when a changed dbgconf file is not used by the active solution', async () => {
+        await activateTestSolution();
+        const dbgconfPath = path.join(path.dirname(testSolutionPath), '.cmsis', 'Inactive.Debug+B-U585I-IOT02A.dbgconf');
+        jest.spyOn(solutionManager.getCsolution()!, 'getUsedDbgconfFiles').mockReturnValue([
+            path.join(path.dirname(testSolutionPath), '.cmsis', 'Used.Debug+B-U585I-IOT02A.dbgconf'),
+        ]);
+        convertMock.mockClear();
+
+        changeSolutionFilesEmitter.fire(dbgconfPath);
+        await waitTimeout(100);
+
+        expect(convertMock).not.toHaveBeenCalled();
+    });
+
+    it('does not reload for a watched YAML file inside the solution directory when it is not in the active solution model', async () => {
+        await activateTestSolution();
+        const unrelatedProjectPath = path.join(path.dirname(testSolutionPath), 'Unrelated.cproject.yml');
+        convertMock.mockClear();
+
+        changeSolutionFilesEmitter.fire(unrelatedProjectPath);
+        await waitTimeout(100);
+
+        expect(convertMock).not.toHaveBeenCalled();
+    });
+
+    it('does not reload for another solution file elsewhere in the workspace', async () => {
+        await activateTestSolution();
+        const inactiveSolutionPath = path.join(tmpSolutionsDir, 'simple', 'test.csolution.yml');
+        convertMock.mockClear();
+
+        changeSolutionFilesEmitter.fire(inactiveSolutionPath);
+        await waitTimeout(100);
+
+        expect(convertMock).not.toHaveBeenCalled();
+    });
+
+    it('debounces multiple relevant active solution file changes into one reload', async () => {
+        await activateTestSolution();
+        const cprojectPath = getLoadedSolutionFile('.cproject.yml');
+        const clayerPath = getLoadedSolutionFile('.clayer.yml');
+        convertMock.mockClear();
+
+        changeSolutionFilesEmitter.fire(cprojectPath);
+        changeSolutionFilesEmitter.fire(clayerPath);
+        await waitTimeout(100);
+
+        expect(convertMock).toHaveBeenCalledTimes(1);
+        expect(convertMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+                solutionPath: testSolutionPath,
+                updateRte: true,
             }),
         );
     });

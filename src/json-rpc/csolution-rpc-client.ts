@@ -31,8 +31,14 @@ export interface CsolutionService extends RpcInterface {
     activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>): Promise<void>;
     getCsolutionBin(): string;
     waitForExit(): Promise<void>;
+    suspendPackIdxWatcher(): void;
+    resumePackIdxWatcher(skipPendingReload?: boolean): void;
 }
 
+/**
+ *  CsolutionServiceImpl watches pack.idx and .Local/local_repository.pidx changes and
+ *  triggers pack reloads. Reloads are deferred while the toolbox manager suspends the watcher.
+ */
 class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     public static readonly reloadPacksCommandId = `${manifest.PACKAGE_NAME}.reloadPacks`;
 
@@ -40,10 +46,13 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     private child: ChildProcess | undefined;
     private connection: MessageConnection | undefined;
     private idxWatcher: Optional<fs.FSWatcher> = undefined;
-    private readonly debouncedLoadPacks = debounce(super.loadPacks.bind(this), 1000);
+    private localRepositoryIdxWatcher: Optional<fs.FSWatcher> = undefined;
+    private readonly debouncedLoadPacks = debounce(this.reloadPacks.bind(this), 1000);
     private csolutionBin = 'csolution';
     private exitPromise: Promise<void> | undefined;
     private cachedVersion: GetVersionResult = { success: false };
+    private packIdxWatcherSuspendDepth = 0;
+    private pendingPackIdxChange = false;
     private readonly mutex: Mutex;
 
     constructor(
@@ -57,9 +66,9 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     public async activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(
             this,
-            this.commandsProvider.registerCommand(CsolutionServiceImpl.reloadPacksCommandId, this.loadPacks, this),
+            this.commandsProvider.registerCommand(CsolutionServiceImpl.reloadPacksCommandId, this.reloadPacks, this),
         );
-        this.loadPacks();
+        this.loadPacks(); // direct load without notification
     }
 
     public async dispose() {
@@ -85,10 +94,19 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         if (this.idxWatcher === undefined) {
             this.watchPackIdxFile();
         }
+        if (this.localRepositoryIdxWatcher === undefined) {
+            this.watchLocalRepositoryPidxFile();
+        }
         // ensure version is cached
         await this.getVersion();
-
         return super.loadPacks();
+    }
+
+
+    private async reloadPacks() {
+        const result = await this.loadPacks();
+        void this.commandsProvider.executeCommand(manifest.REFRESH_COMMAND_ID);
+        return result;
     }
 
     public getCsolutionBin(): string {
@@ -99,19 +117,64 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         return this.exitPromise ?? Promise.resolve();
     }
 
+    public suspendPackIdxWatcher(): void {
+        this.packIdxWatcherSuspendDepth++;
+    }
+
+    public resumePackIdxWatcher(skipPendingReload: boolean = false): void {
+        if (this.packIdxWatcherSuspendDepth > 0) {
+            this.packIdxWatcherSuspendDepth--;
+        }
+        if (skipPendingReload) {
+            this.pendingPackIdxChange = false;
+        }
+        if (this.packIdxWatcherSuspendDepth === 0 && this.pendingPackIdxChange) {
+            this.pendingPackIdxChange = false;
+            this.debouncedLoadPacks();
+        }
+    }
+
     private watchPackIdxFile() {
-        this.idxWatcher?.close();
-        const pack_idx = path.join(getCmsisPackRoot(), 'pack.idx');
-        let mtimeMs = fs.statSync(pack_idx)?.mtimeMs;
-        this.idxWatcher = fs.watch(pack_idx, eventType => {
-            if (eventType === 'change') {
-                const stat = fs.statSync(pack_idx);
-                if (stat?.mtimeMs !== mtimeMs) {
-                    mtimeMs = stat.mtimeMs;
-                    this.debouncedLoadPacks();
+        this.idxWatcher = this.watchPackIndexFile(
+            this.idxWatcher,
+            path.join(getCmsisPackRoot(), 'pack.idx'),
+            'pack.idx'
+        );
+    }
+
+    private watchLocalRepositoryPidxFile() {
+        this.localRepositoryIdxWatcher = this.watchPackIndexFile(
+            this.localRepositoryIdxWatcher,
+            path.join(getCmsisPackRoot(), '.Local', 'local_repository.pidx'),
+            'local_repository.pidx'
+        );
+    }
+
+    private watchPackIndexFile(currentWatcher: Optional<fs.FSWatcher>, filePath: string, label: string): Optional<fs.FSWatcher> {
+        currentWatcher?.close();
+        try {
+            let mtimeMs = fs.statSync(filePath)?.mtimeMs;
+            return fs.watch(filePath, eventType => {
+                if (eventType === 'change') {
+                    const stat = fs.statSync(filePath);
+                    if (stat?.mtimeMs !== mtimeMs) {
+                        mtimeMs = stat.mtimeMs;
+                        if (this.packIdxWatcherSuspendDepth > 0) {
+                            this.pendingPackIdxChange = true;
+                            return;
+                        }
+                        this.debouncedLoadPacks();
+                    }
                 }
+            });
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                // Index files may not exist yet, gracefully handle the error
+            } else {
+                console.warn(`Failed to watch ${label} file:`, error);
             }
-        });
+            return undefined;
+        }
     }
 
     private async transceive<TResponse>(method: string, params?: unknown, ..._rest: unknown[]):
@@ -142,6 +205,8 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         this.child = undefined;
         this.idxWatcher?.close();
         this.idxWatcher = undefined;
+        this.localRepositoryIdxWatcher?.close();
+        this.localRepositoryIdxWatcher = undefined;
         this.connection?.dispose();
         this.connection = undefined;
         this.cachedVersion = { success: false };

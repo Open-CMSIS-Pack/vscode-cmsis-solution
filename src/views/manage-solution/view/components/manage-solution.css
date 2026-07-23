@@ -20,14 +20,6 @@
     padding: 0px 16px 16px 16px;
 }
 
-.stickyHeader {
-    position: sticky;
-    top: 0px;
-    z-index: 1;
-    background-color: var(--vscode-editor-background);
-    padding: 16px 0px;
-}
-
 .manage-solution-frame td {
     vertical-align: middle;
 }

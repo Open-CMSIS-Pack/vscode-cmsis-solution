@@ -56,6 +56,21 @@ describe('BuildRunner', () => {
                 'some-solution',
                 '--active', '',
                 '--schema',
+            ]);
+        });
+
+        it('includes --skip-convert for setup task definition', () => {
+            const buildTaskDefinition: BuildTaskDefinition = {
+                type: 'some-task',
+                solution: 'some-solution',
+                setup: true,
+            };
+
+            expect(cbuildArgsFromTaskDefinition(buildTaskDefinition)).toEqual([
+                'setup',
+                'some-solution',
+                '--active', '',
+                '--schema',
                 '--skip-convert',
             ]);
         });
@@ -105,7 +120,7 @@ describe('BuildRunner', () => {
             expect(cbuildArgsFromTaskDefinition(buildTaskDefinition)).toEqual([
                 'some-solution',
                 '--active', 'some-active@set',
-                '--schema', '--skip-convert']);
+                '--schema']);
         });
 
         it('does not include the --packs option if explicitly disabled in the task definition', async () => {
@@ -118,7 +133,7 @@ describe('BuildRunner', () => {
             expect(cbuildArgsFromTaskDefinition(buildTaskDefinition)).toEqual([
                 'some-solution',
                 '--active', '',
-                '--schema', '--skip-convert']);
+                '--schema']);
         });
 
         it('does not include the --schema option if explicitly disabled in the task definition', async () => {
@@ -129,8 +144,7 @@ describe('BuildRunner', () => {
             };
 
             expect(cbuildArgsFromTaskDefinition(buildTaskDefinition)).toEqual([
-                'some-solution',
-                '--active', '', '--skip-convert'
+                'some-solution', '--active', ''
             ]);
         });
 
@@ -144,7 +158,7 @@ describe('BuildRunner', () => {
             expect(cbuildArgsFromTaskDefinition(buildTaskDefinition)).toEqual([
                 'some-solution',
                 '--active', '',
-                '--schema', '--skip-convert']);
+                '--schema']);
         });
     });
 

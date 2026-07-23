@@ -84,12 +84,15 @@ import { BuildStopCommand } from '../tasks/build/build-stop-command';
 import { ComponentsPacksWebviewMain } from '../views/manage-components-packs/components-packs-webview-main';
 import { SolutionConverterImpl } from '../solutions/solution-converter';
 import { SolutionProblemsImpl } from '../solutions/solution-problems';
+import { EnvironmentVariablesSettingsCommand } from '../solutions/env-var-settings-command';
 import { EnvironmentManager } from './env-manager';
 import { ExtensionApiWrapper } from '../vscode-api/extension-api-wrapper';
 import { SerialMonitorApi, Version } from '@microsoft/vscode-serial-monitor-api';
 import { SolutionEventHub } from '../solutions/solution-event-hub';
 import { SolutionRpcData } from '../solutions/solution-rpc-data';
 import { ManageSolutionCustomEditorProvider, registerManageSolutionCommand } from '../views/manage-solution/manage-solution-custom-editor';
+import { FileOpenGroupOrchestratorImpl } from '../views/file-open-group-orchestrator';
+import { OpenArmExamplesCommand } from '../views/solution-outline/commands/open-arm-examples-command';
 
 let installDefaultToolsetProcess: Promise<void> | undefined;
 
@@ -125,7 +128,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
 
     const globalStateProvider = new GlobalStateImpl(context.globalState);
     const activeSolutionTracker = new ActiveSolutionTrackerImpl(
-        messageProvider,
         commandsProvider,
         fileWatcherProvider,
         workspaceFoldersProvider,
@@ -171,7 +173,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
 
     const buildTaskProvider = new BuildTaskProviderImpl(buildRunner);
     const buildTaskDefinitionBuilder = new BuildTaskDefinitionBuilderImpl(solutionManager, configurationProvider);
-    const compileCommandsGenerator = new CompileCommandsGenerator(buildTaskProvider, buildTaskDefinitionBuilder, eventHub, outputChannelProvider);
+    const compileCommandsGenerator = new CompileCommandsGenerator(buildTaskProvider, buildTaskDefinitionBuilder, eventHub, outputChannelProvider, commandsProvider);
 
     const solutionConverterImpl = new SolutionConverterImpl(
         eventHub,
@@ -181,9 +183,20 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     );
 
     const solutionProblems = new SolutionProblemsImpl(solutionManager, eventHub);
+    const environmentVariablesSettingsCommand = new EnvironmentVariablesSettingsCommand(commandsProvider);
     const themeProvider = new ThemeProviderImpl();
     const statusBar = new StatusBar(solutionManager, cmsisToolboxManager, themeProvider);
-    const componentsManager = new ComponentsPacksWebviewMain(solutionManager, csolutionService, context, messageProvider, commandsProvider, externalFileOpener);
+    const fileOpenGroupOrchestrator = new FileOpenGroupOrchestratorImpl();
+    const componentsManager = new ComponentsPacksWebviewMain(
+        solutionManager,
+        csolutionService,
+        context,
+        messageProvider,
+        commandsProvider,
+        externalFileOpener,
+        undefined,
+        fileOpenGroupOrchestrator,
+    );
     const solarSearch = new SolarSearchClientImpl();
     const convertMdkToCsolution = new ConvertMdkToCsolutionCommand(commandsProvider, processManager, outputChannelProvider, workspaceFoldersProvider, messageProvider, workspaceFsProvider, globalStateProvider);
     const solutionInitialiserImp = new SolutionInitialiserImp(commandsProvider, workspaceFoldersProvider, configureVcpkgForSolution, messageProvider, globalStateProvider,);
@@ -216,15 +229,15 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const deleteCommand = new DeleteCommand(commandsProvider, workspaceFsProvider);
     const editCommand = new EditCommand(commandsProvider);
     const copyHeaderCommand = new CopyHeaderCommand(commandsProvider);
-    const openCommand = new OpenCommand(solutionManager, commandsProvider, externalFileOpener);
+    const openCommand = new OpenCommand(solutionManager, commandsProvider, externalFileOpener, undefined, fileOpenGroupOrchestrator);
     const findCommand = new FindCommand(commandsProvider);
     const fileDecorationProviderManager = new FileDecorationProviderManagerImpl();
     const treeViewProviderImpl = new TreeViewProviderImpl(SolutionOutlineView.treeViewId);
     const treeViewFileDecorationProvider = new TreeViewFileDecorationProvider(fileDecorationProviderManager, themeProvider);
     const mergeSessionCoordinator = new MergeSessionCoordinatorImpl(commandsProvider);
     const mergeCommand = new MergeCommand(commandsProvider, mergeSessionCoordinator, messageProvider);
-    const buildCommand = new BuildCommand(buildTaskProvider, commandsProvider, buildTaskDefinitionBuilder);
-    const runGeneratorCommand = new GeneratorCommand(commandsProvider, solutionManager, outputChannelProvider, cmsisToolboxManager);
+    const buildCommand = new BuildCommand(buildTaskProvider, commandsProvider, buildTaskDefinitionBuilder, componentsManager);
+    const runGeneratorCommand = new GeneratorCommand(commandsProvider, solutionManager, outputChannelProvider, cmsisToolboxManager, eventHub);
     const armclangDefineGetter = new ArmclangDefineGetter(processManager, workspaceFsProvider);
     const manageSolutionCustomEditorProvider = new ManageSolutionCustomEditorProvider(
         context,
@@ -256,6 +269,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const solutionLanguageFeatures = new SolutionLanguageFeaturesProvider(solutionManager);
     const packInstallCommands = new PackInstallCommands(commandsProvider, cmsisToolboxManager, outputChannelProvider);
     const protocolHandler = new ProtocolHandler(cmsisToolboxManager, outputChannelProvider);
+    const openArmExamplesCommand = new OpenArmExamplesCommand(commandsProvider, externalFileOpener);
 
     const activations = [
         eventHub.activate(context),
@@ -268,6 +282,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         solutionConverterImpl.activate(context),
         compileCommandsGenerator.activate(context),
         solutionProblems.activate(context),
+        environmentVariablesSettingsCommand.activate(context),
         clangdManager.activate(context),
         componentsManager.activate(context),
         createSolution.activate(context),
@@ -297,6 +312,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         envManager.activate(context),
         serialMonitorExtension.activate(context),
         solutionRootsWatcher.activate(context),
+        openArmExamplesCommand.activate(context),
         // activeSolutionTracker triggers an event by activation that can be consumed only if the receiver is already activated ,
         activeSolutionTracker.activate(context),
     ];

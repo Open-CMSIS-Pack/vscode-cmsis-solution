@@ -30,16 +30,28 @@ describe('ProjectFileUpdaterImpl', () => {
     let testProject: string;
     let testSolution: string;
     let testLayer: string;
+    let testProject1: string;
+    let testProject2: string;
+    let testLayer1: string;
+    let testLayer2: string;
+    let csolution: CSolution;
     let usedItems: UsedItems;
     const solutionManager: MockSolutionManager = solutionManagerFactory();
     const testDataHandler = new TestDataHandler();
     let tmpSolutionDir: string;
+    const contextDebug = 'project.Debug+TEST_TARGET';
+    const contextDebug1 = 'project1.Debug+TEST_TARGET';
+    const contextRelease = 'project.Release+TEST_TARGET';
 
     beforeAll(() => {
         tmpSolutionDir = testDataHandler.copyTestDataToTmp('solutions');
         testSolution = path.join(tmpSolutionDir, 'simple', 'test.csolution.yml');
         testProject = path.join(tmpSolutionDir, 'simple', 'project.cproject.yml');
         testLayer = path.join(tmpSolutionDir, 'simple', 'Board.clayer.yml');
+        testProject1 = path.join(tmpSolutionDir, 'multi-project', 'project1', 'project1.cproject.yml');
+        testProject2 = path.join(tmpSolutionDir, 'multi-project', 'project2', 'project2.cproject.yml');
+        testLayer1 = path.join(tmpSolutionDir, 'multi-project', 'project1', 'Board.clayer.yml');
+        testLayer2 = path.join(tmpSolutionDir, 'multi-project', 'project2', 'Board.clayer.yml');
     });
 
     afterAll(async () => {
@@ -48,8 +60,7 @@ describe('ProjectFileUpdaterImpl', () => {
 
 
     beforeEach(() => {
-        const MockCSolution = CSolution as jest.MockedClass<typeof CSolution>;
-        const csolution = new MockCSolution();
+        csolution = new CSolution();
         solutionManager.getCsolution.mockReturnValue(csolution as CSolution);
         csolution.clayerYmlRoot = new Map();
 
@@ -88,7 +99,7 @@ describe('ProjectFileUpdaterImpl', () => {
         };
 
         const updater = new ProjectFileUpdaterImpl(solutionManager);
-        let result = await updater.updateUsedItems('Debug', testProject, usedItems);
+        let result = await updater.updateUsedItems(contextDebug, testProject, usedItems);
         expect(result).toBe(true);
 
         // Reload and check file content
@@ -126,7 +137,7 @@ describe('ProjectFileUpdaterImpl', () => {
             ]
         };
 
-        result = await updater.updateUsedItems('Debug', testProject, usedItems);
+        result = await updater.updateUsedItems(contextDebug, testProject, usedItems);
         expect(result).toBe(true);
 
         await ymlFile.load(testProject);
@@ -147,9 +158,9 @@ describe('ProjectFileUpdaterImpl', () => {
         expect(pack).toBeDefined();
 
         // modify component to be context specific and save the file
-        c!.setValue('for-context', 'Release');
+        c!.setValue('for-context', contextRelease);
         c!.setValue('instances', '2');
-        pack?.setValue('not-for-context', 'Debug');
+        pack?.setValue('not-for-context', contextDebug);
         const saveResult = await ymlFile.save();
         expect(saveResult).toEqual(ETextFileResult.Success);
 
@@ -157,7 +168,7 @@ describe('ProjectFileUpdaterImpl', () => {
         usedItems.components[0].options = { explicitVersion: '@>=10.4.0' };
         usedItems.packs[0].pack = 'Keil::CMSIS-FreeRTOS@^10.4.7';
 
-        result = await updater.updateUsedItems('Debug', testProject, usedItems);
+        result = await updater.updateUsedItems(contextDebug, testProject, usedItems);
         expect(result).toBe(true);
         await ymlFile.load(testProject);
         top = ymlFile.topItem;
@@ -171,7 +182,7 @@ describe('ProjectFileUpdaterImpl', () => {
         c = components?.getChildByValue('component', 'ARM::CMSIS:RTOS2:FreeRTOS@>=10.4.0');
         expect(components?.indexOfChild(c)).toBe(1);
         expect(c?.getValue('instances')).toBe('3');
-        expect(c?.getValue('for-context')).toEqual('Debug');
+        expect(c?.getValue('for-context')).toEqual(contextDebug);
 
         packs = top?.getChild('packs');
         expect(packs).toBeDefined();
@@ -186,7 +197,7 @@ describe('ProjectFileUpdaterImpl', () => {
         // clear all debug
         usedItems = { success: true, components: [], packs: [] };
 
-        result = await updater.updateUsedItems('Debug', testProject, usedItems);
+        result = await updater.updateUsedItems(contextDebug, testProject, usedItems);
         expect(result).toBe(true);
         await ymlFile.load(testProject);
         top = ymlFile.topItem;
@@ -220,7 +231,7 @@ describe('ProjectFileUpdaterImpl', () => {
                 { pack: 'Keil::CMSIS-FreeRTOS', origin: testProject, selected: true }
             ]
         };
-        result = await updater.updateUsedItems('Release', testProject, usedItems);
+        result = await updater.updateUsedItems(contextRelease, testProject, usedItems);
         expect(result).toBe(true);
         await ymlFile.load(testProject);
         top = ymlFile.topItem;
@@ -233,7 +244,7 @@ describe('ProjectFileUpdaterImpl', () => {
 
         // try to use explicit version without @ prefix
         usedItems.components[0].options = { explicitVersion: '^10.4.0' };
-        result = await updater.updateUsedItems('Release', testProject, usedItems);
+        result = await updater.updateUsedItems(contextRelease, testProject, usedItems);
         expect(result).toBe(true);
         await ymlFile.load(testProject);
         top = ymlFile.topItem;
@@ -244,7 +255,7 @@ describe('ProjectFileUpdaterImpl', () => {
 
         // clear all Release
         usedItems = { success: true, components: [], packs: [] };
-        result = await updater.updateUsedItems('Release', testProject, usedItems);
+        result = await updater.updateUsedItems(contextRelease, testProject, usedItems);
         expect(result).toBe(true);
         await ymlFile.load(testProject);
         top = ymlFile.topItem;
@@ -270,9 +281,10 @@ describe('ProjectFileUpdaterImpl', () => {
             ]
         };
 
-        const ymlFile = new CTreeItemYamlFile();
-        await ymlFile.load(testSolution);
-        let top = ymlFile.topItem;
+        // load solution
+        await csolution.load(testSolution);
+
+        let top = csolution.csolutionYml.topItem;
         expect(top).toBeDefined();
         let packs = top!.getChild('packs');
         expect(packs).toBeDefined();
@@ -280,21 +292,12 @@ describe('ProjectFileUpdaterImpl', () => {
         let pack = packs?.getChildByValue('pack', 'ARM::RteTest_DFP');
         expect(pack).toBeDefined();
 
-
-        // add layer information
-        const csolution = solutionManager.getCsolution();
-        csolution!.solutionPath = testSolution;
-        csolution!.solutionDir = path.dirname(testSolution);
-        csolution!.clayerYmlRoot = new Map([
-            [testLayer, new CTreeItem()],
-            ['dummy.cgen.yml', new CTreeItem()]
-        ]);
-
         const updater = new ProjectFileUpdaterImpl(solutionManager);
-        let result = await updater.updateUsedItems('Debug', testProject, usedItems);
+        let result = await updater.updateUsedItems(contextDebug, testProject, usedItems);
         expect(result).toBe(true);
 
         // Reload and check file content
+        const ymlFile = new CTreeItemYamlFile();
         await ymlFile.load(testSolution);
         top = ymlFile.topItem;
         expect(top).toBeDefined();
@@ -327,7 +330,7 @@ describe('ProjectFileUpdaterImpl', () => {
         // Modify usedItems, now add component to project
         usedItems.components.push({ id: 'CMSIS:CORE', selectedCount: 1 });
 
-        result = await updater.updateUsedItems('Debug', testProject, usedItems);
+        result = await updater.updateUsedItems(contextDebug, testProject, usedItems);
         expect(result).toBe(true);
 
         await ymlFile.load(testProject);
@@ -363,7 +366,7 @@ describe('ProjectFileUpdaterImpl', () => {
         // move component to a layer
         usedItems.components[2].options = { layer: testLayer };
         usedItems.packs[2].origin = testLayer;
-        result = await updater.updateUsedItems('Debug', testProject, usedItems);
+        result = await updater.updateUsedItems(contextDebug, testProject, usedItems);
         expect(result).toBe(true);
         await ymlFile.load(testProject);
         top = ymlFile.topItem;
@@ -396,9 +399,10 @@ describe('ProjectFileUpdaterImpl', () => {
         expect(pack).toBeDefined();
 
 
-        // clear all Release: no context specific components =>  project, solution  and layer are cleared
+        // clear all Debug: no context specific components =>  project, solution  and layer are cleared
         usedItems = { success: true, components: [], packs: [] };
-        result = await updater.updateUsedItems('Release', testProject, usedItems);
+
+        result = await updater.updateUsedItems(contextDebug, testProject, usedItems);
         expect(result).toBe(true);
         await ymlFile.load(testProject);
         top = ymlFile.topItem;
@@ -418,6 +422,103 @@ describe('ProjectFileUpdaterImpl', () => {
         top = ymlFile.topItem;
         packs = top?.getChild('packs');
         expect(packs).toBeUndefined();
+    });
+
+    it('updates first project and its layer in multi-project solution', async () => {
+        const multiProjectDir = path.join(tmpSolutionDir, 'multi-project');
+        const multiSolution = path.join(multiProjectDir, 'test.csolution.yml');
+        const project2File = new CTreeItemYamlFile(testProject2);
+        const layer2File = new CTreeItemYamlFile(testLayer2);
+        let unchangedResult = await project2File.load();
+        expect(unchangedResult).toBe(ETextFileResult.Success);
+        unchangedResult = await layer2File.load();
+        expect(unchangedResult).toBe(ETextFileResult.Success);
+
+        await csolution.load(multiSolution);
+        csolution.clayerYmlRoot = new Map([
+            [testLayer1, new CTreeItem()],
+            [testLayer2, new CTreeItem()],
+        ]);
+
+        usedItems = {
+            success: true,
+            components: [
+                { id: 'CMSIS:CORE', selectedCount: 1 },
+                { id: 'ARM::CMSIS-Compiler:CORE', selectedCount: 2, options: { layer: testLayer1, explicitVendor: true } },
+            ],
+            packs: [
+                { pack: 'ARM::RteTest_DFP', origin: multiSolution, selected: true },
+                { pack: 'MY::DummyPack', origin: multiSolution, selected: true, path: './my/dummy/pack' },
+                { pack: 'Keil::CMSIS-FreeRTOS@>=10.4.6', origin: testProject1, selected: true },
+                { pack: 'ARM::CMSIS-Compiler@2.0.0', origin: testLayer1, selected: true },
+            ]
+        };
+
+        const updater = new ProjectFileUpdaterImpl(solutionManager);
+        const result = await updater.updateUsedItems(contextDebug1, testProject1, usedItems);
+        expect(result).toBe(true);
+
+        const ymlFile = new CTreeItemYamlFile();
+        await ymlFile.load(multiSolution);
+        let top = ymlFile.topItem;
+        expect(top).toBeDefined();
+
+        let packs = top!.getChild('packs');
+        expect(packs).toBeDefined();
+        expect(packs!.getChildren().length).toBe(2);
+        expect(packs!.getChildByValue('pack', 'ARM::RteTest_DFP')).toBeDefined();
+        expect(packs!.getChildByValue('pack', 'MY::DummyPack')?.getValue('path')).toEqual('my/dummy/pack');
+
+        await ymlFile.load(testProject1);
+        top = ymlFile.topItem;
+        expect(top).toBeDefined();
+        let components = top!.getChild('components');
+        expect(components).toBeDefined();
+        expect(components!.getChildren().length).toBe(1);
+        expect(components!.getChildByValue('component', 'CMSIS:CORE')).toBeDefined();
+        packs = top!.getChild('packs');
+        expect(packs).toBeDefined();
+        expect(packs!.getChildren().length).toBe(1);
+        expect(packs!.getChildByValue('pack', 'Keil::CMSIS-FreeRTOS@>=10.4.6')).toBeDefined();
+
+        await ymlFile.load(testLayer1);
+        top = ymlFile.topItem;
+        expect(top).toBeDefined();
+        components = top!.getChild('components');
+        expect(components).toBeDefined();
+        expect(components!.getChildren().length).toBe(1);
+        expect(components!.getChildByValue('component', 'ARM::CMSIS-Compiler:CORE')).toBeDefined();
+        packs = top!.getChild('packs');
+        expect(packs).toBeDefined();
+        expect(packs!.getChildren().length).toBe(1);
+        expect(packs!.getChildByValue('pack', 'ARM::CMSIS-Compiler@2.0.0')).toBeDefined();
+
+        unchangedResult = await project2File.load();
+        expect(unchangedResult).toBe(ETextFileResult.Unchanged);
+        unchangedResult = await layer2File.load();
+        expect(unchangedResult).toBe(ETextFileResult.Unchanged);
+
+        await ymlFile.load(testProject2);
+        top = ymlFile.topItem;
+        expect(top).toBeDefined();
+        components = top!.getChild('components');
+        expect(components).toBeDefined();
+        expect(components!.getChildren().length).toBe(1);
+        expect(components!.getChildByValue('component', 'CORE')).toBeDefined();
+        packs = top!.getChild('packs');
+        expect(packs).toBeUndefined();
+
+        await ymlFile.load(testLayer2);
+        top = ymlFile.topItem;
+        expect(top).toBeDefined();
+        components = top!.getChild('components');
+        expect(components).toBeDefined();
+        expect(components!.getChildren().length).toBe(1);
+        expect(components!.getChildByValue('component', 'CMSIS:RTOS2:FreeRTOS')).toBeDefined();
+        packs = top!.getChild('packs');
+        expect(packs).toBeDefined();
+        expect(packs!.getChildren().length).toBe(1);
+        expect(packs!.getChildByValue('pack', 'Keil::CMSIS-FreeRTOS@>=10.4.0')).toBeDefined();
     });
 
 

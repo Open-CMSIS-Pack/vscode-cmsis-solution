@@ -45,7 +45,7 @@ const isErrnoException = (e: unknown): e is NodeJS.ErrnoException => Boolean(e) 
 export interface CmsisToolboxManager {
     activate(context: vscode.ExtensionContext): Promise<void>
 
-    readonly onRunCmsisTool: vscode.Event<[boolean, boolean?]>;
+    readonly onRunCmsisTool: vscode.Event<[boolean, boolean?, boolean?]>;
 
     /** Run CMSIS Tool
     * @param tool name of CMSIS command line tool to be executed
@@ -92,12 +92,16 @@ export interface CmsisToolboxManager {
     * @return true if the queue is not empty or mutex is locked
     */
     isRunning(): boolean
+
+    suspendPackReload(): void
+
+    resumePackReload(skipPendingReload?: boolean): void
 }
 
 /**
  *  CmsisToolboxManagerImpl maintains queue of calls to run cbuild and other toolbox executables.
- *  The executables may install CMSIS packs. Therefore the class also watches for pack.idx file changes and
- *  triggers reload of core tools to be in sync with toolbox. The reload is done once after queue gets empty.
+ *  The executables may install CMSIS packs as well as users may add/remove packs manually.
+ *  Pack reloads are suspended while toolbox calls are running and resumed once the queue gets empty.
  */
 export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
 
@@ -108,7 +112,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
     ) {
     }
 
-    private readonly runCmsisToolEmitter = new vscode.EventEmitter<[boolean, boolean?]>();
+    private readonly runCmsisToolEmitter = new vscode.EventEmitter<[boolean, boolean?, boolean?]>();
     public readonly onRunCmsisTool = this.runCmsisToolEmitter.event;
 
     private readonly toolboxMutex = new Mutex();
@@ -124,6 +128,14 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
 
     public isRunning(): boolean {
         return this.toolboxQueue.length > 0 || this.toolboxMutex.isLocked();
+    }
+
+    public suspendPackReload(): void {
+        this.csolutionService.suspendPackIdxWatcher();
+    }
+
+    public resumePackReload(skipPendingReload: boolean = false): void {
+        this.csolutionService.resumePackIdxWatcher(skipPendingReload);
     }
 
     public async runCmsisTool(
@@ -181,9 +193,14 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
             onOutput(msg);
         }
 
-        if (tool !== 'cbuild') { // do not notify cbuild is started
+        if (tool === 'cbuild') {
+            if (args.includes('setup')) {
+                // notify cbuild setup is started but do not notify other cbuild calls (e.g. during build)
+                this.runCmsisToolEmitter.fire([true, false, true]);
+            }
+        } else {
             // set 'packs' event flag when installing packs via 'cpackget add' command
-            this.runCmsisToolEmitter.fire([true, tool === 'cpackget' && args.includes('add')]);
+            this.runCmsisToolEmitter.fire([true, tool === 'cpackget' && args.includes('add'), false]);
         }
 
         const [cmdMsg, returnCode] = await this.runCmd(
@@ -258,20 +275,24 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
         const release = await this.toolboxMutex.acquire();
         // dequeue
         this.toolboxQueue.shift();
-        // call rpc method
         this.runCmsisToolEmitter.fire([true]);
-        const result = await this.rpcHandler[method as keyof typeof this.rpcHandler](args as never);
-        msg = `${(result as rpc.SuccessResult).success ? '☑️' : '🟥'} RPC: ${method}` +
-            `${argsArray.length > 0 ? ` { ${argsArray.join(', ')} }` : ''}`;
-        console.log(msg);
-        if (method === 'Shutdown' && (result as rpc.SuccessResult).success) {
-            // wait for csolution process to exit
-            await this.csolutionService.waitForExit();
+        try {
+            const result = await this.rpcHandler[method as keyof typeof this.rpcHandler](args as never);
+            msg = `${(result as rpc.SuccessResult).success ? '☑️' : '🟥'} RPC: ${method}` +
+                `${argsArray.length > 0 ? ` { ${argsArray.join(', ')} }` : ''}`;
+            console.log(msg);
+            if (method === 'Shutdown' && (result as rpc.SuccessResult).success) {
+                // wait for csolution process to exit
+                await this.csolutionService.waitForExit();
+            }
+            return result;
+        } catch (error) {
+            console.error(`RPC ${method} failed`, error);
+            throw error;
+        } finally {
+            release();
+            this.runCmsisToolEmitter.fire([false]);
         }
-        // release mutex
-        release();
-        this.runCmsisToolEmitter.fire([false]);
-        return result;
     }
 
     private handleProcessFail(msg: string, result: unknown): [string, number] {

@@ -16,7 +16,7 @@
 
 import 'jest';
 import type { CTreeItem } from '../generic/tree-item';
-import { getLatestAvailablePacks, IndexPidxFile } from './index-pidx-file';
+import { getLatestAvailablePacks, IndexPidxFile, isPackIndexCurrent } from './index-pidx-file';
 import * as pathUtils from '../utils/path-utils';
 import * as fsUtils from '../utils/fs-utils';
 
@@ -53,6 +53,18 @@ describe('IndexPidxFile', () => {
         expect(result.get('Keil::MDK-Middleware@8.2.0')).toBe('https://www.keil.arm.com/packs/mdk-middleware-keil/versions/');
     });
 
+    it('reads the root index timestamp', () => {
+        const xml = `<?xml version="1.0" encoding="UTF-8" ?>
+<index>
+<timestamp>2026-01-14T04:01:27.0418082+00:00</timestamp>
+<pindex></pindex>
+</index>
+`;
+        const file = createFile(xml);
+
+        expect(file.timestamp).toBe('2026-01-14T04:01:27.0418082+00:00');
+    });
+
     it('ignores strings when attributes are missing', () => {
         const xml = `<?xml version="1.0" encoding="UTF-8" ?>
 <index>
@@ -65,6 +77,31 @@ describe('IndexPidxFile', () => {
 `;
         const file = createFile(xml);
         expect(file.packIds.size).toBe(0);
+    });
+});
+
+describe('isPackIndexCurrent', () => {
+    const today = new Date(2026, 6, 3, 10, 0, 0);
+
+    it('returns true when timestamp is from the current local date', () => {
+        expect(isPackIndexCurrent('2026-07-03T00:01:00', today)).toBe(true);
+    });
+
+    it('uses the timestamp date instead of the timezone-converted local date', () => {
+        expect(isPackIndexCurrent('2026-07-03T23:30:00-02:00', today)).toBe(true);
+    });
+
+    it('supports pack index timestamps with long fractional seconds and offsets', () => {
+        expect(isPackIndexCurrent('2026-07-03T04:01:27.0418082+00:00', today)).toBe(true);
+    });
+
+    it('returns false when timestamp is from yesterday', () => {
+        expect(isPackIndexCurrent('2026-07-02T23:59:00', today)).toBe(false);
+    });
+
+    it('returns false when timestamp is missing or invalid', () => {
+        expect(isPackIndexCurrent(undefined, today)).toBe(false);
+        expect(isPackIndexCurrent('not a date', today)).toBe(false);
     });
 });
 

@@ -1,5 +1,5 @@
 /**
- * Copyright 2026 Arm Limited
+ * Copyright 2023-2026 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,9 @@
  * limitations under the License.
  */
 
-/*
- * Copyright (C) 2023-2026 Arm Limited
- */
-
 import { LogErr } from './error';
 import { StartEnd } from './cw-utils';
+import { ConfwizLineCommentPrefix, DEFAULT_LINE_COMMENT_PREFIX } from './comment-style';
 
 
 export interface Token {
@@ -33,18 +30,23 @@ export class Tokenizer {
     private _cmd = '';
     private _text = '';
     private _error = '';
+    private readonly _lineCommentPrefix: ConfwizLineCommentPrefix;
+
+    public constructor(lineCommentPrefix: ConfwizLineCommentPrefix = DEFAULT_LINE_COMMENT_PREFIX) {
+        this._lineCommentPrefix = lineCommentPrefix;
+    }
 
     public isAnnotation(line: string): number {
-        const pos = line.indexOf('//');
+        const pos = line.indexOf(this._lineCommentPrefix);
         if (pos == -1) {
-            this._error = 'Not a Configuration Wizard annotation: \'//\' not found.';
+            this._error = `Not a Configuration Wizard annotation: '${this._lineCommentPrefix}' not found.`;
             return pos;
         }
         if (pos != 0) {
             this._error = 'Configuration Wizard annotations should start at beginning of a line.';
         }
 
-        return pos + '//'.length;
+        return pos + this._lineCommentPrefix.length;
     }
 
     public getNextToken(line: string, pos: number): number {

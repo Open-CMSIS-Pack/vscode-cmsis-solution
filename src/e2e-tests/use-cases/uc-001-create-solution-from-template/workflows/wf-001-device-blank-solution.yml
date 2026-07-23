@@ -1,0 +1,32 @@
+id: UC-001
+title: Create Solution from Template
+issue: https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/issues/326
+
+workflows:
+  - id: WF-001
+    title: Create Solution from 'Blank Solution' Template for ARMCM33 Device
+    automation:
+      test: src/e2e-tests/use-cases/uc-001-create-solution-from-template/uc-001-create-solution-from-template.test.ts
+      fixture: src/e2e-tests/use-cases/uc-001-create-solution-from-template/fixtures/wf-001-device-blank-solution.yml
+    steps:
+      - Open the Create Solution wizard from the CMSIS extension.
+      - Select the target device from the fixture.
+      - Select the 'Blank Solution' template available for the selected device.
+      - Enter a unique solution name and folder.
+      - Create the solution.
+      - Verify the generated solution and project files exist.
+      - Verify the generated solution is loaded in the CMSIS view.
+      - Verify the Problems view no longer reports dependency validation diagnostics.
+    validates:
+      - solution creation
+      - generated project files
+      - CMSIS view loading
+      - clean dependency validation
+    coverage:
+      includes:
+        - Create Solution UI workflow
+        - fixture device and template selection
+        - generated solution and project artifacts
+        - CMSIS view loading
+        - Problems view dependency validation check
+

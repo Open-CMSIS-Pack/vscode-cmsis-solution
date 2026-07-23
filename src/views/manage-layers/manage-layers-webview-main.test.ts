@@ -220,6 +220,42 @@ describe('ManageLayersWebviewMain', () => {
         });
     });
 
+    it('adds layer variable with empty value from APPLY_CONFIGURE', async () => {
+        const configuredLayerWithEmptyVariableValue: TargetConfiguration = {
+            variables: [{
+                ...configuredLayer.variables[0],
+                file: '',
+                copyTo: '',
+            }],
+        };
+
+        await fireConfigureSolutionDataReady({
+            availableCompilers: ['AC6', 'GCC'],
+            availableConfigurations: [{ variables: [configureVariable] }],
+        });
+        webviewManager.sendMessage.mockClear();
+        save.mockClear();
+
+        await fireOutgoingMessage({
+            type: 'APPLY_CONFIGURE',
+            layer: configuredLayerWithEmptyVariableValue,
+            compiler: 'GCC',
+        });
+
+        expect(targetTypeItem.createChild).toHaveBeenCalledWith('variables', true);
+        expect(variablesNode.getChildByValue).toHaveBeenCalledWith('BOARD_LAYER');
+        expect(variablesNode.createChild).toHaveBeenCalledWith('-', false);
+        expect(variableItem.setValue).toHaveBeenNthCalledWith(1, 'BOARD_LAYER', '');
+        expect(variableItem.setValue).toHaveBeenNthCalledWith(2, 'copied-from', 'Vendor::Board.Layer');
+        expect(mockedCopyLayerToProject).toHaveBeenCalledWith(configuredLayerWithEmptyVariableValue, 'C:/workspace/solution');
+        expect(compilerNode.setValue).toHaveBeenCalledWith('compiler', 'GCC');
+        expect(save).toHaveBeenCalledTimes(2);
+        expect(webviewManager.sendMessage).toHaveBeenCalledWith({
+            type: 'REQUEST_SUCCESSFUL',
+            requestType: 'APPLY_CONFIGURE',
+        });
+    });
+
     it('reports apply failures without sending a success acknowledgement', async () => {
         mockedCopyLayerToProject.mockRejectedValueOnce(new Error('copy failed'));
         await fireConfigureSolutionDataReady({

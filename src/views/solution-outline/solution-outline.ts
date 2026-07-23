@@ -47,6 +47,7 @@ export class SolutionOutlineView {
                 this.hasSeen();
             }),
             this.solutionManager.onDidChangeLoadState(this.handleChangeLoadState, this),
+            this.solutionManager.onUpdatedCompileCommands(this.handleUpdatedCompileCommands, this),
         );
         this.treeViewProvider.activate(context);
     }
@@ -54,6 +55,16 @@ export class SolutionOutlineView {
     public hasSeen() {
         this.globalStateProvider.update('panelSeen', true);
         this.treeViewProvider.setBadge({ tooltip: '', value: 0 });
+    }
+
+    private async handleUpdatedCompileCommands() {
+        const csolution = this.solutionManager.getCsolution();
+        if (!csolution?.hasWestProject()) {
+            return;
+        }
+
+        await csolution.loadBuildFiles();
+        await this.updateTree(this.solutionManager.loadState);
     }
 
     private async handleChangeLoadState(e: SolutionLoadStateChangeEvent) {

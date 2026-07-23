@@ -123,8 +123,6 @@ export class SolutionCreatorImp  implements SolutionCreator {
     private async createFiles(solutionDir: string, solutionPath: string, projectsWithPath: { project: NewProject, path: string }[]) {
         const solutionTemplatePath = path.resolve(TEMPLATES_FOLDER, 'template.csolution.yml');
         await promisify(mkdir)(solutionDir, { recursive: true });
-        await promisify(copyFile)(solutionTemplatePath, solutionPath);
-
         await Promise.all(projectsWithPath.map(async ({ project, path: projectPath }): Promise<void> => {
             const templateFileName = {
                 'secure': 'secure.cproject.yml',
@@ -138,6 +136,9 @@ export class SolutionCreatorImp  implements SolutionCreator {
 
             await promisify(copyFile)(path.join(TEMPLATES_FOLDER, 'c', 'main.c'), path.join(path.dirname(projectPath), 'main.c'));
         }));
+        // Write csolution last - the file watcher triggers ConvertSolution
+        // when it appears on disk, so all referenced cproject files must exist.
+        await promisify(copyFile)(solutionTemplatePath, solutionPath);
     }
 
     private getProjectComponents(): ComponentData[] {

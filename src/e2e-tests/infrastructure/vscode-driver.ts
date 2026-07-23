@@ -30,9 +30,9 @@
  */
 
 import { Page, ElectronApplication } from 'playwright';
-import { ELECTRON_APPLICATION_CLOSED_MESSAGE, getPage, mockShowMessageBoxResponse, setupElectronLogging } from './electron';
+import { ELECTRON_APPLICATION_CLOSED_MESSAGE, getPage, mockShowMessageBoxResponse, MockShowMessageBoxOptions, setupElectronLogging } from './electron';
 import { TestDirectories, tryCleanTestDirectories, createTestDirectories, createWorkspace } from './test-directories';
-import { getVsCode, installExtension, launchVsCode } from './vscode';
+import { getVsCode, installExtension, launchVsCode, openWorkspaceInExistingWindow } from './vscode';
 import { PageDriver } from '../drivers/page-driver';
 import { initializeExtensionCache } from '../utils/install-extensions';
 import { log } from '../utils/logger';
@@ -42,6 +42,7 @@ type RunningApp = {
     pageDriver: PageDriver;
     electronApp: ElectronApplication;
     testDirectories: TestDirectories;
+    vsCodeExecutablePath: string;
 }
 
 type State
@@ -107,7 +108,7 @@ export class VsCodeDriver {
                     await pageDriver.screenshot('After failed start');
                     throw error;
                 }
-                return { pageDriver, electronApp, testDirectories };
+                return { pageDriver, electronApp, testDirectories, vsCodeExecutablePath };
             } catch (error) {
                 await electronApp.close();
                 throw error;
@@ -140,7 +141,7 @@ export class VsCodeDriver {
     private async setupPage(electronApp: ElectronApplication): Promise<Page> {
         let page: Page;
         try {
-            page = await getPage(electronApp);
+            page = await getPage(electronApp, DEFAULT_TIMEOUT_MS);
         } catch (e) {
             if (e instanceof Error && e.message === ELECTRON_APPLICATION_CLOSED_MESSAGE) {
                 throw new Error(
@@ -184,10 +185,11 @@ export class VsCodeDriver {
     /**
      * Mock electron's native message box dialog.
      * @param buttonNameToClick Name of the button to click in the next dialog opened during the test run
+     * @param options Optional behaviour flags (e.g. `persist` to keep auto-answering subsequent dialogs)
      */
-    async mockShowMessageBoxResponse(buttonNameToClick: string) {
+    async mockShowMessageBoxResponse(buttonNameToClick: string, options?: MockShowMessageBoxOptions) {
         const runningApp = requireRunning(this.state);
-        await mockShowMessageBoxResponse(runningApp.electronApp, buttonNameToClick);
+        await mockShowMessageBoxResponse(runningApp.electronApp, buttonNameToClick, options);
     }
 
     /**
@@ -204,13 +206,37 @@ export class VsCodeDriver {
             testDirectories: runningApp.testDirectories
         });
 
-        await mockShowMessageBoxResponse(runningApp.electronApp, 'Always Allow');
+        // Install a persistent auto-response for the Arm Environment Manager "Always Allow" trust
+        // dialog before reloading. The dialog is a native modal that blocks the extension host and
+        // is shown when the Environment Manager activates after reload. The mock lives on the
+        // Electron main process, so it survives the renderer reload below.
+        await mockShowMessageBoxResponse(runningApp.electronApp, 'Always Allow', { persist: true });
 
-        // log('debug', '🔄 Reloading VS Code to load new workspace content...');
-        // await runningApp.pageDriver.getCommands().runCommandFromPalette('Developer: Reload Window');
-        // await new Promise(resolve => setTimeout(resolve, WORKSPACE_RELOAD_DELAY_MS));
+        // Reload the window so the extension host fully re-initializes against the freshly-copied
+        // workspace contents. This removes the race where the extension would otherwise pick up the
+        // new *.csolution.yml / vcpkg-configuration.json asynchronously via file watchers: after a
+        // reload the files are already on disk when the extension activates, making solution
+        // discovery and tool activation deterministic.
+        log('debug', '🔄 Reloading VS Code to load new workspace content...');
+        await runningApp.pageDriver.reloadWindow('CMSIS');
 
         log('info', `✅ Switched to workspace: ${runningApp.testDirectories.workspace}`);
+    }
+
+    async restoreTestWorkspace(): Promise<void> {
+        const runningApp = requireRunning(this.state);
+        const navigation = runningApp.pageDriver.getPage()
+            .waitForEvent('framenavigated', { timeout: DEFAULT_TIMEOUT_MS })
+            .catch(() => undefined);
+
+        await openWorkspaceInExistingWindow({
+            testDirectories: runningApp.testDirectories,
+            workspaceDir: runningApp.testDirectories.workspace,
+            vsCodeExecutablePath: runningApp.vsCodeExecutablePath,
+        });
+        await navigation;
+        await runningApp.pageDriver.waitForVsCodeToBeReady();
+        await runningApp.pageDriver.waitForActionItem('CMSIS');
     }
 
     /**

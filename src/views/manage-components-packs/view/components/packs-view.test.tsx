@@ -88,7 +88,8 @@ describe('PacksView', () => {
         errorMessages: [],
         availableTargetTypes: [],
         unlilnkRequestStack: [],
-        availablePacks: {}
+        availablePacks: {},
+        availablePacksIndexCurrent: false
     };
 
     beforeEach(() => {
@@ -136,6 +137,157 @@ describe('PacksView', () => {
         expect(tableContent).toContain('6.0.0');
     });
 
+    it('strips version qualifier prefix for missing packs', () => {
+        const missingPackState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                packId: 'ARM::CMSIS@>=7.13.0',
+                versionUsed: '@>=7.13.0',
+                references: [{ pack: 'ARM::CMSIS@>=7.13.0', origin: 'path/to/solution.cproject.yml', relOrigin: 'path/to/solution.cproject.yml', selected: false, missing: true }]
+            }]
+        };
+
+        const localContainer = document.createElement('div');
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView state={missingPackState} openFile={openFileMock} messageHandler={messageHandler} availablePacks={defaultState.availablePacks} />
+            );
+        });
+
+        const tableContent = localContainer.textContent || '';
+        expect(tableContent).toContain('7.13.0');
+        // The version column should show the clean version without qualifier prefix
+        const versionCells = localContainer.querySelectorAll('td');
+        const versionCell = Array.from(versionCells).find(td => td.textContent?.trim() === '7.13.0');
+        expect(versionCell).toBeDefined();
+    });
+
+    it('adds missing-row class when pack has missing references', () => {
+        const missingPackState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                references: [{ pack: 'ARM::CMSIS@>=7.13.0', origin: 'path/to/solution.cproject.yml', relOrigin: 'path/to/solution.cproject.yml', selected: false, missing: true }]
+            }]
+        };
+
+        const localContainer = document.createElement('div');
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView state={missingPackState} openFile={openFileMock} messageHandler={messageHandler} availablePacks={defaultState.availablePacks} />
+            );
+        });
+
+        const row = localContainer.querySelector('tr.ant-table-row');
+        expect(row?.classList.contains('packs-missing-row')).toBe(true);
+    });
+
+    it('keeps unselected packs on the default row styling', () => {
+        const row = container.querySelector('tr.ant-table-row');
+
+        expect(row?.classList.contains('ant-table-row-disabled')).toBe(false);
+    });
+
+    it('keeps selected packs in the current layer on the default row styling', () => {
+        const currentLayerState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                references: [{ ...mockPack.references[0], origin: 'path/to/context', relOrigin: 'path/to/context', selected: true }]
+            }]
+        };
+        const localContainer = document.createElement('div');
+
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView state={currentLayerState} openFile={openFileMock} messageHandler={messageHandler} availablePacks={defaultState.availablePacks} />
+            );
+        });
+
+        const row = localContainer.querySelector('tr.ant-table-row');
+        expect(row?.classList.contains('ant-table-row-disabled')).toBe(false);
+    });
+
+    it('dims selected packs that are outside the current layer', () => {
+        const outsideLayerState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                references: [{ ...mockPack.references[0], origin: 'path/to/other-layer.clayer.yml', relOrigin: 'path/to/other-layer.clayer.yml', selected: true }]
+            }]
+        };
+        const localContainer = document.createElement('div');
+
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView state={outsideLayerState} openFile={openFileMock} messageHandler={messageHandler} availablePacks={defaultState.availablePacks} />
+            );
+        });
+
+        const row = localContainer.querySelector('tr.ant-table-row');
+        expect(row?.classList.contains('ant-table-row-disabled')).toBe(true);
+    });
+
+    it('shows empty version when no version is given in the pack id', () => {
+        const noVersionPackState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                name: 'TFM',
+                packId: 'Keil::TFM',
+                versionUsed: '',
+                references: [{ pack: 'Keil::TFM', origin: 'path/to/solution.cproject.yml', relOrigin: 'path/to/solution.cproject.yml', selected: false, missing: true }]
+            }]
+        };
+
+        const localContainer = document.createElement('div');
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView state={noVersionPackState} openFile={openFileMock} messageHandler={messageHandler} availablePacks={defaultState.availablePacks} />
+            );
+        });
+
+        const tableContent = localContainer.textContent || '';
+        // The pack name should appear (in the Software Pack column), but not in the Version column
+        expect(tableContent).toContain('TFM');
+        expect(tableContent).not.toContain('Keil::TFM');
+    });
+
+    it('derives missing version from missing reference pack id when row pack id has no version', () => {
+        const missingReferenceVersionState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                packId: 'ARM::CMSIS',
+                versionUsed: '',
+                references: [{
+                    pack: 'ARM::CMSIS@>=7.13.0',
+                    origin: 'path/to/solution.cproject.yml',
+                    relOrigin: 'path/to/solution.cproject.yml',
+                    selected: false,
+                    missing: true
+                }]
+            }]
+        };
+
+        const localContainer = document.createElement('div');
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView
+                    state={missingReferenceVersionState}
+                    openFile={openFileMock}
+                    messageHandler={messageHandler}
+                    availablePacks={defaultState.availablePacks}
+                />
+            );
+        });
+
+        const versionCells = localContainer.querySelectorAll('td');
+        const versionCell = Array.from(versionCells).find(td => td.textContent?.trim() === '7.13.0');
+        expect(versionCell).toBeDefined();
+    });
+
     describe('pack properties dialog', () => {
         it('opens pack properties dialog when edit button is clicked', () => {
             const tableRows = container.querySelectorAll('.ant-table-row-level-0');
@@ -147,6 +299,70 @@ describe('PacksView', () => {
                 });
                 expect(container.querySelectorAll('.ant-modal').length).toBeGreaterThanOrEqual(0);
             }
+        });
+
+        it('shows latest online version when the pack index is current', () => {
+            const localContainer = document.createElement('div');
+            const root = createRoot(localContainer);
+            const state = {
+                ...defaultState,
+                availablePacks: { 'ARM::CMSIS@6.2.0': 'https://www.keil.arm.com/packs/cmsis-arm/versions/' },
+                availablePacksIndexCurrent: true
+            };
+
+            React.act(() => {
+                root.render(
+                    <PacksView
+                        state={state}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={state.availablePacks}
+                    />
+                );
+            });
+
+            React.act(() => {
+                (localContainer.querySelector('.packs-edit-cell button') as HTMLButtonElement).click();
+            });
+
+            expect(document.body.textContent).toContain('Latest version available online: 6.2.0');
+
+            React.act(() => {
+                root.unmount();
+            });
+            localContainer.remove();
+        });
+
+        it('hides latest online version when the pack index is stale', () => {
+            const localContainer = document.createElement('div');
+            const root = createRoot(localContainer);
+            const state = {
+                ...defaultState,
+                availablePacks: { 'ARM::CMSIS@6.2.0': 'https://www.keil.arm.com/packs/cmsis-arm/versions/' },
+                availablePacksIndexCurrent: false
+            };
+
+            React.act(() => {
+                root.render(
+                    <PacksView
+                        state={state}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={state.availablePacks}
+                    />
+                );
+            });
+
+            React.act(() => {
+                (localContainer.querySelector('.packs-edit-cell button') as HTMLButtonElement).click();
+            });
+
+            expect(document.body.textContent).not.toContain('Latest version available online');
+
+            React.act(() => {
+                root.unmount();
+            });
+            localContainer.remove();
         });
     });
 
@@ -206,7 +422,7 @@ describe('PacksView', () => {
                 );
             });
 
-            const packLink = localContainer.querySelector("a[aria-label='Open pack URL']") as HTMLAnchorElement | null;
+            const packLink = localContainer.querySelector("button[aria-label='Open pack URL']") as HTMLButtonElement | null;
             expect(packLink).not.toBeNull();
 
             if (packLink) {
@@ -284,7 +500,191 @@ describe('PacksView', () => {
         });
     });
 
+    describe('pack focus', () => {
+        const originalRequestAnimationFrame = window.requestAnimationFrame;
+        const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+        let scrollIntoViewMock: jest.Mock;
+
+        beforeEach(() => {
+            scrollIntoViewMock = jest.fn();
+            window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+                callback(0);
+                return 0;
+            }) as typeof window.requestAnimationFrame;
+            HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
+        });
+
+        afterEach(() => {
+            window.requestAnimationFrame = originalRequestAnimationFrame;
+            HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+        });
+
+        it('scrolls to the focused pack and consumes the focus request', () => {
+            const onFocusPackConsumed = jest.fn();
+            const localContainer = document.createElement('div');
+
+            React.act(() => {
+                createRoot(localContainer).render(
+                    <PacksView
+                        state={defaultState}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={defaultState.availablePacks}
+                        focusPackId='ARM::CMSIS@2.3.0'
+                        onFocusPackConsumed={onFocusPackConsumed}
+                    />
+                );
+            });
+
+            expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: 'center' });
+            expect(onFocusPackConsumed).toHaveBeenCalledTimes(1);
+        });
+
+        it('prefers an exact pack id match when multiple versions share the same pack name', () => {
+            const requestedPack: PackRowDataType = {
+                ...mockPack,
+                key: 'ARM::CMSIS@2.3.0',
+                packId: 'ARM::CMSIS@2.3.0',
+                versionUsed: '2.3.0'
+            };
+            const stateWithMultipleVersions: ComponentsState = {
+                ...defaultState,
+                packs: [mockPack, requestedPack]
+            };
+            const localContainer = document.createElement('div');
+
+            React.act(() => {
+                createRoot(localContainer).render(
+                    <PacksView
+                        state={stateWithMultipleVersions}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={defaultState.availablePacks}
+                        focusPackId='ARM::CMSIS@2.3.0'
+                    />
+                );
+            });
+
+            const scrolledRow = scrollIntoViewMock.mock.contexts[0] as HTMLElement;
+            expect(scrolledRow.getAttribute('data-row-key')).toBe('ARM::CMSIS@2.3.0');
+        });
+
+        it('consumes the focus request when no matching pack is present', () => {
+            const onFocusPackConsumed = jest.fn();
+            const localContainer = document.createElement('div');
+
+            React.act(() => {
+                createRoot(localContainer).render(
+                    <PacksView
+                        state={defaultState}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={defaultState.availablePacks}
+                        focusPackId='Keil::Missing@1.0.0'
+                        onFocusPackConsumed={onFocusPackConsumed}
+                    />
+                );
+            });
+
+            expect(scrollIntoViewMock).not.toHaveBeenCalled();
+            expect(onFocusPackConsumed).toHaveBeenCalledTimes(1);
+        });
+    });
+
     describe('references tooltip', () => {
+        it('shows version in tooltip from pack id even when locked is present', () => {
+            const stateWithLockedReference: ComponentsState = {
+                ...defaultState,
+                packs: [{
+                    ...mockPack,
+                    references: [{
+                        ...mockPack.references[0],
+                        pack: 'ARM::CMSIS@5.9.0',
+                        locked: 'ARM::CMSIS@6.1.0',
+                        relPath: ''
+                    }]
+                }]
+            };
+
+            const localContainer = document.createElement('div');
+            React.act(() => {
+                createRoot(localContainer).render(
+                    <PacksView
+                        state={stateWithLockedReference}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={defaultState.availablePacks}
+                    />
+                );
+            });
+
+            const tableContent = localContainer.textContent || '';
+            expect(tableContent).toContain('(5.9.0)');
+            expect(tableContent).not.toContain('(6.1.0)');
+        });
+
+        it('does not show tooltip version when reference pack id does not provide a version', () => {
+            const stateWithLockedOnlyVersion: ComponentsState = {
+                ...defaultState,
+                packs: [{
+                    ...mockPack,
+                    packId: 'ARM::CMSIS',
+                    references: [{
+                        ...mockPack.references[0],
+                        pack: 'ARM::CMSIS',
+                        locked: 'ARM::CMSIS@6.1.0',
+                        relPath: ''
+                    }]
+                }]
+            };
+
+            const localContainer = document.createElement('div');
+            React.act(() => {
+                createRoot(localContainer).render(
+                    <PacksView
+                        state={stateWithLockedOnlyVersion}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={defaultState.availablePacks}
+                    />
+                );
+            });
+
+            const tableContent = localContainer.textContent || '';
+            expect(tableContent).not.toContain('(6.1.0)');
+        });
+
+        it('shows missing pack version in tooltip without @ prefix', () => {
+            const stateWithMissingReference: ComponentsState = {
+                ...defaultState,
+                packs: [{
+                    ...mockPack,
+                    references: [{
+                        ...mockPack.references[0],
+                        pack: 'ARM::CMSIS@>=6.1.0',
+                        missing: true,
+                        relPath: ''
+                    }]
+                }]
+            };
+
+            const localContainer = document.createElement('div');
+            React.act(() => {
+                createRoot(localContainer).render(
+                    <PacksView
+                        state={stateWithMissingReference}
+                        openFile={openFileMock}
+                        messageHandler={messageHandler}
+                        availablePacks={defaultState.availablePacks}
+                    />
+                );
+            });
+
+            const tableContent = localContainer.textContent || '';
+            expect(tableContent).toContain('(>=6.1.0)');
+            expect(tableContent).not.toContain('(@>=6.1.0)');
+        });
+
         it('shows a separate path line when relPath is defined and non-empty', () => {
             const stateWithRelPath: ComponentsState = {
                 ...defaultState,

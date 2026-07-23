@@ -51,7 +51,6 @@ export const renderVariantCell = (
     };
 
     return (
-
         <CompactDropdown
             available={menuItems.map(item => item.key)}
             selected={value || defaultLabel}

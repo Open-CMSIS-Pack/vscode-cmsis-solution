@@ -2,7 +2,7 @@
   "name": "cmsis-csolution",
   "displayName": "Arm CMSIS Solution",
   "description": "Create embedded and Edge AI projects for Arm Cortex-M based devices using the Common Microcontroller Software Interface Standard (CMSIS) and csolution format",
-  "version": "1.67.1",
+  "version": "1.68.0",
   "preview": false,
   "publisher": "Arm",
   "author": "Jonatan Antoni <jonatan.antoni@arm.com>",
@@ -37,7 +37,7 @@
   "csolution": {
     "uv2csolutionVersion": "1.6.0",
     "toolboxVersion": "nightly",
-    "rpcVersion": "0.0.10"
+    "rpcVersion": "0.0.11"
   },
   "scripts": {
     "preprepare": "npm run download:rpc-interface",
@@ -114,10 +114,10 @@
     "@eslint/js": "^9.39.3",
     "@faker-js/faker": "^9.9.0",
     "@graphql-codegen/cli": "^6.1.2",
-    "@graphql-codegen/typescript-graphql-request": "^6.4.0",
+    "@graphql-codegen/typescript-graphql-request": "^7.1.0",
     "@graphql-codegen/typescript-operations": "^5.0.8",
     "@open-cmsis-pack/vsce-helper": "^0.3.0",
-    "@playwright/test": "^1.58.2",
+    "@playwright/test": "^1.60.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@twbs/fantasticon": "^3.1.0",
@@ -159,7 +159,7 @@
     "jest-environment-jsdom": "^29.7.0",
     "jest-util": "^29.7.0",
     "jest-when": "^3.7.0",
-    "markdownlint-cli": "^0.47.0",
+    "markdownlint-cli": "^0.49.1",
     "ncp": "^2.0.0",
     "nock": "^13.5.6",
     "octokit": "^5.0.5",
@@ -170,7 +170,7 @@
     "targz": "^1.0.1",
     "ts-jest": "^29.4.6",
     "ts-loader": "^9.5.4",
-    "tsx": "^4.21.0",
+    "tsx": "^4.22.4",
     "typescript": "^5.9.3",
     "vscode-uri": "^3.1.0",
     "webpack": "^5.105.3",
@@ -179,6 +179,9 @@
   },
   "overrides": {
     "ajv@>=7.0.0": "^8.18.0",
+    "fast-uri@^3.1.3": "^3.1.4",
+    "js-yaml": "^4.3.0",
+    "lodash": "^4.18.1",
     "serialize-javascript@<=7.0.3": "^7.0.3",
     "@twbs/fantasticon": {
       "ttf2woff2": "^8.0.1"
@@ -191,7 +194,9 @@
     },
     "tar@^7.0.0": "^7.5.10",
     "immutable@<=4.3.8": "^4.3.8",
-    "@tootallnate/once@<=3.0.1": "^3.0.1"
+    "@tootallnate/once@<=3.0.1": "^3.0.1",
+    "handlebars@<=4.7.8": "^4.7.9",
+    "shell-quote@<=1.8.4": "1.9.0"
   },
   "contributes": {
     "icons": {
@@ -290,12 +295,12 @@
     "viewsWelcome": [
       {
         "view": "cmsis-csolution.outline",
-        "contents": "Create a solution from scratch, import an example, or open an existing μVision project to convert it to a CMSIS solution. \n [Create Solution](command:cmsis-csolution.createSolution)\n [Convert a μVision Project to CMSIS Solution](command:cmsis-csolution.convertMicroVisionToCsolution)\n Need help? [Verify the Installation](https://mdk-packs.github.io/vscode-cmsis-solution-docs/installation.html#verify-the-installation) or explore the [overview](https://marketplace.visualstudio.com/items?itemName=Arm.cmsis-csolution).",
+        "contents": "Create a solution from scratch, import an example, or open an existing μVision project to convert it to a CMSIS solution. \n [Create Solution](command:cmsis-csolution.createSolution)\n [Convert a μVision Project to CMSIS Solution](command:cmsis-csolution.convertMicroVisionToCsolution)\n [Browse Arm Examples](command:cmsis-csolution.openArmExamples)\n Need help? [Verify the Installation](https://mdk-packs.github.io/vscode-cmsis-solution-docs/installation.html#verify-the-installation) or explore the [overview](https://marketplace.visualstudio.com/items?itemName=Arm.cmsis-csolution).",
         "when": "!view.arm.cmsis-csolution.welcome.hidden && cmsis-csolution.activeSolutionState == none"
       },
       {
         "view": "cmsis-csolution.outline",
-        "contents": "Create a solution from scratch, import an example, or open an existing μVision project to convert it to a CMSIS solution. \n [Open Solution in Workspace](command:cmsis-csolution.openSolution)\n [Create Solution](command:cmsis-csolution.createSolution)\n [Convert a μVision Project to CMSIS Solution](command:cmsis-csolution.convertMicroVisionToCsolution)\n Need help? [Verify the Installation](https://mdk-packs.github.io/vscode-cmsis-solution-docs/installation.html#verify-the-installation) or explore the [overview](https://marketplace.visualstudio.com/items?itemName=Arm.cmsis-csolution).",
+        "contents": "Create a solution from scratch, import an example, or open an existing μVision project to convert it to a CMSIS solution. \n [Open Solution in Workspace](command:cmsis-csolution.openSolution)\n [Create Solution](command:cmsis-csolution.createSolution)\n [Convert a μVision Project to CMSIS Solution](command:cmsis-csolution.convertMicroVisionToCsolution)\n [Browse Arm Examples](command:cmsis-csolution.openArmExamples)\n Need help? [Verify the Installation](https://mdk-packs.github.io/vscode-cmsis-solution-docs/installation.html#verify-the-installation) or explore the [overview](https://marketplace.visualstudio.com/items?itemName=Arm.cmsis-csolution).",
         "when": "!view.arm.cmsis-csolution.welcome.hidden && cmsis-csolution.activeSolutionState == inactive"
       },
       {
@@ -446,7 +451,7 @@
         "command": "cmsis-csolution.build",
         "title": "Build Solution",
         "icon": "$(csolution-build)",
-        "enablement": "cmsis-csolution.activeSolutionState == active && cmsis-csolution.buildState == idle"
+        "enablement": "cmsis-csolution.activeSolutionState == active && (cmsis-csolution.buildState == idle || cmsis-csolution.buildState == setup)"
       },
       {
         "category": "CMSIS",
@@ -595,6 +600,11 @@
         "command": "cmsis-csolution.openHelp",
         "title": "Help",
         "shortTitle": "Help"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.openArmExamples",
+        "title": "Browse Arm Examples"
       },
       {
         "category": "CMSIS",
@@ -974,7 +984,7 @@
       "view/title": [
         {
           "command": "cmsis-csolution.build",
-          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && cmsis-csolution.buildState == idle",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && (cmsis-csolution.buildState == idle || cmsis-csolution.buildState == setup)",
           "group": "navigation@1"
         },
         {
@@ -1179,7 +1189,7 @@
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "navigation",
-          "when": "resourceLangId == cpp"
+           "when": "resourceFilename =~ /\\.(h|c|cpp|dbgconf|s|sct)$/i"
         },
         {
           "command": "cmsis-csolution.build",
@@ -1254,7 +1264,7 @@
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "navigation",
-          "when": "(resourceLangId == cpp || resourceLangId == c || resourceFilename =~ /\\.dbgconf/) && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+          "when": "resourceFilename =~ /\\.(h|c|cpp|dbgconf|s|sct)$/i && activeCustomEditorId != 'cmsis-csolution.configWizard'"
         },
         {
           "command": "cmsis-csolution.showConfigWizardSource",
@@ -1276,14 +1286,14 @@
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "1_open",
-          "when": "(resourceLangId == cpp || resourceLangId == c || resourceFilename =~ /\\.dbgconf/) && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+          "when": "resourceFilename =~ /\\.(h|c|cpp|dbgconf|s|sct)$/i && activeCustomEditorId != 'cmsis-csolution.configWizard'"
         }
       ],
       "editor/context": [
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "1_open",
-          "when": "(resourceLangId == cpp || resourceLangId == c || resourceFilename =~ /\\.dbgconf/) && activeCustomEditorId != 'cmsis-csolution.configWizard'"
+          "when": "resourceFilename =~ /\\.(h|c|cpp|dbgconf|s|sct)$/i && activeCustomEditorId != 'cmsis-csolution.configWizard'"
         }
       ]
     },
@@ -1293,13 +1303,7 @@
         "displayName": "Configuration Wizard",
         "selector": [
           {
-            "filenamePattern": "*.h"
-          },
-          {
-            "filenamePattern": "*.c"
-          },
-          {
-            "filenamePattern": "*.dbgconf"
+            "filenamePattern": "*"
           }
         ],
         "priority": "option"

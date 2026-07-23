@@ -113,5 +113,44 @@ describe('component-tools', () => {
             expect(placeholder?.validation?.id).toBe('AggregateValidationId');
             expect(placeholder?.validation?.aggregates).toEqual(['UnknownAggregateId', 'OtherAggregateId']);
         });
+
+        it('uses API metadata for groups and falls back to taxonomy metadata', () => {
+            const root: CtRoot = {
+                success: true,
+                classes: [
+                    {
+                        name: 'MyClass',
+                        activeBundle: '',
+                        bundles: [
+                            {
+                                name: '',
+                                aggregates: [],
+                                cgroups: [
+                                    {
+                                        name: 'ApiGroup',
+                                        api: { id: 'api', description: 'API description', doc: 'api-doc.html' },
+                                        taxonomy: { id: 'taxonomy', description: 'Taxonomy description', doc: 'taxonomy-doc.html' },
+                                    },
+                                    {
+                                        name: 'TaxonomyGroup',
+                                        taxonomy: { id: 'taxonomy', description: 'Taxonomy description', doc: 'taxonomy-doc.html' },
+                                    },
+                                ],
+                                bundle: { id: '', description: '', doc: '' },
+                            },
+                        ],
+                    },
+                ],
+            };
+
+            const groups = mapTree(root, undefined)[0].children;
+            const apiGroup = groups?.find(group => group.name === 'ApiGroup');
+            const taxonomyGroup = groups?.find(group => group.name === 'TaxonomyGroup');
+
+            expect(apiGroup?.data.description).toBe('API description');
+            expect(apiGroup?.data.doc).toBe('api-doc.html');
+            expect(taxonomyGroup?.data.description).toBe('Taxonomy description');
+            expect(taxonomyGroup?.data.doc).toBe('taxonomy-doc.html');
+        });
     });
 });

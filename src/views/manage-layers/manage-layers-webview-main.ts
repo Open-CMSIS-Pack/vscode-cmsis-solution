@@ -115,7 +115,7 @@ export class ManageLayersWebviewMain {
                 const key = variable.variableName;
                 const value = (variable.copyTo.length && variable.file.length) ? '$SolutionDir()$/' + variable.copyTo + '/' + variable.file : '';
 
-                if (key.length && value.length) {
+                if (key.length) {
                     let item = variables.getChildByValue(key);
                     if (item) {
                         item.setValue(value);

@@ -21,6 +21,7 @@ import path from 'path';
 import { FileItemBuilder } from './solution-outline-file-item';
 import { CSolution } from '../../../solutions/csolution';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
+import { buildPackOverviewLink } from './pack-tooltip';
 
 export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
 
@@ -60,7 +61,7 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
 
         const tooltip =
             `- ${isBoard ? 'board' : 'device'}: \`${hardwareName}\`\n` +
-            `- from pack: \`${hardwarePackName}\``;
+            `- from pack: \`${hardwarePackName}\`${buildPackOverviewLink(hardwarePackName)}`;
 
         hardwareItem.setTag(isBoard ? 'board' : 'device');
         hardwareItem.setAttribute('hardwareName', hardwareName);

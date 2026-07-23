@@ -27,7 +27,7 @@ The Solution Outline docks into the left panel presenting a tree view for the se
 
 The Create Solution dialog shall present boards, devices, and draft projects to the user. The draft project shall be used to initialize a new solution workspace.
 
-[TO BE DOCUMENTED](views/create-solution)
+[TO BE DOCUMENTED](views/create-solutions)
 
 ### Configure Solution
 
@@ -35,7 +35,7 @@ The Create Solution dialog shall present boards, devices, and draft projects to 
 
 ### Context Selection
 
-[TO BE DOCUMENTED](views/context-selection)
+[TO BE DOCUMENTED](views/manage-solution)
 
 ### Manage Components
 

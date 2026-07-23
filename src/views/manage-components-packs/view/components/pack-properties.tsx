@@ -119,9 +119,27 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
             'Equal or higher with same major and minor version'
         ];
 
-    const latestInstalledPack = latestUpgradable ? `${pack?.name}@${latestUpgradable}` : pack?.packId;
+    const packDisplayName = pack?.description !== 'Pack not installed' ? pack?.packId : '';
+    const lockedPackValue = pack?.references.find(reference => reference.locked?.trim())?.locked?.trim() ?? '';
+    const hasMissingReferences = Boolean(pack?.references.some(ref => ref.missing));
+    const showErrorFallback = !packDisplayName && (Boolean(lockedPackValue) || hasMissingReferences);
+    const fallbackUsedPackDisplay = !packDisplayName
+        ? (lockedPackValue || pack?.packId || '')
+        : '';
+    const errorRowStyle = { color: 'var(--vscode-list-errorForeground)' };
+    const latestInstalledPack = latestUpgradable ? `${pack?.name}@${latestUpgradable}` : packDisplayName;
+    const isUsingLatestInstalledPack = Boolean(latestInstalledPack) && latestInstalledPack === pack?.packId;
+    const isUnlockPending = unlockOf === pack?.name;
+    const isUnlockAvailable = Boolean(latestInstalledPack) && !isUsingLatestInstalledPack && !isUnlockPending;
     const hasNewerOnlineVersion = !!pack?.latestOnlineVersion && !latestInstalledPack?.endsWith(pack.latestOnlineVersion);
     const onlineTooltip = hasNewerOnlineVersion ? <div>Latest version available online: {pack.latestOnlineVersion}</div> : undefined;
+    const cbuildPackLink = <><a onClick={() => { if (openFile && cbuildPackPath) openFile(cbuildPackPath, false); }}><EditFilled /></a>{cbuildPackPath}</>;
+    const unlockTooltip = (
+        <span>
+            {isUsingLatestInstalledPack ? <>Uses already latest installed pack version in {cbuildPackLink}</> : <>Remove lock in {cbuildPackLink} to use latest installed pack version</>}
+            {unlockOf && <><br />Pending unlock request will be committed on save</>}
+        </span>
+    );
 
     return (
         <Modal
@@ -209,8 +227,19 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                     <Card size="small">
                         <table className='manage-component-properties-table'>
                             <tbody>
-                                <tr><td>Used Pack:</td><td>{(!firstReferencePath && openFile) ? <PackTitleLink packId={pack.packId} packName={pack.packId} openFile={openFile} /> : pack.packId}</td></tr>
-                                <tr><td>Description:</td><td>{pack.description}</td></tr>
+                                {packDisplayName ? (
+                                    <tr>
+                                        <td>Used Pack:</td>
+                                        <td>{(!firstReferencePath && openFile) ? <PackTitleLink packId={pack.packId} packName={packDisplayName} openFile={openFile} /> : packDisplayName}</td>
+                                    </tr>
+                                ) : null}
+                                {showErrorFallback ? (
+                                    <tr style={errorRowStyle}>
+                                        <td>Used Pack:</td>
+                                        <td>{fallbackUsedPackDisplay}</td>
+                                    </tr>
+                                ) : null}
+                                <tr style={showErrorFallback ? errorRowStyle : undefined}><td>Description:</td><td>{pack.description}</td></tr>
                                 {firstReferencePath ? <tr><td>Path:</td><td>{firstReferencePath}</td></tr> : null}
                             </tbody>
                         </table>
@@ -218,13 +247,13 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                     {!firstReferencePath && (
                         <Card title="Update Pack" size="small">
                             <Row>
-                                <Col flex={3}>Latest Installed Pack:</Col>
+                                <Col flex={3}>Latest Compliant Pack Installed:</Col>
                                 <Col flex={5}>{latestInstalledPack}</Col>
                                 <Col flex={1}>
-                                    <Tooltip title={<span>Update and remove lock in <a onClick={() => { if (openFile && cbuildPackPath) openFile(cbuildPackPath, false); }}><EditFilled /></a>{cbuildPackPath} {unlockOf && <><br />Pending unlock request will be committed on save</>}</span>}>
+                                    <Tooltip title={unlockTooltip}>
                                         <Button
                                             type="text"
-                                            disabled={latestInstalledPack === pack.packId || unlockOf === pack.name}
+                                            disabled={!isUnlockAvailable}
                                             style={{ border: unlockOf ? '1px dashed var(--vscode-foreground)' : 'none' }}
                                             onClick={requestUnlock}
                                             icon={<CmsisCodicon name="update-arrow" />}
@@ -232,7 +261,7 @@ export const PackPropertiesDialog: React.FC<PackPropertiesDialogProperties> = ({
                                     </Tooltip>
                                 </Col>
                                 <Col flex={1}>
-                                    <Tooltip title={<><div>Software pack versions</div>{onlineTooltip}</>}>
+                                    <Tooltip title={<><div>Visit web portal for version information and release history</div>{onlineTooltip}</>}>
                                         <Button
                                             type="text"
                                             style={{ color: onlineTooltip ? 'var(--vscode-list-warningForeground)' : undefined }}

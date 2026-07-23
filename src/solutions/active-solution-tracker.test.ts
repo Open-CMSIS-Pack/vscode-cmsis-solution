@@ -15,14 +15,19 @@
  */
 
 import 'jest';
-import { ActiveSolutionTracker, ActiveSolutionTrackerImpl, COMMAND_ACTIVATE_SOLUTION, SolutionDetails, solutionFileWatchPattern } from './active-solution-tracker';
+import {
+    ActiveSolutionTrackerImpl,
+    COMMAND_ACTIVATE_SOLUTION,
+    COMMAND_DEACTIVATE_SOLUTION,
+    dbgconfFileWatchPattern,
+    solutionFileWatchPattern,
+} from './active-solution-tracker';
 import * as vscode from 'vscode';
 import { WorkspaceFolder } from 'vscode';
 import { URI } from 'vscode-uri';
 import * as path from 'path';
 import { waitForEvent, waitTimeout } from '../__test__/test-waits';
 import { waitForCondition } from '../__test__/wait-for-condition';
-import { messageProviderFactory } from '../vscode-api/message-provider.factories';
 import { commandsProviderFactory, MockCommandsProvider } from '../vscode-api/commands-provider.factories';
 import { MockFileWatcherProvider, fileWatcherProviderFactory } from '../vscode-api/file-watcher-provider.factories';
 import { MockWorkspaceFoldersProvider, workspaceFoldersProviderFactory } from '../vscode-api/workspace-folders-provider.factories';
@@ -41,9 +46,8 @@ const SOLUTION_URI_BAZ = URI.file(path.join(WORKSPACE_PATH, 'baz', 'Baz.csolutio
 const SOLUTION_URI_NEW = URI.file(path.join(WORKSPACE_PATH, 'new', 'New.csolution.yml'));
 
 describe('ActiveSolutionTracker', () => {
-    let changeSolutionsListener: jest.Mock;
     let changeActiveListener: jest.Mock;
-    let activeSolutionTracker: ActiveSolutionTracker;
+    let activeSolutionTracker: ActiveSolutionTrackerImpl;
     let context: { subscriptions: Array<{ dispose: () => Promise<void> }>, workspaceState: { get: jest.Mock, update: jest.Mock }, extension: { activate: jest.Mock } };
     let commandsProvider: MockCommandsProvider;
     let fileWatcherProvider: MockFileWatcherProvider;
@@ -64,7 +68,6 @@ describe('ActiveSolutionTracker', () => {
             },
         };
 
-        changeSolutionsListener = jest.fn();
         changeActiveListener = jest.fn();
 
         commandsProvider = commandsProviderFactory();
@@ -80,7 +83,6 @@ describe('ActiveSolutionTracker', () => {
         ]);
 
         activeSolutionTracker = new ActiveSolutionTrackerImpl(
-            messageProviderFactory(),
             commandsProvider,
             fileWatcherProvider,
             workspaceFoldersProvider,
@@ -90,7 +92,6 @@ describe('ActiveSolutionTracker', () => {
         );
 
         activeSolutionTracker.onDidChangeActiveSolution(changeActiveListener);
-        activeSolutionTracker.onDidChangeSolutions(changeSolutionsListener);
     });
 
     afterEach(async () => {
@@ -101,9 +102,19 @@ describe('ActiveSolutionTracker', () => {
 
     it('searches for solution files on activation', async () => {
         activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
-        await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);;
+        await waitForCondition(
+            async () => workspaceFoldersProvider.findFiles.mock.calls.length > 0,
+            'solution file search to complete',
+            200,
+        );
         expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledTimes(1);
-        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledWith(ActiveSolutionTrackerImpl.GLOB_PATTERN, undefined);
+        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledWith(
+            expect.objectContaining({ pattern: ActiveSolutionTrackerImpl.GLOB_PATTERN }),
+            ActiveSolutionTrackerImpl.HIDDEN_DIRECTORIES_GLOB,
+        );
+
+        const includePattern = workspaceFoldersProvider.findFiles.mock.calls[0][0] as vscode.RelativePattern;
+        expect(includePattern.pattern).toEqual(ActiveSolutionTrackerImpl.GLOB_PATTERN);
     });
 
     it('uses the configured glob pattern for searches', async () => {
@@ -111,10 +122,20 @@ describe('ActiveSolutionTracker', () => {
         configurationProvider.getConfigVariable.mockImplementation((name: string) => name === manifest.CONFIG_EXCLUDE ? testGlobPattern : undefined);
 
         activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
-        await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);;
+        await waitForCondition(
+            async () => workspaceFoldersProvider.findFiles.mock.calls.length > 0,
+            'solution file search to complete',
+            200,
+        );
 
         expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledTimes(1);
-        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledWith(ActiveSolutionTrackerImpl.GLOB_PATTERN, testGlobPattern);
+        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledWith(
+            expect.objectContaining({ pattern: ActiveSolutionTrackerImpl.GLOB_PATTERN }),
+            `{${ActiveSolutionTrackerImpl.HIDDEN_DIRECTORIES_GLOB},${testGlobPattern}}`,
+        );
+
+        const includePattern = workspaceFoldersProvider.findFiles.mock.calls[0][0] as vscode.RelativePattern;
+        expect(includePattern.pattern).toEqual(ActiveSolutionTrackerImpl.GLOB_PATTERN);
     });
 
     it('sets the given solution as active before the initial refresh completes', async () => {
@@ -139,7 +160,11 @@ describe('ActiveSolutionTracker', () => {
 
     it('updates when the configured glob pattern changes', async () => {
         activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
-        await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);;
+        await waitForCondition(
+            async () => workspaceFoldersProvider.findFiles.mock.calls.length > 0,
+            'initial solution file search to complete',
+            200,
+        );
 
         expect(configurationProvider.onChangeConfiguration).toHaveBeenCalledTimes(1);
         expect(configurationProvider.onChangeConfiguration).toHaveBeenCalledWith(expect.any(Function), manifest.CONFIG_EXCLUDE);
@@ -147,14 +172,43 @@ describe('ActiveSolutionTracker', () => {
         workspaceFoldersProvider.findFiles.mockClear();
 
         const testGlobPattern = `**/${faker.system.commonFileName()}`;
+        workspaceFoldersProvider.findFiles.mockResolvedValue([SOLUTION_URI_BAZ]);
         configurationProvider.getConfigVariable.mockImplementation((name: string) => name === manifest.CONFIG_EXCLUDE ? testGlobPattern : undefined);
         configurationProvider.onChangeConfiguration.mock.calls[0][0]();
-
-        workspaceFoldersProvider.findFiles.mockResolvedValue([SOLUTION_URI_BAZ]);
-        await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);;
+        await waitForCondition(
+            async () => workspaceFoldersProvider.findFiles.mock.calls.length > 0,
+            'solution file search after configuration change',
+            200,
+        );
 
         expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledTimes(1);
-        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledWith(ActiveSolutionTrackerImpl.GLOB_PATTERN, testGlobPattern);
+        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledWith(
+            expect.objectContaining({ pattern: ActiveSolutionTrackerImpl.GLOB_PATTERN }),
+            `{${ActiveSolutionTrackerImpl.HIDDEN_DIRECTORIES_GLOB},${testGlobPattern}}`,
+        );
+
+        const includePattern = workspaceFoldersProvider.findFiles.mock.calls[0][0] as vscode.RelativePattern;
+        expect(includePattern.pattern).toEqual(ActiveSolutionTrackerImpl.GLOB_PATTERN);
+    });
+
+    it('keeps results from other workspace folders when one folder search fails', async () => {
+        const workspaceFolder1 = { uri: URI.file(path.join(WORKSPACE_PATH, 'workspace-1')), name: 'Workspace Folder 1', index: 0 } as WorkspaceFolder;
+        const workspaceFolder2 = { uri: URI.file(path.join(WORKSPACE_PATH, 'workspace-2')), name: 'Workspace Folder 2', index: 1 } as WorkspaceFolder;
+        workspaceFoldersProvider.updateWorkspaceFolders([workspaceFolder1, workspaceFolder2]);
+
+        workspaceFoldersProvider.findFiles
+            .mockRejectedValueOnce(new Error('mock folder search failure'))
+            .mockResolvedValueOnce([SOLUTION_URI_BAZ]);
+
+        activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+        await waitForCondition(
+            async () => activeSolutionTracker.solutions.length === 1,
+            'solution file search to keep results from successful folders',
+            200,
+        );
+
+        expect(workspaceFoldersProvider.findFiles).toHaveBeenCalledTimes(2);
+        expect(activeSolutionTracker.solutions).toEqual([SOLUTION_URI_BAZ.fsPath]);
     });
 
     describe('activated with no solutions in the workspace', () => {
@@ -173,7 +227,6 @@ describe('ActiveSolutionTracker', () => {
             expect(activeSolutionTracker.solutions).toEqual([]);
             expect(activeSolutionTracker.activeSolution).toBeUndefined();
             expect(changeActiveListener).not.toHaveBeenCalled();
-            expect(changeSolutionsListener).not.toHaveBeenCalled();
         });
 
         it('updates ACTIVE_SOLUTION_STATE to none', () => {
@@ -196,7 +249,6 @@ describe('ActiveSolutionTracker', () => {
 
             expect(activeSolutionTracker.activeSolution).toBe(SOLUTION_URI_DEFAULT.fsPath);
             expect(changeActiveListener).toHaveBeenCalled();
-            expect(changeSolutionsListener).toHaveBeenCalled();
         });
 
         it('updates ACTIVE_SOLUTION_STATE to active', () => {
@@ -217,7 +269,6 @@ describe('ActiveSolutionTracker', () => {
         it('preserves the previous selection', () => {
             expect(activeSolutionTracker.activeSolution).toBe(SOLUTION_URI_FOO.fsPath);
             expect(changeActiveListener).toHaveBeenCalled();
-            expect(changeSolutionsListener).toHaveBeenCalled();
         });
     });
 
@@ -240,7 +291,6 @@ describe('ActiveSolutionTracker', () => {
 
             expect(activeSolutionTracker.activeSolution).toBe(SOLUTION_URI_DEFAULT.fsPath);
             expect(changeActiveListener).toHaveBeenCalled();
-            expect(changeSolutionsListener).toHaveBeenCalled();
         });
     });
 
@@ -267,7 +317,6 @@ describe('ActiveSolutionTracker', () => {
 
             expect(activeSolutionTracker.activeSolution).toBeUndefined();
             expect(changeActiveListener).not.toHaveBeenCalled();
-            expect(changeSolutionsListener).toHaveBeenCalled();
         });
 
         it('updates ACTIVE_SOLUTION_STATE to inactive', () => {
@@ -285,7 +334,11 @@ describe('ActiveSolutionTracker', () => {
 
         it('selects no active solution', async () => {
             activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
-            await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);
+            await waitForCondition(
+                async () => activeSolutionTracker.solutions.length === 2,
+                'solution file search to complete for subfolder-only workspace',
+                200,
+            );
 
             expect(activeSolutionTracker.solutions).toEqual([
                 SOLUTION_URI_BAR.fsPath,
@@ -294,7 +347,6 @@ describe('ActiveSolutionTracker', () => {
 
             expect(activeSolutionTracker.activeSolution).toBeUndefined();
             expect(changeActiveListener).not.toHaveBeenCalled();
-            expect(changeSolutionsListener).toHaveBeenCalled();
         });
 
         it('does not update ACTIVE_SOLUTION_STATE', () => {
@@ -308,7 +360,6 @@ describe('ActiveSolutionTracker', () => {
             activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
             await waitForEvent(activeSolutionTracker.onDidChangeActiveSolution, undefined, 200);
             changeActiveListener.mockClear();
-            changeSolutionsListener.mockClear();
         });
 
         it('does not set a non-existing solution active', () => {
@@ -348,7 +399,11 @@ describe('ActiveSolutionTracker', () => {
 
             fileWatcherProvider.mockFireEvent(ActiveSolutionTrackerImpl.GLOB_PATTERN, '/', 'create');
 
-            await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);
+            await waitForCondition(
+                async () => activeSolutionTracker.solutions.includes(SOLUTION_URI_NEW.fsPath),
+                'solution list to include added solution',
+                200,
+            );
 
             expect(activeSolutionTracker.solutions).toEqual([
                 SOLUTION_URI_BAR.fsPath,
@@ -356,7 +411,6 @@ describe('ActiveSolutionTracker', () => {
                 SOLUTION_URI_NEW.fsPath
             ]);
 
-            expect(changeSolutionsListener).toHaveBeenCalledTimes(1);
         });
 
         it('updates the list of solutions when a solution file is deleted', async () => {
@@ -366,13 +420,16 @@ describe('ActiveSolutionTracker', () => {
 
             fileWatcherProvider.mockFireEvent('**/*', SOLUTION_URI_BAR.fsPath, 'delete');
 
-            await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);
+            await waitForCondition(
+                async () => activeSolutionTracker.solutions.length === 1,
+                'solution list to exclude deleted solution',
+                200,
+            );
 
             expect(activeSolutionTracker.solutions).toEqual([
                 SOLUTION_URI_FOO.fsPath,
             ]);
 
-            expect(changeSolutionsListener).toHaveBeenCalledTimes(1);
         });
 
         it('updates the list of solutions when a folder containing a solution file is deleted', async () => {
@@ -382,13 +439,16 @@ describe('ActiveSolutionTracker', () => {
 
             fileWatcherProvider.mockFireEvent('**/*', path.resolve(SOLUTION_URI_BAR.fsPath, '..'), 'delete');
 
-            await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);
+            await waitForCondition(
+                async () => activeSolutionTracker.solutions.length === 1,
+                'solution list to exclude solution in deleted folder',
+                200,
+            );
 
             expect(activeSolutionTracker.solutions).toEqual([
                 SOLUTION_URI_FOO.fsPath,
             ]);
 
-            expect(changeSolutionsListener).toHaveBeenCalledTimes(1);
         });
 
         it('updates the list of solutions when a new workspace folder is added', async () => {
@@ -403,7 +463,11 @@ describe('ActiveSolutionTracker', () => {
                 { uri: URI.file(__dirname), name: 'Workspace Folder 2', index: 2 }
             ]);
 
-            await waitForEvent(activeSolutionTracker.onDidChangeSolutions, undefined, 200);
+            await waitForCondition(
+                async () => activeSolutionTracker.solutions.includes(SOLUTION_URI_NEW.fsPath),
+                'solution list to include solution from new workspace folder',
+                200,
+            );
 
             expect(activeSolutionTracker.solutions).toEqual([
                 SOLUTION_URI_BAR.fsPath,
@@ -411,20 +475,6 @@ describe('ActiveSolutionTracker', () => {
                 SOLUTION_URI_NEW.fsPath
             ]);
 
-            expect(changeSolutionsListener).toHaveBeenCalledTimes(1);
-        });
-
-        it('provides solution details', () => {
-            workspaceFoldersProvider.asRelativePath.mockClear();
-
-            const details = activeSolutionTracker.getSolutionDetails(SOLUTION_URI_FOO.fsPath);
-            const expectedDetails: SolutionDetails = {
-                path: SOLUTION_URI_FOO.fsPath,
-                displayName: `foo${path.sep}Foo`
-            };
-
-            expect(details).toEqual(expectedDetails);
-            expect(workspaceFoldersProvider.asRelativePath).toHaveBeenCalledWith(SOLUTION_URI_FOO.fsPath);
         });
 
         describe('activate command', () => {
@@ -501,11 +551,17 @@ describe('ActiveSolutionTracker', () => {
                 expect(changeActiveListener).toHaveBeenCalledTimes(1);
             });
         });
+
+        describe('deactivate command', () => {
+            it('clears the active solution context', async () => {
+                await commandsProvider.mockRunRegistered(COMMAND_DEACTIVATE_SOLUTION);
+
+                expect(activeSolutionTracker.activeSolution).toBeUndefined();
+                expect(commandsProvider.executeCommand).toHaveBeenCalledWith('setContext', ActiveSolutionTrackerImpl.ACTIVE_SOLUTION, {});
+            });
+        });
     });
 });
-
-const debounceMillis = 5;
-const waitForDebounce = () => new Promise(resolve => setTimeout(resolve, 2 * debounceMillis));
 
 const solutionRoot = path.join(__dirname, 'root');
 const activeSolution = path.join(solutionRoot, 'My.csolution.yml');
@@ -538,14 +594,12 @@ describe('ActiveSolutionTracker solution file watching', () => {
         workspaceFoldersProvider.findFiles.mockResolvedValue([URI.file(activeSolution)]);
 
         tracker = new ActiveSolutionTrackerImpl(
-            messageProviderFactory(),
             commandsProvider,
             fileWatcherProvider,
             workspaceFoldersProvider,
             workspaceFsProvider,
             configurationProvider,
             0,
-            debounceMillis,
         );
 
         await tracker.activate(context as unknown as vscode.ExtensionContext);
@@ -563,66 +617,53 @@ describe('ActiveSolutionTracker solution file watching', () => {
 
     it('registers a file watcher on activation', () => {
         expect(fileWatcherProvider.watchFiles).toHaveBeenCalledWith(solutionFileWatchPattern, expect.any(Object), expect.anything());
-        expect(tracker.suspendWatch).toBeFalsy();
+        expect(fileWatcherProvider.watchFiles).toHaveBeenCalledWith(dbgconfFileWatchPattern, expect.any(Object), expect.anything());
     });
 
     it('fires onActiveSolutionFilesChanged when the csolution file is modified', async () => {
         fileWatcherProvider.mockFireEvent(solutionFileWatchPattern, activeSolution, 'change');
-        await waitForDebounce();
 
         expect(changeListener).toHaveBeenCalledTimes(1);
+        expect(changeListener).toHaveBeenCalledWith(activeSolution);
     });
 
-    it('when suspended fires no onActiveSolutionFilesChanged when the csolution file is modified', async () => {
-        tracker.suspendWatch = true;
-        expect(tracker.suspendWatch).toBeTruthy();
-        fileWatcherProvider.mockFireEvent(solutionFileWatchPattern, activeSolution, 'change');
-        await waitForDebounce();
-        expect(changeListener).toHaveBeenCalledTimes(0);
-        tracker.suspendWatch = false;
-        expect(tracker.suspendWatch).toBeFalsy();
-        fileWatcherProvider.mockFireEvent(solutionFileWatchPattern, activeSolution, 'change');
-        await waitForDebounce();
-        expect(changeListener).toHaveBeenCalledTimes(1);
-    });
-
-    it('fires onActiveSolutionFilesChanged when a cproject file is modified in the active solution directory', async () => {
-        const projectFile = path.join(solutionRoot, 'My.cproject.yml');
+    it('fires onActiveSolutionFilesChanged when a cproject file is modified outside the active solution directory', async () => {
+        const projectFile = path.join(__dirname, 'external-project', 'My.cproject.yml');
         fileWatcherProvider.mockFireEvent(solutionFileWatchPattern, projectFile, 'change');
-        await waitForDebounce();
 
         expect(changeListener).toHaveBeenCalledTimes(1);
-    });
-
-    it('fires onActiveSolutionFilesChanged when a cproject file is modified in a directory beneath active solution directory', async () => {
-        const projectFile = path.join(solutionRoot, 'AProject', 'My.cproject.yml');
-        fileWatcherProvider.mockFireEvent(solutionFileWatchPattern, projectFile, 'change');
-        await waitForDebounce();
-
-        expect(changeListener).toHaveBeenCalledTimes(1);
+        expect(changeListener).toHaveBeenCalledWith(projectFile);
     });
 
     it('fires onActiveSolutionFilesChanged when a cgen.yml file is modified in the active solution directory', async () => {
         const packFile = path.join(solutionRoot, 'My.cgen.yml');
         fileWatcherProvider.mockFireEvent(solutionFileWatchPattern, packFile, 'change');
-        await waitForDebounce();
 
         expect(changeListener).toHaveBeenCalledTimes(1);
+        expect(changeListener).toHaveBeenCalledWith(packFile);
     });
 
-    it('does not fire onActiveSolutionFilesChanged when a file other than the active csolution file is modified', async () => {
-        const projectFile = path.join(solutionRoot, 'NotMy.csolution.yaml');
-        fileWatcherProvider.mockFireEvent(solutionFileWatchPattern, projectFile, 'change');
-        await waitForDebounce();
+    it('fires onActiveSolutionFilesChanged when a dbgconf file is modified', async () => {
+        const dbgconfFile = path.join(solutionRoot, 'DebugConfig', 'My.dbgconf');
+        fileWatcherProvider.mockFireEvent(dbgconfFileWatchPattern, dbgconfFile, 'change');
 
-        expect(changeListener).toHaveBeenCalledTimes(0);
+        expect(changeListener).toHaveBeenCalledTimes(1);
+        expect(changeListener).toHaveBeenCalledWith(dbgconfFile);
     });
 
-    it('does not fire onActiveSolutionFilesChanged when a file outside the solution directory is changed', async () => {
-        const projectFile = path.join(__dirname, 'another-solution', 'NotMy.csolution.yaml');
-        fileWatcherProvider.mockFireEvent(solutionFileWatchPattern, projectFile, 'change');
-        await waitForDebounce();
+    it('fires onActiveSolutionFilesChanged when a dbgconf file in .cmsis is modified', async () => {
+        const dbgconfFile = path.join(solutionRoot, '.cmsis', 'My.dbgconf');
+        fileWatcherProvider.mockFireEvent(dbgconfFileWatchPattern, dbgconfFile, 'change');
 
-        expect(changeListener).toHaveBeenCalledTimes(0);
+        expect(changeListener).toHaveBeenCalledTimes(1);
+        expect(changeListener).toHaveBeenCalledWith(dbgconfFile);
+    });
+
+    it('fires onActiveSolutionFilesChanged when an inactive csolution file is modified', async () => {
+        const inactiveSolution = path.join(__dirname, 'another-solution', 'NotMy.csolution.yaml');
+        fileWatcherProvider.mockFireEvent(solutionFileWatchPattern, inactiveSolution, 'change');
+
+        expect(changeListener).toHaveBeenCalledTimes(1);
+        expect(changeListener).toHaveBeenCalledWith(inactiveSolution);
     });
 });

@@ -1,5 +1,5 @@
 /**
- * Copyright 2026 Arm Limited
+ * Copyright 2023-2026 Arm Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,10 +12,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
-
-/*
- * Copyright (C) 2023 - 2026 Arm Limited
  */
 
 import { Tokenizer, Token } from './tokenizer';
@@ -34,27 +30,57 @@ import { CwFormat } from './cw-format';
 import { CwMathOperation } from './cw-math-operation';
 import { LogErr } from './error';
 import { CwNotification } from './cw-notification';
+import { ConfwizLineCommentPrefix, DEFAULT_LINE_COMMENT_PREFIX, SUPPORTED_LINE_COMMENT_PREFIXES } from './comment-style';
 
-const cwCommandDetect = /^\s*\/\/\s*</;
-const cwBeginEndDetect = /^\s*\/\/\s*/;
+const markerStartText = '<<< use configuration wizard in context menu >>>';
+const markerEndText = '<<< end of configuration section >>>';
 
 export class Parser {
+    private _lineCommentPrefix: ConfwizLineCommentPrefix = DEFAULT_LINE_COMMENT_PREFIX;
+
+    public get lineCommentPrefix(): ConfwizLineCommentPrefix {
+        return this._lineCommentPrefix;
+    }
+
+    protected getLineCommentPrefix(line: string): ConfwizLineCommentPrefix | undefined {
+        const trimmed = line.trimStart();
+        for (const prefix of SUPPORTED_LINE_COMMENT_PREFIXES) {
+            if (trimmed.startsWith(prefix)) {
+                return prefix;
+            }
+        }
+        return undefined;
+    }
 
     protected isAnnotation(line: string): boolean {
-        return cwCommandDetect.test(line);
+        const trimmed = line.trimStart();
+        if (!trimmed.startsWith(this.lineCommentPrefix)) {
+            return false;
+        }
+
+        const content = trimmed.slice(this.lineCommentPrefix.length).trimStart();
+        return content.startsWith('<');
     }
 
     protected isAnnotationStartEnd(line: string): boolean {
-        return cwBeginEndDetect.test(line);
+        return line.trimStart().startsWith(this.lineCommentPrefix);
     }
 
     public findAnnotationStart(lines: string[]): StartEnd | undefined {
         let startIndex = -1, endIndex = -1;
+        let startPrefix: ConfwizLineCommentPrefix | undefined;
         const searchLimit = Math.min(110, lines.length);
         for (let index = 0; index < searchLimit; index++) {
-            const line = lines[index].toLowerCase();
-            if (this.isAnnotationStartEnd(line) && line.indexOf('<<< use configuration wizard in context menu >>>') != -1) {
+            const line = lines[index];
+            const prefix = this.getLineCommentPrefix(line);
+            if (!prefix) {
+                continue;
+            }
+
+            const lineLower = line.toLowerCase();
+            if (lineLower.indexOf(markerStartText) != -1) {
                 startIndex = index;
+                startPrefix = prefix;
                 break;
             }
         }
@@ -63,9 +89,13 @@ export class Parser {
             return undefined; // No Configuration Wizard file
         }
 
+        if (startPrefix) {
+            this._lineCommentPrefix = startPrefix;
+        }
+
         for (let index = startIndex + 1; index < lines.length; index++) {
             const line = lines[index].toLowerCase();
-            if (this.isAnnotationStartEnd(line) && line.indexOf('<<< end of configuration section >>>') != -1) {
+            if (this.isAnnotationStartEnd(lines[index]) && line.indexOf(markerEndText) != -1) {
                 endIndex = index;
                 break;
             }
@@ -88,12 +118,13 @@ export class Parser {
             return undefined;
         }
 
-        const tokenizer = new Tokenizer();
+        const tokenizer = new Tokenizer(this.lineCommentPrefix);
         let lineNo = -1;
         const startTime = new Date().getTime();
 
         const root = new CwItem();
         root.setType('root');
+        root.lineCommentPrefix = this.lineCommentPrefix;
         let item: CwItem | undefined = root;
 
         for (const line of lines) {

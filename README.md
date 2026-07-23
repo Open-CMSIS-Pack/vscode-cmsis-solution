@@ -1,3 +1,4 @@
+[![Releases](https://img.shields.io/github/v/tag/Open-CMSIS-Pack/vscode-cmsis-solution.svg?sort=semver&label=Release)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/releases)
 [![License Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-green?label=LICENSE)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/blob/main/LICENSE)
 [![Maintainability](https://qlty.sh/badges/b5c6c01e-12d2-4093-8f01-3d511c17bdd5/maintainability.png)](https://qlty.sh/gh/Open-CMSIS-Pack/projects/vscode-cmsis-solution)
 [![Code Coverage](https://qlty.sh/badges/b5c6c01e-12d2-4093-8f01-3d511c17bdd5/coverage.png)](https://qlty.sh/gh/Open-CMSIS-Pack/projects/vscode-cmsis-solution)
@@ -5,7 +6,7 @@
 [![CI Build and Test](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/ci.yml?logo=arm&logoColor=0091bd&label=CI%20Build%20and%20Test)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/actions/workflows/ci.yml?query=branch:main)
 [![Nightly Build and Test](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/nightly.yml?logo=arm&logoColor=0091bd&label=Nightly%20Build%20and%20Test)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/actions/workflows/nightly.yml?query=branch:main)
 [![Markdown Lint](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/markdown.yml?logo=arm&logoColor=0091bd&label=Markdown%20Lint)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/actions/workflows/markdown.yml?query=branch:main)
-[![CodeQL Analysis](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/codeql.yml?logo=arm&logoColor=0091bd&label=CodeQL%20Analysis)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/actions/workflows/codeql.yml?query=branch:main)
+[![Security Analysis](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/security-scan.yml?logo=arm&logoColor=0091bd&label=Security%20Analysis)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/actions/workflows/security-scan.yml?query=branch:main)
 [![Dependency Review](https://img.shields.io/github/actions/workflow/status/Open-CMSIS-Pack/vscode-cmsis-solution/dependency-review.yml?logo=arm&logoColor=0091bd&label=Dependency%20Review)](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/actions/workflows/dependency-review.yml?query=branch:main)
 
 # Arm CMSIS Solution
@@ -22,7 +23,7 @@ Arm CMSIS Solution provides the following views:
 - [Manage Solution view](#manage-solution-view): Manage your solutions with multiple targets, projects, and build types to define the scope of your applications.
 - [Software Components view](#software-components-view): Access reusable building blocks that are provided in software packs.
 
-[Settings](https://mdk-packs.github.io/vscode-cmsis-solution-docs/configuration.html#configure-the-extension): Configure features like pack download, [clangd](https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-clangd), or usage of web services. When **Use Web Services** is enabled, Arm CMSIS Solution gets from [keil.arm.com](https://www.keil.arm.com/packs/) information about devices, boards, and examples that are provided in software packs.
+[Settings](https://mdk-packs.github.io/vscode-cmsis-solution-docs/installation.html#configure-the-extension): Configure features like pack download, [clangd](https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-clangd), or usage of web services. When **Use Web Services** is enabled, Arm CMSIS Solution gets from [keil.arm.com](https://www.keil.arm.com/packs/) information about devices, boards, and examples that are provided in software packs.
 
 Arm CMSIS Solution works as a standalone tool and can also interact with other VS Code extensions:
 
@@ -114,9 +115,9 @@ The YML syntax support in the editor detects errors, provides auto completion, a
 
 ## Run and Debug
 
-Arm CMSIS Solution generates the [Run and Debug configuration](https://mdk-packs.github.io/vscode-cmsis-solution-docs/conf_debug.html) files including files `.vscode/launch.json` and `.vscode/tasks.json` for the [Arm CMSIS Debugger](https://marketplace.visualstudio.com/items?itemName=Arm.vscode-cmsis-debugger) and various debug adapters (such as CMSIS-DAP, ULINK, JLink, and ST-Link). The [Manage Solution view](#manage-solution-view) simplifies the setup and supports single-core and multi-core configurations.
+Arm CMSIS Solution generates the [Run and Debug configuration](https://mdk-packs.github.io/vscode-cmsis-solution-docs/debug.html#configure-run-and-debug) files including files `.vscode/launch.json` and `.vscode/tasks.json` for the [Arm CMSIS Debugger](https://marketplace.visualstudio.com/items?itemName=Arm.vscode-cmsis-debugger) and various debug adapters (such as CMSIS-DAP, ULINK, JLink, and ST-Link). The [Manage Solution view](#manage-solution-view) simplifies the setup and supports single-core and multi-core configurations.
 
-The [Run and Debug configuration](https://mdk-packs.github.io/vscode-cmsis-solution-docs/configuration.html#configure-run-and-debug) is stored in the `csolution.yml` file under `target-set:` as shown below:
+The [Run and Debug configuration](https://mdk-packs.github.io/vscode-cmsis-solution-docs/debug.html#configure-run-and-debug) is stored in the `csolution.yml` file under `target-set:` as shown below:
 
 ```yml
   target-types:

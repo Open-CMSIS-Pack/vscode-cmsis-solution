@@ -24,6 +24,8 @@ import { CSolution } from '../../../solutions/csolution';
 import { getMapFilePath, setDocContext, setHeaderContext, setLinkerContext } from './solution-outline-utils';
 import { CProjectYamlFile } from '../../../solutions/files/cproject-yaml-file';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
+import { buildPackOverviewLink } from './pack-tooltip';
+import { contextDescriptorFromString } from '../../../solutions/descriptors/descriptors';
 
 export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
     private readonly _lastPrioritizedComponentList: COutlineItem[] = [];
@@ -346,16 +348,19 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
 
     private addGenerator(node: COutlineItem, component: ITreeItem<CTreeItem>, cbuild: CTreeItem) {
         const generator = component.getChild('generator');
+        const fromPack = component.getValueAsString('from-pack');
         let tooltip =
             '- component: ` ' + component.getValueAsString('component') + ' `\n' +
-            '- from pack: ` ' + component.getValueAsString('from-pack') + ' `';
+            '- from pack: ` ' + fromPack + ' `' + buildPackOverviewLink(fromPack);
 
         if (generator) {
             const id = generator.getValueAsString('id');
+            const targetType = contextDescriptorFromString(cbuild.getValueAsString('context')).targetType;
+            const activeTarget = this.csolution?.getActiveTargetSetName() ?? targetType;
             node.addFeature('component-gen');
             node.setAttribute('type', 'component-gen');
             node.setAttribute('generator', id);
-            node.setAttribute('cbuild-context', cbuild.getValue('context'));
+            node.setAttribute('activeTarget', activeTarget);
 
             tooltip += '\n' + '- generator: ` ' + id + ' `';
             const fileName = component.resolvePath(generator.getValueAsString('path'));

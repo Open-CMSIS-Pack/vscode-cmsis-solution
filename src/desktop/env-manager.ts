@@ -19,13 +19,16 @@ import { constructor } from '../generic/constructor';
 import { ConfigurationProvider } from '../vscode-api/configuration-provider';
 import path from 'path';
 import { Optional } from '../generic/type-helper';
-import { CONFIG_ENVIRONMENT_VARIABLES } from '../manifest';
+import { CONFIG_ENVIRONMENT_VARIABLES, OPEN_ENV_VAR_SETTINGS_COMMAND_ID, PACKAGE_NAME } from '../manifest';
 import process from 'process';
 import { PythonEnvironment, PythonEnvironmentApi } from '../vscode-api/ms-python.vscode-python-envs.api';
 import { extendEnvWithCmsisSettings } from '../util';
 import { getCmsisToolboxRoot } from '../utils/path-utils';
 
 const DEFAULT_PATH_VAR = (process.platform === 'win32') ? 'Path' : 'PATH';
+const ENV_VAR_NAME_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+const ENV_VAR_SETTINGS_NAME = `${PACKAGE_NAME}.${CONFIG_ENVIRONMENT_VARIABLES}`;
+const OPEN_SETTINGS_ACTION = 'Open Environment Variables Settings';
 
 export interface EnvironmentManager {
     activate(context: vscode.ExtensionContext): Promise<void>;
@@ -178,6 +181,7 @@ class PythonEnvironmentExtensionWrapper {
 
 class EnvironmentManagerImpl implements EnvironmentManager {
     private lastEnvVars: string | undefined;
+    private lastInvalidEnvKeys: string | undefined;
 
     private pyEnvWrapper: Optional<PythonEnvironmentExtensionWrapper> = undefined;
     private context: vscode.ExtensionContext | undefined = undefined;
@@ -197,15 +201,15 @@ class EnvironmentManagerImpl implements EnvironmentManager {
         await this.pyEnvWrapper.activate(context);
 
         context.subscriptions.push(
-            vscode.extensions.onDidChange(() => this.updateEnvironment(context)),
+            vscode.extensions.onDidChange(() => this.updateEnvironmentSafe(context)),
             this.envVarsChangeEmitter,
         );
 
         this.configurationProvider.onChangeConfiguration(
-            () => this.updateEnvironment(context),
+            () => this.updateEnvironmentSafe(context),
             CONFIG_ENVIRONMENT_VARIABLES,
         );
-        this.updateEnvironment(context);
+        this.updateEnvironmentSafe(context);
     }
 
     public augmentEnv(env: Environment | undefined): Environment {
@@ -220,7 +224,11 @@ class EnvironmentManagerImpl implements EnvironmentManager {
     }
 
     private updateEnvironment(context: vscode.ExtensionContext) {
-        const envSettings = new Environment(this.configurationProvider.getConfigVariableOrDefault<NodeJS.ProcessEnv>(CONFIG_ENVIRONMENT_VARIABLES, {}), process.env);
+        const configuredEnv = this.configurationProvider.getConfigVariableOrDefault<NodeJS.ProcessEnv>(CONFIG_ENVIRONMENT_VARIABLES, {});
+        const { validEnv, invalidKeys } = this.partitionConfiguredEnvironment(configuredEnv);
+        this.notifyOnInvalidKeys(invalidKeys);
+
+        const envSettings = new Environment(validEnv, process.env);
 
         // append embedded CMSIS Toolbox to PATH
         const cmsisToolboxBin = path.join(getCmsisToolboxRoot(envSettings.vars), 'bin');
@@ -263,6 +271,58 @@ class EnvironmentManagerImpl implements EnvironmentManager {
         }
         this.lastEnvVars = currentEnvVars;
         this.envVarsChangeEmitter.fire();
+    }
+
+    private updateEnvironmentSafe(context: vscode.ExtensionContext): void {
+        try {
+            this.updateEnvironment(context);
+        } catch (error) {
+            const details = this.getErrorMessage(error);
+            console.error('Failed to apply environment variable settings', error);
+            void this.showConfigurationErrorMessage(details);
+        }
+    }
+
+    private partitionConfiguredEnvironment(configuredEnv: NodeJS.ProcessEnv): { validEnv: NodeJS.ProcessEnv; invalidKeys: string[] } {
+        const validEnv: NodeJS.ProcessEnv = {};
+        const invalidKeys: string[] = [];
+
+        for (const [key, value] of Object.entries(configuredEnv)) {
+            if (ENV_VAR_NAME_REGEX.test(key)) {
+                validEnv[key] = value;
+            } else {
+                invalidKeys.push(key);
+            }
+        }
+
+        return { validEnv, invalidKeys };
+    }
+
+    private notifyOnInvalidKeys(invalidKeys: string[]): void {
+        const serialized = JSON.stringify(invalidKeys.slice().sort());
+        if (serialized === this.lastInvalidEnvKeys) {
+            return;
+        }
+
+        this.lastInvalidEnvKeys = serialized;
+        if (!invalidKeys.length) {
+            return;
+        }
+
+        const display = invalidKeys.map(key => key.length > 0 ? `'${key}'` : '<empty>').join(', ');
+        console.warn(`Ignored invalid environment variable name(s) in ${ENV_VAR_SETTINGS_NAME}: ${display}`);
+    }
+
+    private async showConfigurationErrorMessage(details: string): Promise<void> {
+        const message = `Failed to apply ${ENV_VAR_SETTINGS_NAME}: ${details}`;
+        const selection = await vscode.window.showErrorMessage(message, OPEN_SETTINGS_ACTION);
+        if (selection === OPEN_SETTINGS_ACTION) {
+            await vscode.commands.executeCommand(OPEN_ENV_VAR_SETTINGS_COMMAND_ID, ENV_VAR_SETTINGS_NAME);
+        }
+    }
+
+    private getErrorMessage(error: unknown): string {
+        return error instanceof Error ? error.message : String(error);
     }
 }
 

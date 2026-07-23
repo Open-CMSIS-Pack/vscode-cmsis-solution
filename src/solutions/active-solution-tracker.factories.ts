@@ -55,20 +55,15 @@ const createEventEmitter = <T>() => {
 };
 
 export type MockActiveSolutionTracker = jest.Mocked<StubEvents<ActiveSolutionTracker>> & {
-    mockFireActiveSolutionFilesChanged: () => void;
+    mockFireActiveSolutionFilesChanged: (changedPath: string) => void;
 };
 
 export const activeSolutionTrackerFactory = makeFactory<MockActiveSolutionTracker>({
-    onDidChangeSolutionsEmitter: () => createEventEmitter<void>(),
-    onDidChangeSolutions: (r) => jest.fn(r.onDidChangeSolutionsEmitter!.event),
     onDidChangeActiveSolutionEmitter: () => createEventEmitter<void>(),
     onDidChangeActiveSolution: (r) => jest.fn(r.onDidChangeActiveSolutionEmitter!.event),
-    onActiveSolutionFilesChangedEmitter: () => createEventEmitter<void>(),
+    onActiveSolutionFilesChangedEmitter: () => createEventEmitter<string>(),
     onActiveSolutionFilesChanged: (r) => jest.fn(r.onActiveSolutionFilesChangedEmitter!.event),
     activeSolution: () => '',
-    solutions: () => [],
     activate: () => jest.fn(),
-    getSolutionDetails: () => jest.fn(),
-    suspendWatch: () => false,
-    mockFireActiveSolutionFilesChanged: (r) => () => r.onActiveSolutionFilesChangedEmitter?.fire(),
+    mockFireActiveSolutionFilesChanged: (r) => (changedPath: string) => r.onActiveSolutionFilesChangedEmitter?.fire(changedPath),
 });

@@ -37,11 +37,27 @@ interface PacksProps {
     openFile: (link: string, external?: boolean, focusOn?: string) => void;
     messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>;
     availablePacks: Record<string, string>;
+    focusPackId?: string;
+    onFocusPackConsumed?: () => void;
 }
 
-export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandler, availablePacks }) => {
+export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandler, availablePacks, focusPackId, onFocusPackConsumed }) => {
     const [selectedPack, setSelectedPack] = React.useState<PackRowDataType | undefined>(undefined);
     const [searchText, setSearchText] = React.useState<string>('');
+    const packsContainerRef = React.useRef<HTMLDivElement | null>(null);
+
+    const normalizePackLookupId = React.useCallback((value: string): string => {
+        const parsed = parsePackId(value);
+        if (!parsed) {
+            return value.trim().toLowerCase();
+        }
+
+        return `${parsed.vendor ? `${parsed.vendor}::` : ''}${parsed.packName}`.toLowerCase();
+    }, []);
+
+    const normalizeExactPackId = React.useCallback((value: string): string => {
+        return value.trim().toLowerCase();
+    }, []);
 
     const selectPack = React.useCallback((record: PackRowDataType | undefined) => {
         if (!record) {
@@ -52,11 +68,13 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
         const recordPack = parsePackId(record.key);
         let latestOnlineVersion: string | undefined;
 
-        for (const packId of Object.keys(availablePacks ?? {})) {
-            const pack = parsePackId(packId);
-            if (pack?.vendor === recordPack?.vendor && pack?.packName === recordPack?.packName) {
-                latestOnlineVersion = pack?.version;
-                break;
+        if (state.availablePacksIndexCurrent) {
+            for (const packId of Object.keys(availablePacks ?? {})) {
+                const pack = parsePackId(packId);
+                if (pack?.vendor === recordPack?.vendor && pack?.packName === recordPack?.packName) {
+                    latestOnlineVersion = pack?.version;
+                    break;
+                }
             }
         }
 
@@ -64,7 +82,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
             ...record,
             latestOnlineVersion,
         });
-    }, [availablePacks]);
+    }, [availablePacks, state.availablePacksIndexCurrent]);
 
     const columns: TableColumnsType<PackRowDataType> = React.useMemo(() => {
         const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -74,12 +92,14 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
         };
 
         const renderPackColumn = (_value: string, record: PackRowDataType) => {
-            const pack = parsePackId(record.packId);
             const packTitle = <PackTitleLink packId={record.packId} packName={record.name} openFile={openFile} />;
             const referencedFrom = [
                 <div key='pack-name'>{packTitle}</div>,
                 ...(record.references?.map((ref, index) => {
-                    const p = parsePackId(ref.pack);
+                    const referencePack = parsePackId(ref.pack);
+                    const displayedVersionOperator = referencePack?.versionOperator ?? '';
+                    const normalizedVersionOperator = displayedVersionOperator.replace(/^@/, '');
+                    const displayedVersion = referencePack?.version ?? '';
                     const hasRelPath = Boolean(ref.relPath?.trim());
 
                     return (
@@ -92,7 +112,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
                                         openFile(ref.origin, false, `- pack: ${ref.pack}`);
                                     }
                                     return false;
-                                }}><EditFilled /></a> ./{ref.relOrigin} <span className='faded'>({p?.versionOperator}{p?.version ?? pack?.version})</span>
+                                }}><EditFilled /></a> ./{ref.relOrigin} <span className='faded'>{displayedVersion ? `(${normalizedVersionOperator}${displayedVersion})` : ''}</span>
                             </div>
                             {hasRelPath ? (
                                 <div>path: {ref.relPath}</div>
@@ -105,15 +125,12 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
             return (
                 <div className='pack-name-cell'>
                     <span>
-                        {record.references && record.references.length > 0 ? (
-                            <Tooltip title={referencedFrom} placement='bottomLeft'>
-                                <span>{record.name}</span>
-                            </Tooltip>
-                        ) : (
-                            <Tooltip title={record.name}>
-                                {packTitle}
-                            </Tooltip>
-                        )}
+                        <Tooltip
+                            title={referencedFrom}
+                            placement='bottomLeft'
+                        >
+                            <span>{record.name}</span>
+                        </Tooltip>
                     </span>
                 </div>
             );
@@ -150,7 +167,20 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
         };
 
         const renderVersionTarget = (_value: string, record: PackRowDataType) => {
-            const version = record.versionUsed.replaceAll('@', '');
+            const usedVersion = record.versionUsed.replace(/^[~^<>=@\s]+/, '');
+            const lockedReference = record.references
+                .find(reference => Boolean(reference.locked?.trim()))
+                ?.locked?.trim();
+            const lockedVersion = lockedReference
+                ? (parsePackId(lockedReference)?.version || lockedReference.replace(/^.*@/, ''))
+                : '';
+            const missingReference = record.references
+                .find(reference => reference.missing && Boolean(reference.pack?.trim()))
+                ?.pack;
+            const missingVersion = missingReference && !lockedReference
+                ? (parsePackId(missingReference)?.version ?? '')
+                : '';
+            const version = lockedVersion || usedVersion || missingVersion;
             return (
                 <span>
                     {version}
@@ -159,10 +189,10 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
         };
 
         return [
-            { title: 'Software Pack', dataIndex: 'name', key: 'name', width: 240, ellipsis: true, render: renderPackColumn },
+            { title: 'Software Pack', dataIndex: 'name', key: 'name', width: 240, ellipsis: true, render: renderPackColumn, onCell: () => ({ className: 'packs-pack-column' }) },
             { title: 'Select', render: (record: PackRowDataType) => renderEditColumn(record), width: 64 },
-            { title: 'Version', dataIndex: 'versionTarget', key: 'versionTarget', minWidth: 120, ellipsis: false, render: renderVersionTarget },
-            { title: 'Description', dataIndex: 'description', key: 'description', ellipsis: true, render: renderDescriptionCell },
+            { title: 'Version', dataIndex: 'versionTarget', key: 'versionTarget', minWidth: 120, ellipsis: false, render: renderVersionTarget, onCell: () => ({ className: 'packs-version-column' }) },
+            { title: 'Description', dataIndex: 'description', key: 'description', ellipsis: true, render: renderDescriptionCell, onCell: () => ({ className: 'description-column packs-description-column' }) },
         ];
     }, [openFile, selectPack]);
 
@@ -183,10 +213,6 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
             }
         }
         selectPack(undefined);
-    };
-
-    const referenceFromContext = (relativePath: string, pack: PackRowDataType): PackRowDataType['references'] => {
-        return pack.references.filter(ref => ref.relOrigin.endsWith(relativePath));
     };
 
     const allOrigins = React.useMemo(
@@ -225,11 +251,45 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
         });
     }, [state.packs, searchText]);
 
+    React.useEffect(() => {
+        if (!focusPackId || !state.packs || state.packs.length === 0) {
+            return;
+        }
+
+        const exactFocusPackId = normalizeExactPackId(focusPackId);
+        const focusedPack = state.packs.find(pack => normalizeExactPackId(pack.packId) === exactFocusPackId)
+            ?? state.packs.find(pack => normalizePackLookupId(pack.packId) === normalizePackLookupId(focusPackId));
+        if (!focusedPack) {
+            onFocusPackConsumed?.();
+            return;
+        }
+
+        const scrollToPackRow = () => {
+            const row = packsContainerRef.current?.querySelector(`tr[data-row-key="${focusedPack.key}"]`) as HTMLElement | null;
+            row?.scrollIntoView({ block: 'center' });
+        };
+
+        // Defer scrolling until the filtered table rows have been rendered.
+        window.requestAnimationFrame(() => {
+            scrollToPackRow();
+            onFocusPackConsumed?.();
+        });
+    }, [focusPackId, normalizeExactPackId, normalizePackLookupId, onFocusPackConsumed, state.packs]);
+
     const rowClassName = (record: PackRowDataType): string => {
         const relativePath = state.selectedTargetType?.relativePath || '';
-        const selectedInCurrentTarget = referenceFromContext(relativePath, record).length > 0;
+        const selectedReferences = record.references.filter(ref => ref.selected);
+        const selectedInCurrentTarget = selectedReferences.some(ref => ref.relOrigin.endsWith(relativePath));
+        const hasMissingReferences = record.references.some(ref => ref.missing);
 
-        return !selectedInCurrentTarget ? '' : 'ant-table-row-disabled';
+        const classes: string[] = [];
+        if (selectedReferences.length > 0 && !selectedInCurrentTarget) {
+            classes.push('ant-table-row-disabled');
+        }
+        if (hasMissingReferences) {
+            classes.push('packs-missing-row');
+        }
+        return classes.join(' ');
     };
 
     return (
@@ -262,7 +322,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
                     />
                 </Col>
             </Row >
-            <div className='packs-view-root'>
+            <div className='packs-view-root' ref={packsContainerRef}>
                 <Spin spinning={state.stateMessage !== undefined} tip={state.stateMessage} indicator={<LoadingOutlined spin={true} />} size='large'>
                     <Table<PackRowDataType>
                         tableLayout='auto'

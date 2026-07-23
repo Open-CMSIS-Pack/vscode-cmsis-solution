@@ -1,5 +1,46 @@
 # Change Log
 
+## 1.68.0
+
+Stable release including changes from the 1.67.x pre-release series.
+
+- Updates:
+  - The loading time of a CMSIS solution project has been decreased by decoupling the task to build the compilation database (compile_commands.json). While that task is running the build button can be pressed to run the build task. The extension will terminate the compilation database task and start the build task using the same terminal.
+  - In the packs display of the **Software Components** view, pack overview `.md` files are opened to the side in preview mode.
+
+- Solved issues:
+  - Fixed the orchestration of events when the build task triggers saving changed CMSIS YAML input files, including in the **Manage Solution** dialog (see VS Code setting "Task: Save Before Run").
+
+## 1.67.3
+
+- Updates:
+  - The extension uses the bundled [**CMSIS-Toolbox v2.14.1**](https://github.com/Open-CMSIS-Pack/cmsis-toolbox/releases/tag/2.14.1) exclusively, including for terminals within VS Code, ensuring feature alignment between the frontend and backend.
+  - The [**Configuration Wizard**](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#configuration-wizard) now supports file formats that use `;` for comments.
+
+- Solved issues:
+  - Fixed an issue where the **Software Components** view became empty after deleting a pack using `cpackget`, requiring a manual refresh.
+
+## 1.67.2
+
+- Updates:
+  - The `Help` entry in the **Views and More Actions...** menu of the [**CMSIS-View**](https://mdk-packs.github.io/vscode-cmsis-solution-docs/debug.html#cmsis-view) now opens the Keil Studio offline documentation from the Keil Studio Pack extension (v1.20.2 or later). If not available, the extension's README.md is shown instead.
+  - The loading time of a CMSIS project has been decreased by decoupling the process to build the compile_commands.json database. The build button turns into a "Stop" button while the process is running. The **clangd** extension starts indexing once the compile_commands.json files are ready.
+  - When closing a CMSIS Solution project before closing the folder, the Solution needs to be explicitly loaded when opening the folder the next time.
+  - Automatically showing the **CMSIS View** when the CMSIS Solution project was loaded can be disabled via the extension settings "Auto Show CMSIS View".
+  - **Software Components** offer links to [keil.arm.com](https://www.keil.arm.com/) displaying public packs, as well as 'Overview' and 'Version History' for specific packs.
+  - **CMSIS View** opens config files with [**Configuration Wizard**](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#configuration-wizard) annotations in Graphical "Preview" by default.
+  - Outdated CMSIS Component configuration files are now flagged with the 'N' file decorator. The (?), (!), and (x) project, group, component and file indicators have been removed. Outdated files are listed in the VS Code Problems view, and the merge utility can be opened for each file.
+  - **Experimental** support for [MLOps Management](https://open-cmsis-pack.github.io/cmsis-toolbox/Experimental-Features/#mlops-management) allowing decoupling of the application development from the ML model development while retaining consistency.
+  
+- Solved issues:
+  - **Software Components**: Software Packs view shows packs that are selected but could not be installed, and allows you to correct the pack selection via the 'Manage Pack' dialog.
+  - **CMSIS View** does not allow to remove files from a project layer.
+
+## 1.67.1
+
+- Updates:
+  - Reference Open-CMSIS-Pack organization for repository, issues and images
+
 ## 1.67.0
 
 - Updates:
@@ -14,8 +55,7 @@
   - **CMSIS View** does not load and display CMSIS Solution files without `projects:` node which is the case for debug only setups.
   - **Software Components** does not reliably open the initial view for the selected layer.
   - **Manage Solution** dialog target-type handling breaks in case the corresponding node is changed in `*.csolution.yml` on disk.
-  - `uVision option` in Debug Adapter for Keil uVision stores absolute filepath.
-  
+  - `uVision option` in Debug Adapter for Keil uVision stores absolute filepath.  
 
 ## 1.66.0
 

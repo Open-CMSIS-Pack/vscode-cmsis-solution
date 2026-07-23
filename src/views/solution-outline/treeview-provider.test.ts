@@ -18,7 +18,7 @@ jest.mock('vscode');
 
 import path from 'path';
 import * as vscode from 'vscode';
-import { createItemCommand } from './treeview-provider';
+import { createItemCommand, TreeViewProviderImpl } from './treeview-provider';
 import { COutlineItem } from './tree-structure/solution-outline-item';
 
 describe('createItemCommand', () => {
@@ -98,5 +98,30 @@ describe('createItemCommand', () => {
                 },
             ],
         });
+    });
+});
+
+describe('TreeViewProviderImpl tooltip rendering', () => {
+    it('uses markdown tooltip with theme icons enabled when tooltip text is available', () => {
+        const provider = new TreeViewProviderImpl<COutlineItem>('cmsis.test');
+        const node = new COutlineItem('file');
+        node.setAttribute('label', 'node');
+        node.setAttribute('tooltip', 'tooltip with $(link-external)');
+
+        const treeItem = provider.getTreeItem(node);
+        const tooltip = treeItem.tooltip as vscode.MarkdownString;
+
+        expect(String(tooltip)).toBe('tooltip with $(link-external)');
+        expect(tooltip.supportThemeIcons).toBe(true);
+    });
+
+    it('does not set a tooltip when tooltip text is missing', () => {
+        const provider = new TreeViewProviderImpl<COutlineItem>('cmsis.test');
+        const node = new COutlineItem('file');
+        node.setAttribute('label', 'node');
+
+        const treeItem = provider.getTreeItem(node);
+
+        expect(treeItem.tooltip).toBeUndefined();
     });
 });

@@ -30,6 +30,7 @@ import { ProjectsTable } from './projects-table';
 import { TargetsTable } from './targets-table';
 import { PathType } from '../../types';
 import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
+import { useDisableContextMenu } from '../../../hooks/use-disable-context-menu';
 
 export interface ManageSolutionProps {
     messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>;
@@ -49,6 +50,8 @@ type SelectFileContext = {
     defaultUri?: string;
     pathType?: PathType;
 };
+
+export const manageSolutionTargetDocsUrl = 'https://mdk-packs.github.io/vscode-cmsis-solution-docs/manage_settings.html';
 
 export const ManageSolution = (props: ManageSolutionProps) => {
     const [state, dispatch] = React.useReducer(manageSolutionReducer, initialState);
@@ -76,6 +79,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
     }, []);
 
     const isDarkTheme = useVSCodeTheme();
+    useDisableContextMenu();
 
     React.useEffect(() => {
         props.messageHandler.push({ type: 'GET_CONTEXT_SELECTION_DATA' });
@@ -84,7 +88,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
     }, [props.messageHandler]);
 
     const openFile = React.useCallback(
-        (path: string) => props.messageHandler.push({ type: 'OPEN_FILE', path }),
+        (path: string, external?: boolean) => props.messageHandler.push({ type: 'OPEN_FILE', path, external }),
         [props.messageHandler]
     );
 
@@ -154,10 +158,6 @@ export const ManageSolution = (props: ManageSolutionProps) => {
         props.messageHandler.push({ type: 'SET_DEBUGGER', name });
     }, [props.messageHandler]);
 
-    const clickSave = React.useCallback(() => {
-        props.messageHandler.push({ type: 'SAVE_CONTEXT_SELECTION' });
-    }, [props.messageHandler]);
-
     const changeAutoUpdate = React.useCallback((e: CheckboxChangeEvent) => {
         props.messageHandler.push({ type: 'SET_AUTO_UPDATE', value: e.target.checked });
         dispatch({ type: 'INCOMING_MESSAGE', message: { type: 'AUTO_UPDATE', data: e.target.checked } });
@@ -168,11 +168,6 @@ export const ManageSolution = (props: ManageSolutionProps) => {
             ?.find(({ name }) => name === (state.solutionData.selectedTarget?.selectedSet || ''))
             ?.debugger as GenericPropertyList || {}
     ), [state.solutionData.selectedTarget?.targetSets, state.solutionData.selectedTarget?.selectedSet]);
-
-    const openHelp = React.useCallback(
-        () => props.messageHandler.push({ type: 'OPEN_HELP' }),
-        [props.messageHandler]
-    );
 
     // Generic getter (stable, no deps needed as it does not capture changing values directly)
     const getProperty = React.useCallback(function getProperty<T>(defaultValue: T | undefined, obj: Record<string, unknown>, ...keys: (string | unknown)[]): T | undefined {
@@ -279,6 +274,23 @@ export const ManageSolution = (props: ManageSolutionProps) => {
     }, [adapter, selectedDebugAdapter, getProperty, getScaledProperty, keyFor]);
 
     const showCoreSelector = state.solutionData.availableCoreNames !== undefined && state.solutionData.availableCoreNames.length > 1;
+    const debugAdapterConfigurationDocsUrl = 'https://mdk-packs.github.io/vscode-cmsis-solution-docs/debug.html#configure-run-and-debug';
+    const externalLink = (link: string, aria: string, external?: boolean): React.JSX.Element => {
+        return (<Button
+            color="default"
+            variant="link"
+            style={{ padding: '0px 12px' }}
+            title={link}
+            aria-label={aria}
+            onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openFile(link, external);
+            }}
+        >
+            <CmsisCodicon name='link-external' style={{ fontSize: '1em', display: 'inline' }} />
+        </Button>);
+    };
 
     return (
         <React.StrictMode>
@@ -292,17 +304,13 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                     },
                     token: { fontSize: 13, sizeStep: 4, borderRadius: 3 }
                 }}>
-                    <section className='stickyHeader'>
-                        <Button disabled={!state.isDirty} style={{ minWidth: '100px' }} type='primary' onClick={clickSave} className='save-button'>Save</Button>
-                    </section>
-
                     <Spin spinning={state.busy} indicator={<LoadingOutlined spin={true} />} size='large'>
                         <section className="manage-solution-section">
 
                             <section className="targets-section">
                                 <div className='manage-solution-header'>
-                                    <h3>Active Target</h3>
-                                    <a onClick={() => openHelp()} title="Active Target" className="codicon codicon-link-external codicon-fix-size-sub"></a>
+                                    <h3>Manage Solution Target</h3>
+                                    {externalLink(manageSolutionTargetDocsUrl, 'Manage Solution Target', true)}
                                 </div>
                                 <div>
                                     Select target for build, load, and debug. The Target
@@ -319,7 +327,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                             <section className="projects-section">
                                 <div className='manage-solution-header'>
                                     <h3>Projects and Images for Target {state.solutionData.selectedTarget?.name}{state.solutionData.selectedTarget?.selectedSet && `@${state.solutionData.selectedTarget?.selectedSet}`}</h3>
-                                    <a title="Configure Related Projects" href="https://open-cmsis-pack.github.io/cmsis-toolbox/build-overview/#configure-related-projects" className="codicon codicon-link-external codicon-fix-size-sub"></a>
+                                    {externalLink('https://open-cmsis-pack.github.io/cmsis-toolbox/build-overview/#configure-related-projects', 'Configure Related Projects', true)}
                                 </div>
                                 <ProjectsTable
                                     projects={state.solutionData.projects}
@@ -336,7 +344,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                             <section className="debug-adapter">
                                 <div className='manage-solution-header'>
                                     <h3>Debug Adapter for Target {state.solutionData.selectedTarget?.name}{state.solutionData.selectedTarget?.selectedSet && `@${state.solutionData.selectedTarget?.selectedSet}`}</h3>
-                                    <a title="Debugger Configuration" href="https://open-cmsis-pack.github.io/cmsis-toolbox/YML-Input-Format/#debugger-configuration" className="codicon codicon-link-external codicon-fix-size-sub"></a>
+                                    {externalLink(debugAdapterConfigurationDocsUrl, 'Debug Adapter Configuration', true)}
                                 </div>
 
                                 <table>

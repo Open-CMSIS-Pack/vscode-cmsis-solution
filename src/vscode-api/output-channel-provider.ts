@@ -27,9 +27,12 @@ export class OutputChannelProviderImpl implements OutputChannelProvider {
     constructor(private readonly extensionContext: Pick<ExtensionContext, 'subscriptions'>) {}
 
     getOrCreate(name: string): OutputChannel {
-        const channel = this.channelsByName.get(name) ?? vscode.window.createOutputChannel(name);
-        this.channelsByName.set(name, channel);
-        this.extensionContext.subscriptions.push(channel);
+        let channel = this.channelsByName.get(name);
+        if (!channel) {
+            channel = vscode.window.createOutputChannel(name);
+            this.channelsByName.set(name, channel);
+            this.extensionContext.subscriptions.push(channel);
+        }
         return channel;
     }
 }

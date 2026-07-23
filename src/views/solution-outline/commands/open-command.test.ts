@@ -79,7 +79,7 @@ describe('OpenCommand', () => {
 
         await commandsProvider.mockRunRegistered(OpenCommand.openSolutionCommandId, solutionPath);
 
-        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(solutionPath));
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(solutionPath), { viewColumn: vscode.ViewColumn.Active });
     });
 
     it('opens and shows the cproject file from the path', async () => {
@@ -94,7 +94,7 @@ describe('OpenCommand', () => {
 
         await commandsProvider.mockRunRegistered(OpenCommand.openProjectCommandId, fileItem);
 
-        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_PROJECT_PATH));
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_PROJECT_PATH), { viewColumn: vscode.ViewColumn.Active });
     });
 
     it('opens and shows the clayer file from the path', async () => {
@@ -109,7 +109,7 @@ describe('OpenCommand', () => {
 
         await commandsProvider.mockRunRegistered(OpenCommand.openLayerCommandId, layerFile);
 
-        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_LAYER_PATH));
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_LAYER_PATH), { viewColumn: vscode.ViewColumn.Active });
     });
 
     it('opens and shows the linker map file from the path', async () => {
@@ -124,7 +124,7 @@ describe('OpenCommand', () => {
 
         await commandsProvider.mockRunRegistered(OpenCommand.openLinkerCommandId, linkerMapFile);
 
-        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_LINKER_PATH));
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_LINKER_PATH), { viewColumn: vscode.ViewColumn.Active });
     });
 
     it('opens and shows the prj.conf file for West project', async () => {
@@ -139,7 +139,7 @@ describe('OpenCommand', () => {
 
         await commandsProvider.mockRunRegistered(OpenCommand.openPrjConfCommandId, prjConfFile);
 
-        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_PRJ_CONF_PATH));
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_PRJ_CONF_PATH), { viewColumn: vscode.ViewColumn.Active });
     });
 
     it('opens and shows a doc file from the path', async () => {
@@ -248,56 +248,88 @@ describe('OpenCommand', () => {
         expect(mockTerminal.show).toHaveBeenCalled();
     });
 
-    it('opens candidate source file in configuration wizard when annotations are found', async () => {
-        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
-        await openCommand.activate(extensionContextFactory());
-        (mockAnnotationChecker.hasAnnotations as jest.Mock).mockResolvedValue(true);
+    describe('openSourceFileSmart', () => {
+        describe('annotation-driven routing', () => {
+            it('opens file in configuration wizard when annotations are found', async () => {
+                const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+                await openCommand.activate(extensionContextFactory());
+                (mockAnnotationChecker.hasAnnotations as jest.Mock).mockResolvedValue(true);
 
-        const uri = Uri.file(path.join(testFolder, 'config.h'));
-        await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
+                const uri = Uri.file(path.join(testFolder, 'config.h'));
+                await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
 
-        const lastCall = commandsProvider.executeCommand.mock.lastCall;
-        expect(lastCall?.[0]).toBe('vscode.openWith');
-        expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
-        expect(lastCall?.[2]).toBe('cmsis-csolution.configWizard');
-    });
+                const lastCall = commandsProvider.executeCommand.mock.lastCall;
+                expect(lastCall?.[0]).toBe('vscode.openWith');
+                expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+                expect(lastCall?.[2]).toBe('cmsis-csolution.configWizard');
+            });
 
-    it('opens candidate source file in text editor when annotations are missing', async () => {
-        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
-        await openCommand.activate(extensionContextFactory());
-        (mockAnnotationChecker.hasAnnotations as jest.Mock).mockResolvedValue(false);
+            it('opens file in text editor when annotations are missing', async () => {
+                const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+                await openCommand.activate(extensionContextFactory());
+                (mockAnnotationChecker.hasAnnotations as jest.Mock).mockResolvedValue(false);
 
-        const uri = Uri.file(path.join(testFolder, 'config.h'));
-        await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
+                const uri = Uri.file(path.join(testFolder, 'config.h'));
+                await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
 
-        const lastCall = commandsProvider.executeCommand.mock.lastCall;
-        expect(lastCall?.[0]).toBe('vscode.open');
-        expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
-    });
+                const lastCall = commandsProvider.executeCommand.mock.lastCall;
+                expect(lastCall?.[0]).toBe('vscode.open');
+                expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+                expect(lastCall?.[2]).toEqual({ viewColumn: vscode.ViewColumn.Active });
+            });
 
-    it('falls back to text editor when annotation detection fails', async () => {
-        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
-        await openCommand.activate(extensionContextFactory());
-        (mockAnnotationChecker.hasAnnotations as jest.Mock).mockRejectedValue(new Error('parse failure'));
+            it('falls back to text editor when annotation detection fails', async () => {
+                const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+                await openCommand.activate(extensionContextFactory());
+                (mockAnnotationChecker.hasAnnotations as jest.Mock).mockRejectedValue(new Error('parse failure'));
 
-        const uri = Uri.file(path.join(testFolder, 'config.h'));
-        await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
+                const uri = Uri.file(path.join(testFolder, 'config.h'));
+                await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
 
-        const lastCall = commandsProvider.executeCommand.mock.lastCall;
-        expect(lastCall?.[0]).toBe('vscode.open');
-        expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
-    });
+                const lastCall = commandsProvider.executeCommand.mock.lastCall;
+                expect(lastCall?.[0]).toBe('vscode.open');
+                expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+                expect(lastCall?.[2]).toEqual({ viewColumn: vscode.ViewColumn.Active });
+            });
+        });
 
-    it('opens non-candidate source file in text editor without annotation checks', async () => {
-        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
-        await openCommand.activate(extensionContextFactory());
+        describe('file type handling', () => {
+            it('does not check annotations for unsupported file extensions', async () => {
+                const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+                await openCommand.activate(extensionContextFactory());
 
-        const uri = Uri.file(path.join(testFolder, 'build.txt'));
-        await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
+                const uri = Uri.file(path.join(testFolder, 'build.txt'));
+                await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
 
-        expect(mockAnnotationChecker.hasAnnotations).not.toHaveBeenCalled();
-        const lastCall = commandsProvider.executeCommand.mock.lastCall;
-        expect(lastCall?.[0]).toBe('vscode.open');
-        expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+                expect(mockAnnotationChecker.hasAnnotations).not.toHaveBeenCalled();
+                const lastCall = commandsProvider.executeCommand.mock.lastCall;
+                expect(lastCall?.[0]).toBe('vscode.open');
+                expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+                expect(lastCall?.[2]).toEqual({ viewColumn: vscode.ViewColumn.Active });
+            });
+
+            it.each([
+                'config.h',
+                'source.c',
+                'source.cpp',
+                'settings.dbgconf',
+                'startup.s',
+                'startup.S',
+                'scatter.sct',
+            ])('opens candidate extension %s in configuration wizard when annotations exist', async fileName => {
+                const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+                await openCommand.activate(extensionContextFactory());
+                (mockAnnotationChecker.hasAnnotations as jest.Mock).mockResolvedValue(true);
+
+                const uri = Uri.file(path.join(testFolder, fileName));
+                await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
+
+                expect(mockAnnotationChecker.hasAnnotations).toHaveBeenCalledWith(uri.fsPath);
+                const lastCall = commandsProvider.executeCommand.mock.lastCall;
+                expect(lastCall?.[0]).toBe('vscode.openWith');
+                expect((lastCall?.[1] as Uri).fsPath).toBe(uri.fsPath);
+                expect(lastCall?.[2]).toBe('cmsis-csolution.configWizard');
+            });
+        });
     });
 });

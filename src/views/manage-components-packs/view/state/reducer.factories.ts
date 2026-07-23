@@ -56,6 +56,7 @@ export const manageComponentsStateFactory = (options?: ManageComponentsStateFact
         selectedTargetType: otherOptions.selectedTargetType ?? otherOptions.availableTargetTypes?.[0] ?? undefined,
         unlilnkRequestStack: otherOptions.unlilnkRequestStack ?? [],
         availablePacks: otherOptions.availablePacks ?? {},
+        availablePacksIndexCurrent: otherOptions.availablePacksIndexCurrent ?? false,
         ...otherOptions,
     };
 };

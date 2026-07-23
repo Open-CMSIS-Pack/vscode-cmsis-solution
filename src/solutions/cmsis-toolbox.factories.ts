@@ -21,20 +21,22 @@ export type MockCmsisToolboxManager =
     jest.Mocked<Omit<CmsisToolboxManager, 'onRunCmsisTool'>> &
     {
         onRunCmsisTool: CmsisToolboxManager['onRunCmsisTool']
-        mockTriggerOnRunCmsisTool: (start: boolean, packs: boolean) => void
+        mockTriggerOnRunCmsisTool: (start: boolean, packs?: boolean, cbuildSetup?: boolean) => void
     }
 
 export const cmsisToolboxManagerFactory = (): MockCmsisToolboxManager => {
-    const onRunCmsisToolEventEmitter = new vscode.EventEmitter<[boolean, boolean?]>();
+    const onRunCmsisToolEventEmitter = new vscode.EventEmitter<[boolean, boolean?, boolean?]>();
     return {
         runCmsisTool: jest.fn().mockResolvedValue([0, undefined]),
         runCsolutionRpc: jest.fn().mockResolvedValue({ success: true }),
         isRunning: jest.fn(),
+        suspendPackReload: jest.fn(),
+        resumePackReload: jest.fn(),
         collectSetupMessages: jest.fn(),
         getSetupMessages: jest.fn(),
         onRunCmsisTool: onRunCmsisToolEventEmitter.event,
-        mockTriggerOnRunCmsisTool: (start: boolean, packs: boolean) => {
-            onRunCmsisToolEventEmitter.fire([start, packs]);
+        mockTriggerOnRunCmsisTool: (start: boolean, packs?: boolean, cbuildSetup?: boolean) => {
+            onRunCmsisToolEventEmitter.fire([start, packs, cbuildSetup]);
         },
         activate: jest.fn(),
     };

@@ -83,7 +83,7 @@ describe('MergeCommand', () => {
 
         commandsProvider = commandsProviderFactory();
         mergeSessionCoordinator = {
-            activate: jest.fn().mockResolvedValue(),
+            activate: jest.fn().mockResolvedValue(undefined),
             onMergeApplied: jest.fn().mockReturnValue({ dispose: jest.fn() }),
             startSession: jest.fn(),
             cancelSession: jest.fn(),

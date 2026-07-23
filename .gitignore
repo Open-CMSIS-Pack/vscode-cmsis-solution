@@ -43,3 +43,4 @@ tools
 guide
 schemas
 src/json-rpc/interface/*
+.cmsis-dev

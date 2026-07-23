@@ -31,7 +31,7 @@
         "name": "async-mutex",
         "version": "0.5.0",
         "spdx": "MIT",
-        "url": "https://https://github.com/DirtyHairy/async-mutex",
+        "url": "https://github.com/DirtyHairy/async-mutex",
         "license": "https://github.com/DirtyHairy/async-mutex/blob/master/LICENSE"
     },
     {
@@ -148,7 +148,7 @@
     },
     {
         "name": "yaml",
-        "version": "2.8.2",
+        "version": "2.9.0",
         "spdx": "ISC",
         "url": "https://github.com/eemeli/yaml",
         "license": "https://github.com/eemeli/yaml/blob/main/LICENSE"
@@ -232,7 +232,7 @@
     },
     {
         "name": "tmp",
-        "version": "0.2.5",
+        "version": "0.2.7",
         "spdx": "MIT",
         "url": "https://github.com/raszi/node-tmp",
         "license": "https://github.com/raszi/node-tmp/blob/master/LICENSE"

@@ -23,7 +23,7 @@ export interface ConfigWizardAnnotationChecker {
 
 class ConfigWizardAnnotationCheckerImpl implements ConfigWizardAnnotationChecker {
     private static readonly MAX_LINES_TO_SCAN = 100;
-    private static readonly wizardStartMarkerRegex = /^\s*\/\/.*<<<\s*use configuration wizard in context menu\s*>>>.*$/i;
+    private static readonly wizardStartMarkerRegex = /^\s*(?:\/\/|;).*<<<\s*use configuration wizard in context menu\s*>>>.*$/i;
 
     public async hasAnnotations(filePath: string): Promise<boolean> {
         if (!fs.existsSync(filePath)) {

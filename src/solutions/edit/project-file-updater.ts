@@ -70,22 +70,24 @@ export class ProjectFileUpdaterImpl implements ProjectFileUpdater {
         if (await this.updateUsedItemsInYmlFile(projectFile, usedItems, true)) {
             changed = true;
         }
-        if (await this.updateAllLayerFiles(csolution.clayerYmlRoot, usedItems)) {
+        if (await this.updateLayerFiles(csolution.getClayersForContext(context), usedItems)) {
             changed = true;
         }
         return changed;
     }
 
-    // Extracted: update all layer files
-    private async updateAllLayerFiles(clayerYmlRoot: Map<string, CTreeItem>, usedItems: UsedItems): Promise<boolean> {
+    // Update layer files belonging to the supplied context
+    private async updateLayerFiles(clayers: CTreeItem[], usedItems: UsedItems): Promise<boolean> {
         let changed = false;
-        for (const [key] of clayerYmlRoot) {
-            const fileName = backToForwardSlashes(path.resolve(key));
-            if (fileName.endsWith('.cgen.yml') || fileName.endsWith('.cgen.yaml')) {
-                continue;
-            }
-            if (await this.updateUsedItemsInYmlFile(fileName, usedItems, true, true)) {
-                changed = true;
+        if (clayers && clayers.length > 0) {
+            for (const layer of clayers) {
+                const fileName = backToForwardSlashes(path.resolve(layer.rootFileName));
+                if (fileName.endsWith('.cgen.yml') || fileName.endsWith('.cgen.yaml')) {
+                    continue;
+                }
+                if (await this.updateUsedItemsInYmlFile(fileName, usedItems, true, true)) {
+                    changed = true;
+                }
             }
         }
         return changed;
@@ -103,26 +105,26 @@ export class ProjectFileUpdaterImpl implements ProjectFileUpdater {
         }
         if (updateComponents) {
             const layerFile = layer ? fileName : undefined;
-            const components = top.createChild('components', true); // ensure components item exists
-            this.removeUnusedComponents(components, usedItems.components, layerFile);
-            this.addOrUpdateComponents(components, usedItems.components, layerFile);
-            this.cleanupEmptyNode(components);
+            const componentsItem = top.createChild('components', true); // ensure components item exists
+            this.removeUnusedComponents(componentsItem, usedItems.components, layerFile);
+            this.addOrUpdateComponents(componentsItem, usedItems.components, layerFile);
+            this.cleanupEmptyNode(componentsItem);
         }
 
-        const packs = top.createChild('packs', true); // ensure packs item exists
-        this.removeUnusedPacks(packs, usedItems.packs);
-        this.addPacks(packs, usedItems.packs);
-        this.cleanupEmptyNode(packs);
+        const packsItem = top.createChild('packs', true); // ensure packs item exists
+        this.removeUnusedPacks(packsItem, usedItems.packs);
+        this.addPacks(packsItem, usedItems.packs);
+        this.cleanupEmptyNode(packsItem);
 
         const res = await ymlFile.save();
         return res === ETextFileResult.Success;
     }
 
     // Remove components not in usedItems
-    private removeUnusedComponents(components: CTreeItem, usedComponents: ComponentInstance[], layerFile?: string) {
-        for (const c of components.getChildren()) {
+    private removeUnusedComponents(componentsItem: CTreeItem, usedComponents: ComponentInstance[], layerFile?: string) {
+        for (const c of componentsItem.getChildren()) {
             if (!this.isComponentUsed(c, usedComponents, layerFile)) {
-                components.removeChild(c);
+                componentsItem.removeChild(c);
             }
         }
     }
@@ -149,7 +151,7 @@ export class ProjectFileUpdaterImpl implements ProjectFileUpdater {
     }
 
     // Add or update components from usedItems
-    private addOrUpdateComponents(components: CTreeItem, usedComponents: ComponentInstance[], layerFile?: string) {
+    private addOrUpdateComponents(componentsItem: CTreeItem, usedComponents: ComponentInstance[], layerFile?: string) {
         for (const ci of usedComponents) {
             if (!pathsEqual(ci.options?.layer, layerFile)) {
                 continue;
@@ -171,7 +173,7 @@ export class ProjectFileUpdaterImpl implements ProjectFileUpdater {
                 id = stripVendor(id);
             }
 
-            const c = this.ensureEntry(components, 'component', id, true);
+            const c = this.ensureEntry(componentsItem, 'component', id, true);
             c.setValue('component', id);
             if (ci.selectedCount && ci.selectedCount > 1) {
                 c.setValue('instances', ci.selectedCount.toString());
@@ -182,12 +184,12 @@ export class ProjectFileUpdaterImpl implements ProjectFileUpdater {
     }
 
     // Add packs from usedItems
-    private addPacks(packs: CTreeItem, usedPacks: PackReference[]) {
-        const filename = packs.rootFileName;
-        const fileDir = packs.rootFileDir;
+    private addPacks(packsItem: CTreeItem, usedPacks: PackReference[]) {
+        const filename = packsItem.rootFileName;
+        const fileDir = packsItem.rootFileDir;
         for (const ref of usedPacks) {
             if (ref.selected && pathsEqual(filename, ref.origin)) {
-                const entry = this.ensureEntry(packs, 'pack', ref.pack, false);
+                const entry = this.ensureEntry(packsItem, 'pack', ref.pack, false);
                 if (ref.path) {
                     let packPack = path.resolve(fileDir, ref.path);
                     packPack = backToForwardSlashes(path.relative(fileDir, packPack));
@@ -200,10 +202,10 @@ export class ProjectFileUpdaterImpl implements ProjectFileUpdater {
     }
 
     // Remove packs not in usedItems if all components are in the same context
-    private removeUnusedPacks(packs: CTreeItem, usedPacks: PackReference[]) {
-        for (const p of packs.getChildren()) {
+    private removeUnusedPacks(packsItem: CTreeItem, usedPacks: PackReference[]) {
+        for (const p of packsItem.getChildren()) {
             if (!this.isPackUsed(p, usedPacks)) {
-                packs.removeChild(p);
+                packsItem.removeChild(p);
             }
         }
     }

@@ -21,6 +21,7 @@ import { CSolution } from './csolution';
 import { ETextFileResult } from '../generic/text-file';
 import { CTreeItem } from '../generic/tree-item';
 import { parseYamlToCTreeItem } from '../generic/tree-item-yaml-parser';
+import { CProjectYamlFile } from './files/cproject-yaml-file';
 
 describe('CSolution', () => {
     const testDataHandler = new TestDataHandler();
@@ -76,8 +77,8 @@ describe('CSolution', () => {
         loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Unchanged);
         expect(csolution.solutionPath).toEqual(fileName);
-        expect(csolution.cbuildIdxYmlRoot?.getChild()).toEqual(undefined);
-        expect(csolution.cbuildYmlRoot.size).toEqual(0);
+        expect(csolution.cbuildIdxYmlRoot?.getChild()).toBeDefined();
+        expect(csolution.cbuildYmlRoot.size).toEqual(1);
 
         const content = csolution.csolutionYml.text.trim(); // avoid whitespace noise
         expect(content).toContain('projects');
@@ -619,6 +620,139 @@ describe('CSolution', () => {
 
                 expect(csolution.getDefaultTargetTypeItem).toHaveBeenCalled();
             });
+        });
+    });
+
+    describe('hasWestProject', () => {
+        let csolution: CSolution;
+
+        beforeEach(() => {
+            csolution = new CSolution();
+            csolution.projects.clear();
+        });
+
+        it('returns true when at least one project is West', () => {
+            const westProject = { projectType: 'West' } as CProjectYamlFile;
+            const regularProject = { projectType: 'library' } as CProjectYamlFile;
+            csolution.projects.set('west', westProject);
+            csolution.projects.set('lib', regularProject);
+
+            expect(csolution.hasWestProject()).toBe(true);
+        });
+
+        it('returns false when no projects are West', () => {
+            const libProject = { projectType: 'library' } as CProjectYamlFile;
+            const exeProject = { projectType: 'executable' } as CProjectYamlFile;
+            csolution.projects.set('lib', libProject);
+            csolution.projects.set('exe', exeProject);
+
+            expect(csolution.hasWestProject()).toBe(false);
+        });
+
+        it('returns false when there are no projects', () => {
+            expect(csolution.hasWestProject()).toBe(false);
+        });
+    });
+
+    describe('getSolutionYmlFiles', () => {
+        it('returns empty list when no solution is loaded', () => {
+            const csolution = new CSolution();
+            const files = csolution.getSolutionYmlFiles();
+            expect(files).toEqual([]);
+        });
+
+        it('returns solution path, project paths, and layer paths', async () => {
+            const csolution = new CSolution();
+            const fileName = path.join(testDataHandler.tmpDir, 'solutions', 'USBD', 'USB_Device.csolution.yml');
+
+            await csolution.load(fileName);
+
+            const files = csolution.getSolutionYmlFiles();
+
+            // Should contain the solution path
+            expect(files).toContain(fileName);
+
+            // Should contain all project paths
+            const projectPaths = Array.from(csolution.projects.values())
+                .map(p => p.fileName)
+                .filter(f => f !== undefined);
+            projectPaths.forEach(projectPath => {
+                expect(files).toContain(projectPath);
+            });
+
+            // Should contain all layer paths
+            const layerPaths = Array.from(csolution.clayerYmlRoot.keys());
+            layerPaths.forEach(layerPath => {
+                expect(files).toContain(layerPath);
+            });
+
+            // Verify counts: 1 solution + 3 projects + 2 layers = 6 files
+            expect(files).toHaveLength(6);
+        });
+
+        it('returns solution path and project paths without layers when no layers exist', async () => {
+            const csolution = new CSolution();
+            const fileName = path.join(testDataHandler.tmpDir, 'solutions', 'simple', 'test.csolution.yml');
+
+            await csolution.load(fileName);
+
+            const files = csolution.getSolutionYmlFiles();
+
+            // Should contain the solution path
+            expect(files).toContain(fileName);
+
+            // Should contain project path
+            const projectPaths = Array.from(csolution.projects.values())
+                .map(p => p.fileName)
+                .filter(f => f !== undefined);
+            projectPaths.forEach(projectPath => {
+                expect(files).toContain(projectPath);
+            });
+
+            // Should contain all layer paths
+            const layerPaths = Array.from(csolution.clayerYmlRoot.keys());
+            layerPaths.forEach(layerPath => {
+                expect(files).toContain(layerPath);
+            });
+
+            expect(files).toHaveLength(1 + projectPaths.length + layerPaths.length);
+        });
+    });
+
+    describe('getUsedDbgconfFiles', () => {
+        it('returns empty list when no solution is loaded', () => {
+            const csolution = new CSolution();
+
+            expect(csolution.getUsedDbgconfFiles()).toEqual([]);
+        });
+
+        it('returns deduplicated absolute dbgconf paths from cbuild files', async () => {
+            const csolution = new CSolution();
+            const fileName = path.join(testDataHandler.tmpDir, 'solutions', 'WestSupport', 'solution.csolution.yml');
+
+            await csolution.load(fileName);
+
+            expect(csolution.getUsedDbgconfFiles()).toEqual([
+                path.join(testDataHandler.tmpDir, 'solutions', 'WestSupport', '.cmsis', 'solution+CM0.dbgconf'),
+            ]);
+        });
+
+        it('returns all dbgconf file entries from a cbuild file', () => {
+            const csolution = new CSolution();
+            const cbuildPath = path.join(testDataHandler.tmpDir, 'solutions', 'multiple-dbgconf.cbuild.yml');
+            csolution.cbuildYmlRoot.set(cbuildPath, parseYamlToCTreeItem(YAML.stringify({
+                build: {
+                    dbgconf: [
+                        { file: 'first.dbgconf' },
+                        { file: 'debug/second.dbgconf' },
+                    ],
+                },
+            }), cbuildPath) as CTreeItem);
+
+            expect(csolution.getUsedDbgconfFiles()).toEqual([
+                path.join(testDataHandler.tmpDir, 'solutions', 'first.dbgconf'),
+                path.join(testDataHandler.tmpDir, 'solutions', 'debug', 'second.dbgconf'),
+            ]);
         });
     });
 });

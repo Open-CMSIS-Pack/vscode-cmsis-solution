@@ -36,6 +36,7 @@ export class StatusBar {
     public static readonly commandType = `${manifest.PACKAGE_NAME}.showContextSelection`;
     private statusBarItemIcon = '$(target)';
     private cbuildSetupStatus = ECbuildSetupStatus.Idle;
+    private operationStatusBarItem: vscode.StatusBarItem | undefined;
 
     public constructor(
         protected readonly solutionManager: SolutionManager,
@@ -49,12 +50,17 @@ export class StatusBar {
         statusBarItem.command = StatusBar.commandType;
         statusBarItem.text = '$(sync~spin) Loading Solution...';
 
+        // Create separate status bar item on the right for cbuild setup indication
+        this.operationStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+        this.operationStatusBarItem.name = 'CMSIS Setup';
+
         context.subscriptions.push(
             vscode.commands.registerCommand(StatusBar.commandType, () => this.runOnClick()),
-            this.cmsisToolboxManager.onRunCmsisTool(([start, packs]) => this.updateIconStatus(statusBarItem, start, packs)),
+            this.cmsisToolboxManager.onRunCmsisTool(([start, packs, cbuildSetup]) => this.updateIconStatus(statusBarItem, start, packs, cbuildSetup)),
             this.solutionManager.onDidSetupCompleted(([severity, detection]) => this.updateCbuildSetupStatus(statusBarItem, severity, detection)),
             this.solutionManager.onDidChangeLoadState((event) => this.handleLoadStateChange(statusBarItem, event)),
             statusBarItem,
+            this.operationStatusBarItem,
         );
     }
 
@@ -80,7 +86,16 @@ export class StatusBar {
     protected updateContext(contextItem: vscode.StatusBarItem): void {
         if (this.cbuildSetupStatus !== ECbuildSetupStatus.Idle) {
             const csolution = this.solutionManager.getCsolution();
-            const activeTargetType = csolution?.getActiveTargetSetName() ?? csolution?.getActiveTargetType();
+            if (!csolution) {
+                // can happen when closing solution being converted/built
+                // solution is already unloaded
+                contextItem.text = '';
+                contextItem.tooltip = '';
+                contextItem.hide();
+                return;
+            }
+
+            const activeTargetType = csolution.getActiveTargetSetName() ?? csolution.getActiveTargetType();
             if (activeTargetType) {
                 contextItem.text = `${this.statusBarItemIcon} ${activeTargetType}`;
                 contextItem.show();
@@ -110,13 +125,17 @@ export class StatusBar {
         return ` - ${context.projectName}${build}\n`;
     }
 
-    protected updateIconStatus(statusBarItem: vscode.StatusBarItem, start: boolean, packs?: boolean): void {
+    protected updateIconStatus(statusBarItem: vscode.StatusBarItem, start: boolean, packs?: boolean, cbuildSetup?: boolean): void {
         // Animation from: https://code.visualstudio.com/api/references/icons-in-labels
         this.statusBarItemIcon = start ? '$(sync~spin)' : '$(target)';
-        if (packs) {
+        if (cbuildSetup) {
+            this.operationStatusBarItem!.text = `${this.statusBarItemIcon} Building Compilation Database...`;
+            this.operationStatusBarItem!.show();
+        } else if (packs) {
             statusBarItem.text = `${this.statusBarItemIcon} Downloading Packs...`;
             statusBarItem.show();
         } else {
+            this.operationStatusBarItem!.hide();
             this.updateContext(statusBarItem);
         }
     }
@@ -129,6 +148,8 @@ export class StatusBar {
 
     protected updateCbuildSetupStatus(statusBarItem: vscode.StatusBarItem, severity: Severity, detection: boolean) {
         this.retrieveCbuildSetupStatus(severity, detection);
+        // Hide the setup operation status item when setup completes
+        this.operationStatusBarItem!.hide();
         // Color references from: https://code.visualstudio.com/api/references/theme-color#status-bar-colors
         const color = this.cbuildSetupStatus === ECbuildSetupStatus.Error ? 'statusBarItem.errorBackground' :
             this.cbuildSetupStatus === ECbuildSetupStatus.Warning ? 'statusBarItem.warningBackground' : 'statusBarItem.background';

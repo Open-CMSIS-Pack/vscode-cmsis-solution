@@ -6,5 +6,8 @@ project:
     - component: CORE
   groups:
     - group: Sources
-      files: 
+      files:
         - file: main.c
+  layers:
+    - layer: ./Board.clayer.yml
+      type: Board

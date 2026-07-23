@@ -16,8 +16,16 @@
 
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { MANAGE_COMPONENTS_PACKS_COMMAND_ID, MERGE_FILE_COMMAND_ID, RUN_GENERATOR_COMMAND_ID } from '../manifest';
+import {
+    CONFIG_ENVIRONMENT_VARIABLES,
+    MANAGE_COMPONENTS_PACKS_COMMAND_ID,
+    MERGE_FILE_COMMAND_ID,
+    OPEN_ENV_VAR_SETTINGS_COMMAND_ID,
+    PACKAGE_NAME,
+    RUN_GENERATOR_COMMAND_ID,
+} from '../manifest';
 import { stripVendor, stripVersion } from '../utils/string-utils';
+import { contextDescriptorFromString } from './descriptors/descriptors';
 
 
 type MergeUpdateLevel =  'recommended' | 'suggested' | 'required';
@@ -45,9 +53,18 @@ export interface ProblemDiagnosticActionResult {
 
 type ProblemActionDescriptor =
     | { kind: 'merge'; localPath: string; updateLevel: MergeUpdateLevel; componentId?: string }
-    | { kind: 'run-generator'; generator: string; context: string }
+    | { kind: 'run-generator'; generator: string; activeTarget: string }
     | { kind: 'manage-components'; query: string }
+    | { kind: 'manage-pack'; packId: string }
+    | { kind: 'open-environment-variables-settings' }
     | { kind: 'find-in-files'; query: string };
+
+const envVarSettingName = `${PACKAGE_NAME}.${CONFIG_ENVIRONMENT_VARIABLES}`;
+const envVarActionPatterns: readonly RegExp[] = [
+    /^missing [A-Za-z_][A-Za-z0-9_]* environment variable(?:; review "cmsis-csolution\.environmentVariables")?$/,
+    /^[A-Za-z_][A-Za-z0-9_]* environment variable specifies non-existent directory: .+(?:; review "cmsis-csolution\.environmentVariables")?$/,
+    /^exec: "west": executable file not found in .+(?:; review "cmsis-csolution\.environmentVariables")?$/,
+];
 
 const mergeMessagePatterns = [
     {
@@ -64,6 +81,12 @@ const generatorMissingPatterns: readonly RegExp[] = [
     /(?:cgen\s+file\s+.*\s+)?run generator '([^']+)' for context '([^']+)'/i,
 ];
 
+const packProblemPatterns: readonly RegExp[] = [
+    /downloading pack '([^']+)' failed/i,
+    /required pack '([^']+)' not installed/i,
+    /selected multiple versions of pack '([^']+)'/i,
+];
+
 const queryActionPatterns: ReadonlyArray<{ pattern: RegExp; action: 'components-packs' | 'find-in-files' }> = [
     { pattern: /dependency validation for context '([^']+)' failed:/, action: 'components-packs' },
     { pattern: /\/([^/\s']+\.[^/\s']+)/, action: 'find-in-files' },
@@ -73,6 +96,19 @@ const queryActionPatterns: ReadonlyArray<{ pattern: RegExp; action: 'components-
 ];
 
 export class ProblemDiagnosticActionResolver {
+    /**
+     * Optional provider for the active target set name
+     * If not provided, falls back to the target type parsed from the diagnostic message.
+     *
+     * @param getActiveTargetSetName - Function returning the current active target set name,
+     *                                 or undefined if no target set is active. Called lazily
+     *                                 only when resolving generator diagnostics.
+     */
+    constructor(
+        private readonly getActiveTargetSetName?: () => string | undefined,
+    ) {
+    }
+
     public resolve(context: ProblemDiagnosticActionContext): ProblemDiagnosticActionResult | undefined {
         const descriptor = this.resolveDescriptor(context);
         if (!descriptor) {
@@ -84,7 +120,9 @@ export class ProblemDiagnosticActionResolver {
     private resolveDescriptor(context: ProblemDiagnosticActionContext): ProblemActionDescriptor | undefined {
         return this.resolveMergeAction(context)
             ?? this.resolveGeneratorMissingAction(context)
+            ?? this.resolveManagePackAction(context)
             ?? this.resolveManageComponentsAction(context)
+            ?? this.resolveEnvVarSettingsAction(context)
             ?? this.resolveGenericSearchAction(context);
     }
 
@@ -101,9 +139,10 @@ export class ProblemDiagnosticActionResolver {
 
         if (descriptor.kind === 'run-generator') {
             return {
+                message: `Run generator '${descriptor.generator}' for target '${descriptor.activeTarget || '""'}'`,
                 code: {
                     value: 'Run Generator',
-                    target: this.createRunGeneratorCommandUri(descriptor.generator, descriptor.context),
+                    target: this.createRunGeneratorCommandUri(descriptor.generator, descriptor.activeTarget),
                 },
             };
         }
@@ -114,6 +153,25 @@ export class ProblemDiagnosticActionResolver {
                 code: {
                     value: 'Manage Components',
                     target: vscode.Uri.parse(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}?${args}`),
+                },
+            };
+        }
+
+        if (descriptor.kind === 'manage-pack') {
+            const args = this.encodeCommandArgs([{ type: 'pack', value: descriptor.packId }]);
+            return {
+                code: {
+                    value: 'Open Software Packs',
+                    target: vscode.Uri.parse(`command:${MANAGE_COMPONENTS_PACKS_COMMAND_ID}?${args}`),
+                },
+            };
+        }
+
+        if (descriptor.kind === 'open-environment-variables-settings') {
+            return {
+                code: {
+                    value: 'Configure Environment Variables',
+                    target: this.createOpenEnvVarSettingsCommandUri(),
                 },
             };
         }
@@ -156,7 +214,7 @@ export class ProblemDiagnosticActionResolver {
         return {
             kind: 'run-generator',
             generator: request.generator,
-            context: request.context,
+            activeTarget: request.activeTarget,
         };
     }
 
@@ -176,6 +234,34 @@ export class ProblemDiagnosticActionResolver {
         };
     }
 
+    private resolveManagePackAction(context: ProblemDiagnosticActionContext): ProblemActionDescriptor | undefined {
+        if (context.hasLocation) {
+            return undefined;
+        }
+
+        const packId = this.parsePackIdFromProblem(context.message);
+        if (!packId) {
+            return undefined;
+        }
+
+        return {
+            kind: 'manage-pack',
+            packId,
+        };
+    }
+
+    private resolveEnvVarSettingsAction(context: ProblemDiagnosticActionContext): ProblemActionDescriptor | undefined {
+        const normalizedMessage = this.normalizeMessageForPatternMatching(context.message);
+        const hasEnvironmentMessage = envVarActionPatterns.some(pattern => pattern.test(normalizedMessage));
+        if (!hasEnvironmentMessage) {
+            return undefined;
+        }
+
+        return {
+            kind: 'open-environment-variables-settings',
+        };
+    }
+
     private resolveGenericSearchAction(context: ProblemDiagnosticActionContext): ProblemActionDescriptor | undefined {
         if (context.hasLocation) {
             return undefined;
@@ -192,7 +278,7 @@ export class ProblemDiagnosticActionResolver {
         };
     }
 
-    private parseGeneratorRequest(message: string): { generator: string; context: string } | undefined {
+    private parseGeneratorRequest(message: string): { generator: string; activeTarget: string } | undefined {
         const normalizedMessage = this.normalizeMessageForPatternMatching(message);
 
         for (const pattern of generatorMissingPatterns) {
@@ -202,7 +288,9 @@ export class ProblemDiagnosticActionResolver {
             }
 
             const [, generator, context] = match;
-            return { generator, context };
+            const targetType = contextDescriptorFromString(context).targetType;
+            const activeTarget = this.getActiveTargetSetName?.() ?? targetType;
+            return { generator, activeTarget };
         }
 
         return undefined;
@@ -223,6 +311,17 @@ export class ProblemDiagnosticActionResolver {
                 localPath: item.getLocalPath(match),
                 updateLevel: item.getUpdateLevel(match).toLowerCase() as MergeUpdateLevel,
             };
+        }
+
+        return undefined;
+    }
+
+    private parsePackIdFromProblem(message: string): string | undefined {
+        for (const pattern of packProblemPatterns) {
+            const match = message.match(pattern);
+            if (match?.[1]) {
+                return match[1];
+            }
         }
 
         return undefined;
@@ -259,9 +358,14 @@ export class ProblemDiagnosticActionResolver {
         return vscode.Uri.parse(`command:${MERGE_FILE_COMMAND_ID}?${args}`);
     }
 
-    private createRunGeneratorCommandUri(generator: string, context: string): vscode.Uri {
-        const args = this.encodeCommandArgs([{ generator, context }]);
+    private createRunGeneratorCommandUri(generator: string, activeTarget: string): vscode.Uri {
+        const args = this.encodeCommandArgs([{ generator, activeTarget }]);
         return vscode.Uri.parse(`command:${RUN_GENERATOR_COMMAND_ID}?${args}`);
+    }
+
+    private createOpenEnvVarSettingsCommandUri(): vscode.Uri {
+        const args = this.encodeCommandArgs([envVarSettingName]);
+        return vscode.Uri.parse(`command:${OPEN_ENV_VAR_SETTINGS_COMMAND_ID}?${args}`);
     }
 
     private isAbsoluteFilePath(filePath: string): boolean {

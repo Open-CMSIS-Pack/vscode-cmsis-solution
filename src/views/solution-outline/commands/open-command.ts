@@ -25,6 +25,8 @@ import { contextDescriptorFromString } from '../../../solutions/descriptors/desc
 import { existsSync } from 'fs';
 import type { ConfigWizardAnnotationChecker } from '../../../utils/config-wizard-checker';
 import { configWizardAnnotationChecker } from '../../../utils/config-wizard-checker';
+import { openFileWithPolicy } from '../../file-open-policy';
+import { FileOpenGroupOrchestrator, FileOpenGroupOrchestratorImpl } from '../../file-open-group-orchestrator';
 
 export const openSourceSmartCommandId = `${PACKAGE_NAME}.openSourceFileSmart`;
 
@@ -39,13 +41,14 @@ export class OpenCommand {
     public static readonly openHelpCommandId = `${PACKAGE_NAME}.openHelp`;
     public static readonly openZephyrTerminalCommandId = `${PACKAGE_NAME}.openZephyrTerminal`;
     private static readonly configWizardViewType = `${PACKAGE_NAME}.configWizard`;
-    private static readonly configWizardCandidateExtensions = new Set(['.h', '.c', '.cpp', '.dbgconf']);
+    private static readonly configWizardCandidateExtensions = new Set(['.h', '.c', '.cpp', '.dbgconf', '.s', '.sct']);
 
     constructor(
         private readonly solutionManager: SolutionManager,
         private readonly commandsProvider: CommandsProvider,
         private readonly openFileExternal: IOpenFileExternal,
         private readonly annotationChecker: ConfigWizardAnnotationChecker = configWizardAnnotationChecker,
+        private readonly fileOpenGroupOrchestrator: FileOpenGroupOrchestrator = new FileOpenGroupOrchestratorImpl(),
     ) { }
 
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>) {
@@ -117,15 +120,25 @@ export class OpenCommand {
             return;
         }
 
-        if (filePath.toLowerCase().endsWith('.md')) {
-            return this.commandsProvider.executeCommand('markdown.showPreview', vscode.Uri.file(filePath));
-        }
+        const targetViewColumn = this.fileOpenGroupOrchestrator.getTargetViewColumn('solution-outline');
+        const hasSharedTargetGroup = targetViewColumn !== vscode.ViewColumn.Active;
 
-        if (await this.shouldOpenConfigWizard(filePath)) {
-            return this.commandsProvider.executeCommand('vscode.openWith', vscode.Uri.file(filePath), OpenCommand.configWizardViewType);
-        }
+        await openFileWithPolicy(filePath, this.commandsProvider, {
+            ...(hasSharedTargetGroup
+                ? {
+                    markdownPreviewMode: 'editor' as const,
+                    viewColumn: targetViewColumn,
+                }
+                : {
+                    markdownPreviewTarget: 'active' as const,
+                }),
+            configWizard: {
+                viewType: OpenCommand.configWizardViewType,
+                shouldOpen: this.shouldOpenConfigWizard.bind(this),
+            },
+        });
 
-        return this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(filePath));
+        this.fileOpenGroupOrchestrator.rememberTargetViewColumn('solution-outline', vscode.window.tabGroups.activeTabGroup?.viewColumn);
     }
 
     private async shouldOpenConfigWizard(filePath: string): Promise<boolean> {

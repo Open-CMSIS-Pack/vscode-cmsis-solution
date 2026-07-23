@@ -8,7 +8,6 @@ and follow the best practices for creating your extension.
 Use vcpkg to install the tools as discussed in the [README](./README.md). The test-workspace
 contains a [vcpkg-configuration.json](./test-workspace/vcpkg-configuration.json) file to do this.
 
-
 ## Running the extension in development
 
 1. To download the tools, you must have a `GITHUB_TOKEN` environment variable containing a
@@ -40,7 +39,6 @@ contains a [vcpkg-configuration.json](./test-workspace/vcpkg-configuration.json)
 5. In Visual Studio Code, press the F5 key to run the Desktop Extension run configuration, starting
    the extension in debug mode. A new VS Code window will open with the extension loaded so it can
    be used.
-
 
 ## Run the tests
 
@@ -111,14 +109,12 @@ Before running a release, check the following:
 
      `<version>` must match a [project manager schemas tag](https://github.com/Open-CMSIS-Pack/devtools/releases)
 
-2. User guide is up-to-date at [MDK-Packs/vscode-cmsis-solution-docs@main](https://github.com/MDK-Packs/vscode-cmsis-solution-docs/tree/main/site).
+2. User guide is up-to-date at [MDK-Packs/vscode-cmsis-solution-docs@main](https://github.com/MDK-Packs/vscode-cmsis-solution-docs/tree/main/docs).
 
 3. Update and review [CHANGELOG.md](CHANGELOG.md)
 
-   Add all changes relevant for the upcoming release into the `[Unreleased]` section. This section
-   is automatically replaced by the release version during the release workflow.
-
-4. [Release Assessment](https://armh.sharepoint.com/sites/pwa/PJ1000480/SitePages/Assessments.aspx) for `CMSIS Solution Extension` is approved.
+   Add all changes relevant to the upcoming release to the section for the next version,
+   explicitly specified in `Major.Minor.Patch` format, for example `1.2.3`.
 
 ## Release versioning
 
@@ -143,7 +139,7 @@ Use the following commands:
 1. Ensure the version in `package.json` is up to date.
 2. Update the `CHANGELOG` with the latest changes.
 3. Open a pull request with these updates and merge it into `main`.
-4. Create a new release at: https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/releases
+4. Create a new release at [Open-CMSIS-Pack/vscode-cmsis-solution releases](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/releases).
    - This will trigger the `CI.yml` workflow.
    - Once the workflow completes successfully, the release artifacts will be generated automatically.
 
@@ -172,7 +168,7 @@ When a new RPC method or data type is needed:
 3. **Implement the server side** in [`ProjMgrRpcServer.cpp`](https://github.com/Open-CMSIS-Pack/devtools/blob/main/tools/projmgr/src/ProjMgrRpcServer.cpp) in the `devtools` repository.
 
 4. **Implement the client side** in this extension:
-   - Copy the regenerated `rpc-interface.ts` into [src/json-rpc/interface/](src/json-rpc/interface/) and update [version.txt](src/json-rpc/interface/version.txt) to the new API version.
+   - Copy the regenerated `rpc-interface.ts` into `src/json-rpc/interface/` and update `src/json-rpc/interface/version.txt` to the new API version.
    - Expose the new method via `CsolutionService` in [src/json-rpc/csolution-rpc-client.ts](src/json-rpc/csolution-rpc-client.ts).
    - Use the method from the relevant data source or manager in [src/data-manager/](src/data-manager/).
 
@@ -246,6 +242,7 @@ To debug the `csolution` server (C++ code) running on the backend:
 5. **Attach the native debugger** (Visual Studio Debugger or gdb/lldb) to the running `csolution` process by PID. The process will be active while the extension is communicating with it.
 
 ## Security
+
 For security considerations see [SECURITY.md](./SECURITY.md)
 
 ## Test or develop in Dev Containers

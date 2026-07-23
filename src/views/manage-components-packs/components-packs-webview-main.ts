@@ -35,8 +35,10 @@ import { cloneDeep, uniqWith } from 'lodash';
 import { parsePackId } from './data/pack-parse';
 import { lineOf, readTextFile } from '../../utils/fs-utils';
 import { stripTwoExtensions } from '../../utils/string-utils';
-import { getLatestAvailablePacks } from '../../packs/index-pidx-file';
+import { getLatestAvailablePacksInfo, isPackIndexCurrent } from '../../packs/index-pidx-file';
 import { isDeepStrictEqual } from 'util';
+import { openFileWithPolicy } from '../file-open-policy';
+import { FileOpenGroupOrchestrator, FileOpenGroupOrchestratorImpl } from '../file-open-group-orchestrator';
 
 export const MANAGE_COMPONENTS_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> = {
     title: 'Software Components',
@@ -78,10 +80,9 @@ const packsRowsFromInfo = (packsInfo: PacksInfo, solutionPath: string): PackRowD
     return (packsInfo.packs || []).map(pack => packsRowFromInfo(pack, solutionPath));
 };
 
-type ManageComponentsCommandPayload = {
-    type: 'context';
-    value: string;
-};
+type ManageComponentsCommandPayload =
+    | { type: 'context'; value: string }
+    | { type: 'pack'; value: string };
 
 export class ComponentsPacksWebviewMain {
     private readonly webviewManager: WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>;
@@ -105,6 +106,10 @@ export class ComponentsPacksWebviewMain {
     private isLoading = false;
     private readonly unlinkRequests: Set<string> = new Set<string>();
     private availablePacksCache: Record<string, string> = {}; // this cache must be invalidated, if a new pack was installed
+    // An empty cache can mean either "not loaded yet" or "loaded, but no packs matched the filter".
+    private availablePacksCacheLoaded = false;
+    private availablePacksIndexTimestamp?: string;
+    private pendingFocusPackId?: string;
 
     constructor(
         private readonly solutionManager: SolutionManager,
@@ -114,6 +119,7 @@ export class ComponentsPacksWebviewMain {
         private readonly commandsProvider: CommandsProvider,
         private readonly openFileExternal: IOpenFileExternal,
         webviewManager?: WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>,
+        private readonly fileOpenGroupOrchestrator: FileOpenGroupOrchestrator = new FileOpenGroupOrchestratorImpl(),
     ) {
         this.webviewManager = webviewManager ??
             new WebviewManager(context, MANAGE_COMPONENTS_WEBVIEW_OPTIONS, commandsProvider);
@@ -148,9 +154,12 @@ export class ComponentsPacksWebviewMain {
             this.usedItems = { components: [], packs: [], success: false };
             this.cachedTargetSetData = undefined;
             this.availablePacksCache = {};
+            this.availablePacksCacheLoaded = false;
+            this.availablePacksIndexTimestamp = undefined;
             this.unlinkRequests.clear();
             this.isLoading = false;
             this.scope = ComponentScope.Solution;
+            this.pendingFocusPackId = undefined;
         };
 
         const hasBaseline = this.usedItems !== undefined;
@@ -214,6 +223,19 @@ export class ComponentsPacksWebviewMain {
                 return;
             }
 
+            await this.openWebview(projectId, undefined);
+            return;
+        }
+
+        if (commandArg?.type === 'pack') {
+            const projectId = this.getValidProjectId();
+            if (!projectId) {
+                this.messageProvider.showWarningMessage('No valid project found in the active solution.');
+                return;
+            }
+
+            this.scope = ComponentScope.Solution;
+            this.pendingFocusPackId = commandArg.value;
             await this.openWebview(projectId, undefined);
             return;
         }
@@ -312,15 +334,42 @@ export class ComponentsPacksWebviewMain {
     private getValidProjectId(): string | undefined {
         const csolution = this.solutionManager.getCsolution();
         if (csolution) {
-            if (this.currentProject?.project.projectId && csolution.getCproject(this.currentProject.project.projectId)) {
-                return this.currentProject.project.projectId;
+            const activeProjectPaths = csolution.getContextDescriptors()
+                .map(ctx => ctx.projectPath)
+                .filter((projectPath): projectPath is string => !!projectPath);
+            const currentProjectId = this.currentProject?.project.projectId;
+
+            if (activeProjectPaths.length > 0) {
+                if (currentProjectId && activeProjectPaths.some(projectPath =>
+                    normalizeForCompare(projectPath) === normalizeForCompare(currentProjectId)
+                )) {
+                    return currentProjectId;
+                }
+                return activeProjectPaths[0];
             }
-            const firstProjectPath = csolution?.getContextDescriptors()
-                .find(ctx => ctx.targetType === csolution.getActiveTargetSetName())
-                ?.projectPath;
-            return firstProjectPath ?? csolution.getCprojectPath();
+
+            if (currentProjectId && csolution.getCproject(currentProjectId)) {
+                return currentProjectId;
+            }
+            return csolution.getCprojectPath();
         }
         return undefined;
+    }
+
+    public async saveChangesBeforeBuild(): Promise<boolean> {
+        if (!await this.isModifiedBeforeBuild()) {
+            return true;
+        }
+
+        return this.handleApplyComponentSet();
+    }
+
+    public async isModifiedBeforeBuild(): Promise<boolean> {
+        if (this.usedItems === undefined) {
+            return false;
+        }
+
+        return this.isDirty();
     }
 
     private async isDirty(usedItems?: UsedItems): Promise<boolean> {
@@ -335,7 +384,7 @@ export class ComponentsPacksWebviewMain {
             return true;
         }
 
-        const componentMapper = (c: ComponentInstance) => ({ id: c.id, variant: c.resolvedComponent?.pack });
+        const componentMapper = (c: ComponentInstance) => ({ id: c.id, variant: c.resolvedComponent?.pack, selectedCount: c.selectedCount });
         const packMapper = (p: PackReference) => ({ pack: p.pack, origin: normalizeForCompare(p.origin) });
         const localUsedItemsSorted = {
             components: [...(this.usedItems?.components ?? [])].sort((a, b) => a.id.localeCompare(b.id)).map(componentMapper),
@@ -398,6 +447,8 @@ export class ComponentsPacksWebviewMain {
         try {
             if (reload) {
                 this.availablePacksCache = {};
+                this.availablePacksCacheLoaded = false;
+                this.availablePacksIndexTimestamp = undefined;
                 this.unlinkRequests.clear();
                 await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Loading Solution data...' });
                 this.usedItems = await this.csolutionService.getUsedItems({ context: activeContext });
@@ -432,11 +483,22 @@ export class ComponentsPacksWebviewMain {
     }
 
     private getSelectedTargetSetData(): TargetSetData | undefined {
+        const targetSetData = this.getTargetSetData();
+        const targetSetExists = (target: TargetSetData): boolean =>
+            targetSetData.some(project =>
+                normalizeForCompare(project.path) === normalizeForCompare(target.path) ||
+                project.children?.some(layer => normalizeForCompare(layer.path) === normalizeForCompare(target.path))
+            );
+
+        if (this.selectedContext && !targetSetExists(this.selectedContext)) {
+            this.selectedContext = undefined;
+        }
+
         if (!this.selectedContext) {
             const normalizedProjectId = normalizeForCompare(this.currentProject?.project.projectId || '');
-            this.selectedContext = this.getTargetSetData().find(ts => normalizeForCompare(ts.path) === normalizedProjectId);
+            this.selectedContext = targetSetData.find(ts => normalizeForCompare(ts.path) === normalizedProjectId);
             if (!this.selectedContext) {
-                this.selectedContext = this.getTargetSetData()?.at(0);
+                this.selectedContext = targetSetData.at(0);
             }
         }
         return this.selectedContext;
@@ -520,12 +582,12 @@ export class ComponentsPacksWebviewMain {
         await this.debounce_load(this.project?.project.projectId ?? '', false);
     }
 
-    private async handleApplyComponentSet(): Promise<void> {
+    private async handleApplyComponentSet(): Promise<boolean> {
         await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Saving changes...' });
 
-        if (this.solutionManager.getCsolution()?.cbuildPackFile.isModified()) {
+        const cbuildPackModified = this.solutionManager.getCsolution()?.cbuildPackFile.isModified() ?? false;
+        if (cbuildPackModified) {
             await this.solutionManager.getCsolution()?.cbuildPackFile.save();
-            await this.handleRequestInitialData();
             this.unlinkRequests.clear();
         }
 
@@ -539,6 +601,11 @@ export class ComponentsPacksWebviewMain {
         this.validations = await this.csolutionService.validateComponents({ context: activeContext });
         await this.projectFileUpdater.updateUsedItems(activeContext, projectFileName, usedItemsForProjectFileUpdate);
 
+        // Trigger refresh if cbuild-pack was modified to ensure solution is properly reloaded
+        if (cbuildPackModified) {
+            await this.solutionManager.refresh();
+        }
+
         await Promise.all([
             this.webviewManager.sendMessage({ type: 'SET_ERROR_MESSAGES', messages: [] }),
             this.webviewManager.sendMessage({ type: 'SET_COMPONENT_TREE', tree: this.componentTree, validations: this.validations.validation ?? [], scope: this.scope })
@@ -547,6 +614,7 @@ export class ComponentsPacksWebviewMain {
             this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: state.message ?? 'Unspecified error when writing solution information' });
         }
         await this.sendDirtyState({ skipApply: true, usedItems: usedItemsForProjectFileUpdate });
+        return state.success !== false;
     }
 
     private async handleOpenFile(message: Messages.OutgoingMessage): Promise<void> {
@@ -640,7 +708,9 @@ export class ComponentsPacksWebviewMain {
             const path = selectedTarget.type === 'project'
                 ? selectedTarget.path
                 : this.projectFromLayer(selectedTarget.path);
-            await this.debounce_load(path || '', false);
+            const reload = this.currentProject === undefined ||
+                this.projectFromPath(this.currentProject?.project.projectId) !== this.projectFromPath(path);
+            await this.debounce_load(path || '', reload);
         }
     }
 
@@ -677,7 +747,7 @@ export class ComponentsPacksWebviewMain {
                     await this.handleChangeComponentBundle(message);
                     break;
                 case 'CHANGE_TARGET':
-                    this.handleChangeTarget(message);
+                    await this.handleChangeTarget(message);
                     break;
                 case 'UNLINK_PACKAGE':
                     await this.handleUnlinkPackage(message.packName);
@@ -756,9 +826,10 @@ export class ComponentsPacksWebviewMain {
         }
     }
 
-    private async filterAvailablePacks(context: string) {
+    private async filterAvailablePacks(context: string): Promise<{ packs: Record<string, string>; indexTimestamp?: string }> {
         const allPacks = await this.csolutionService.getPacksInfo({ context: context, all: true });
-        const availablePacks = Object.fromEntries(await getLatestAvailablePacks());
+        const latestAvailablePacksInfo = await getLatestAvailablePacksInfo();
+        const availablePacks = Object.fromEntries(latestAvailablePacksInfo.packIds);
 
         // Build a Set for O(1) lookup
         const installedPackKeys = new Set(
@@ -777,16 +848,20 @@ export class ComponentsPacksWebviewMain {
                 return installedPackKeys.has(`${availablePack.vendor}:${availablePack.packName}`);
             })
         );
-        return filteredAvailablePacks;
+        return { packs: filteredAvailablePacks, indexTimestamp: latestAvailablePacksInfo.timestamp };
     }
 
     private async sendSolutionData(): Promise<void> {
         const activeContext = this.getActiveContext();
         const requestAll = this.scope === ComponentScope.All;
 
-        if (!this.availablePacksCache || Object.keys(this.availablePacksCache).length === 0) {
-            this.availablePacksCache = await this.filterAvailablePacks(activeContext);
+        if (!this.availablePacksCacheLoaded) {
+            const availablePacksInfo = await this.filterAvailablePacks(activeContext);
+            this.availablePacksCache = availablePacksInfo.packs;
+            this.availablePacksCacheLoaded = true;
+            this.availablePacksIndexTimestamp = availablePacksInfo.indexTimestamp;
         }
+        const availablePacksIndexCurrent = isPackIndexCurrent(this.availablePacksIndexTimestamp);
 
         this.componentTree = this.manageComponentsActions.mapComponentsFromService(await this.csolutionService.getComponentsTree({ context: activeContext, all: requestAll }));
         this.validations = await this.csolutionService.validateComponents({ context: activeContext });
@@ -806,6 +881,9 @@ export class ComponentsPacksWebviewMain {
             stripTwoExtensions(this.solutionManager.getCsolution()?.solutionPath || '') + '.cbuild-pack.yml'
         ));
 
+        const focusPackId = this.pendingFocusPackId;
+        this.pendingFocusPackId = undefined;
+
         await this.webviewManager.sendMessage({
             type: 'SOLUTION_LOADED',
             componentTree: this.componentTree,
@@ -821,7 +899,9 @@ export class ComponentsPacksWebviewMain {
                 path: this.solutionManager.getCsolution()?.solutionPath,
                 relativePath: backToForwardSlashes(path.relative(dirname(this.solutionManager.getCsolution()?.solutionPath || ''), this.solutionManager.getCsolution()?.solutionPath || ''))
             },
-            availablePacks: this.availablePacksCache
+            availablePacks: this.availablePacksCache,
+            availablePacksIndexCurrent,
+            focusPackId,
         });
     }
 
@@ -905,21 +985,36 @@ export class ComponentsPacksWebviewMain {
             this.openFileExternal.openFile(filePath);
         } else {
             const absoluteFilePath = path.resolve(path.dirname(this.project?.solutionPath || './'), filePath);
+            const targetViewColumn = this.fileOpenGroupOrchestrator.getTargetViewColumn('software-components');
             const isMarkdown = absoluteFilePath.toLowerCase().endsWith('.md');
 
             if (isMarkdown) {
-                this.commandsProvider.executeCommand('markdown.showPreview', vscode.Uri.file(absoluteFilePath));
-            } else {
-                let focusOnLine: number = 0;
-
-                if (focusOn) {
-                    focusOnLine = lineOf(readTextFile(absoluteFilePath), focusOn);
-                }
-
-                await vscode.window.showTextDocument(vscode.Uri.file(absoluteFilePath), {
-                    selection: new vscode.Range(new vscode.Position(focusOnLine ?? 0, 0), new vscode.Position(focusOnLine ?? 0, focusOnLine ? 100 : 0))
+                await openFileWithPolicy(absoluteFilePath, this.commandsProvider, {
+                    markdownPreviewMode: 'editor',
+                    viewColumn: targetViewColumn,
                 });
+
+                this.fileOpenGroupOrchestrator.rememberTargetViewColumn('software-components', vscode.window.tabGroups.activeTabGroup?.viewColumn);
+                return;
             }
+
+            let focusOnLine: number = 0;
+
+            if (focusOn) {
+                focusOnLine = lineOf(readTextFile(absoluteFilePath), focusOn);
+            }
+
+            const selection = new vscode.Range(
+                new vscode.Position(focusOnLine ?? 0, 0),
+                new vscode.Position(focusOnLine ?? 0, focusOnLine ? 100 : 0),
+            );
+
+            const editor = await vscode.window.showTextDocument(vscode.Uri.file(absoluteFilePath), {
+                viewColumn: targetViewColumn,
+                selection,
+            });
+
+            this.fileOpenGroupOrchestrator.rememberTargetViewColumn('software-components', editor?.viewColumn);
         }
     }
 
@@ -965,4 +1060,3 @@ const isSelectPackageMessage = (message: Messages.OutgoingMessage): message is M
 const isUnselectPackageMessage = (message: Messages.OutgoingMessage): message is Messages.OutgoingMessage & { target: string; packId: string } => {
     return message.type === 'UNSELECT_PACKAGE' && 'target' in message && 'packId' in message;
 };
-

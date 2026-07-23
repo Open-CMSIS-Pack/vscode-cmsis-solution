@@ -18,11 +18,17 @@ import * as vscode from 'vscode';
 import { PACKAGE_NAME } from '../../manifest';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
 import { BuildTaskDefinition } from './build-task-definition';
-import { BuildTaskProvider } from './build-task-provider';
+import { BuildTaskProvider, BuildTaskProviderImpl, waitForActiveBuildTasksCompletion } from './build-task-provider';
 import { BuildTaskDefinitionBuilder } from './build-task-definition-builder';
 import { COutlineItem } from '../../views/solution-outline/tree-structure/solution-outline-item';
 
 type UriOrSolutionNode = vscode.Uri | COutlineItem;
+type SaveBeforeRun = 'always' | 'never' | 'prompt';
+
+export interface BuildCommandSaveParticipant {
+    isModifiedBeforeBuild(): Promise<boolean>;
+    saveChangesBeforeBuild(): Promise<boolean>;
+}
 
 export class BuildCommand {
     public static readonly buildCommandType = `${PACKAGE_NAME}.build`;
@@ -33,6 +39,7 @@ export class BuildCommand {
         private readonly buildTaskProvider: BuildTaskProvider,
         private readonly commandsProvider: CommandsProvider,
         private readonly buildTaskDefinitionBuilder: BuildTaskDefinitionBuilder,
+        private readonly saveParticipant?: BuildCommandSaveParticipant,
     ) {}
 
     public async activate(context: vscode.ExtensionContext): Promise<void> {
@@ -44,18 +51,96 @@ export class BuildCommand {
     }
 
     private async handleBuild(uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution | undefined> {
-        const definition = await this.buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode('build', uriOrSolutionNode);
+        return this.createAndExecuteTaskDefinition('build', uriOrSolutionNode);
+    }
+
+    private async handleClean(uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution | undefined> {
+        return this.createAndExecuteTaskDefinition('clean', uriOrSolutionNode);
+    }
+
+    private async handleRebuild(uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution | undefined> {
+        return this.createAndExecuteTaskDefinition('rebuild', uriOrSolutionNode);
+    }
+
+    private async createAndExecuteTaskDefinition(action: 'build' | 'clean' | 'rebuild', uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution | undefined> {
+        await this.stopActiveSetupTaskIfRunning();
+        await waitForActiveBuildTasksCompletion();
+        if (!await this.saveChangesBeforeBuild()) {
+            return undefined;
+        }
+        const definition = await this.buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode(action, uriOrSolutionNode);
         return this.executeTaskDefinition(definition);
     }
 
-    private async handleClean(uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution> {
-        const definition = await this.buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode('clean', uriOrSolutionNode);
-        return this.executeTaskDefinition(definition);
+    private async stopActiveSetupTaskIfRunning(): Promise<void> {
+        const setupExecution = (vscode.tasks.taskExecutions ?? []).find(execution =>
+            execution.task.definition?.type === BuildTaskProviderImpl.taskType && execution.task.definition?.setup === true
+        );
+
+        if (!setupExecution) {
+            return;
+        }
+
+        const taskName = setupExecution.task.name;
+        if (!taskName || !this.buildTaskProvider.terminateTask(taskName)) {
+            setupExecution.terminate();
+        }
     }
 
-    private async handleRebuild(uriOrSolutionNode?: UriOrSolutionNode): Promise<vscode.TaskExecution> {
-        const definition = await this.buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode('rebuild', uriOrSolutionNode);
-        return this.executeTaskDefinition(definition);
+    private async saveChangesBeforeBuild(): Promise<boolean> {
+        try {
+            const saveBeforeRun = vscode.workspace
+                .getConfiguration('task')
+                .get<SaveBeforeRun>('saveBeforeRun', 'always');
+
+            if (saveBeforeRun === 'never') {
+                return true;
+            }
+
+            const hasModifiedChanges = await this.hasModifiedChangesBeforeBuild();
+            if (saveBeforeRun === 'prompt') {
+                if (!hasModifiedChanges) {
+                    return true;
+                }
+                const selection = await vscode.window.showWarningMessage(
+                    'Save modified files before building?',
+                    { modal: true },
+                    { title: 'Save' },
+                    { title: 'Don\'t Save' },
+                    { title: 'Cancel', isCloseAffordance: true },
+                );
+
+                if (!selection || selection.title === 'Cancel') {
+                    return false;
+                }
+
+                if (selection.title === 'Don\'t Save') {
+                    return true;
+                }
+            }
+
+            const savedEditors = await vscode.workspace.saveAll(false);
+            if (!savedEditors) {
+                await vscode.window.showWarningMessage('Build cancelled because modified files could not be saved.');
+                return false;
+            }
+
+            const savedViewChanges = await (this.saveParticipant?.saveChangesBeforeBuild() ?? Promise.resolve(true));
+            if (!savedViewChanges) {
+                await vscode.window.showWarningMessage('Build cancelled because Software Components changes could not be saved.');
+                return false;
+            }
+
+            return true;
+        } catch (error) {
+            await vscode.window.showErrorMessage(`Build cancelled while saving changes: ${error}`);
+            return false;
+        }
+    }
+
+    private async hasModifiedChangesBeforeBuild(): Promise<boolean> {
+        return vscode.workspace.textDocuments.some((document) => document.isDirty && !document.isUntitled)
+            || await (this.saveParticipant?.isModifiedBeforeBuild() ?? Promise.resolve(false));
     }
 
     private async executeTaskDefinition(definition: BuildTaskDefinition): Promise<vscode.TaskExecution> {

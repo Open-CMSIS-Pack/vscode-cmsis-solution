@@ -1,4 +1,4 @@
-name: CodeQL
+name: Security Scans
 
 on:
   push:
@@ -33,7 +33,7 @@ jobs:
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -43,7 +43,7 @@ jobs:
 
       - name: Initialize CodeQL
         id: initialize
-        uses: github/codeql-action/init@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        uses: github/codeql-action/init@99df26d4f13ea111d4ec1a7dddef6063f76b97e9  # v4.37.0
         with:
           queries: security-extended 
           languages: TypeScript
@@ -51,8 +51,24 @@ jobs:
           
       - name: Autobuild
         id: autobuild
-        uses: github/codeql-action/autobuild@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        uses: github/codeql-action/autobuild@99df26d4f13ea111d4ec1a7dddef6063f76b97e9  # v4.37.0
 
       - name: Perform CodeQL Analysis
         id: analyze
-        uses: github/codeql-action/analyze@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
+
+  osv-scan:
+    permissions:
+      actions: read
+      checks: write
+      contents: read
+      security-events: write
+      packages: read
+    if: ${{ github.event_name == 'pull_request' }}
+    name: Scan PR with OSV Scanner
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 #v2.3.8
+    with:
+      scan-args: |-
+        --recursive
+        --skip-git
+        ./

@@ -52,7 +52,8 @@ export class SolutionRootsWatcher {
             for (const workspaceFolder of workspaceFolders) {
                 const workspaceFolderPath = workspaceFolder.uri.fsPath;
                 const files = await this.workspaceFsProvider.readDirectory(workspaceFolderPath);
-                const folders = files.filter(folder => folder[1] === 'directory');
+                // filter only directories, exclude hidden ones
+                const folders = files.filter(([name, type]) => type === 'directory' && !name.startsWith('.'));
                 for (const folder of folders) {
                     const folderName = folder[0];
                     const folderPath = path.join(workspaceFolderPath, folderName);

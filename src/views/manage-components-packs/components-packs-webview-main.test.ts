@@ -224,6 +224,27 @@ describe('ComponentsPacksWebviewMain', () => {
             expect((componentsPacksWebviewMain as any).openWebview).not.toHaveBeenCalled();
             expect(messageProvider.showWarningMessage).toHaveBeenCalledWith(`No valid project found for context: ${context}.`);
         });
+
+        it('opens view and records pack focus for typed pack payload', async () => {
+            jest.spyOn(componentsPacksWebviewMain as any, 'getValidProjectId').mockReturnValue(projectPath);
+
+            await (componentsPacksWebviewMain as any).handleWebviewCommand({ type: 'pack', value: 'ARM::CMSIS@2.3.0' });
+
+            expect((componentsPacksWebviewMain as any).openWebview).toHaveBeenCalledTimes(1);
+            expect((componentsPacksWebviewMain as any).openWebview).toHaveBeenCalledWith(projectPath, undefined);
+            expect((componentsPacksWebviewMain as any).scope).toBe(ComponentScope.Solution);
+            expect((componentsPacksWebviewMain as any).pendingFocusPackId).toBe('ARM::CMSIS@2.3.0');
+        });
+
+        it('shows warning for typed pack payload when no valid project exists', async () => {
+            jest.spyOn(componentsPacksWebviewMain as any, 'getValidProjectId').mockReturnValue(undefined);
+
+            await (componentsPacksWebviewMain as any).handleWebviewCommand({ type: 'pack', value: 'ARM::CMSIS@2.3.0' });
+
+            expect((componentsPacksWebviewMain as any).openWebview).not.toHaveBeenCalled();
+            expect((componentsPacksWebviewMain as any).pendingFocusPackId).toBeUndefined();
+            expect(messageProvider.showWarningMessage).toHaveBeenCalledWith('No valid project found in the active solution.');
+        });
     });
 
     describe('openWebview', () => {
@@ -446,6 +467,19 @@ describe('ComponentsPacksWebviewMain', () => {
             expect(spy).toHaveBeenCalledTimes(1);
         });
 
+        it('awaits CHANGE_TARGET handling before returning', async () => {
+            const sequence: string[] = [];
+            jest.spyOn(componentsPacksWebviewMain as any, 'handleChangeTarget').mockImplementation(async () => {
+                await waitTimeout();
+                sequence.push('handled');
+            });
+
+            await (componentsPacksWebviewMain as any).handleMessage({ type: 'CHANGE_TARGET', targetSet: { projectPath: 'path/proj.cproject.yml' } } as any);
+            sequence.push('returned');
+
+            expect(sequence).toEqual(['handled', 'returned']);
+        });
+
         it('handles OPEN_FILE by calling openFile', async () => {
             const spy = jest.spyOn(componentsPacksWebviewMain as any, 'openFile').mockImplementation(() => { });
             await (componentsPacksWebviewMain as any).handleMessage({ type: 'OPEN_FILE', uri: '/tmp/doc.md', external: true });
@@ -529,7 +563,7 @@ describe('ComponentsPacksWebviewMain', () => {
         });
 
         it('applies component set, updates used items and clears edit cache when updateUsedItems returns true', async () => {
-            await (componentsPacksWebviewMain as any).handleApplyComponentSet();
+            const result = await (componentsPacksWebviewMain as any).handleApplyComponentSet();
 
             expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'SET_SOLUTION_STATE', stateMessage: 'Saving changes...' });
             expect(applyMock).toHaveBeenCalledWith({ context: 'ctx1' });
@@ -546,12 +580,13 @@ describe('ComponentsPacksWebviewMain', () => {
             // No extra error state message on success
             const stateMessages = webviewManager.sendMessage.mock.calls.filter(c => c[0].type === 'SET_SOLUTION_STATE');
             expect(stateMessages.length).toBe(1); // Saving changes..., then clearing state
+            expect(result).toBe(true);
         });
 
         it('sends error state message when apply fails', async () => {
             applyMock.mockResolvedValue({ success: false, message: 'Failed to apply' });
 
-            await (componentsPacksWebviewMain as any).handleApplyComponentSet();
+            const result = await (componentsPacksWebviewMain as any).handleApplyComponentSet();
 
             // Expect extra SET_SOLUTION_STATE with error
             const stateMessages = webviewManager.sendMessage.mock.calls
@@ -562,6 +597,7 @@ describe('ComponentsPacksWebviewMain', () => {
                 'Saving changes...',
                 'Failed to apply'
             ]);
+            expect(result).toBe(false);
         });
 
         it('uses default error message when apply fails without message', async () => {
@@ -577,6 +613,65 @@ describe('ComponentsPacksWebviewMain', () => {
                 'Saving changes...',
                 'Unspecified error when writing solution information'
             ]);
+        });
+    });
+
+    describe('saveChangesBeforeBuild', () => {
+        it('returns true without applying when the view has no loaded baseline', async () => {
+            (componentsPacksWebviewMain as any).usedItems = undefined;
+            const isDirtySpy = jest.spyOn(componentsPacksWebviewMain as any, 'isDirty');
+            const applySpy = jest.spyOn(componentsPacksWebviewMain as any, 'handleApplyComponentSet');
+
+            const result = await componentsPacksWebviewMain.saveChangesBeforeBuild();
+
+            expect(result).toBe(true);
+            expect(isDirtySpy).not.toHaveBeenCalled();
+            expect(applySpy).not.toHaveBeenCalled();
+        });
+
+        it('returns true without applying when the view is not dirty', async () => {
+            (componentsPacksWebviewMain as any).usedItems = usedItemsReturn;
+            jest.spyOn(componentsPacksWebviewMain as any, 'isDirty').mockResolvedValue(false);
+            const applySpy = jest.spyOn(componentsPacksWebviewMain as any, 'handleApplyComponentSet');
+
+            const result = await componentsPacksWebviewMain.saveChangesBeforeBuild();
+
+            expect(result).toBe(true);
+            expect(applySpy).not.toHaveBeenCalled();
+        });
+
+        it('applies dirty view changes and returns the apply result', async () => {
+            (componentsPacksWebviewMain as any).usedItems = usedItemsReturn;
+            jest.spyOn(componentsPacksWebviewMain as any, 'isDirty').mockResolvedValue(true);
+            const applySpy = jest
+                .spyOn(componentsPacksWebviewMain as any, 'handleApplyComponentSet')
+                .mockResolvedValue(false);
+
+            const result = await componentsPacksWebviewMain.saveChangesBeforeBuild();
+
+            expect(applySpy).toHaveBeenCalledTimes(1);
+            expect(result).toBe(false);
+        });
+    });
+
+    describe('isModifiedBeforeBuild', () => {
+        it('returns false without dirty check when the view has no loaded baseline', async () => {
+            (componentsPacksWebviewMain as any).usedItems = undefined;
+            const isDirtySpy = jest.spyOn(componentsPacksWebviewMain as any, 'isDirty');
+
+            const result = await componentsPacksWebviewMain.isModifiedBeforeBuild();
+
+            expect(result).toBe(false);
+            expect(isDirtySpy).not.toHaveBeenCalled();
+        });
+
+        it('returns the current dirty state when the view has a loaded baseline', async () => {
+            (componentsPacksWebviewMain as any).usedItems = usedItemsReturn;
+            jest.spyOn(componentsPacksWebviewMain as any, 'isDirty').mockResolvedValue(true);
+
+            const result = await componentsPacksWebviewMain.isModifiedBeforeBuild();
+
+            expect(result).toBe(true);
         });
     });
 
@@ -899,6 +994,7 @@ describe('ComponentsPacksWebviewMain', () => {
 
     describe('handleChangeTarget (direct)', () => {
         const projectPath = 'path/to/myproj.cproject.yml';
+        const secondProjectPath = 'path/to/other.cproject.yml';
         const layerPath = 'Layer1.clayer.yml';
         const changeTargetMessage = {
             type: 'CHANGE_TARGET',
@@ -910,6 +1006,11 @@ describe('ComponentsPacksWebviewMain', () => {
             webviewManager.sendMessage.mockClear();
             jest.spyOn(solutionManager, 'getCsolution').mockReturnValue(solutionManager.getCsolution());
             (componentsPacksWebviewMain as any).openWebview = jest.fn().mockResolvedValue(undefined);
+            (componentsPacksWebviewMain as any).currentProject = { solutionPath: 'sol', project: { projectId: projectPath, projectName: 'myproj' } };
+            jest.spyOn(componentsPacksWebviewMain as any, 'createBuildContextDeps').mockReturnValue([
+                { projectPath, layers: [{ path: layerPath }] },
+                { projectPath: secondProjectPath, layers: [] }
+            ]);
             (componentsPacksWebviewMain as any).getTargetSetData = jest.fn().mockReturnValue([{
                 label: 'Project1',
                 key: 'Project1',
@@ -923,12 +1024,38 @@ describe('ComponentsPacksWebviewMain', () => {
                     relativePath: layerPath,
                     type: 'layer',
                 }]
+            }, {
+                label: 'Project2',
+                key: 'Project2',
+                path: secondProjectPath,
+                relativePath: secondProjectPath,
+                type: 'project',
             }] as TargetSetData[]);
         });
 
-        it('calls debounce_load with the selected project path', async () => {
+        it('calls debounce_load without reload for the current project path', async () => {
             const debounceSpy = jest.spyOn(componentsPacksWebviewMain as any, 'debounce_load').mockResolvedValue(undefined);
             await (componentsPacksWebviewMain as any).handleChangeTarget(changeTargetMessage);
+
+            expect(debounceSpy).toHaveBeenCalledWith(projectPath, false);
+        });
+
+        it('calls debounce_load with reload=true for a different project path', async () => {
+            const debounceSpy = jest.spyOn(componentsPacksWebviewMain as any, 'debounce_load').mockResolvedValue(undefined);
+            await (componentsPacksWebviewMain as any).handleChangeTarget({
+                type: 'CHANGE_TARGET',
+                targetSet: { relativePath: secondProjectPath, path: secondProjectPath }
+            });
+
+            expect(debounceSpy).toHaveBeenCalledWith(secondProjectPath, true);
+        });
+
+        it('keeps reload=false when switching to a layer in the same project', async () => {
+            const debounceSpy = jest.spyOn(componentsPacksWebviewMain as any, 'debounce_load').mockResolvedValue(undefined);
+            await (componentsPacksWebviewMain as any).handleChangeTarget({
+                type: 'CHANGE_TARGET',
+                targetSet: { relativePath: layerPath, path: layerPath }
+            });
 
             expect(debounceSpy).toHaveBeenCalledWith(projectPath, false);
         });
@@ -1077,7 +1204,30 @@ describe('ComponentsPacksWebviewMain', () => {
 
             await (componentsPacksWebviewMain as any).handleSolutionLoadChange({ previousState: { solutionPath: undefined }, newState: { solutionPath: 'solution.csolution.yml' } });
 
-            expect(debounceSpy).toHaveBeenCalledWith('projReloaded', true);
+            expect(debounceSpy).toHaveBeenCalledWith('/root/sol/proj.cproject.yml', true);
+        });
+
+        it('reloads the first active context project when cached project is no longer active', async () => {
+            webviewManager.isPanelActive = true;
+            (componentsPacksWebviewMain as any).currentProject = {
+                solutionPath: 'solution.csolution.yml',
+                project: { projectId: '/root/sol/old.cproject.yml', projectName: 'old' }
+            };
+            const debounceSpy = jest.spyOn(componentsPacksWebviewMain as any, 'debounce_load').mockResolvedValue(undefined);
+            const descriptors = [{ projectName: 'NewProj', projectPath: '/root/sol/new.cproject.yml', displayName: 'NewProj::Debug' }];
+            jest.spyOn(solutionManager, 'getCsolution').mockReturnValue({
+                solutionPath: 'solution.csolution.yml',
+                getCproject: jest.fn().mockReturnValue({}),
+                getCprojectPath: jest.fn().mockReturnValue('/root/sol/old.cproject.yml'),
+                getContextDescriptors: jest.fn().mockReturnValue(descriptors),
+            } as any);
+
+            await (componentsPacksWebviewMain as any).handleSolutionLoadChange({
+                previousState: { solutionPath: 'solution.csolution.yml', loaded: false },
+                newState: { solutionPath: 'solution.csolution.yml', loaded: true }
+            });
+
+            expect(debounceSpy).toHaveBeenCalledWith('/root/sol/new.cproject.yml', true);
         });
 
         it('triggers reload when conversion completes (converted false->true)', async () => {
@@ -1137,6 +1287,36 @@ describe('ComponentsPacksWebviewMain', () => {
     });
 
     describe('getValidProjectId', () => {
+        it('returns the cached project when it is still present in active context descriptors', () => {
+            (componentsPacksWebviewMain as any).currentProject = { solutionPath: 'sol', project: { projectId: 'projA', projectName: 'projA' } };
+            const mockCsolution = {
+                getCproject: jest.fn().mockReturnValue(undefined),
+                getCprojectPath: jest.fn().mockReturnValue('fallback'),
+                getContextDescriptors: jest.fn().mockReturnValue([{ projectPath: 'projA' }])
+            };
+            jest.spyOn(solutionManager, 'getCsolution').mockReturnValue(mockCsolution as any);
+
+            const result = (componentsPacksWebviewMain as any).getValidProjectId();
+
+            expect(result).toBe('projA');
+            expect(mockCsolution.getCproject).not.toHaveBeenCalled();
+        });
+
+        it('ignores cached old project when it is not in active context descriptors', () => {
+            (componentsPacksWebviewMain as any).currentProject = { solutionPath: 'sol', project: { projectId: 'oldProj', projectName: 'oldProj' } };
+            const mockCsolution = {
+                getCproject: jest.fn().mockReturnValue({}),
+                getCprojectPath: jest.fn().mockReturnValue('fallback'),
+                getContextDescriptors: jest.fn().mockReturnValue([{ projectPath: 'newProj' }])
+            };
+            jest.spyOn(solutionManager, 'getCsolution').mockReturnValue(mockCsolution as any);
+
+            const result = (componentsPacksWebviewMain as any).getValidProjectId();
+
+            expect(result).toBe('newProj');
+            expect(mockCsolution.getCproject).not.toHaveBeenCalled();
+        });
+
         it('returns the cached project when still present in csolution', () => {
             (componentsPacksWebviewMain as any).currentProject = { solutionPath: 'sol', project: { projectId: 'projA', projectName: 'projA' } };
             const mockCsolution = {
@@ -1312,6 +1492,59 @@ describe('ComponentsPacksWebviewMain', () => {
             (componentsPacksWebviewMain as any).clearTargetSetCache();
             (componentsPacksWebviewMain as any).getTargetSetData();
             expect((mockCsolution.getContextDescriptors as jest.Mock)).toHaveBeenCalledTimes(2);
+        });
+
+        it('clears stale selected context and falls back to the current project target', () => {
+            const currentTarget: TargetSetData = {
+                label: 'Current',
+                key: 'current',
+                path: 'current.cproject.yml',
+                relativePath: 'current.cproject.yml',
+                type: 'project'
+            };
+            (componentsPacksWebviewMain as any).currentProject = {
+                solutionPath: 'solution.csolution.yml',
+                project: { projectId: 'current.cproject.yml', projectName: 'current' }
+            };
+            (componentsPacksWebviewMain as any).selectedContext = {
+                label: 'Stale',
+                key: 'stale',
+                path: 'stale.cproject.yml',
+                relativePath: 'stale.cproject.yml',
+                type: 'project'
+            };
+            jest.spyOn(componentsPacksWebviewMain as any, 'getTargetSetData').mockReturnValue([currentTarget]);
+
+            const result = (componentsPacksWebviewMain as any).getSelectedTargetSetData();
+
+            expect(result).toBe(currentTarget);
+            expect((componentsPacksWebviewMain as any).selectedContext).toBe(currentTarget);
+        });
+
+        it('does not reload available pack metadata when the filtered cache is empty', async () => {
+            jest.spyOn(componentsPacksWebviewMain as any, 'getActiveContext').mockReturnValue('ctx');
+            jest.spyOn(componentsPacksWebviewMain as any, 'getTargetSetData').mockReturnValue([]);
+            jest.spyOn(componentsPacksWebviewMain as any, 'getSelectedTargetSetData').mockReturnValue(undefined);
+            jest.spyOn(solutionManager, 'getCsolution').mockReturnValue({
+                solutionDir: 'root',
+                solutionName: 'solution',
+                solutionPath: path.join('root', 'solution.csolution.yml'),
+            } as any);
+            const filterSpy = jest.spyOn(componentsPacksWebviewMain as any, 'filterAvailablePacks')
+                .mockResolvedValue({ packs: {}, indexTimestamp: new Date().toISOString() });
+            (componentsPacksWebviewMain as any).csolutionService.getComponentsTree = jest.fn().mockResolvedValue({ success: true, classes: [] });
+            (componentsPacksWebviewMain as any).csolutionService.validateComponents = jest.fn().mockResolvedValue({ success: true, validation: [] });
+            (componentsPacksWebviewMain as any).csolutionService.getPacksInfo = jest.fn().mockResolvedValue({ packs: [] });
+
+            await (componentsPacksWebviewMain as any).sendSolutionData();
+            await (componentsPacksWebviewMain as any).sendSolutionData();
+
+            expect(filterSpy).toHaveBeenCalledTimes(1);
+            expect(webviewManager.sendMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+                type: 'SOLUTION_LOADED',
+                availablePacks: {},
+                availablePacksIndexCurrent: true,
+            }));
         });
     });
 
@@ -1521,33 +1754,35 @@ describe('ComponentsPacksWebviewMain', () => {
             commandsProvider.executeCommand.mockClear();
         });
 
-        it('passes files to the external opener when requested', () => {
+        it('passes files to the external opener when requested', async () => {
             const openSpy = jest.spyOn(mockOpenFileExternal, 'openFile');
 
-            (componentsPacksWebviewMain as any).openFile('docs/readme.md', true);
+            await (componentsPacksWebviewMain as any).openFile('docs/readme.md', true);
 
             expect(openSpy).toHaveBeenCalledWith('docs/readme.md');
             expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
         });
 
-        it('shows markdown preview for .md files', () => {
+        it('shows markdown preview for .md files', async () => {
             const openSpy = jest.spyOn(mockOpenFileExternal, 'openFile');
 
-            (componentsPacksWebviewMain as any).openFile('docs/intro.md');
+            await (componentsPacksWebviewMain as any).openFile('docs/intro.md');
 
             expect(openSpy).not.toHaveBeenCalled();
-            const [command, previewUri] = commandsProvider.executeCommand.mock.calls.at(-1);
-            expect(command).toBe('markdown.showPreview');
+            const [command, previewUri, viewId, options] = commandsProvider.executeCommand.mock.calls.at(-1);
+            expect(command).toBe('vscode.openWith');
+            expect(viewId).toBe('vscode.markdown.preview.editor');
+            expect(options).toEqual({ viewColumn: vscode.ViewColumn.Beside });
             const previewPath = (previewUri.path ?? previewUri.fsPath ?? '').replace(/\\/g, '/');
             expect(previewPath.endsWith('/docs/intro.md')).toBe(true);
         });
 
-        it('opens other files inside VS Code', () => {
+        it('opens other files inside VS Code', async () => {
             const showSpy = jest
                 .spyOn(vscode.window, 'showTextDocument')
                 .mockResolvedValue(undefined as unknown as vscode.TextEditor);
 
-            (componentsPacksWebviewMain as any).openFile('docs/notes.txt', false, '');
+            await (componentsPacksWebviewMain as any).openFile('docs/notes.txt', false, '');
 
             expect(showSpy).toHaveBeenCalledTimes(1);
 
@@ -1632,13 +1867,24 @@ describe('ComponentsPacksWebviewMain', () => {
         });
 
         it('passes selected layer path to resolve options when selected target is a layer', async () => {
-            (componentsPacksWebviewMain as any).selectedContext = {
+            const layerTarget: TargetSetData = {
                 label: 'Layer: App',
                 key: 'layer-key',
                 path: 'layers/app.clayer.yml',
                 relativePath: 'layers/app.clayer.yml',
                 type: 'layer',
             };
+            (componentsPacksWebviewMain as any).selectedContext = {
+                ...layerTarget,
+            };
+            jest.spyOn(componentsPacksWebviewMain as any, 'getTargetSetData').mockReturnValue([{
+                label: 'Project',
+                key: 'project-key',
+                path: 'proj1',
+                relativePath: 'proj1',
+                type: 'project',
+                children: [layerTarget],
+            }]);
 
             await (componentsPacksWebviewMain as any).resolveComponents();
 
@@ -1740,6 +1986,38 @@ describe('ComponentsPacksWebviewMain', () => {
                 type: 'SOLUTION_LOADED',
                 availableTargetTypes: mockTargetData,
                 selectedTargetType: mockTargetData[0]
+            });
+        });
+
+        it('sends pending pack focus in the next SOLUTION_LOADED message', async () => {
+            (componentsPacksWebviewMain as any).pendingFocusPackId = 'ARM::CMSIS@2.3.0';
+
+            await (componentsPacksWebviewMain as any).resolveComponents();
+
+            const solutionLoadedCall = webviewManager.sendMessage.mock.calls.find(
+                c => c[0].type === 'SOLUTION_LOADED'
+            );
+
+            expect(solutionLoadedCall![0]).toMatchObject({
+                type: 'SOLUTION_LOADED',
+                focusPackId: 'ARM::CMSIS@2.3.0'
+            });
+        });
+
+        it('clears pending pack focus after it has been sent', async () => {
+            (componentsPacksWebviewMain as any).pendingFocusPackId = 'ARM::CMSIS@2.3.0';
+
+            await (componentsPacksWebviewMain as any).resolveComponents();
+            webviewManager.sendMessage.mockClear();
+            await (componentsPacksWebviewMain as any).resolveComponents();
+
+            const solutionLoadedCall = webviewManager.sendMessage.mock.calls.find(
+                c => c[0].type === 'SOLUTION_LOADED'
+            );
+
+            expect(solutionLoadedCall![0]).toMatchObject({
+                type: 'SOLUTION_LOADED',
+                focusPackId: undefined
             });
         });
     });

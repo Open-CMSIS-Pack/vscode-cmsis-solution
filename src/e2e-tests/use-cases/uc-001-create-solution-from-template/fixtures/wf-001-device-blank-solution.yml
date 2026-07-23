@@ -1,0 +1,10 @@
+workflow: WF-001
+device: ARMCM33
+template: Blank solution
+solution_name_prefix: e2e_device_blank_solution
+
+expected_files:
+  required:
+    - "*.csolution.yml"
+    - "**/*.cproject.yml"
+    - "**/main.c"

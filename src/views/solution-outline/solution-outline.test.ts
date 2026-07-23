@@ -35,6 +35,7 @@ describe('SolutionOutlineView', () => {
     let visibilityChangeEmitter: vscode.EventEmitter<Event>;
     let globalStateProvider: GlobalState<CsolutionGlobalState>;
     let configurationProvider: MockConfigurationProvider;
+    let executeCommandSpy: jest.SpyInstance;
 
     beforeEach(async () => {
         visibilityChangeEmitter = new vscode.EventEmitter();
@@ -54,6 +55,11 @@ describe('SolutionOutlineView', () => {
 
         globalStateProvider = globalStateFactory();
         configurationProvider = configurationProviderFactory();
+        executeCommandSpy = jest.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+        executeCommandSpy.mockRestore();
     });
 
 
@@ -214,7 +220,6 @@ describe('SolutionOutlineView', () => {
     });
 
     it('reveals the solution outline when a new solution is loaded and auto reveal is enabled', async () => {
-        const executeCommandSpy = jest.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
         const solutionLoadedState = activeSolutionLoadStateFactory();
         const mockSolutionManager = solutionManagerFactory({
             loadState: solutionLoadedState,
@@ -237,11 +242,9 @@ describe('SolutionOutlineView', () => {
 
         expect(executeCommandSpy).toHaveBeenCalledWith(`${SolutionOutlineView.treeViewId}.open`, { preserveFocus: true });
 
-        executeCommandSpy.mockRestore();
     });
 
     it('does not reveal the solution outline when auto reveal is disabled', async () => {
-        const executeCommandSpy = jest.spyOn(vscode.commands, 'executeCommand').mockResolvedValue(undefined);
         const solutionLoadedState = activeSolutionLoadStateFactory();
         const mockSolutionManager = solutionManagerFactory({
             loadState: solutionLoadedState,
@@ -267,7 +270,60 @@ describe('SolutionOutlineView', () => {
 
         expect(executeCommandSpy).not.toHaveBeenCalledWith(`${SolutionOutlineView.treeViewId}.open`, { preserveFocus: true });
 
-        executeCommandSpy.mockRestore();
+    });
+
+    it('refreshes the tree on compilation database update when a West project exists', async () => {
+        const solutionLoadedState = activeSolutionLoadStateFactory();
+        const mockCsolution = csolutionFactory();
+        mockCsolution.hasWestProject = jest.fn().mockReturnValue(true);
+
+        const mockSolutionManager = solutionManagerFactory({
+            loadState: solutionLoadedState,
+            getCsolution: jest.fn().mockReturnValue(mockCsolution),
+        });
+
+        const view = new SolutionOutlineView(
+            mockSolutionManager,
+            mockTreeViewProvider,
+            globalStateProvider,
+            mockTreeViewFileDecorationProvider,
+            configurationProvider
+        );
+
+        await view.activate(extensionContextFactory());
+        mockSolutionManager.onUpdatedCompileCommandsEmitter.fire();
+        await waitForPromises();
+
+        expect(mockTreeViewProvider.updateTree).toHaveBeenCalled();
+    });
+
+    it('does not refresh the tree on compilation database update when no West project exists', async () => {
+        const solutionLoadedState = activeSolutionLoadStateFactory();
+        const mockCsolution = csolutionFactory();
+        mockCsolution.hasWestProject = jest.fn().mockReturnValue(false);
+
+        const mockSolutionManager = solutionManagerFactory({
+            loadState: solutionLoadedState,
+            getCsolution: jest.fn().mockReturnValue(mockCsolution),
+        });
+
+        const view = new SolutionOutlineView(
+            mockSolutionManager,
+            mockTreeViewProvider,
+            globalStateProvider,
+            mockTreeViewFileDecorationProvider,
+            configurationProvider
+        );
+
+        await view.activate(extensionContextFactory());
+
+        // Reset the mock to ensure it wasn't called during activation
+        (mockTreeViewProvider.updateTree as jest.Mock).mockClear();
+
+        mockSolutionManager.onUpdatedCompileCommandsEmitter.fire();
+        await waitForPromises();
+
+        expect(mockTreeViewProvider.updateTree).not.toHaveBeenCalled();
     });
 
 });

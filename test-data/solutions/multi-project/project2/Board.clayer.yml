@@ -1,0 +1,15 @@
+layer:
+  type: Board
+  description: Board layer for project2
+
+  packs:
+    - pack: Keil::CMSIS-FreeRTOS@>=10.4.0
+
+  components:
+    - component: CMSIS:RTOS2:FreeRTOS
+
+  groups:
+    - group: Board
+      files:
+        - file: ./board_init.c
+        - file: README.md

@@ -64,6 +64,49 @@ export class CSolution {
         return this.cbuildIdxFile?.rootItem;
     }
 
+    public getSolutionYmlFiles(): string[] {
+        const ymlFiles: string[] = [];
+
+        // Add solution path
+        if (this.solutionPath) {
+            ymlFiles.push(this.solutionPath);
+        }
+
+        // Add project paths
+        for (const project of this.projects.values()) {
+            if (project?.fileName) {
+                ymlFiles.push(project.fileName);
+            }
+        }
+
+        // Add layer paths
+        for (const layerPath of this.clayerYmlRoot.keys()) {
+            ymlFiles.push(layerPath);
+        }
+
+        return ymlFiles;
+    }
+
+    public getUsedDbgconfFiles(): string[] {
+        const dbgconfFiles: string[] = [];
+        const seen = new Set<string>();
+
+        for (const cbuild of this.cbuildYmlRoot.values()) {
+            for (const dbgConfigFile of cbuild.getChildItem()?.getGrandChildren('dbgconf') ?? []) {
+                const fileName = dbgConfigFile.getValue('file');
+                if (!fileName) {
+                    continue;
+                }
+                const filePath = cbuild.resolvePath(fileName);
+                if (!seen.has(filePath)) {
+                    seen.add(filePath);
+                    dbgconfFiles.push(filePath);
+                }
+            }
+        }
+        return dbgconfFiles;
+    }
+
     cbuildPackFile = new CbuildPackFile();
 
     cbuilds?: ITreeItem<CTreeItem>[];
@@ -449,6 +492,12 @@ export class CSolution {
         return this.clayerYmlRoot.get(absPath);
     }
 
+    public getClayersForContext(context?: string): CTreeItem[] {
+        const cbuild = this.getCbuildTop(context);
+        return (cbuild?.getRoot().getProperty('clayers') as CTreeItem[] | undefined) ?? [];
+    }
+
+
     /**
      * Returns first child of cproject.yml file for specified cbuild item
      * @param cbuild cbuild item (first child of cbuild.yml file)
@@ -469,6 +518,16 @@ export class CSolution {
 
     public getCompilers(): string[] {
         return this.csolutionYml.compilers;
+    }
+
+    public hasWestProject(): boolean {
+        for (const project of this.projects.values()) {
+            if (project?.projectType === 'West') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
 };

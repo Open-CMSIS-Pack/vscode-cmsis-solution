@@ -46,6 +46,10 @@
     cursor: default;
 }
 
+.components-view-root .description-column {
+    max-width: 55vw;
+}
+
 .faded {
     opacity: 0.5;
     margin-left: 0.5em;
@@ -61,6 +65,7 @@
 
 .ant-table-row-disabled {
     background-color: var(--vscode-editorStickyScrollHover-background) !important;
+    color: var(--vscode-disabledForeground, var(--vscode-descriptionForeground)) !important;
 }
 
 .ant-table-row .group-toggle.codicon {
@@ -252,6 +257,10 @@ th.ant-table-cell {
 
 .components-view-root th.ant-table-cell:nth-child(2) {
     text-indent: -10px;
+}
+
+.variant-column {
+    overflow: unset !important;
 }
 
 .packs-view-root .expandable-references {

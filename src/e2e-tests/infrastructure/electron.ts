@@ -30,20 +30,45 @@
  */
 
 import * as playwright from 'playwright';
+import { log } from '../utils/logger';
 
 export const launchElectron = async (executablePath: string, args: string[], defaultTimeoutMillis: number, env: { [key: string]: string } = {}): Promise<playwright.ElectronApplication> => {
     const electronApp = await playwright._electron.launch({ executablePath, args, timeout: defaultTimeoutMillis, env: { ...process.env, ...env } as { [key: string]: string } });
     electronApp.context().setDefaultTimeout(defaultTimeoutMillis);
+
+    const proc = electronApp.process();
+
+    // Capture VS Code stderr so startup errors are visible in test logs.
+    proc.stderr?.on('data', (chunk: Buffer) => {
+        const text = chunk.toString().trim();
+        if (text) {
+            log('debug', `VS Code stderr: ${text}`);
+        }
+    });
+
+    // Log unexpected exits before the window appears to aid diagnosis.
+    proc.once('exit', (code, signal) => {
+        if (code !== 0 || signal) {
+            log('warn', `VS Code process exited: code=${code ?? 'null'}, signal=${signal ?? 'null'}`);
+        }
+    });
+
     return electronApp;
 };
 
 export const ELECTRON_APPLICATION_CLOSED_MESSAGE = 'Electron application is closed immediately after launch';
 
-export const getPage = async (electronApp: playwright.ElectronApplication): Promise<playwright.Page> => {
+/** Playwright error messages that indicate the Electron process exited before showing a window. */
+const ELECTRON_APP_CLOSED_PATTERNS = [
+    'electronApplication.firstWindow: Electron application closed',
+    'Target page, context or browser has been closed',
+];
+
+export const getPage = async (electronApp: playwright.ElectronApplication, timeout: number): Promise<playwright.Page> => {
     try {
-        return await electronApp.firstWindow();
+        return await electronApp.firstWindow({ timeout });
     } catch (e) {
-        if (e instanceof Error && e.message === 'electronApplication.firstWindow: Electron application closed') {
+        if (e instanceof Error && ELECTRON_APP_CLOSED_PATTERNS.some(p => e.message.includes(p))) {
             throw new Error(ELECTRON_APPLICATION_CLOSED_MESSAGE);
         } else {
             throw e;
@@ -62,28 +87,68 @@ type ElectronDialog = {
     showMessageBox: (browserWindow: unknown, options: { buttons?: string[], message: string }) => { response: number, checkboxChecked: boolean };
 }
 
+type DialogWithBackup = ElectronDialog & {
+    __e2eOriginalShowMessageBox?: ElectronDialog['showMessageBox'];
+};
+
+export type MockShowMessageBoxOptions = {
+    /**
+     * When true the mock stays installed and auto-answers every subsequent dialog that
+     * contains the target button, instead of being removed after the first dialog.
+     * Use this for prompts (e.g. the Arm Environment Manager "Always Allow" trust dialog)
+     * that can appear at an unpredictable time, or more than once, during a test.
+     */
+    persist?: boolean;
+};
+
 /**
  * Mock electron's native message box dialog.
- * @param buttonNameToClick Name of the button to click for the next dialog opened during the test run
+ *
+ * By default the mock is one-shot: it intercepts the next dialog and then restores the
+ * original handler. Native message boxes are modal and block the extension host, so if a
+ * real dialog appears before the mock is installed (or a second dialog appears after a
+ * one-shot mock was consumed) the host blocks forever in headless CI. Pass `persist: true`
+ * for prompts that may appear at an unpredictable time to keep the auto-response installed.
+ *
+ * @param buttonNameToClick Name of the button to click for dialogs opened during the test run
+ * @param options Optional behaviour flags (e.g. `persist`)
  */
-export const mockShowMessageBoxResponse = async (electronApp: playwright.ElectronApplication, buttonNameToClick: string): Promise<void> => {
+export const mockShowMessageBoxResponse = async (
+    electronApp: playwright.ElectronApplication,
+    buttonNameToClick: string,
+    options: MockShowMessageBoxOptions = {},
+): Promise<void> => {
     await electronApp.evaluate(
         // Note: this function cannot include "advanced" JS features, e.g., async. It is stringified and sent to the electron process for evaluation,
         // where not all modern language features are supported.
-        ({ dialog }: { dialog: ElectronDialog }, targetButtonName: string) => {
-            const originalShowMessageBox = dialog.showMessageBox;
-            dialog.showMessageBox = function (_browserWindow, options) {
-                dialog.showMessageBox = originalShowMessageBox;
-                const buttonNames = options.buttons || [];
+        ({ dialog }: { dialog: DialogWithBackup }, { targetButtonName, persist }: { targetButtonName: string, persist: boolean }) => {
+            // Capture the true original handler exactly once so repeated installs never chain.
+            if (!dialog.__e2eOriginalShowMessageBox) {
+                dialog.__e2eOriginalShowMessageBox = dialog.showMessageBox;
+            }
+            const originalShowMessageBox = dialog.__e2eOriginalShowMessageBox;
+
+            dialog.showMessageBox = function (_browserWindow, dialogOptions) {
+                const buttonNames = dialogOptions.buttons || [];
                 const buttonIndex = buttonNames.indexOf(targetButtonName);
+
                 if (buttonIndex === -1) {
-                    const optionsWithErrorMessage = { ...options, message: `E2E test error: could not find button ${targetButtonName}` };
+                    if (persist) {
+                        // Keep the persistent handler installed and forward unexpected dialogs unchanged.
+                        return originalShowMessageBox(_browserWindow, dialogOptions);
+                    }
+                    dialog.showMessageBox = originalShowMessageBox;
+                    const optionsWithErrorMessage = { ...dialogOptions, message: `E2E test error: could not find button ${targetButtonName}` };
                     return originalShowMessageBox(_browserWindow, optionsWithErrorMessage);
-                } else {
-                    return { response: buttonIndex, checkboxChecked: false };
                 }
+
+                if (!persist) {
+                    // One-shot: restore the original handler after the first matching dialog.
+                    dialog.showMessageBox = originalShowMessageBox;
+                }
+                return { response: buttonIndex, checkboxChecked: false };
             };
         },
-        buttonNameToClick,
+        { targetButtonName: buttonNameToClick, persist: options.persist ?? false },
     );
 };

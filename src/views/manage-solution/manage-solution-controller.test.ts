@@ -23,6 +23,7 @@ import path from 'path';
 import { ETextFileResult, TextFile } from '../../generic/text-file';
 import { stripTwoExtensions } from '../../utils/string-utils';
 import { solutionManagerFactory } from '../../solutions/solution-manager.factories';
+import * as vscodeUtils from '../../utils/vscode-utils';
 
 /**
  * Build generated (current) and reference JSON strings for a context selection state.
@@ -63,13 +64,21 @@ describe('manage-solution-controller', () => {
 
     const testDataHandler = new TestDataHandler();
     let tmpSolutionDir: string;
+    let cmsisJsonFilePath: string;
 
     beforeAll(async () => {
         tmpSolutionDir = testDataHandler.copyTestDataToTmp('solutions');
+        cmsisJsonFilePath = path.join(testDataHandler.tmpDir, '.vscode', 'cmsis.json');
+        jest.spyOn(vscodeUtils, 'getWorkspaceFolder').mockReturnValue(testDataHandler.tmpDir);
+    });
+
+    afterEach(() => {
+        testDataHandler.rmFile(cmsisJsonFilePath);
     });
 
     afterAll(() => {
         testDataHandler.dispose();
+        jest.restoreAllMocks();
     });
 
     it('creates a default target set ', async () => {
@@ -598,4 +607,3 @@ describe('manage-solution-controller', () => {
         expect(projectContext?.name).toBe('TestProject.Release');
     });
 });
-
