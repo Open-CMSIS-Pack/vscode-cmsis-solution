@@ -207,7 +207,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
             { title: 'Version', dataIndex: 'versionTarget', key: 'versionTarget', minWidth: 120, ellipsis: false, render: renderVersionTarget, onCell: () => ({ className: 'packs-version-column' }) },
             { title: 'Description', dataIndex: 'description', key: 'description', ellipsis: true, render: renderDescriptionCell, onCell: () => ({ className: 'description-column packs-description-column' }) },
         ];
-    }, [openFile, selectPack]);
+    }, [openFile, selectPack, state.selectedTargetType?.relativePath]);
 
     // pack properties dialog was closed
     const packSelected = (confirmed: boolean, updated?: PackRowDataType, unlockOf?: string) => {
