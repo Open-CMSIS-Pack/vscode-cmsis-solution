@@ -189,7 +189,7 @@ describe('PacksView', () => {
         expect(row?.classList.contains('ant-table-row-disabled')).toBe(false);
     });
 
-    it('keeps selected packs in the current layer on the default row styling', () => {
+    it('highlights selected packs in the current layer', () => {
         const currentLayerState: ComponentsState = {
             ...defaultState,
             packs: [{
@@ -206,7 +206,7 @@ describe('PacksView', () => {
         });
 
         const row = localContainer.querySelector('tr.ant-table-row');
-        expect(row?.classList.contains('ant-table-row-disabled')).toBe(false);
+        expect(row?.classList.contains('current-layer-row')).toBe(true);
     });
 
     it('bolds a pack name listed in the current layer', () => {

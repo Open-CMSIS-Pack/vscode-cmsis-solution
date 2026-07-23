@@ -292,7 +292,15 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
     const rowClassName = (record: PackRowDataType): string => {
         const hasMissingReferences = record.references.some(ref => ref.missing);
 
-        return hasMissingReferences ? 'packs-missing-row' : '';
+        const activeLayer = state.selectedTargetType?.relativePath?.replaceAll('\\', '/').toLowerCase() || '';
+        const usedInCurrentLayer = activeLayer && record.references.some(ref => {
+            const origin = ref.relOrigin.replaceAll('\\', '/').toLowerCase();
+            return origin === activeLayer || origin.endsWith(`/${activeLayer}`);
+        });
+        return [
+            hasMissingReferences ? 'packs-missing-row' : '',
+            usedInCurrentLayer ? 'current-layer-row' : '',
+        ].filter(Boolean).join(' ');
     };
 
     return (
