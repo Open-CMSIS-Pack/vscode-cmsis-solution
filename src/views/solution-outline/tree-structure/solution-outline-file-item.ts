@@ -24,11 +24,6 @@ import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 import { CSolution } from '../../../solutions/csolution';
 import { SolutionRpcData } from '../../../solutions/solution-rpc-data';
 
-export interface CreatedFileNode {
-    source: ITreeItem<CTreeItem>;
-    node: COutlineItem;
-}
-
 export class FileItemBuilder extends SolutionOutlineItemBuilder {
     constructor(
         csolution?: CSolution,
@@ -39,24 +34,19 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
         super(csolution, rpcData, context);
     }
 
-    public createFileNodes(cgroupItem: COutlineItem, files: ITreeItem<CTreeItem>[], docs?: ITreeItem<CTreeItem>[], isApi?: boolean, addContextMenu?: boolean): CreatedFileNode[] {
-        const createdFileNodes: CreatedFileNode[] = [];
+    public createFileNodes(cgroupItem: COutlineItem, files: ITreeItem<CTreeItem>[], docs?: ITreeItem<CTreeItem>[], isApi?: boolean, addContextMenu?: boolean) {
         for (const f of files) {
             const category = f.getValue('category');
             if (category === 'doc') {
                 docs?.push(f);
             } else if (f.getValue('attr') !== 'template' && category !== 'include' && category !== 'other') {
-                const node = this.createFileNode(cgroupItem, f, isApi, addContextMenu);
-                if (node) {
-                    createdFileNodes.push({ source: f, node });
-                }
+                this.createFileNode(cgroupItem, f, isApi, addContextMenu);
             }
         }
         cgroupItem.sortChildrenByGroupThenLabel();
-        return createdFileNodes;
     }
 
-    private createFileNode(cgroupItem: COutlineItem, f: ITreeItem<CTreeItem>, isApi?: boolean, addContextMenu?: boolean): COutlineItem | undefined {
+    private createFileNode(cgroupItem: COutlineItem, f: ITreeItem<CTreeItem>, isApi?: boolean, addContextMenu?: boolean) {
         const fileValue = f.getValueForOneOfKeys(FILE_TAGS);
         if (!fileValue) {
             return;
@@ -88,7 +78,6 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
 
         // add merge feature
         this.addMergeFeature(f, cfileItem);
-        return cfileItem;
     }
 
     private createFileItem(cgroupItem: COutlineItem, label: string, resourcePath: string, description?: string): COutlineItem {

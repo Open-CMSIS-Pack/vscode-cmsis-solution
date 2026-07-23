@@ -110,29 +110,4 @@ describe('FileItem', () => {
         });
 
     });
-
-    it('returns file nodes in declaration order while displaying them alphabetically', async () => {
-        const cbuildContent = `
-        build:
-          files:
-            - file: include/z_primary.h
-              category: header
-            - file: include/a_secondary.h
-              category: header`;
-
-        const root = await parseYamlToCTreeItem(cbuildContent);
-        root!.rootFileName = cSolFile;
-        const files = root?.getChild('build')?.getGrandChildren('files') ?? [];
-
-        const createdFileNodes = fileItem.createFileNodes(componentNode, files);
-
-        expect(createdFileNodes.map(({ node }) => node.getAttribute('label'))).toEqual([
-            'z_primary.h',
-            'a_secondary.h',
-        ]);
-        expect(componentNode.getChildren().map(node => node.getAttribute('label'))).toEqual([
-            'a_secondary.h',
-            'z_primary.h',
-        ]);
-    });
 });
