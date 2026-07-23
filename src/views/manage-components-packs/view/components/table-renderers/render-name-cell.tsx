@@ -51,6 +51,7 @@ export const renderNameCell = (
 
     const vids = validationIds(record, undefined, 'name-col');
     const packTitle = <PackTitleLink packId={record.data.pack} packName={record.data.pack} openFile={openFile} />;
+    const hasCurrentLayerDescendant = Boolean(record.children?.length) && isInActiveLayer(record, state);
     const nameClassName = isInActiveLayer(record, state) ? 'current-layer-name' : undefined;
 
     const tooltTipContent = (
@@ -85,6 +86,13 @@ export const renderNameCell = (
         <div onClick={preventTooltipClicks}>
             <Tooltip placement='right' title={tooltTipContent} mouseEnterDelay={1.0} mouseLeaveDelay={0.3} trigger={['hover']}>
                 <span className={nameClassName} style={{ whiteSpace: 'nowrap' }}>
+                    {hasCurrentLayerDescendant && (
+                        <span
+                            className='codicon codicon-layers current-layer-indicator'
+                            title='Contains components selected in the current layer'
+                            aria-label='Contains components selected in the current layer'
+                        />
+                    )}
                     {value} {record.api ? '(API)' : ''} {instances}
                 </span>
             </Tooltip>

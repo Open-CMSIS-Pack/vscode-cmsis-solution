@@ -63,6 +63,11 @@
     font-weight: 600;
 }
 
+.current-layer-indicator {
+    margin-right: 0.35em;
+    font-size: 0.9em;
+}
+
 .ant-table-row.leaf-node .ant-table-cell {
     border-color: transparent !important;
 }
