@@ -38,7 +38,7 @@ export const renderEditField = (
     const editButton = (
         <Button
             onClick={() => setSelectedComponent(record)}
-            disabled={!isInActiveLayer(record, state)}
+            disabled={differentPartition}
             className='component-properties-edit'
             tabIndex={0}
             aria-label={`Edit properties for ${record.name}`}
