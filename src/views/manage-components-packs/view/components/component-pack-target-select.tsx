@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { TreeSelect } from 'antd';
+import { Tooltip, TreeSelect } from 'antd';
 import { DataNode } from 'antd/es/tree';
 import * as React from 'react';
 import { MessageHandler } from '../../../message-handler';
@@ -39,34 +39,38 @@ export const ComponentPackTargetSelect: React.FC<ComponentPackTargetSelectProps>
 
     const filename = (path: string | undefined) => path?.split(/[/\\]+/).pop() || path;
 
-    return (<TreeSelect
-        style={{ width: '100%' }}
-        rootClassName='hide-tree-switcher'
-        onSelect={handleContextChange}
-        value={filename(state.selectedTargetType?.relativePath)}
-        treeCheckable={false}
-        showCheckedStrategy={TreeSelect.SHOW_ALL}
-        dropdownAlign={{ points: ['tl', 'bl'] }}
-        multiple={false}
-        styles={{
-            popup: {
-                root: { maxHeight: 400, overflow: 'auto' },
-            },
-        }}
-        treeData={state.availableTargetTypes.map(ctx => ({
-            ...ctx,
-            title: filename(ctx.relativePath),
-            key: ctx.label,
-            value: ctx.label,
-            children: ctx.children?.map(layer => ({
-                ...layer,
-                title: filename(layer.relativePath),
-                key: layer.label,
-                value: layer.label,
-            }))
-        }))}
-        placeholder="Please select"
-        treeDefaultExpandAll
-        onChange={() => { }}
-    />);
+    return (
+        <Tooltip title='Select csolution project partition to modify'>
+            <TreeSelect
+                style={{ width: '100%' }}
+                rootClassName='hide-tree-switcher'
+                onSelect={handleContextChange}
+                value={filename(state.selectedTargetType?.relativePath)}
+                treeCheckable={false}
+                showCheckedStrategy={TreeSelect.SHOW_ALL}
+                dropdownAlign={{ points: ['tl', 'bl'] }}
+                multiple={false}
+                styles={{
+                    popup: {
+                        root: { maxHeight: 400, overflow: 'auto' },
+                    },
+                }}
+                treeData={state.availableTargetTypes.map(ctx => ({
+                    ...ctx,
+                    title: filename(ctx.relativePath),
+                    key: ctx.label,
+                    value: ctx.label,
+                    children: ctx.children?.map(layer => ({
+                        ...layer,
+                        title: filename(layer.relativePath),
+                        key: layer.label,
+                        value: layer.label,
+                    }))
+                }))}
+                placeholder="Please select"
+                treeDefaultExpandAll
+                onChange={() => { }}
+            />
+        </Tooltip>
+    );
 };
