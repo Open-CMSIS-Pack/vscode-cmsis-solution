@@ -94,7 +94,7 @@ export class ComponentsPacksWebviewMain {
     private componentTree!: CtRoot;
     private validations!: Results;
     private selectedContext: TargetSetData | undefined;
-    public usedItems!: UsedItems; // loaded after load solution and after apply calls. need to use this data
+    public usedItems: UsedItems | undefined; // loaded after load solution and after apply calls. need to use this data
     private cachedTargetSetData?: TargetSetData[];
 
     private readonly projectFileUpdater: ProjectFileUpdater;
@@ -314,7 +314,7 @@ export class ComponentsPacksWebviewMain {
             if (this.currentProject) {
                 await this.debounce_load(this.currentProject.project.projectId, true);
             } else {
-                await this.clearComponents();
+                await this.clearSolutionData();
                 await this.webviewManager.sendMessage({
                     type: 'SET_ERROR_MESSAGES', messages: [
                         { type: 'ERROR', message: 'No valid project found in the loaded solution' }
@@ -322,7 +322,7 @@ export class ComponentsPacksWebviewMain {
                 });
             }
         } else {
-            await this.clearComponents();
+            await this.clearSolutionData();
         }
     }
 
@@ -768,7 +768,7 @@ export class ComponentsPacksWebviewMain {
                     return message; // Exhaustiveness check
             }
         } else {
-            await this.clearComponents();
+            await this.clearSolutionData();
         }
     }
 
@@ -921,12 +921,20 @@ export class ComponentsPacksWebviewMain {
         await this.sendDirtyState();
     };
 
-    private async clearComponents() {
-        if (this.componentTree) {
-            this.componentTree.classes = [];
+    private async clearSolutionData(): Promise<void> {
+        this.currentProject = undefined;
+        this.componentTree = { success: false, classes: [] };
+        this.validations = { success: false, result: 'UNDEFINED', validation: [] };
+        this.selectedContext = undefined;
+        this.cachedTargetSetData = undefined;
+        this.usedItems = undefined;
+        this.unlinkRequests.clear();
+        this.availablePacksCache = {};
+        this.availablePacksCacheLoaded = false;
+        this.availablePacksIndexTimestamp = undefined;
+        this.pendingFocusPackId = undefined;
 
-            await this.webviewManager.sendMessage({ type: 'SET_COMPONENT_TREE', tree: { success: false, classes: [] }, validations: [] });
-        }
+        await this.webviewManager.sendMessage({ type: 'CLEAR_SOLUTION_DATA' });
     }
 
     private createBuildContextDeps(): BuildContext[] {

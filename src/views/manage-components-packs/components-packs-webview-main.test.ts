@@ -332,25 +332,31 @@ describe('ComponentsPacksWebviewMain', () => {
             expect(debounceSpy).not.toHaveBeenCalled();
         });
 
-        it('clears components when solution not active', async () => {
+        it('clears solution data when solution not active', async () => {
             webviewManager.isPanelActive = true;
             jest.spyOn(solutionManager, 'getCsolution').mockReturnValue(solutionManager.getCsolution());
-            const clearSpy = jest.spyOn(componentsPacksWebviewMain as any, 'clearComponents').mockResolvedValue(undefined);
+            (componentsPacksWebviewMain as any).currentProject = { solutionPath: 'sol', project: { projectId: 'proj1', projectName: 'proj1' } };
+            (componentsPacksWebviewMain as any).selectedContext = { path: 'layer.clayer.yml' };
+            (componentsPacksWebviewMain as any).cachedTargetSetData = [{ path: 'proj1' }];
+            webviewManager.sendMessage.mockClear();
 
             await (componentsPacksWebviewMain as any).handleSolutionLoadChange(makeEvent('active', 'idle'));
 
-            expect(clearSpy).toHaveBeenCalledTimes(1);
+            expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'CLEAR_SOLUTION_DATA' });
+            expect((componentsPacksWebviewMain as any).currentProject).toBeUndefined();
+            expect((componentsPacksWebviewMain as any).selectedContext).toBeUndefined();
+            expect((componentsPacksWebviewMain as any).cachedTargetSetData).toBeUndefined();
             expect(debounceSpy).not.toHaveBeenCalled();
         });
 
-        it('clears components when csolution undefined', async () => {
+        it('clears solution data when csolution undefined', async () => {
             webviewManager.isPanelActive = true;
             jest.spyOn(solutionManager, 'getCsolution').mockReturnValue(undefined);
-            const clearSpy = jest.spyOn(componentsPacksWebviewMain as any, 'clearComponents').mockResolvedValue(undefined);
+            webviewManager.sendMessage.mockClear();
 
             await (componentsPacksWebviewMain as any).handleSolutionLoadChange(makeEvent('idle', 'active'));
 
-            expect(clearSpy).toHaveBeenCalledTimes(1);
+            expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'CLEAR_SOLUTION_DATA' });
             expect(debounceSpy).not.toHaveBeenCalled();
         });
     });
@@ -505,19 +511,13 @@ describe('ComponentsPacksWebviewMain', () => {
             expect(spy).not.toHaveBeenCalled();
         });
 
-        it('clears components when no csolution exists', async () => {
-            // Arrange: ensure componentTree exists so clearComponents will attempt to send
-            (componentsPacksWebviewMain as any).componentTree = { success: true, classes: [{}] };
+        it('clears solution data when no csolution exists', async () => {
             webviewManager.sendMessage.mockClear();
             jest.spyOn(solutionManager, 'getCsolution').mockReturnValue(undefined as any);
 
             await (componentsPacksWebviewMain as any).handleMessage({ type: 'REQUEST_INITIAL_DATA' });
 
-            expect(webviewManager.sendMessage).toHaveBeenCalledWith({
-                type: 'SET_COMPONENT_TREE',
-                tree: { success: false, classes: [] },
-                validations: []
-            });
+            expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'CLEAR_SOLUTION_DATA' });
         });
     });
     describe('handleApplyComponentSet', () => {
@@ -1271,14 +1271,14 @@ describe('ComponentsPacksWebviewMain', () => {
             webviewManager.isPanelActive = true;
             jest.spyOn(solutionManager, 'getCsolution').mockReturnValue({ solutionPath: 'solution.csolution.yml' } as any);
             jest.spyOn(componentsPacksWebviewMain as any, 'getValidProjectId').mockReturnValue(undefined);
-            const clearSpy = jest.spyOn(componentsPacksWebviewMain as any, 'clearComponents').mockResolvedValue(undefined);
+            webviewManager.sendMessage.mockClear();
 
             await (componentsPacksWebviewMain as any).handleSolutionLoadChange({
                 previousState: { solutionPath: undefined },
                 newState: { solutionPath: 'solution.csolution.yml' }
             });
 
-            expect(clearSpy).toHaveBeenCalledTimes(1);
+            expect(webviewManager.sendMessage).toHaveBeenNthCalledWith(1, { type: 'CLEAR_SOLUTION_DATA' });
             expect(webviewManager.sendMessage).toHaveBeenCalledWith({
                 type: 'SET_ERROR_MESSAGES',
                 messages: [{ type: 'ERROR', message: 'No valid project found in the loaded solution' }]
