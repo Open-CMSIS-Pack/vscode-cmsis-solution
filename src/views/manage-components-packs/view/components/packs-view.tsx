@@ -181,6 +181,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
 
         const renderVersionTarget = (_value: string, record: PackRowDataType) => {
             const usedVersion = record.versionUsed.replace(/^[~^<>=@\s]+/, '');
+            const hasFixedVersion = record.references.some(reference => parsePackId(reference.pack)?.versionOperator === '@');
             const lockedReference = record.references
                 .find(reference => Boolean(reference.locked?.trim()))
                 ?.locked?.trim();
@@ -196,7 +197,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
             const version = lockedVersion || usedVersion || missingVersion;
             return (
                 <span>
-                    {version}
+                    {version}{hasFixedVersion ? ' (fixed)' : ''}
                 </span>
             );
         };
@@ -204,7 +205,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
         return [
             { title: 'Software Pack', dataIndex: 'name', key: 'name', width: 240, ellipsis: true, render: renderPackColumn, onCell: () => ({ className: 'packs-pack-column' }) },
             { title: 'Select', render: (record: PackRowDataType) => renderEditColumn(record), width: 64 },
-            { title: 'Version', dataIndex: 'versionTarget', key: 'versionTarget', minWidth: 120, ellipsis: false, render: renderVersionTarget, onCell: () => ({ className: 'packs-version-column' }) },
+            { title: 'Version Used', dataIndex: 'versionTarget', key: 'versionTarget', minWidth: 120, ellipsis: false, render: renderVersionTarget, onCell: () => ({ className: 'packs-version-column' }) },
             { title: 'Description', dataIndex: 'description', key: 'description', ellipsis: true, render: renderDescriptionCell, onCell: () => ({ className: 'description-column packs-description-column' }) },
         ];
     }, [openFile, selectPack, state.selectedTargetType?.relativePath]);
