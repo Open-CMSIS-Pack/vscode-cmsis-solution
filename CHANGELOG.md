@@ -1,5 +1,21 @@
 # Change Log
 
+## 1.70.0
+
+- Updates:
+  - When working with Reference Applications and Layer project partitions the search scope for compatible layers is extended from `packs in solution` to `all installed packs`.
+  - Added and extended tool tip information throughout the **Software Components** dialog for improved usabililty.
+  - Optimized overall response time when loading and on saving modifications.
+  - The default [tmpdir](https://open-cmsis-pack.github.io/cmsis-toolbox/YML-Input-Format/#output-dirs) includes the target set name now to prevent cleaning and rebuilding when switching between sets. The unspecified set name is called `default`.
+  - The build artifact `compile_macros.h` is now generated into two separate files for `C = compile_macros_c.h` and `C++ = compile_macros_cxx.h`.
+
+- Solved issues:
+  - The refresh trigger from pack repository modifications now handles a missing `pack.idx` file gracefully.
+  - Loading or converting a solution now clears retained project and target-set state from the previous solution.
+  - Relative paths in `misc` nodes are now adjusted correctly for the build system.
+  - Integer MVE option handling has been corrected for Arm Compiler 6 and LLVM/Clang.
+  - Component dependency output has been updated to avoid misleading component-selection diagnostics.
+
 ## 1.68.0
 
 Stable release including changes from the 1.67.x pre-release series.
