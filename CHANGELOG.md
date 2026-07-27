@@ -3,7 +3,7 @@
 ## 1.70.0
 
 - Updates:
-  - macOS x64 (`darwin-x64`) host support has been discontinued. macOS arm64 (`darwin-arm64`) remains supported.
+  - Discontinued support for macOS x64 (darwin-x64) hosts. macOS arm64 (darwin-arm64) remains supported.
   - When working with Reference Applications and Layer project partitions the search scope for compatible layers is extended from `packs in solution` to `all installed packs`.
   - Added and extended tooltip information throughout the **Software Components** dialog for improved usabililty.
   - Improved responsiveness when loading solutions and saving modifications.
