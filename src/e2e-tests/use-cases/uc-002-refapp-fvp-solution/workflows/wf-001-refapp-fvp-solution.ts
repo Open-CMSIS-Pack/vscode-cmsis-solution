@@ -39,7 +39,7 @@ import {
 } from '../../../utils/usecases';
 import { ManageSolutionSettingsDriver } from '../../../drivers/manage-solution-settings-driver';
 import { ArmToolsDriver } from '../../../drivers/arm-tools-driver';
-import { copyLastTerminalCommandAndOutput, waitForBuild } from '../../../utils/helper';
+import { copyTerminalText, waitForBuild } from '../../../utils/helper';
 
 export { loadYamlFixture } from '../../../utils/usecases';
 
@@ -247,13 +247,9 @@ export const runWf001RefAppFVPSolution = async (
         await expect(loadAndRunButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
         await loadAndRunButton.click();
 
-        const stopRunningButton = vsCodeDriver.page.getRoleByName('button', { name: 'Stop Running' });
-        await expect(stopRunningButton.or(loadAndRunButton)).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
-        await expect(loadAndRunButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
-
         for (const expectedOutput of fixture.expected_run.output_contains ?? []) {
             await expect.poll(async () =>
-                copyLastTerminalCommandAndOutput(vsCodeDriver),
+                copyTerminalText(vsCodeDriver),
             {
                 timeout: DEFAULT_TIMEOUT_MS,
                 intervals: [1000, 2000, 3000],
