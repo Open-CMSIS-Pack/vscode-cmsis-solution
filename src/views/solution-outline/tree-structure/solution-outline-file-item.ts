@@ -72,7 +72,7 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
         }
 
         // add copy header button for header files
-        if (expandedFilePath.endsWith('.h')) {
+        if (f.getValue('category') === 'header' || expandedFilePath.endsWith('.h') || expandedFilePath.endsWith('.hpp')) {
             setHeaderContext(cfileItem);
         }
 
