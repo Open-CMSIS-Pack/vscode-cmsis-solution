@@ -4,16 +4,18 @@
 
 - Updates:
   - Discontinued support for macOS x64 (darwin-x64) hosts. macOS arm64 (darwin-arm64) remains supported.
-  - Extended the search scope for compatible layers from`packs in solution` to `all installed packs` when working with Reference Applications and Layer project partitions.
-  - Added and extended tooltip information throughout the **Software Components** dialog for improved usabililty.
+  - Extended the search scope for compatible layers from `packs in solution` to `all installed packs` when working with Reference Applications and layer project partitions.
+  - Added and extended tooltip information throughout the **Software Components** dialog for improved usability.
   - Improved responsiveness when loading solutions and saving modifications.
-  - The default [tmpdir](https://open-cmsis-pack.github.io/cmsis-toolbox/YML-Input-Format/#output-dirs) includes the target set name now to prevent cleaning and rebuilding when switching between sets. The unspecified set name is called `default`.
+  - The default temporary output directory [`tmpdir`](https://open-cmsis-pack.github.io/cmsis-toolbox/YML-Input-Format/#output-dirs) now includes the target set name to avoid unnecessary cleaning and rebuilding when switching between target sets.
+    The unnamed `set` node is represented as `default`.
   - clangd now uses separate generated lists of predefined compiler macros for C (`compile_macros_c.h`) and C++ (`compile_macros_cxx.h`) for accurate language-specific code analysis, except when using the CLANG compiler.
   - Run Generator now uses the active target set and reports warnings and errors from the generator launch in the VS Code Problems view. Diagnostics produced later by the background generator bridge process are written to a log file.
 
 - Solved issues:
-  - The refresh trigger from pack repository modifications now handles a missing `pack.idx` file gracefully and handles changes in local_repository.pidx file.
+  - The refresh trigger for pack repository modifications now handles a missing `pack.idx` file gracefully and detects updates to `local_repository.pidx`.
   - Loading or converting a solution now clears retained project and target-set state from the previous solution.
+  - Component and pack selections from the **Software Components** view are now stored correctly, even when layer files are outside the solution tree.
   - Relative paths in `misc` nodes are now adjusted correctly for the build system.
   - Integer MVE option handling has been corrected for Arm Compiler 6 and LLVM/Clang.
   - Component dependency output has been updated to avoid misleading component-selection diagnostics.
