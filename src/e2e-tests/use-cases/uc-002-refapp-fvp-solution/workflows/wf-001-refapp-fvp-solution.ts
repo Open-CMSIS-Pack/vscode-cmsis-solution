@@ -25,6 +25,7 @@
 
 import { expect } from '@playwright/test';
 import { promises as fs } from 'fs';
+import * as path from 'path';
 import { VsCodeDriver } from '../../../infrastructure/vscode-driver';
 import { DEFAULT_TIMEOUT_MS } from '../../../constants';
 import {
@@ -132,22 +133,24 @@ export const runWf001RefAppFVPSolution = async (
     vsCodeDriver: VsCodeDriver,
     fixture: CreateSolutionFixture,
 ): Promise<void> => {
-    // Start from a clean notification state so error checks only include this workflow.
-    await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Clear All Notifications');
-    await vsCodeDriver.page.openCmsisPanel();
-
-    // 1) Create the FVP reference application solution from the Create Solution wizard.
-    const createdSolution = await createSolutionFromWizard(vsCodeDriver, {
-        target: fixture.board,
-        targetKind: 'board',
-        template: fixture.reference_application,
-        templateKind: 'referenceApplication',
-        solutionNamePrefix: fixture.solution_name_prefix,
-        expectedFiles: fixture.expected_files,
-        expectedProblems: fixture.expected_problems,
-    });
+    const generatedSolutionsDirectory = path.join(vsCodeDriver.testWorkspaceDirectory, '.generated');
 
     try {
+        // Start from a clean notification state so error checks only include this workflow.
+        await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Clear All Notifications');
+        await vsCodeDriver.page.openCmsisPanel();
+
+        // 1) Create the FVP reference application solution from the Create Solution wizard.
+        const createdSolution = await createSolutionFromWizard(vsCodeDriver, {
+            target: fixture.board,
+            targetKind: 'board',
+            template: fixture.reference_application,
+            templateKind: 'referenceApplication',
+            solutionNamePrefix: fixture.solution_name_prefix,
+            expectedFiles: fixture.expected_files,
+            expectedProblems: fixture.expected_problems,
+        });
+
         // The extension opens the generated solution folder by default.
         await vsCodeDriver.page.waitForVsCodeToBeReady();
         await vsCodeDriver.page.waitForActionItem('CMSIS');
@@ -259,6 +262,15 @@ export const runWf001RefAppFVPSolution = async (
 
         await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/After FVP load and run task`);
     } finally {
-        await vsCodeDriver.restoreTestWorkspace();
+        try {
+            await vsCodeDriver.restoreTestWorkspace();
+        } finally {
+            await fs.rm(generatedSolutionsDirectory, {
+                recursive: true,
+                force: true,
+                maxRetries: 3,
+                retryDelay: 200,
+            });
+        }
     }
 };
