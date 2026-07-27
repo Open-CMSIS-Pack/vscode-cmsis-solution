@@ -12,7 +12,7 @@
   - Run Generator now uses the active target set and reports warnings and errors from the generator launch in the VS Code Problems view. Diagnostics produced later by the background generator bridge process are written to a log file.
 
 - Solved issues:
-  - The refresh trigger from pack repository modifications now handles a missing `pack.idx` file gracefully.
+  - The refresh trigger from pack repository modifications now handles a missing `pack.idx` file gracefully and handles changes in local_repository.pidx file.
   - Loading or converting a solution now clears retained project and target-set state from the previous solution.
   - Relative paths in `misc` nodes are now adjusted correctly for the build system.
   - Integer MVE option handling has been corrected for Arm Compiler 6 and LLVM/Clang.
