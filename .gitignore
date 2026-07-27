@@ -19,6 +19,7 @@ tmp
 .nyc_output
 coverage
 .clangd
+test-report.html
 
 # VS Code workspace and settings
 .vscode/settings.json
