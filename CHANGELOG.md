@@ -9,6 +9,7 @@
   - Optimized overall response time when loading and on saving modifications.
   - The default [tmpdir](https://open-cmsis-pack.github.io/cmsis-toolbox/YML-Input-Format/#output-dirs) includes the target set name now to prevent cleaning and rebuilding when switching between sets. The unspecified set name is called `default`.
   - clangd now uses separate generated lists of predefined compiler macros for C (`compile_macros_c.h`) and C++ (`compile_macros_cxx.h`) for accurate language-specific code analysis, except when using the CLANG compiler.
+  - Run Generator now uses the active target set and reports warnings and errors from the generator launch in the VS Code Problems view. Diagnostics produced later by the background generator bridge process are written to a log file.
 
 - Solved issues:
   - The refresh trigger from pack repository modifications now handles a missing `pack.idx` file gracefully.
