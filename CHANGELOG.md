@@ -8,7 +8,7 @@
   - Added and extended tool tip information throughout the **Software Components** dialog for improved usabililty.
   - Optimized overall response time when loading and on saving modifications.
   - The default [tmpdir](https://open-cmsis-pack.github.io/cmsis-toolbox/YML-Input-Format/#output-dirs) includes the target set name now to prevent cleaning and rebuilding when switching between sets. The unspecified set name is called `default`.
-  - The build artifact `compile_macros.h` is now generated into two separate files for `C = compile_macros_c.h` and `C++ = compile_macros_cxx.h`.
+  - clangd now uses separate generated lists of predefined compiler macros for C (`compile_macros_c.h`) and C++ (`compile_macros_cxx.h`) for accurate language-specific code analysis, except when using the CLANG compiler.
 
 - Solved issues:
   - The refresh trigger from pack repository modifications now handles a missing `pack.idx` file gracefully.
