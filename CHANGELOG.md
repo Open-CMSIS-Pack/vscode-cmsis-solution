@@ -17,7 +17,7 @@
   - Loading or converting a solution now clears retained project and target-set state from the previous solution.
   - Component and pack selections from the **Software Components** view are now stored correctly, even when layer files are outside the solution tree.
   - Relative paths in `misc` nodes are now adjusted correctly for the build system.
-  - Integer MVE option handling has been corrected for Arm Compiler 6 and LLVM/Clang.
+  - Integer MVE option handling has been corrected for Arm Compiler for Embedded and Arm Toolchain for Embedded (LLVM/Clang).
   - Component dependency output has been updated to avoid misleading component-selection diagnostics.
 
 ## 1.68.0
