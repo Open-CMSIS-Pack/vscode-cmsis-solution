@@ -5,7 +5,7 @@
 - Updates:
   - macOS x64 (`darwin-x64`) host support has been discontinued. macOS arm64 (`darwin-arm64`) remains supported.
   - When working with Reference Applications and Layer project partitions the search scope for compatible layers is extended from `packs in solution` to `all installed packs`.
-  - Added and extended tool tip information throughout the **Software Components** dialog for improved usabililty.
+  - Added and extended tooltip information throughout the **Software Components** dialog for improved usabililty.
   - Improved responsiveness when loading solutions and saving modifications.
   - The default [tmpdir](https://open-cmsis-pack.github.io/cmsis-toolbox/YML-Input-Format/#output-dirs) includes the target set name now to prevent cleaning and rebuilding when switching between sets. The unspecified set name is called `default`.
   - clangd now uses separate generated lists of predefined compiler macros for C (`compile_macros_c.h`) and C++ (`compile_macros_cxx.h`) for accurate language-specific code analysis, except when using the CLANG compiler.
