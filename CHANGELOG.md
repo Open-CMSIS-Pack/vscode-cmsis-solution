@@ -4,7 +4,7 @@
 
 - Updates:
   - Discontinued support for macOS x64 (darwin-x64) hosts. macOS arm64 (darwin-arm64) remains supported.
-  - When working with Reference Applications and Layer project partitions the search scope for compatible layers is extended from `packs in solution` to `all installed packs`.
+  - Extended the search scope for compatible layers from`packs in solution` to `all installed packs` when working with Reference Applications and Layer project partitions.
   - Added and extended tooltip information throughout the **Software Components** dialog for improved usabililty.
   - Improved responsiveness when loading solutions and saving modifications.
   - The default [tmpdir](https://open-cmsis-pack.github.io/cmsis-toolbox/YML-Input-Format/#output-dirs) includes the target set name now to prevent cleaning and rebuilding when switching between sets. The unspecified set name is called `default`.
