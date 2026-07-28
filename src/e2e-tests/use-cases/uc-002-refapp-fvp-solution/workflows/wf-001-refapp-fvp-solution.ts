@@ -238,6 +238,7 @@ export const runWf001RefAppFVPSolution = async (
         );
 
         await vsCodeDriver.page.getCommands().runCommandFromPalette('Update Debug Tasks and Launch Configurations');
+        await vsCodeDriver.page.getCommands().runCommandFromPalette('Terminal: Kill All Terminals');
 
         // 7) Run the application on the FVP and verify the reference application output.
         await vsCodeDriver.page.openCmsisPanel();
