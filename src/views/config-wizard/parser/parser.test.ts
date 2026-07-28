@@ -146,5 +146,22 @@ describe('Parser', () => {
             expect(nextSetting.description.getText()).toBe('Next setting');
             expect(GetErrors()).toEqual([]);
         });
+
+        it('reports an unsupported annotation as an unknown command and keeps parsed items', () => {
+            const parser = new Parser();
+
+            const root = parser.parse([
+                '// <<< use configuration wizard in context menu >>>',
+                '// <o> Instance number <9>',
+                '#define INSTANCE_NUMBER 9',
+                '// <<< end of configuration section >>>'
+            ]);
+
+            expect(root?.getChildren()).toHaveLength(1);
+            expect(root?.getChildren()[0]).toBeInstanceOf(CwOption);
+            expect(GetErrors()).toEqual([
+                'Line: 2: Unknown command "<9>" found.'
+            ]);
+        });
     });
 });

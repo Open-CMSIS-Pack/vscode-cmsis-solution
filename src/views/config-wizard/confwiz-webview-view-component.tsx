@@ -35,6 +35,7 @@ import { Input, Checkbox, ConfigProvider, theme } from 'antd';
 import { filterTree } from './../filterTree';
 import './confwiz-webview.css';
 import { CompactDropdown } from '../common/components/compact-dropdown';
+import { AnnotationIssues } from './confwiz-annotation-issues';
 
 const { Search } = Input;
 
@@ -64,6 +65,7 @@ interface State {
     expandedKeys: Record<string, boolean>;
     panelIsActive: boolean;
     hasUserFocus: boolean;
+    isIssuesVisible: boolean;
 }
 
 export class ConfWiz extends React.Component<Record<string, unknown>, State> {
@@ -106,6 +108,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
             expandedKeys: {},
             panelIsActive: true,
             hasUserFocus: false,
+            isIssuesVisible: false,
         };
     }
 
@@ -116,11 +119,13 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
             wizardData => {
                 // Clear edited field when new data arrives to prevent race conditions
                 this.editedFieldId = undefined;
-                const shouldResetExpansion = this.state.documentPath !== wizardData.documentPath;
-                const shouldResetActiveKey = this.state.documentPath !== wizardData.documentPath;
-                const expandedKeys = shouldResetExpansion ? {} : this.state.expandedKeys;
-                const activeKey = shouldResetActiveKey ? undefined : this.state.activeKey;
-                const lastTouchedKey = shouldResetActiveKey ? undefined : this.state.lastTouchedKey;
+                const isDocumentChanged = this.state.documentPath !== wizardData.documentPath;
+                const expandedKeys = isDocumentChanged ? {} : this.state.expandedKeys;
+                const activeKey = isDocumentChanged ? undefined : this.state.activeKey;
+                const lastTouchedKey = isDocumentChanged ? undefined : this.state.lastTouchedKey;
+                const isIssuesVisible = isDocumentChanged || !wizardData.element?.errors?.length
+                    ? false
+                    : this.state.isIssuesVisible;
                 this.setState({
                     annotations: wizardData.element,
                     documentPath: wizardData.documentPath,
@@ -128,6 +133,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     activeKey,
                     lastTouchedKey,
                     expandedKeys,
+                    isIssuesVisible,
                 });
             }
         );
@@ -288,35 +294,6 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         }
     }
 
-    protected getErrorLines(errors: string[] | undefined) {
-        if (errors == undefined || !errors.length) {
-            return undefined;
-        }
-        const errorsLines: React.JSX.Element[] = [];
-
-        for (const val of errors) {
-            errorsLines.push(<div>{val}</div>);
-        }
-
-        return errorsLines;
-    }
-
-    protected getErrorsText(rootNode: TreeNode) {
-        let errorsText: React.JSX.Element = <div></div>;
-        const rootElement = rootNode.data as TreeNodeElement;
-        if (rootElement !== undefined) {
-            const errorsLines = this.getErrorLines(rootElement.errors);
-            if (errorsLines !== undefined) {
-                errorsText = <section><br /><br /><br />
-                    <h3>Errors</h3>
-                    {errorsLines}
-                </section>;
-            }
-        }
-
-        return errorsText;
-    }
-
     protected getTree() {
         if (this.state.annotations === undefined) {
             return undefined;
@@ -382,7 +359,8 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
             return <div>loading</div>;
         }
 
-        const errorsText = this.getErrorsText(rootNode);
+        const rootElement = rootNode.data as TreeNodeElement;
+        const annotationIssues = rootElement.errors ?? [];
 
         const header = <div className='tree-table-header'>
             <Search
@@ -396,6 +374,11 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     const element = event.target as HTMLInputElement;
                     this.setState({ filter: element.value });
                 }}
+            />
+            <AnnotationIssues
+                issues={annotationIssues}
+                isVisible={this.state.isIssuesVisible}
+                onToggle={() => this.setState(prevState => ({ isIssuesVisible: !prevState.isIssuesVisible }))}
             />
         </div>;
 
@@ -456,7 +439,6 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                             }}
                         />
                     </TreeTable>
-                    {errorsText}
                 </div>
             </ConfigProvider>
         );
