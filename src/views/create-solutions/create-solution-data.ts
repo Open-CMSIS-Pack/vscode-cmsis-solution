@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { BoardId as CtBoardId, BoardImage, DeviceMemory, DeviceReference, Tz } from '../../core-tools/client/packs_pb';
 import * as vscode from 'vscode';
 import { BoardData, BoardId } from '../../data-manager/board-data';
 import { DataManager } from '../../data-manager/data-manager';
@@ -24,12 +23,10 @@ import { DraftProjectData, DraftProjectFormat, DraftProjectSource, DraftProjectT
 import { LazyPromise } from '../../generic/lazy';
 import { TreeViewCategory, TreeViewItem } from '../common/components/tree-view';
 import { buildTreeViewCategories } from '../common/components/tree-view-builder';
-import { getDocUrlForAssetReference, getImageDataUrl } from '../webview-asset-retrieval';
 import { WebviewManager } from '../webview-manager';
-import { BoardHardwareOption, DeviceHardwareOption, HardwareInfo, MemoryInfo } from './cmsis-solution-types';
+import { BoardHardwareOption, DeviceHardwareOption, HardwareInfo } from './cmsis-solution-types';
+import { DeviceReference, HardwareLists } from './create-solution-dto';
 import * as Messages from './messages';
-import { HardwareLists } from './messages';
-import { DataManagerExample } from './view/state/reducer';
 import { SemVer } from 'semver';
 import { Optional } from '../../generic/type-helper';
 
@@ -58,8 +55,8 @@ export class CreateSolutionData {
         this.boardMap.reset();
     }
 
-    public async sendTargetData(): Promise<void> {
-        this.webviewManager.sendMessage({ type: 'TARGET_DATA', data: await this.targetTreeCache, errors: this.dataManager.errors });
+    public async sendTargetData(requestId: Messages.RequestId): Promise<void> {
+        this.webviewManager.sendMessage({ type: 'TARGET_DATA', requestId, data: await this.targetTreeCache, errors: this.dataManager.errors });
     }
 
     private async generateTargetTree(): Promise<HardwareLists> {
@@ -97,15 +94,7 @@ export class CreateSolutionData {
         return { devices, boards };
     }
 
-    public async sendBoardInfo(boardId: CtBoardId.AsObject & { key: string }): Promise<void> {
-        const convertTz = (tz?: boolean) => {
-            switch (tz) {
-                case undefined: return Tz.TZ_UNSPECIFIED;
-                case false: return Tz.TZ_NO;
-                case true: return Tz.TZ;
-            }
-        };
-
+    public async sendBoardInfo(boardKey: string, requestId: Messages.RequestId): Promise<void> {
         const createDeviceInfo = async (device: DeviceData) : Promise<DeviceHardwareOption> => {
             const pack = await device.pack;
             const processors = await device.processors;
@@ -113,11 +102,11 @@ export class CreateSolutionData {
                 id: { name: device.name, vendor: device.vendor },
                 key: device.id.key,
                 pack: { name: pack?.name ?? '', vendor: pack?.vendor ?? '', version: pack?.version ?? '' },
-                processors: processors.map(p => ({ name: p.name, core: p.core, tz: convertTz(p.trustzone) })),
+                processors: processors.map(p => ({ name: p.name, core: p.core, supportsTrustZone: p.trustzone === true })),
             };
         };
 
-        const createBoardInfo = async (board: BoardData, mountedDevices: DeviceHardwareOption[], unresolvedDevices: DeviceReference.AsObject[]) : Promise<BoardHardwareOption> => {
+        const createBoardInfo = async (board: BoardData, mountedDevices: DeviceHardwareOption[], unresolvedDevices: DeviceReference[]) : Promise<BoardHardwareOption> => {
             const pack = await board.pack;
             return {
                 id: { vendor: board.vendor, name: board.name, revision: board.revision ?? '' },
@@ -128,7 +117,7 @@ export class CreateSolutionData {
             };
         };
 
-        const boardData = (await this.boardMap).get(boardId.key);
+        const boardData = (await this.boardMap).get(boardKey);
         if (boardData) {
             const deviceMap = await this.deviceMap;
             const devices = await boardData.devices;
@@ -144,11 +133,11 @@ export class CreateSolutionData {
                 debugInterfacesList: await boardData.debugInterfaces,
                 boardInfo: await createBoardInfo(boardData, resolvedDevices, unresolvedDevices),
             };
-            this.webviewManager.sendMessage({ type: 'HARDWARE_INFO', data });
+            this.webviewManager.sendMessage({ type: 'HARDWARE_INFO', requestId, data });
         }
     }
 
-    public async sendDeviceInfo(deviceReference: DeviceReference.AsObject & { key: string }): Promise<void> {
+    public async sendDeviceInfo(deviceKey: string, requestId: Messages.RequestId): Promise<void> {
         const createDeviceInfo = async (device: DeviceData) : Promise<DeviceHardwareOption> => {
             const pack = await device.pack;
             const processors = await device.processors;
@@ -156,11 +145,11 @@ export class CreateSolutionData {
                 id: { name: device.name, vendor: device.vendor },
                 key: device.id.key,
                 pack: { name: pack?.name ?? '', vendor: pack?.vendor ?? '', version: pack?.version ?? '' },
-                processors: processors.map(p => ({ name: p.name, core: p.core, tz: p.trustzone ? Tz.TZ : Tz.TZ_NO })),
+                processors: processors.map(p => ({ name: p.name, core: p.core, supportsTrustZone: p.trustzone === true })),
             };
         };
 
-        const device = (await this.deviceMap).get(deviceReference.key);
+        const device = (await this.deviceMap).get(deviceKey);
         if (device) {
             const data: HardwareInfo = {
                 image: this.getImagePlaceholderPath(),
@@ -169,7 +158,7 @@ export class CreateSolutionData {
                 deviceInfo: await createDeviceInfo(device),
             };
 
-            this.webviewManager.sendMessage({ type: 'HARDWARE_INFO', data });
+            this.webviewManager.sendMessage({ type: 'HARDWARE_INFO', requestId, data });
         }
     }
 
@@ -198,7 +187,7 @@ export class CreateSolutionData {
         return listedDrafts;
     }
 
-    public async sendDatamanagerAppsData(deviceId?: string, boardId?: string, fromAllPackVersions?: boolean): Promise<void> {
+    public async sendDatamanagerAppsData(requestId: Messages.RequestId, deviceId?: string, boardId?: string, fromAllPackVersions?: boolean): Promise<void> {
         const board = (await this.boardMap).id(boardId);
         const device = (await this.deviceMap).id(deviceId);
 
@@ -211,7 +200,7 @@ export class CreateSolutionData {
 
         const appsTree: Array<TreeViewCategory<string>> = this.generateDraftTree(new DataSet(listedDrafts));
         if (appsTree) {
-            this.webviewManager.sendMessage({ type: 'DATAMANAGER_APPS_DATA', data: appsTree });
+            this.webviewManager.sendMessage({ type: 'DATAMANAGER_APPS_DATA', requestId, data: appsTree });
         }
     }
 
@@ -263,16 +252,16 @@ export class CreateSolutionData {
         return undefined;
     }
 
-    public async getDraftProjectInfo(id: string) {
+    public async getDraftProjectInfo(id: string, requestId: Messages.RequestId) {
         const draftProject = await this.getDraftProjectById(id);
         if (draftProject) {
-            const data: DataManagerExample = { type: 'dataManagerApp', value: {
+            const data = {
+                id,
                 name: draftProject.name,
                 description: draftProject.description,
-                objectId: id,
                 draftType: draftProject.draftType,
-            } };
-            this.webviewManager.sendMessage({ type: 'DRAFTPROJECT_INFO', data });
+            };
+            this.webviewManager.sendMessage({ type: 'DRAFTPROJECT_INFO', requestId, data });
         }
     }
 
@@ -306,26 +295,4 @@ export class CreateSolutionData {
         return this.webviewManager.asWebviewUri(imageUri);
     }
 
-    public async getImageUrl(boardImage: BoardImage.AsObject | undefined): Promise<string> {
-        const imageReference = boardImage?.large ?? boardImage?.small;
-        if (imageReference) {
-            if (!imageReference.url) {
-                return getDocUrlForAssetReference(imageReference);
-            }
-            try {
-                return await getImageDataUrl(imageReference.url);
-            } catch {
-                // fall through
-            }
-        }
-        return this.getImagePlaceholderPath();
-    }
-
-    public buildMemoryInfo(memoryList: DeviceMemory.AsObject[]): MemoryInfo {
-        const memoryInfo: MemoryInfo = {};
-        memoryList.forEach(memory => {
-            memoryInfo[memory.name] = ({ size: memory.size , count: ((memoryInfo[memory.name])?.count || 0) + 1 });
-        });
-        return memoryInfo;
-    }
 }

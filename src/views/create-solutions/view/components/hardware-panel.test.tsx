@@ -40,7 +40,7 @@ describe('Hardware Panel', () => {
     const hardwareInfo: HardwareInfo = {
         image: faker.internet.url(),
         memoryInfo: { 'IROM1': { size: 32768, count: 2 } },
-        debugInterfacesList: [{ adapter: 'JTAG', connector: '20 pin JTAG' }, { adapter: 'JTAG', connector: '30000 pin Micro USB' }],
+        debugInterfacesList: [{ adapter: 'JTAG' }, { adapter: 'JTAG' }],
     };
 
     beforeEach(() => {
@@ -51,15 +51,18 @@ describe('Hardware Panel', () => {
         onClick = jest.fn();
 
         listener.mockImplementation(async (message: OutgoingMessage) => {
+            if (message.type === 'WEBVIEW_CLOSE') {
+                return;
+            }
             switch (message.type) {
                 case 'DATA_GET_BOARD_INFO':
-                    messageHandler.postWindowMessage({ type: 'HARDWARE_INFO', data: hardwareInfo });
+                    messageHandler.postWindowMessage({ type: 'HARDWARE_INFO', requestId: message.requestId, data: hardwareInfo });
                     break;
                 case 'DATA_GET_DEVICE_INFO':
-                    messageHandler.postWindowMessage({ type: 'HARDWARE_INFO', data: hardwareInfo });
+                    messageHandler.postWindowMessage({ type: 'HARDWARE_INFO', requestId: message.requestId, data: hardwareInfo });
                     break;
             }
-            messageHandler.postWindowMessage({ type: 'REQUEST_SUCCESSFUL', requestType: message.type });
+            messageHandler.postWindowMessage({ type: 'REQUEST_SUCCESSFUL', requestType: message.type, requestId: message.requestId });
         });
     });
 
@@ -88,8 +91,11 @@ describe('Hardware Panel', () => {
         React.act(() => {
             createRoot(container).render(<HardwarePanel hardwareSelection={boardSelection} hardwareInfo={hardwareInfo} onClick={onClick} messageHandler={messageHandler} previewHardware={boardSelection} dispatch={dispatch} />);
         });
-        const expectedMessage: OutgoingMessage = { type: 'DATA_GET_BOARD_INFO', boardId: { ...boardHardwareOption.id, key: boardHardwareOption.key } };
-        expect(listener).toHaveBeenCalledWith(expectedMessage);
+        expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'DATA_GET_BOARD_INFO',
+            requestId: expect.any(String),
+            boardKey: boardHardwareOption.key,
+        }));
         expect(listener).toHaveBeenCalledTimes(1);
     });
 

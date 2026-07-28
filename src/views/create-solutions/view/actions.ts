@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-import { BoardId, DeviceReference } from '../../../core-tools/client/packs_pb';
 import { dedupe } from '../../../array';
-import { PackReference } from '../../../solutions/parsing/common-file-parsing';
 import { TargetType } from '../../../solutions/parsing/solution-file';
 import { serialiseBoardIdWithoutVendor, serialiseDeviceWithoutVendor, serialisePackReference } from '../../../solutions/solution-serialisers';
 import { MessageHandler } from '../../message-handler';
-import { IncomingMessage, OutgoingMessage } from '../messages';
+import { IncomingMessage, OutgoingMessage, RequestMessagePayload } from '../messages';
+import { PackRequirement } from '../create-solution-dto';
 import { messageServiceAwaitResult } from './components/message-service';
 import { CreateSolutionAction, CreateSolutionState } from './state/reducer';
 import { hasErrors, validate } from './state/validation';
@@ -30,14 +29,14 @@ type BoardDeviceState = Pick<CreateSolutionState, 'boardSelection' | 'deviceSele
 type BoardDeviceTargetState = BoardDeviceState & Pick<CreateSolutionState, 'targetType'>
 
 const getTargetTypeFromHardwareSelection = (state: BoardDeviceTargetState): TargetType => {
-    const deviceReference: DeviceReference.AsObject | undefined = state.deviceSelection.value?.id;
-    const boardId: BoardId.AsObject | undefined = state.boardSelection.value?.id;
+    const deviceReference = state.deviceSelection.value?.id;
+    const boardId = state.boardSelection.value?.id;
     const serDeviceFunc = serialiseDeviceWithoutVendor; // serialiseDevice
     const serBoardFunc = serialiseBoardIdWithoutVendor; // serialiseBoardId
 
     return {
         type: state.targetType.value,
-        ...(boardId ? { board: serBoardFunc(boardId) } : {}),
+        ...(boardId ? { board: serBoardFunc({ ...boardId, revision: boardId.revision ?? '' }) } : {}),
         ...(deviceReference ? { device: serDeviceFunc({ ...deviceReference, processor: '' }) } : {}),
     };
 };
@@ -60,9 +59,9 @@ const getSerialisedPacksFromState = (state: BoardDeviceState): string[] => {
     return dedupe<string>()(packs);
 };
 
-export const buildNewSolutionMessage = (state: CreateSolutionState): OutgoingMessage => {
+export const buildNewSolutionMessage = (state: CreateSolutionState): Extract<RequestMessagePayload, { type: 'NEW_SOLUTION' }> => {
     const targetType = getTargetTypeFromHardwareSelection(state);
-    const packs = getSerialisedPacksFromState(state).map((pack): PackReference => ({ pack, forContext: [], notForContext: [] }));
+    const packs = getSerialisedPacksFromState(state).map((pack): PackRequirement => ({ pack, forContext: [], notForContext: [] }));
 
     return {
         type: 'NEW_SOLUTION',
@@ -75,7 +74,9 @@ export const buildNewSolutionMessage = (state: CreateSolutionState): OutgoingMes
         targetTypes: [targetType],
         packs,
         compiler: state.compiler === 'Arm Compiler 6' ? 'AC6' : state.compiler === 'LLVM' ? 'CLANG' : state.compiler,
-        selectedTemplate: state.selectedTemplate.value,
+        selectedDraftId: state.selectedTemplate.value?.type === 'dataManagerApp'
+            ? state.selectedTemplate.value.value.id
+            : undefined,
     };
 };
 

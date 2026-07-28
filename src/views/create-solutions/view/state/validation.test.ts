@@ -14,11 +14,6 @@
  * limitations under the License.
  */
 
-/*
- * Copyright (C) 2023-2026.2024 Arm Limited
- */
-
-import { cSolutionExampleFactory } from '../../../../solar-search/solar-search-client.factories';
 import { Trustzone } from '../../cmsis-solution-types';
 import { deviceHardwareOptionFactory } from '../../cmsis-solution-types.factories';
 import { CreateSolutionState, initialState } from './reducer';
@@ -205,22 +200,5 @@ describe('Create solutions validation', () => {
             });
         });
 
-        it('does not validate hardware processors when selected template is an example project', () => {
-            const inputState: CreateSolutionState = {
-                ...validStateFactory(),
-                deviceSelection: { value: deviceHardwareOptionFactory(), hadInteraction: true },
-                selectedTemplate: { value: { type: 'example', value: cSolutionExampleFactory() }, hadInteraction: true }
-            };
-
-            expect(validate(inputState, inputState.solutionExists, false)).toEqual({
-                deviceSelection: '',
-                projects: [''],
-                solutionName: '',
-                solutionLocation: '',
-                solutionFolder: expect.stringContaining('start with a letter'),
-                targetType: expect.stringContaining('must be'),
-                selectedTemplate: '',
-            });
-        });
     });
 });

@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-import { BoardId, DeviceReference } from '../../core-tools/client/packs_pb';
 import { existsSync } from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { DataManager } from '../../data-manager/data-manager';
 import * as manifest from '../../manifest';
-import { SolutionCreator } from '../../solutions/solution-creator';
+import { CreateSolutionRequest, SolutionCreator } from '../../solutions/solution-creator';
 import { isUseWebServices } from '../../util';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
 import { MessageProvider } from '../../vscode-api/message-provider';
@@ -88,10 +87,17 @@ export class CreateSolutionWebviewMain {
     private async handleMessage(
         message: Messages.OutgoingMessage,
     ): Promise<void> {
+        if (message.type === 'WEBVIEW_CLOSE') {
+            this.webviewManager.disposePanel();
+            return;
+        }
+
         try {
             switch (message.type) {
                 case 'NEW_SOLUTION':
-                    await this.createSolution(message);
+                    if (!await this.createSolution(message)) {
+                        return;
+                    }
                     break;
                 case 'CHECK_SOLUTION_DOES_NOT_EXIST': {
                     const solutionExists = this.fileExists(
@@ -100,15 +106,13 @@ export class CreateSolutionWebviewMain {
                     this.webviewManager.sendMessage({
                         type: solutionExists ? 'REQUEST_FAILED' : 'REQUEST_SUCCESSFUL',
                         requestType: message.type,
+                        requestId: message.requestId,
                         errorMessage: 'Solution already exists',
                     });
                     return; // early exit to prevent showErrorMessage as this is a deliberate failure
                 }
                 case 'DATA_GET_TARGETS':
-                    await this.sendTargetData();
-                    break;
-                case 'WEBVIEW_CLOSE':
-                    this.webviewManager.disposePanel();
+                    await this.sendTargetData(message.requestId);
                     break;
                 case 'OPEN_FILE_PICKER': {
                     const pathUri =
@@ -125,39 +129,41 @@ export class CreateSolutionWebviewMain {
                     if (filePath) {
                         this.webviewManager.sendMessage({
                             type: 'SOLUTION_LOCATION',
+                            requestId: message.requestId,
                             data: { path: filePath[0].fsPath },
                         });
                     }
                     break;
                 }
                 case 'DATA_GET_DEFAULT_LOCATION': {
-                    this.setDefaultLocation();
+                    this.setDefaultLocation(message.requestId);
                     break;
                 }
                 case 'DATA_GET_BOARD_INFO':
-                    await this.sendBoardInfo(message.boardId);
+                    await this.sendBoardInfo(message.boardKey, message.requestId);
                     break;
                 case 'DATA_GET_DEVICE_INFO':
-                    await this.sendDeviceInfo(message.deviceId);
+                    await this.sendDeviceInfo(message.deviceKey, message.requestId);
                     break;
                 case 'DATA_GET_CONNECTED_DEVICE':
-                    await this.sendConnectedDeviceInfo();
+                    await this.sendConnectedDeviceInfo(message.requestId);
                     break;
                 case 'GET_PLATFORM':
-                    await this.sendPlatform();
+                    await this.sendPlatform(message.requestId);
                     break;
                 case 'DATA_GET_DATAMANAGER_APPS':
                     await this.sendDatamanagerAppsData(
+                        message.requestId,
                         message.device,
                         message.board,
                         message.fromAllPackVersions,
                     );
                     break;
                 case 'GET_STATE_USE_WEBSERVICES':
-                    await this.sendStateUseWebservices();
+                    await this.sendStateUseWebservices(message.requestId);
                     break;
                 case 'DATA_GET_DRAFTPROJECT_INFO':
-                    await this.getDraftProjectInfo(message.id);
+                    await this.getDraftProjectInfo(message.id, message.requestId);
                     break;
                 case 'HELP_OPEN':
                     await this.commandsProvider.executeCommand(OpenCommand.openHelpCommandId, 'create_app.html');
@@ -166,6 +172,7 @@ export class CreateSolutionWebviewMain {
             this.webviewManager.sendMessage({
                 type: 'REQUEST_SUCCESSFUL',
                 requestType: message.type,
+                requestId: message.requestId,
             });
         } catch (err) {
             const _err = err as Error;
@@ -175,6 +182,7 @@ export class CreateSolutionWebviewMain {
             this.webviewManager.sendMessage({
                 type: 'REQUEST_FAILED',
                 requestType: message.type,
+                requestId: message.requestId,
                 errorMessage: _err.message,
             });
             console.log(err);
@@ -189,7 +197,7 @@ export class CreateSolutionWebviewMain {
         return existsSync(path);
     }
 
-    private setDefaultLocation(): void {
+    private setDefaultLocation(requestId: Messages.RequestId): void {
         let defaultLocation: string = '';
         const currentLocation =
       this.workspaceFoldersProvider.workspaceFolders?.[0].uri.fsPath;
@@ -199,24 +207,32 @@ export class CreateSolutionWebviewMain {
         if (defaultLocation) {
             this.webviewManager.sendMessage({
                 type: 'SOLUTION_LOCATION',
+                requestId,
                 data: { path: defaultLocation },
             });
         }
     }
 
-    private async createSolution(message: NewSolutionMessage): Promise<void> {
-        const newMessage: NewSolutionMessage = {
-            ...message,
-            dataManagerObject:
-        message.selectedTemplate?.type === 'dataManagerApp'
-            ? await this.dataModel.getDraftProjectById(
-                message.selectedTemplate.value.objectId,
-            )
-            : undefined,
+    private async createSolution(message: NewSolutionMessage): Promise<boolean> {
+        const request: CreateSolutionRequest = {
+            solutionName: message.solutionName,
+            projects: message.projects,
+            targetTypes: message.targetTypes,
+            packs: message.packs,
+            gitInit: message.gitInit,
+            solutionLocation: message.solutionLocation,
+            solutionFolder: message.solutionFolder,
+            compiler: message.compiler,
+            selectedDraftId: message.selectedDraftId,
+            showOpenDialog: message.showOpenDialog,
+            draftProject: message.selectedDraftId
+                ? await this.dataModel.getDraftProjectById(message.selectedDraftId)
+                : undefined,
         };
 
         try {
-            await this.solutionCreator.createSolution(newMessage);
+            await this.solutionCreator.createSolution(request);
+            return true;
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : error;
             this.messageProvider.showErrorMessage(
@@ -225,36 +241,40 @@ export class CreateSolutionWebviewMain {
             this.webviewManager.sendMessage({
                 type: 'REQUEST_FAILED',
                 requestType: 'NEW_SOLUTION',
+                requestId: message.requestId,
                 errorMessage: `Failed to create solution: ${errorMessage}`,
             });
-            return;
+            return false;
         }
     }
 
-    private async sendPlatform() {
+    private async sendPlatform(requestId: Messages.RequestId) {
         this.webviewManager.sendMessage({
             type: 'PLATFORM',
+            requestId,
             data: { name: 'vscode' },
         });
     }
 
-    private async sendTargetData(): Promise<void> {
-        this.dataModel.sendTargetData();
+    private async sendTargetData(requestId: Messages.RequestId): Promise<void> {
+        return this.dataModel.sendTargetData(requestId);
     }
 
     private async sendBoardInfo(
-        boardId: BoardId.AsObject & { key: string },
+        boardKey: string,
+        requestId: Messages.RequestId,
     ): Promise<void> {
-        this.dataModel.sendBoardInfo(boardId);
+        return this.dataModel.sendBoardInfo(boardKey, requestId);
     }
 
     private async sendDeviceInfo(
-        deviceReference: DeviceReference.AsObject & { key: string },
+        deviceKey: string,
+        requestId: Messages.RequestId,
     ): Promise<void> {
-        this.dataModel.sendDeviceInfo(deviceReference);
+        return this.dataModel.sendDeviceInfo(deviceKey, requestId);
     }
 
-    private async sendConnectedDeviceInfo(): Promise<void> {
+    private async sendConnectedDeviceInfo(requestId: Messages.RequestId): Promise<void> {
         try {
             const connectedBoardName =
         await this.commandsProvider.executeCommandIfRegistered<string>(
@@ -263,6 +283,7 @@ export class CreateSolutionWebviewMain {
             if (connectedBoardName) {
                 this.webviewManager.sendMessage({
                     type: 'CONNECTED_BOARD',
+                    requestId,
                     data: { name: connectedBoardName },
                 });
             }
@@ -272,22 +293,24 @@ export class CreateSolutionWebviewMain {
     }
 
     private async sendDatamanagerAppsData(
+        requestId: Messages.RequestId,
         device?: string,
         board?: string,
         fromAllPackVersions?: boolean,
     ) {
-        this.dataModel.sendDatamanagerAppsData(device, board, fromAllPackVersions);
+        return this.dataModel.sendDatamanagerAppsData(requestId, device, board, fromAllPackVersions);
     }
 
-    private async sendStateUseWebservices() {
+    private async sendStateUseWebservices(requestId: Messages.RequestId) {
         const en = isUseWebServices();
         return this.webviewManager.sendMessage({
             type: 'STATE_USE_WEBSERVICES',
+            requestId,
             enabled: en,
         });
     }
 
-    private async getDraftProjectInfo(id: string) {
-        this.dataModel.getDraftProjectInfo(id);
+    private async getDraftProjectInfo(id: string, requestId: Messages.RequestId) {
+        return this.dataModel.getDraftProjectInfo(id, requestId);
     }
 }

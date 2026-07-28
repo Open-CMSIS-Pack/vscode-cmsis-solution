@@ -43,6 +43,7 @@ import { PROJECT_SUFFIX } from '../../solutions/constants';
 import { dataManagerFactory, MockDataManager } from '../../data-manager/data-manager.factories';
 import { CreateSolutionFromDataManager } from '../../solutions/create-solution-from-data-manager';
 import { pathsEqual } from '../../utils/path-utils';
+import { CreateSolutionData } from './create-solution-data';
 
 jest.mock('fs', () => ({
     existsSync: jest.fn(),
@@ -68,6 +69,7 @@ const mockFsCopyFile = fs.copyFile as unknown as jest.Mock;
 const mockShowTextDocument = vscode.window.showTextDocument as jest.Mock;
 
 describe('CreateSolutionWebviewMain', () => {
+    const requestId = 'request-id';
     const solutionName = 'TEST_SOLUTION';
     const solutionLocation = __dirname;
     const solutionFolder = solutionName;
@@ -161,7 +163,7 @@ describe('CreateSolutionWebviewMain', () => {
         const newSecureProject = newProject(secureProjectPath, secureProject.processorName, processorDataFactory({ trustzone: secureProject.trustzone }), components);
         const newNonSecureProject = newProject(nonSecureProjectPath, nonSecureProject.processorName, processorDataFactory({ trustzone: nonSecureProject.trustzone }), components);
 
-        receiveMessageEmitter.fire({ type: 'NEW_SOLUTION', solutionName, projects, gitInit: false, targetTypes: targetTypes, solutionLocation, solutionFolder, packs: [], compiler });
+        receiveMessageEmitter.fire({ type: 'NEW_SOLUTION', requestId, solutionName, projects, gitInit: false, targetTypes: targetTypes, solutionLocation, solutionFolder, packs: [], compiler });
 
         await waitTimeout();
 
@@ -187,7 +189,7 @@ describe('CreateSolutionWebviewMain', () => {
         const project2 = newProjectFactory();
         const project2Dir = path.dirname(createProjectPath(project2));
 
-        receiveMessageEmitter.fire({ type: 'NEW_SOLUTION', solutionName, projects: [project1, project2], gitInit: false, targetTypes: targetTypes, solutionLocation, solutionFolder, packs: [], compiler });
+        receiveMessageEmitter.fire({ type: 'NEW_SOLUTION', requestId, solutionName, projects: [project1, project2], gitInit: false, targetTypes: targetTypes, solutionLocation, solutionFolder, packs: [], compiler });
 
         await waitTimeout();
 
@@ -197,7 +199,7 @@ describe('CreateSolutionWebviewMain', () => {
     });
 
     it('initialises the solution after creation', async () => {
-        const message: Messages.NewSolutionMessage = { type: 'NEW_SOLUTION', solutionName, projects: [newProjectFactory()], gitInit: false, targetTypes: targetTypes, solutionLocation, solutionFolder, packs: [], compiler };
+        const message: Messages.NewSolutionMessage = { type: 'NEW_SOLUTION', requestId, solutionName, projects: [newProjectFactory()], gitInit: false, targetTypes: targetTypes, solutionLocation, solutionFolder, packs: [], compiler };
         receiveMessageEmitter.fire(message);
 
         await waitTimeout();
@@ -210,7 +212,7 @@ describe('CreateSolutionWebviewMain', () => {
         const projectPath = path.join(solutionDir, project.name, project.name + PROJECT_SUFFIX);
         const cPath = path.join(solutionDir, project.name, 'main.c');
 
-        receiveMessageEmitter.fire({ type: 'NEW_SOLUTION', solutionName, projects: [project], gitInit: false, targetTypes: targetTypes, solutionLocation, solutionFolder, packs: [], compiler });
+        receiveMessageEmitter.fire({ type: 'NEW_SOLUTION', requestId, solutionName, projects: [project], gitInit: false, targetTypes: targetTypes, solutionLocation, solutionFolder, packs: [], compiler });
 
         await waitTimeout();
 
@@ -224,11 +226,50 @@ describe('CreateSolutionWebviewMain', () => {
         mockReconcileSolutionFiles.mockRejectedValue(new Error(errorMessage));
 
         const projects = [newProjectFactory()];
-        receiveMessageEmitter.fire({ type: 'NEW_SOLUTION', solutionName, projects, gitInit: false, targetTypes: targetTypes, solutionLocation: '', solutionFolder, packs: [], compiler });
+        receiveMessageEmitter.fire({ type: 'NEW_SOLUTION', requestId, solutionName, projects, gitInit: false, targetTypes: targetTypes, solutionLocation: '', solutionFolder, packs: [], compiler });
 
         await waitTimeout();
 
         expect(messageProvider.showErrorMessage).toHaveBeenCalledWith(`Failed to create solution: ${errorMessage}`);
+        expect(webviewManager.sendMessage).toHaveBeenCalledWith({
+            type: 'REQUEST_FAILED',
+            requestType: 'NEW_SOLUTION',
+            requestId,
+            errorMessage: `Failed to create solution: ${errorMessage}`,
+        });
+        expect(webviewManager.sendMessage).not.toHaveBeenCalledWith({
+            type: 'REQUEST_SUCCESSFUL',
+            requestType: 'NEW_SOLUTION',
+            requestId,
+        });
+    });
+
+    it('waits for forwarded model calls before acknowledging the request', async () => {
+        let resolveTargetData!: () => void;
+        const targetDataPending = new Promise<void>(resolve => {
+            resolveTargetData = resolve;
+        });
+        const sendTargetData = jest.spyOn(CreateSolutionData.prototype, 'sendTargetData').mockReturnValue(targetDataPending);
+
+        receiveMessageEmitter.fire({ type: 'DATA_GET_TARGETS', requestId });
+        await waitTimeout();
+
+        expect(sendTargetData).toHaveBeenCalledTimes(1);
+        expect(webviewManager.sendMessage).not.toHaveBeenCalledWith({
+            type: 'REQUEST_SUCCESSFUL',
+            requestType: 'DATA_GET_TARGETS',
+            requestId,
+        });
+
+        resolveTargetData();
+        await waitTimeout();
+
+        expect(webviewManager.sendMessage).toHaveBeenCalledWith({
+            type: 'REQUEST_SUCCESSFUL',
+            requestType: 'DATA_GET_TARGETS',
+            requestId,
+        });
+        sendTargetData.mockRestore();
     });
 
     it('handles the OPEN_FILE_PICKER message', async () => {
@@ -242,7 +283,7 @@ describe('CreateSolutionWebviewMain', () => {
 
         mockOpenDialog.mockResolvedValue([fileUri]);
 
-        receiveMessageEmitter.fire({ type: 'OPEN_FILE_PICKER' });
+        receiveMessageEmitter.fire({ type: 'OPEN_FILE_PICKER', requestId });
 
         await waitTimeout();
 
@@ -256,11 +297,11 @@ describe('CreateSolutionWebviewMain', () => {
             { name: 'my-folder-2', index: 1, uri: URI.file(path.join('path', 'to', 'my', 'my-folder-2')) },
         ];
 
-        receiveMessageEmitter.fire({ type: 'DATA_GET_DEFAULT_LOCATION' });
+        receiveMessageEmitter.fire({ type: 'DATA_GET_DEFAULT_LOCATION', requestId });
 
         const currentLocation = workspaceFoldersProvider.workspaceFolders[0].uri.fsPath;
         const defaultLocation = path.dirname(currentLocation);
-        expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'SOLUTION_LOCATION', data: { path: defaultLocation } });
+        expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'SOLUTION_LOCATION', requestId, data: { path: defaultLocation } });
     });
 
     it('sends the name of the connected board when it receives DATA_GET_CONNECTED_DEVICE', async () => {
@@ -272,12 +313,13 @@ describe('CreateSolutionWebviewMain', () => {
                 return Promise.resolve();
             }
         });
-        receiveMessageEmitter.fire({ type: 'DATA_GET_CONNECTED_DEVICE' });
+        receiveMessageEmitter.fire({ type: 'DATA_GET_CONNECTED_DEVICE', requestId });
 
         await waitTimeout();
 
         const expectedMessage: Messages.IncomingMessage = {
             type: 'CONNECTED_BOARD',
+            requestId,
             data: { name: expectedBoardName },
         };
 

@@ -21,8 +21,9 @@ import { Uri } from 'vscode';
 import { URI } from 'vscode-uri';
 import * as YAML from 'yaml';
 import { createSolutionData } from '../core-tools/core-tools-data-building';
+import { DraftProjectData } from '../data-manager/draft-project-data';
 import { NewProject } from '../views/create-solutions/cmsis-solution-types';
-import { NewSolutionMessage } from '../views/create-solutions/messages';
+import { CreateSolutionSubmission } from '../views/create-solutions/create-solution-dto';
 import { WorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { PROJECT_SUFFIX, SOLUTION_SUFFIX } from './constants';
 import { CreateSolutionFromDataManager } from './create-solution-from-data-manager';
@@ -43,8 +44,12 @@ export type CreatedSolution = {
     forceRteUpdate: boolean;
 }
 
+export type CreateSolutionRequest = CreateSolutionSubmission & {
+    draftProject?: DraftProjectData;
+}
+
 export interface SolutionCreator {
-    createSolution(message: NewSolutionMessage): Promise<CreatedSolution>;
+    createSolution(message: CreateSolutionRequest): Promise<CreatedSolution>;
 }
 
 export class SolutionCreatorImp  implements SolutionCreator {
@@ -57,7 +62,7 @@ export class SolutionCreatorImp  implements SolutionCreator {
     ) {
     }
 
-    public async createSolution(message: NewSolutionMessage): Promise<CreatedSolution> {
+    public async createSolution(message: CreateSolutionRequest): Promise<CreatedSolution> {
         const solutionDirUri = URI.file(path.join(message.solutionLocation, message.solutionFolder));
         const solutionFileUri = Uri.joinPath(solutionDirUri, `${message.solutionName}${SOLUTION_SUFFIX}`);
         const createdSolution = await this.createSolutionWithSelectedTemplate(solutionDirUri, solutionFileUri, message);
@@ -70,25 +75,15 @@ export class SolutionCreatorImp  implements SolutionCreator {
         return createdSolution;
     }
 
-    public async createSolutionWithSelectedTemplate(solutionDirUri: Uri, solutionFileUri: Uri, message: NewSolutionMessage): Promise<CreatedSolution> {
-        if (message.selectedTemplate?.type === 'example') {
-            throw new Error('Not implemented');
-        } else if (message.selectedTemplate?.type === 'refApp') {
-            throw new Error('Not implemented');
-        } else if (message.selectedTemplate?.type === 'localExample') {
-            throw new Error('Not implemented');
-        } else if (message.selectedTemplate?.type === 'dataManagerApp') {
+    public async createSolutionWithSelectedTemplate(solutionDirUri: Uri, solutionFileUri: Uri, message: CreateSolutionRequest): Promise<CreatedSolution> {
+        if (message.draftProject) {
             return this.createSolutionFromDataManager(solutionDirUri, message);
         } else {
-            if (message.selectedTemplate?.value.origin) {
-                throw new Error('Not implemented');
-            } else {
-                return this.createSolutionFromTemplate(solutionDirUri, solutionFileUri, message);
-            }
+            return this.createSolutionFromTemplate(solutionDirUri, solutionFileUri, message);
         }
     }
 
-    public async createSolutionFromTemplate(solutionDirUri: Uri, solutionFileUri: Uri, message: NewSolutionMessage): Promise<CreatedSolution> {
+    public async createSolutionFromTemplate(solutionDirUri: Uri, solutionFileUri: Uri, message: CreateSolutionRequest): Promise<CreatedSolution> {
         const projectsWithPaths = message.projects.map(project => ({
             project,
             path: path.join(solutionDirUri.fsPath, project.name, `${project.name}${PROJECT_SUFFIX}`),

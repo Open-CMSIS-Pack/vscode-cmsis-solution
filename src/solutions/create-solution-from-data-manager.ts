@@ -21,17 +21,16 @@ import { RelativePattern, Uri } from 'vscode';
 import { DraftProjectType } from '../data-manager/draft-project-data';
 import { ETreeItemKind } from '../generic/tree-item';
 import { ETextFileResult } from '../generic/text-file';
-import { NewSolutionMessage } from '../views/create-solutions/messages';
 import { WorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { MdkToCsolutionConverter } from './mdk-conversion/convert-mdk-command';
 import { uvmpwExtension, uvprojxExtension } from './mdk-conversion/mdk-projects';
-import { CreatedSolution } from './solution-creator';
+import { CreatedSolution, CreateSolutionRequest } from './solution-creator';
 import { DEFAULT_VCPKG_FILENAME } from '../vcpkg/vcpkg-manager';
 import { CSolutionYamlFile } from './files/csolution-yaml-file';
 
 export type CreateSolutionFromDataManager = (
     solutionDirUri: Uri,
-    message: NewSolutionMessage,
+    message: CreateSolutionRequest,
 ) => Promise<CreatedSolution>;
 
 export const getCreateSolutionFromDataManager = (
@@ -39,7 +38,7 @@ export const getCreateSolutionFromDataManager = (
     mdkToCsolutionConverter: MdkToCsolutionConverter,
     findFiles: typeof vscode.workspace.findFiles,
 ): CreateSolutionFromDataManager => async (solutionDirUri, message) => {
-    const draftProjectObject = message.dataManagerObject;
+    const draftProjectObject = message.draftProject;
     if (!draftProjectObject) {
         throw ('DraftProject Object undefined!');
     }
@@ -76,7 +75,7 @@ export const getCreateSolutionFromDataManager = (
     return createdSolution;
 };
 
-function addPacksToYamlTree(ymlFile: CSolutionYamlFile, message: NewSolutionMessage) {
+function addPacksToYamlTree(ymlFile: CSolutionYamlFile, message: CreateSolutionRequest) {
     if (!message.packs.length) {
         return;
     }
@@ -96,7 +95,7 @@ function addPacksToYamlTree(ymlFile: CSolutionYamlFile, message: NewSolutionMess
     }
 }
 
-function addTargetTypesToYamlTree(ymlFile: CSolutionYamlFile, message: NewSolutionMessage) {
+function addTargetTypesToYamlTree(ymlFile: CSolutionYamlFile, message: CreateSolutionRequest) {
     if (!message.targetTypes.length) {
         return;
     }
@@ -118,7 +117,7 @@ function addTargetTypesToYamlTree(ymlFile: CSolutionYamlFile, message: NewSoluti
 }
 
 
-async function addAdditionalInfoToSolutionFile(createdSolution: CreatedSolution, message: NewSolutionMessage) {
+async function addAdditionalInfoToSolutionFile(createdSolution: CreatedSolution, message: CreateSolutionRequest) {
     const solutionFile = createdSolution.solutionFile?.fsPath;
     if (!solutionFile?.length) {
         return;

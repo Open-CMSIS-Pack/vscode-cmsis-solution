@@ -21,12 +21,11 @@ import { BoardData, BoardId } from '../data-manager/board-data';
 import { DataManager } from '../data-manager/data-manager';
 import { DeviceData, DeviceId } from '../data-manager/device-data';
 import { DraftProjectData } from '../data-manager/draft-project-data';
-import { PackReference } from '../solutions/parsing/common-file-parsing';
 import { TargetType } from '../solutions/parsing/solution-file';
-import { SolutionCreator } from '../solutions/solution-creator';
+import { CreateSolutionRequest, SolutionCreator } from '../solutions/solution-creator';
 import { BuildTaskDefinition } from '../tasks/build/build-task-definition';
 import { BuildTaskProvider, BuildTaskProviderImpl } from '../tasks/build/build-task-provider';
-import { NewSolutionMessage } from '../views/create-solutions/messages';
+import { PackRequirement } from '../views/create-solutions/create-solution-dto';
 
 function deviceFilterPredicate(filter: CsolutionApiV2.DeviceFilter) {
     return (device: DeviceId | DeviceData) => {
@@ -62,23 +61,23 @@ async function boardFilterMatches(filter: CsolutionApiV2.BoardFilter, board: Boa
     return result;
 }
 
-function createPackReference(pack: CsolutionApiV2.PackId) {
+function createPackReference(pack: CsolutionApiV2.PackId): PackRequirement {
     return {
         pack: `${pack.vendor}::${pack.name}`,
-        forContext: '',
-        notForContext: ''
+        forContext: [],
+        notForContext: []
     };
 }
 
-async function pushPackReference(packs: PackReference[], pack: Promise<CsolutionApiV2.PackId | undefined> | undefined) {
+async function pushPackReference(packs: PackRequirement[], pack: Promise<CsolutionApiV2.PackId | undefined> | undefined) {
     const resolvedPack = await pack;
     if (resolvedPack) {
         packs.push(createPackReference(resolvedPack));
     }
 }
 
-async function newSolutionToNewSolutionMessage(options: CsolutionApiV2.CreateNewSolutionOptions): Promise<NewSolutionMessage> {
-    const packs: PackReference[] = [];
+async function newSolutionToCreateSolutionRequest(options: CsolutionApiV2.CreateNewSolutionOptions): Promise<CreateSolutionRequest> {
+    const packs: PackRequirement[] = [];
     const targetTypes: TargetType[] = [];
     const board = options.board?.id;
     const device = options.device?.id ?? await options.board?.devices.then(d => d[0]);
@@ -96,7 +95,6 @@ async function newSolutionToNewSolutionMessage(options: CsolutionApiV2.CreateNew
     await pushPackReference(packs, options.device?.pack);
 
     return {
-        type: 'NEW_SOLUTION',
         solutionName: '',
         solutionLocation: options.folder,
         solutionFolder: '',
@@ -104,17 +102,9 @@ async function newSolutionToNewSolutionMessage(options: CsolutionApiV2.CreateNew
         projects: [],
         gitInit: options.git ?? false,
         targetTypes: targetTypes,
-        packs: packs,
-        selectedTemplate: {
-            type: 'dataManagerApp',
-            value: {
-                name: options.draft.name,
-                description: options.draft.description,
-                objectId: options.draft.id.key,
-                draftType: options.draft.draftType,
-            },
-        },
-        dataManagerObject: options.draft as DraftProjectData,
+        packs,
+        selectedDraftId: options.draft.id.key,
+        draftProject: options.draft as unknown as DraftProjectData,
     };
 }
 
@@ -163,7 +153,7 @@ export class CsolutionApiV2Impl implements CsolutionApiV2 {
     }
 
     public async createNewSolution(options: CsolutionApiV2.CreateNewSolutionOptions) {
-        const message = await newSolutionToNewSolutionMessage(options);
+        const message = await newSolutionToCreateSolutionRequest(options);
         await this.solutionCreator.createSolution(message);
     }
 

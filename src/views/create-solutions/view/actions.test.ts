@@ -21,7 +21,7 @@ import { serialiseBoardIdWithoutVendor, serialiseDeviceWithoutVendor, serialiseP
 import { MockMessageHandler } from '../../__test__/mock-message-handler';
 import { DeviceHardwareOption } from '../cmsis-solution-types';
 import { boardHardwareOptionFactory, deviceHardwareOptionFactory } from '../cmsis-solution-types.factories';
-import { IncomingMessage, OutgoingMessage } from '../messages';
+import { IncomingMessage, OutgoingMessage, RequestMessage, RequestMessagePayload } from '../messages';
 import { buildNewSolutionMessage, checkSolutionExists, createSolution } from './actions';
 import { CreateSolutionAction, CreateSolutionState, initialState } from './state/reducer';
 
@@ -35,6 +35,11 @@ describe('Create Solution actions', () => {
         messageHandler = new MockMessageHandler<IncomingMessage, OutgoingMessage>(messageListener);
         dispatch = jest.fn();
     });
+
+    const getLastRequest = <T extends RequestMessage['type']>(type: T): Extract<RequestMessage, { type: T }> => {
+        const message = messageListener.mock.calls.map(call => call[0] as OutgoingMessage).reverse().find(candidate => candidate.type === type);
+        return message as Extract<RequestMessage, { type: T }>;
+    };
 
     describe('checkSolutionExists', () => {
         it('dispatches a START_SOLUTION_EXISTS_CHECK and a END_SOLUTION_EXISTS_CHECK action if the request succeeds', async () => {
@@ -50,21 +55,23 @@ describe('Create Solution actions', () => {
                 solutionFolder,
             );
 
-            const expectedMessage: OutgoingMessage = {
+            const expectedMessage: RequestMessagePayload = {
                 type: 'CHECK_SOLUTION_DOES_NOT_EXIST',
                 solutionName,
                 solutionLocation,
                 solutionFolder,
             };
 
-            expect(messageListener).toHaveBeenCalledWith(expectedMessage);
+            expect(messageListener).toHaveBeenCalledWith({ ...expectedMessage, requestId: expect.any(String) });
 
             const expectedAction1: CreateSolutionAction = { type: 'START_SOLUTION_EXISTS_CHECK' };
             expect(dispatch).toHaveBeenCalledWith(expectedAction1);
 
+            const request = getLastRequest('CHECK_SOLUTION_DOES_NOT_EXIST');
             messageHandler.postWindowMessage({
                 type: 'REQUEST_SUCCESSFUL',
                 requestType: 'CHECK_SOLUTION_DOES_NOT_EXIST',
+                requestId: request.requestId,
             });
 
             await promise;
@@ -86,21 +93,23 @@ describe('Create Solution actions', () => {
                 solutionFolder,
             );
 
-            const expectedMessage: OutgoingMessage = {
+            const expectedMessage: RequestMessagePayload = {
                 type: 'CHECK_SOLUTION_DOES_NOT_EXIST',
                 solutionName,
                 solutionLocation,
                 solutionFolder,
             };
 
-            expect(messageListener).toHaveBeenCalledWith(expectedMessage);
+            expect(messageListener).toHaveBeenCalledWith({ ...expectedMessage, requestId: expect.any(String) });
 
             const expectedAction1: CreateSolutionAction = { type: 'START_SOLUTION_EXISTS_CHECK' };
             expect(dispatch).toHaveBeenCalledWith(expectedAction1);
 
+            const request = getLastRequest('CHECK_SOLUTION_DOES_NOT_EXIST');
             messageHandler.postWindowMessage({
                 type: 'REQUEST_FAILED',
                 requestType: 'CHECK_SOLUTION_DOES_NOT_EXIST',
+                requestId: request.requestId,
                 errorMessage: 'already exists'
             });
 
@@ -128,7 +137,7 @@ describe('Create Solution actions', () => {
             const inputState = validStateFactory(device);
             const output = buildNewSolutionMessage(inputState);
 
-            const expectedMessage: OutgoingMessage = {
+            const expectedMessage: Extract<RequestMessagePayload, { type: 'NEW_SOLUTION' }> = {
                 type: 'NEW_SOLUTION',
                 gitInit: false,
                 compiler: '',
@@ -139,7 +148,7 @@ describe('Create Solution actions', () => {
                 packs: [{ pack: serialisePackReference(device.pack), forContext: [], notForContext: [] }, { pack:  'ARM::CMSIS', forContext: [], notForContext: [] }],
                 //targetTypes: [{ type: inputState.targetType.value, device: `${device.id.vendor}::${device.id.name}` }],
                 targetTypes: [{ type: inputState.targetType.value, device: `${device.id.name}` }],
-                selectedTemplate: undefined,
+                selectedDraftId: undefined,
                 showOpenDialog: false,
             };
 
@@ -163,7 +172,7 @@ describe('Create Solution actions', () => {
 
             const expectedTargetType: TargetType = {
                 type: inputState.targetType.value,
-                board: serBoardFunc(boardHardwareOption.id),
+                board: serBoardFunc({ ...boardHardwareOption.id, revision: boardHardwareOption.id.revision ?? '' }),
                 device: serDeviceFunc({ ...deviceHardwareOption.id, processor: '' }),
             };
 
@@ -197,7 +206,8 @@ describe('Create Solution actions', () => {
             const promise = createSolution(dispatch, initialState, messageHandler);
 
             expect(messageListener).toHaveBeenCalledWith(expect.objectContaining({ type: 'CHECK_SOLUTION_DOES_NOT_EXIST' }));
-            messageHandler.postWindowMessage({ type: 'REQUEST_SUCCESSFUL', requestType: 'CHECK_SOLUTION_DOES_NOT_EXIST' });
+            const existenceRequest = getLastRequest('CHECK_SOLUTION_DOES_NOT_EXIST');
+            messageHandler.postWindowMessage({ type: 'REQUEST_SUCCESSFUL', requestType: 'CHECK_SOLUTION_DOES_NOT_EXIST', requestId: existenceRequest.requestId });
 
             await promise;
 
@@ -230,17 +240,19 @@ describe('Create Solution actions', () => {
             const expectedAction1: CreateSolutionAction = { type: 'CREATION_CHECK_START' };
             expect(dispatch).toHaveBeenCalledWith(expectedAction1);
 
-            messageHandler.postWindowMessage({ type: 'REQUEST_SUCCESSFUL', requestType: 'CHECK_SOLUTION_DOES_NOT_EXIST' });
+            const existenceRequest = getLastRequest('CHECK_SOLUTION_DOES_NOT_EXIST');
+            messageHandler.postWindowMessage({ type: 'REQUEST_SUCCESSFUL', requestType: 'CHECK_SOLUTION_DOES_NOT_EXIST', requestId: existenceRequest.requestId });
 
             await waitTimeout();
 
             const expectedAction2: CreateSolutionAction = { type: 'CREATION_START' };
             expect(dispatch).toHaveBeenCalledWith(expectedAction2);
 
-            const expectedCreationMessage: OutgoingMessage = buildNewSolutionMessage(inputState);
+            const expectedCreationMessage = buildNewSolutionMessage(inputState);
 
-            expect(messageListener).toHaveBeenCalledWith(expectedCreationMessage);
-            messageHandler.postWindowMessage({ type: 'REQUEST_SUCCESSFUL', requestType: 'NEW_SOLUTION' });
+            expect(messageListener).toHaveBeenCalledWith({ ...expectedCreationMessage, requestId: expect.any(String) });
+            const creationRequest = getLastRequest('NEW_SOLUTION');
+            messageHandler.postWindowMessage({ type: 'REQUEST_SUCCESSFUL', requestType: 'NEW_SOLUTION', requestId: creationRequest.requestId });
 
             await promise;
 

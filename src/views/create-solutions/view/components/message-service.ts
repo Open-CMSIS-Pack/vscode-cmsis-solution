@@ -15,7 +15,7 @@
  */
 
 import { MessageHandler } from '../../../message-handler';
-import { IncomingMessage, OutgoingMessage } from '../../messages';
+import { addRequestId, IncomingMessage, OutgoingMessage, RequestMessage, RequestMessagePayload } from '../../messages';
 
 const MESSAGE_TIMEOUT = 10000;
 
@@ -23,12 +23,13 @@ const MESSAGE_TIMEOUT = 10000;
  * Await confirmation (or timeout) from the extension that a given message has been acted upon,
  * rejecting on a failed result. This is useful when chaining commands (e.g. new solution, new project).
  *
- * You can still use messageHandler.push(msg) for anything else.
+ * Use pushRequest for requests that do not need to await the terminal ACK.
  *
  * See also: create-solution/messages.ts
  */
-export const messageServiceAwaitResult = async (messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>, toServiceMessage: OutgoingMessage): Promise<void> => new Promise<void>(
+export const messageServiceAwaitResult = async (messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>, request: RequestMessagePayload): Promise<void> => new Promise<void>(
     (resolve, reject) => {
+        const toServiceMessage = addRequestId(request);
         let unsubscribe: (() => void) | undefined = undefined;
         const _timeout = setTimeout(() => {
             unsubscribe?.();
@@ -36,11 +37,11 @@ export const messageServiceAwaitResult = async (messageHandler: MessageHandler<I
         }, MESSAGE_TIMEOUT);
 
         unsubscribe = messageHandler.subscribe(fromServiceMessage => {
-            if (fromServiceMessage.type === 'REQUEST_SUCCESSFUL' && fromServiceMessage.requestType === toServiceMessage.type) {
+            if (fromServiceMessage.type === 'REQUEST_SUCCESSFUL' && fromServiceMessage.requestType === toServiceMessage.type && fromServiceMessage.requestId === toServiceMessage.requestId) {
                 clearTimeout(_timeout);
                 unsubscribe?.();
                 resolve();
-            } else if (fromServiceMessage.type === 'REQUEST_FAILED' && fromServiceMessage.requestType === toServiceMessage.type) {
+            } else if (fromServiceMessage.type === 'REQUEST_FAILED' && fromServiceMessage.requestType === toServiceMessage.type && fromServiceMessage.requestId === toServiceMessage.requestId) {
                 clearTimeout(_timeout);
                 unsubscribe?.();
                 reject(new Error(`CMSIS Request Failed: ${fromServiceMessage.errorMessage}`));
@@ -49,3 +50,12 @@ export const messageServiceAwaitResult = async (messageHandler: MessageHandler<I
         messageHandler.push(toServiceMessage);
     }
 );
+
+export const pushRequest = (
+    messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>,
+    request: RequestMessagePayload,
+): RequestMessage => {
+    const message = addRequestId(request);
+    messageHandler.push(message);
+    return message;
+};

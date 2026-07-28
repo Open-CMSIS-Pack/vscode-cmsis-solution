@@ -22,6 +22,7 @@ import { IncomingMessage, OutgoingMessage } from '../../messages';
 import { CreationActions } from '../actions';
 import { createSolutionReducer, initialState } from '../state/reducer';
 import { hardwareTemplateOptions } from '../state/templates';
+import { pushRequest } from './message-service';
 import { validate } from '../state/validation';
 import './create-solution.css';
 import { ExampleDropdownTree } from './example-dropdown-tree';
@@ -111,10 +112,10 @@ export const CreateSolution = ({ creationActions, messageHandler }: CreateSoluti
         const unsubscribe = messageHandler.subscribe(message => {
             dispatch({ type: 'INCOMING_MESSAGE', message });
         });
-        messageHandler.push({ type: 'GET_PLATFORM' });
-        messageHandler.push({ type: 'GET_STATE_USE_WEBSERVICES' });
-        messageHandler.push({ type: 'DATA_GET_TARGETS' });
-        messageHandler.push({ type: 'DATA_GET_DEFAULT_LOCATION' });
+        pushRequest(messageHandler, { type: 'GET_PLATFORM' });
+        pushRequest(messageHandler, { type: 'GET_STATE_USE_WEBSERVICES' });
+        pushRequest(messageHandler, { type: 'DATA_GET_TARGETS' });
+        pushRequest(messageHandler, { type: 'DATA_GET_DEFAULT_LOCATION' });
         return unsubscribe;
     }, [messageHandler]);
 
@@ -137,7 +138,7 @@ export const CreateSolution = ({ creationActions, messageHandler }: CreateSoluti
         const boardId = state.boardSelection.value?.key;
         const deviceId = state.deviceSelection.value?.key;
         if (boardId || deviceId) {
-            messageHandler.push({
+            pushRequest(messageHandler, {
                 type: 'DATA_GET_DATAMANAGER_APPS',
                 board: boardId,
                 device: deviceId,
@@ -149,18 +150,17 @@ export const CreateSolution = ({ creationActions, messageHandler }: CreateSoluti
 
     React.useEffect(() => {
         if (state.hardwareLists.type === 'loaded') {
-            messageHandler.push({ type: 'DATA_GET_CONNECTED_DEVICE' });
+            pushRequest(messageHandler, { type: 'DATA_GET_CONNECTED_DEVICE' });
         }
     }, [messageHandler, state.hardwareLists]);
 
     React.useEffect(() => {
         if (state.selectedDraftProjectId) {
-            messageHandler.push({ type: 'DATA_GET_DRAFTPROJECT_INFO', id: state.selectedDraftProjectId });
+            pushRequest(messageHandler, { type: 'DATA_GET_DRAFTPROJECT_INFO', id: state.selectedDraftProjectId });
         }
     }, [messageHandler, state.selectedDraftProjectId]);
 
-    const isExternalTemplate = state.selectedTemplate.value?.type == 'template' && !!state.selectedTemplate.value.value.origin;
-    const enableSetSolutionName = /*!state.selectedTemplate.value ||*/ state.selectedTemplate.value?.type == 'template' && !isExternalTemplate;
+    const enableSetSolutionName = state.selectedTemplate.value?.type == 'template';
     const draftProjectType = state.selectedTemplate.value?.type == 'dataManagerApp' ? state.selectedTemplate.value.value.draftType : undefined;
     const targetTypeFieldEnabled = enableSetSolutionName || draftProjectType == 'Template';
 
@@ -181,7 +181,7 @@ export const CreateSolution = ({ creationActions, messageHandler }: CreateSoluti
                 <div className="create-solution-frame">
                     <div className="create-solution-header">
                         <h2>Create Solution</h2>
-                        <button className="codicon codicon-link-external" onClick={() => messageHandler.push({ type: 'HELP_OPEN' })} title="Open help documentation"></button>
+                        <button className="codicon codicon-link-external" onClick={() => pushRequest(messageHandler, { type: 'HELP_OPEN' })} title="Open help documentation"></button>
                         <WebServiceIndicator
                             enabled={state.webServicesEnabled}
                             errors={state.servicesErrors}
@@ -224,10 +224,7 @@ export const CreateSolution = ({ creationActions, messageHandler }: CreateSoluti
                                             </span>
                                         </>
                                     }
-                                    examples={state.examples}
-                                    refApps={state.refApps}
-                                    localExamples={state.localExamples}
-                                    templates={hardwareTemplateOptions(state.deviceSelection.value, state.templates, state.datamanagerApps)}
+                                    templates={hardwareTemplateOptions(state.deviceSelection.value, state.datamanagerApps)}
                                     onChange={(val: string) => {
                                         dispatch({ type: 'SET_EXAMPLES_TREE_VIEW_SEARCH', search: val });
                                     }}
@@ -239,7 +236,7 @@ export const CreateSolution = ({ creationActions, messageHandler }: CreateSoluti
                                 {validationError(validationErrors.selectedTemplate)}
                             </div>
 
-                            {!isExternalTemplate && state.deviceSelection.value && state.projects.length > 0 && (
+                            {state.deviceSelection.value && state.projects.length > 0 && (
                                 <div id="create-solution-project-configuration" className="form-row">
                                     <ProjectConfiguration device={state.deviceSelection.value} projects={state.projects} dispatch={dispatch} errors={validationErrors.projects} />
                                 </div>
@@ -277,7 +274,7 @@ export const CreateSolution = ({ creationActions, messageHandler }: CreateSoluti
                             {state.platform === 'vscode' ? (
                                 <div className="form-row form-row--narrow">
                                     <label htmlFor="create-solution-file-locator">Solution Base Folder</label>
-                                    <FileLocationPicker id="create-solution-file-locator" disabled={disabled} location={state.solutionLocation.value} dispatch={dispatch} openFilePicker={() => messageHandler.push({ type: 'OPEN_FILE_PICKER', solutionLocation: state.solutionLocation.value })} />
+                                    <FileLocationPicker id="create-solution-file-locator" disabled={disabled} location={state.solutionLocation.value} dispatch={dispatch} openFilePicker={() => pushRequest(messageHandler, { type: 'OPEN_FILE_PICKER', solutionLocation: state.solutionLocation.value })} />
                                     {validationError(validationErrors.solutionLocation)}
                                 </div>
                             ) : (

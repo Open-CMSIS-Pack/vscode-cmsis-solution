@@ -21,7 +21,8 @@ import { SearchableTreeView } from '../../../common/components/searchable-tree-v
 import { TreeViewCategory, TreeViewItem } from '../../../common/components/tree-view';
 import { MessageHandler } from '../../../message-handler';
 import { BoardHardwareOption, DeviceHardwareOption, compareDeviceId, labelForHardwareOption } from '../../cmsis-solution-types';
-import { HardwareLists, IncomingMessage, OutgoingMessage } from '../../messages';
+import { HardwareLists } from '../../create-solution-dto';
+import { IncomingMessage, OutgoingMessage } from '../../messages';
 import { HardwareSelection } from '../state/hardware-selection';
 import { CreateSolutionAction, CreateSolutionState, emptyHardwareLists } from '../state/reducer';
 import { ValidationErrors, validate } from '../state/validation';

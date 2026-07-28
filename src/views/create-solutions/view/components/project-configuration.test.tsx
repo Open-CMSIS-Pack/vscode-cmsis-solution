@@ -20,7 +20,6 @@ import { createRoot } from 'react-dom/client';
 import { ProjectConfiguration } from './project-configuration';
 import { NewProject } from '../../cmsis-solution-types';
 import { deviceHardwareOptionFactory, newProjectFactory } from '../../cmsis-solution-types.factories';
-import { Tz } from '../../../../core-tools/client/packs_pb';
 import { FieldAndInteraction } from '../state/field-and-interaction';
 import { simulateChangeEvent } from '../../../../__test__/dom-events';
 
@@ -50,7 +49,7 @@ describe('ProjectConfiguration', () => {
         const device = {
             id: { name: 'blast-blast-2000', vendor: 'c7-mark12-intergalatic' },
             key: 'boardHardwareOption::blast-blast-2000',
-            processors: [{ tz: Tz.TZ, core: 'M0', name: '' }],
+            processors: [{ supportsTrustZone: true, core: 'M0', name: '' }],
             pack: {
                 name: '',
                 vendor: '',
@@ -147,7 +146,7 @@ describe('ProjectConfiguration', () => {
         const device = {
             id: { name: 'device1', vendor: 'vendor1' },
             key: 'vendor1::device1',
-            processors: [{ name: 'the-core', core: 'core1-0', tz: Tz.TZ_NO }, { name: '', core: 'core1-1', tz: Tz.TZ_NO }],
+            processors: [{ name: 'the-core', core: 'core1-0', supportsTrustZone: false }, { name: '', core: 'core1-1', supportsTrustZone: false }],
             pack: { name: '', vendor: '', version: '' },
         };
 
@@ -177,7 +176,7 @@ describe('ProjectConfiguration', () => {
         const projects = [{ value: newProjectFactory({ processorName: 'coreA', trustzone: 'secure' }), hadInteraction: false }];
         const device = deviceHardwareOptionFactory({
             id: { name: 'some-device', vendor: 'some-vendor' },
-            processors: [{ name: 'coreA', core: 'Cortex-M', tz: Tz.TZ }]
+            processors: [{ name: 'coreA', core: 'Cortex-M', supportsTrustZone: true }]
         });
 
         React.act(() => {

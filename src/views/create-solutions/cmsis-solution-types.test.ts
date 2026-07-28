@@ -14,24 +14,24 @@
  * limitations under the License.
  */
 
-import { DeviceReference, Tz } from '../../core-tools/client/packs_pb';
 import { compareBoardId, compareDeviceId, validTrustZone } from './cmsis-solution-types';
+import { DeviceReference } from './create-solution-dto';
 import { boardIdFactory } from '../../core-tools/core-tools-service.factories';
 import { faker } from '@faker-js/faker';
 import { uniqueFake } from '../../__test__/custom-faker';
 
 describe('compareDeviceId', () => {
     it('return true when reference id are identical', () => {
-        const device1: DeviceReference.AsObject = { name: 'device1', vendor: 'some-vendor' };
-        const device2: DeviceReference.AsObject = { name: 'device1', vendor: 'some-vendor' };
+        const device1: DeviceReference = { name: 'device1', vendor: 'some-vendor' };
+        const device2: DeviceReference = { name: 'device1', vendor: 'some-vendor' };
 
         const result = compareDeviceId(device1)(device2);
         expect(result).toBeTruthy();
     });
 
     it('return false when reference id are NOT identical', () => {
-        const device1: DeviceReference.AsObject = { name: 'device1', vendor: 'some-vendor' };
-        const device2: DeviceReference.AsObject = { name: 'device1', vendor: 'some-other-vendor' };
+        const device1: DeviceReference = { name: 'device1', vendor: 'some-vendor' };
+        const device2: DeviceReference = { name: 'device1', vendor: 'some-other-vendor' };
 
         const result = compareDeviceId(device1)(device2);
         expect(result).toBeFalsy();
@@ -39,7 +39,7 @@ describe('compareDeviceId', () => {
 
     it('return false when reference id are undefined', () => {
         const device1 = undefined;
-        const device2: DeviceReference.AsObject = { name: 'device1', vendor: 'some-other-vendor' };
+        const device2: DeviceReference = { name: 'device1', vendor: 'some-other-vendor' };
 
         const result = compareDeviceId(device1)(device2);
         expect(result).toBeFalsy();
@@ -70,14 +70,10 @@ describe('compareBoardId', () => {
 
 describe('validTrustZone', () => {
     it('processor with TZ returns true', () => {
-        expect(validTrustZone({ name: '', core: '', tz: Tz.TZ })).toBeTruthy();
+        expect(validTrustZone({ name: '', core: '', supportsTrustZone: true })).toBeTruthy();
     });
 
-    it('processor with unspecified trustzone', () => {
-        expect(validTrustZone({ name: '', core: '', tz: Tz.TZ_UNSPECIFIED })).toBeFalsy();
-    });
-
-    it('processor with NO_TZ returns false', () => {
-        expect(validTrustZone({ name: '', core: '', tz: Tz.TZ_NO })).toBeFalsy();
+    it('processor without TrustZone returns false', () => {
+        expect(validTrustZone({ name: '', core: '', supportsTrustZone: false })).toBeFalsy();
     });
 });
