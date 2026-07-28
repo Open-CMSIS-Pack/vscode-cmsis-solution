@@ -42,7 +42,8 @@ class MockWebviewPanel {
         asWebviewUri: (input: string) => `webview://${input}`,
         onDidReceiveMessage: this.receiveMessageEmitter.event,
         postMessage: jest.fn(),
-        html: ''
+        html: '',
+        options: {} as vscode.WebviewOptions,
     };
 
     public onDisposeFunction: jest.Mock | undefined;
@@ -216,6 +217,26 @@ describe('WebviewManager', () => {
             expect(mockCreateWebviewPanel).not.toHaveBeenCalled();
             expect(panelToRevive.webview.html).not.toBeFalsy();
             expect(createListener).toHaveBeenCalledTimes(1);
+        });
+
+        it('replaces restored webview options with options for the current extension', () => {
+            const serializer = (vscode.window.registerWebviewPanelSerializer as jest.Mock).mock.calls[0][1];
+            const panelToRevive = new MockWebviewPanel();
+            panelToRevive.webview.options = {
+                enableScripts: false,
+                localResourceRoots: [vscode.Uri.file('stale-extension-path')],
+            };
+
+            serializer.deserializeWebviewPanel(
+                panelToRevive as unknown as vscode.WebviewPanel, {}
+            );
+
+            expect(panelToRevive.webview.options.enableScripts).toBe(true);
+            expect(panelToRevive.webview.options.enableCommandUris).toBe(true);
+            expect(panelToRevive.webview.options.localResourceRoots?.map(uri => uri.fsPath.toLowerCase())).toEqual([
+                TEST_EXTENSION_PATH,
+                path.join(TEST_EXTENSION_PATH, 'dist/views'),
+            ].map(resourcePath => resourcePath.toLowerCase()));
         });
     });
 
