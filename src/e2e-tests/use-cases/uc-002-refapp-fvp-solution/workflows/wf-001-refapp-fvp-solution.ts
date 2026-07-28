@@ -23,9 +23,10 @@
  * FVP/Reference Application combinations by simply providing a different fixture object.
  */
 
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { parse } from 'jsonc-parser';
 import { VsCodeDriver } from '../../../infrastructure/vscode-driver';
 import { DEFAULT_TIMEOUT_MS } from '../../../constants';
 import {
@@ -39,11 +40,23 @@ import {
 import { ArmToolsDriver } from '../../../drivers/arm-tools-driver';
 import { ManageSolutionSettingsDriver } from '../../../drivers/manage-solution-settings-driver';
 import { VcpkgDriver } from '../../../drivers/vcpkg-driver';
-import { copyTerminalText, escapeRegExp, waitForBuild } from '../../../utils/helper';
+import {
+    copyTerminalText,
+    escapeRegExp,
+    waitForBuild,
+} from '../../../utils/helper';
+import { log } from '../../../utils/logger';
 
 export { loadYamlFixture } from '../../../utils/usecases';
 
 const SCREENSHOT_PREFIX = 'uc-002-refapp-fvp-solution/wf-001';
+
+type GeneratedTasksJson = {
+    tasks?: Array<{
+        label?: string;
+        command?: string;
+    }>;
+};
 
 // Fixture type
 export type CreateSolutionFixture = {
@@ -62,6 +75,11 @@ export type CreateSolutionFixture = {
     arm_tools: {
         environment: string;
         version: string;
+    };
+    expected_run: {
+        terminal: string;
+        command_contains?: string[];
+        output_contains?: string[];
     };
     expected_files?: ExpectedFiles;
     expected_problems?: ExpectedProblems;
@@ -89,10 +107,30 @@ const expectFileToContainAll = async (
     }
 };
 
+const expectGeneratedRunConfiguration = async (
+    cbuildRunFilePath: string,
+    expectedCommandParts: string[],
+): Promise<void> => {
+    const normalizedRunConfiguration = (await fs.readFile(cbuildRunFilePath, 'utf8'))
+        .replace(/\\/g, '/');
+
+    for (const expectedCommandPart of expectedCommandParts) {
+        const normalizedCommandPart = expectedCommandPart.replace(/\\/g, '/');
+        const equivalentCommandParts = [
+            normalizedCommandPart,
+            normalizedCommandPart.replace(/^\.\//, ''),
+            normalizedCommandPart.replace(/^\.?\/?out\//, ''),
+        ];
+
+        expect(equivalentCommandParts.some(commandPart =>
+            normalizedRunConfiguration.includes(commandPart),
+        ), `Expected cbuild-run.yml to contain one of: ${equivalentCommandParts.join(', ')}`).toBe(true);
+    }
+};
+
 /**
- * Runs WF-001: Creates a solution from a reference application for the FVP
- * board, configures the Arm Tools environment, builds it, and verifies the
- * generated build artifacts.
+ * Runs WF-001: Creates and configures an FVP reference application, builds it,
+ * then loads and runs it on the FVP and validates the application output.
  */
 export const runWf001RefAppFVPSolution = async (
     vsCodeDriver: VsCodeDriver,
@@ -105,7 +143,7 @@ export const runWf001RefAppFVPSolution = async (
         await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Clear All Notifications');
         await vsCodeDriver.page.openCmsisPanel();
 
-        // 1) Create the FVP reference application solution from the Create Solution wizard.
+        // Create the FVP reference application solution from the Create Solution wizard.
         const createdSolution = await createSolutionFromWizard(vsCodeDriver, {
             target: fixture.board,
             targetKind: 'board',
@@ -120,13 +158,13 @@ export const runWf001RefAppFVPSolution = async (
         await vsCodeDriver.page.waitForVsCodeToBeReady();
         await vsCodeDriver.page.waitForActionItem('CMSIS');
 
-        // 2) Validate the .csolution.yml exists before trying to parse it.
+        // Validate the .csolution.yml exists before trying to parse it.
         const artifacts = await readAndValidateGeneratedSolutionArtifacts(
             createdSolution.solutionFilePath,
             createdSolution.solutionFileName,
         );
 
-        // Steps 6-8: verify the generated application, add FVP support, and
+        // Verify the generated application, add FVP support, and
         // confirm the discovered board-layer configuration.
         const createdFiles = fixture.expected_files?.created ?? [];
         await Promise.all(createdFiles.map(file => expectGeneratedFileExists(artifacts, file)));
@@ -138,7 +176,7 @@ export const runWf001RefAppFVPSolution = async (
         await addPackToCsolution(referenceApplicationSolutionFilePath, fixture.fvp.pack);
         await confirmDiscoveredSolutionConfiguration(vsCodeDriver);
 
-        // Step 9: configure and save the FVP debug settings.
+        // Configure and save the FVP debug settings.
         await vsCodeDriver.page.logAndClearNotifications();
         const manageSolutionSettings = new ManageSolutionSettingsDriver(vsCodeDriver);
         const manageSolutionFrame = await manageSolutionSettings.open();
@@ -165,7 +203,7 @@ export const runWf001RefAppFVPSolution = async (
             `args: ${fixture.fvp.misc}`,
         ]);
 
-        // Steps 10-11: configure the Arm Tools environment and save it.
+        // Configure the Arm Tools environment and save it.
         const armTools = new ArmToolsDriver(vsCodeDriver);
         const armToolsFrame = await armTools.openConfigureArmToolsEnvironment();
 
@@ -182,16 +220,14 @@ export const runWf001RefAppFVPSolution = async (
         await vcpkg.waitForActivation();
         await vcpkg.waitForLoadedSolution(fixture.device ?? fixture.board);
 
-        // Loading the solution and activating the tools do not mean that the
-        // automatic cbuild conversion has finished. Building before the index
-        // exists can cancel the still-running setup task and leave no binary.
+        // Wait for cbuild conversion to finish before starting the build.
         const cbuildIndexFile = `./${createdSolution.solutionFileName.replace(
             /\.csolution\.ya?ml$/,
             '.cbuild-idx.yml',
         )}`;
         await expectGeneratedFileExists(artifacts, cbuildIndexFile);
 
-        // Steps 12-13: build the solution and verify all specified artifacts.
+        // Build the solution and verify all specified artifacts.
         await vsCodeDriver.page.openCmsisPanel();
         const targetName = fixture.device ?? fixture.board;
         const buildContextName = `${fixture.reference_application}.Debug+${targetName}`;
@@ -256,6 +292,108 @@ export const runWf001RefAppFVPSolution = async (
             }
         }
         await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/After successful build`);
+
+        const loadAndRunTaskButton = vsCodeDriver.page.getRoleByName('button', {
+            name: /^Focus Terminal.*Split Terminal/,
+        });
+        let loadAndRunOutput = '';
+        try {
+            await test.step('Generate the Load & Run task', async () => {
+                const cbuildRunFilePath = await expectGeneratedFileExists(
+                    artifacts,
+                    `./out/${fixture.reference_application}+${targetName}.cbuild-run.yml`,
+                );
+                await expectGeneratedRunConfiguration(cbuildRunFilePath, [
+                    fixture.fvp.debug_adapter,
+                    fixture.fvp.model,
+                    fixture.fvp.config_file,
+                    fixture.fvp.misc,
+                    ...(fixture.expected_run.command_contains ?? []),
+                ]);
+
+                await vsCodeDriver.page.getCommands()
+                    .runCommandFromPalette('Update Debug Tasks and Launch Configurations');
+                const tasksJsonPath = await expectGeneratedFileExists(
+                    artifacts,
+                    './.vscode/tasks.json',
+                );
+                const tasksJson = parse(
+                    await fs.readFile(tasksJsonPath, 'utf8'),
+                ) as GeneratedTasksJson;
+                const loadAndRunTask = tasksJson.tasks?.find(
+                    candidate => candidate.label === 'CMSIS Load+Run',
+                );
+                expect(
+                    loadAndRunTask,
+                    `Expected ${tasksJsonPath} to contain task "CMSIS Load+Run"`,
+                ).toBeDefined();
+                expect(loadAndRunTask?.command).toBe(fixture.fvp.model);
+
+                await vsCodeDriver.page.getCommands()
+                    .runCommandFromPalette('Terminal: Kill All Terminals');
+                await expect(loadAndRunTaskButton).toHaveCount(0, {
+                    timeout: DEFAULT_TIMEOUT_MS,
+                });
+            });
+
+            await test.step('Start the FVP', async () => {
+                await vsCodeDriver.page.openCmsisPanel();
+                const loadAndRunButton = vsCodeDriver.page.getRoleByName('button', {
+                    name: 'Load & Run Application',
+                });
+                await expect(loadAndRunButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+                await loadAndRunButton.click();
+                await expect(loadAndRunTaskButton).toBeVisible({
+                    timeout: DEFAULT_TIMEOUT_MS,
+                });
+            });
+
+            await test.step('Verify FVP application output', async () => {
+                const expectedOutput = fixture.expected_run.output_contains ?? [];
+                expect(
+                    expectedOutput.length,
+                    'Load & Run requires at least one functional success string',
+                ).toBeGreaterThan(0);
+
+                try {
+                    for (const expectedText of expectedOutput) {
+                        await expect.poll(async () => {
+                            loadAndRunOutput = await copyTerminalText(vsCodeDriver);
+                            return loadAndRunOutput;
+                        }, {
+                            timeout: DEFAULT_TIMEOUT_MS,
+                            intervals: [1000, 2000, 3000],
+                            message: `Expected Load & Run terminal to contain "${expectedText}"`,
+                        }).toContain(expectedText);
+                    }
+                } catch (error) {
+                    const cause = error instanceof Error ? error.message : String(error);
+                    throw new Error(
+                        'FVP did not produce the expected application output.\n'
+                        + `Terminal output:\n${loadAndRunOutput}\n`
+                        + `Cause: ${cause}`,
+                    );
+                }
+                await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/After FVP Load & Run`);
+            });
+        } finally {
+            log('debug', `CMSIS Load+Run terminal output: ${JSON.stringify(loadAndRunOutput)}`);
+            const taskFailed = await loadAndRunTaskButton.locator('.codicon-error')
+                .isVisible()
+                .catch(() => false);
+            if (taskFailed) {
+                log(
+                    'warn',
+                    'CMSIS Load+Run reported a non-zero exit status after producing terminal output.',
+                );
+            }
+            try {
+                await vsCodeDriver.page.getCommands()
+                    .runCommandFromPalette('Terminal: Kill All Terminals');
+            } catch (error) {
+                log('warn', `Failed to stop CMSIS Load+Run during cleanup: ${String(error)}`);
+            }
+        }
     } finally {
         try {
             await vsCodeDriver.restoreTestWorkspace();
