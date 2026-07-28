@@ -148,6 +148,7 @@ export class WebviewManager<In, Out> {
     }
 
     private revivePanel(panel: vscode.WebviewPanel): void {
+        panel.webview.options = this.getWebviewOptions();
         this.panel = panel;
         this.renderPanel(panel);
     }
@@ -241,13 +242,8 @@ export class WebviewManager<In, Out> {
                 viewColumn: vscode.ViewColumn.Active
             },
             {
-                enableScripts: true,
+                ...this.getWebviewOptions(),
                 retainContextWhenHidden: true,
-                localResourceRoots: [
-                    vscode.Uri.file(this.context.extensionPath),
-                    this.publicDirUri
-                ],
-                enableCommandUris: true,
             }
         );
         if (this.options.iconName) {
@@ -257,6 +253,17 @@ export class WebviewManager<In, Out> {
             };
         }
         return panel;
+    }
+
+    private getWebviewOptions(): vscode.WebviewOptions {
+        return {
+            enableScripts: true,
+            enableCommandUris: true,
+            localResourceRoots: [
+                vscode.Uri.file(this.context.extensionPath),
+                this.publicDirUri
+            ],
+        };
     }
 
     public asWebviewUri(localResource: vscode.Uri): string {
