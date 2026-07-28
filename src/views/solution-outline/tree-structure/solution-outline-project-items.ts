@@ -223,34 +223,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
             this.addComponentDataFromCbuild(componentNodes, cbuild);
         }
 
-        this.addComponentOptions(componentNodes);
         return true; // do have components to edit
-    }
-
-    private addComponentOptions(componentNodes: Map<string, COutlineItem>) {
-        const components = componentNodes.values();
-
-        for (const component of components) {
-            // add copy header (if it applies) to component nodes
-            const header = this.getHeaderFile(component);
-            // set context
-            if (header) {
-                setHeaderContext(component);
-                const label = header.getAttribute('label');
-                component.setAttribute('header', label);
-            }
-        }
-    }
-
-    private getHeaderFile(component: COutlineItem): COutlineItem | undefined {
-        // look for api files and header files
-        for (const child of component.getChildren()) {
-            const fileName = child.getAttribute('label');
-            if (fileName?.endsWith('.h')) {
-                return child as COutlineItem;
-            }
-        }
-        return undefined;
     }
 
     private createComponentNodes(componentsItem: COutlineItem, projectComponents: ITreeItem<CTreeItem>[], topTag: string, rootFileName: string): Map<string, COutlineItem> {
@@ -299,9 +272,16 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
 
             this.addComponentData(node, component, cbuild);
         }
+
+        for (const node of componentNodes.values()) {
+            const preferredHeader = node.getHeaders()[0];
+            if (preferredHeader) {
+                setHeaderContext(node, preferredHeader.getHeader());
+            }
+        }
     }
 
-    private addApiData(apiChild: ITreeItem<CTreeItem> | undefined, node: COutlineItem) {
+    private addApiData(apiChild: ITreeItem<CTreeItem> | undefined, node: COutlineItem): void {
         if (apiChild == undefined) {
             return;
         }
@@ -318,7 +298,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         }
     }
 
-    private addComponentData(node: COutlineItem, component: ITreeItem<CTreeItem>, cbuild: CTreeItem) {
+    private addComponentData(node: COutlineItem, component: ITreeItem<CTreeItem>, cbuild: CTreeItem): void {
         // add files
         const docs: ITreeItem<CTreeItem>[] = [];
         const fileTreeItem = new FileItemBuilder(this.csolution, this.rpcData, this.context);
