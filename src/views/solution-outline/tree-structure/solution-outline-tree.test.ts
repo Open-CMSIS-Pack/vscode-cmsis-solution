@@ -64,6 +64,19 @@ describe('CSolution', () => {
         return results;
     }
 
+    function findNodeByLabel(node: COutlineItem, tag: string, label: string): COutlineItem | undefined {
+        if (node.getTag() === tag && node.getAttribute('label') === label) {
+            return node;
+        }
+        for (const child of node.getChildren() as COutlineItem[]) {
+            const result = findNodeByLabel(child, tag, label);
+            if (result) {
+                return result;
+            }
+        }
+        return undefined;
+    }
+
 
     async function dumpOutline(tree: COutlineItem, solutionDir: string, dumpFileName: string, refFileName: string): Promise<{ dump: string; ref: string; }> {
         const res: { dump: string, ref: string } = { dump: '', ref: '' };
@@ -195,6 +208,18 @@ describe('CSolution', () => {
 
         const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
         let tree = solutionOutlineTree.createTree();
+
+        const rtxComponent = findNodeByLabel(tree, 'component', 'ARM::CMSIS:RTOS2:Keil RTX5&Source');
+        expect(rtxComponent?.getHeader()).toBe('cmsis_os2.h');
+        expect(rtxComponent?.getHeaders().map(item => item.getHeader())).toContain('rtx_os.h');
+
+        const usartComponent = findNodeByLabel(tree, 'component', 'Keil::CMSIS Driver:USART');
+        expect(usartComponent?.getHeader()).toBe('Driver_USART.h');
+        expect(usartComponent?.getHeaders().map(item => item.getHeader())).toContain('USART_STM32.h');
+
+        const massStorageProject = findNodeByLabel(tree, 'project', 'MassStorage.Debug+B-U585I-IOT02A');
+        const stderrComponent = findNodeByLabel(massStorageProject!, 'component', 'ARM::CMSIS-Compiler:STDERR:Custom');
+        expect(stderrComponent?.getHeaders().map(item => item.getHeader())).toContain('retarget_stderr.h');
 
         let topItems = tree.getChildren();
         expect(topItems.length).toBe(5); // device, board, cdefault and two projects

@@ -108,6 +108,13 @@ describe('Context utilities', () => {
         expect(node.getAttribute('header')).toBe('MyHeaderFile.h');
     });
 
+    it('sets an explicit component header', () => {
+        node.setAttribute('label', 'Component');
+        setHeaderContext(node, 'public-api.h');
+
+        expect(node.getAttribute('header')).toBe('public-api.h');
+    });
+
     it('should add DOC_CONTEXT feature and set type to docFile', () => {
         setDocContext(node);
 
@@ -129,4 +136,3 @@ describe('Context utilities', () => {
     });
 
 });
-

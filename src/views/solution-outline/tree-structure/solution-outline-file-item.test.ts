@@ -110,5 +110,35 @@ describe('FileItem', () => {
         });
 
     });
-});
 
+    it('creates header nodes based on category or supported extension', async () => {
+        const cbuildContent = `
+        build:
+          files:
+            - file: include/categorized.h
+              category: header
+            - file: include/categorized.hpp
+              category: header
+            - file: include/by_extension.h
+            - file: include/by_extension.hpp
+            - file: include/by_category
+              category: header`;
+
+        const root = await parseYamlToCTreeItem(cbuildContent);
+        root!.rootFileName = cSolFile;
+        const files = root?.getChild('build')?.getGrandChildren('files') ?? [];
+
+        fileItem.createFileNodes(componentNode, files);
+
+        const headers = (componentNode.getChildren() as COutlineItem[])
+            .map(item => item.getHeader());
+        expect(headers).toHaveLength(5);
+        expect(headers).toEqual(expect.arrayContaining([
+            'categorized.h',
+            'categorized.hpp',
+            'by_extension.h',
+            'by_extension.hpp',
+            'by_category',
+        ]));
+    });
+});
