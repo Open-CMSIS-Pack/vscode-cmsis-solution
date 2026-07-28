@@ -32,14 +32,13 @@ import {
     addPackToCsolution,
     createSolutionFromWizard,
     expectGeneratedFileExists,
-    expectGeneratedSolutionFiles,
     ExpectedFiles,
     ExpectedProblems,
     readAndValidateGeneratedSolutionArtifacts,
 } from '../../../utils/usecases';
 import { ManageSolutionSettingsDriver } from '../../../drivers/manage-solution-settings-driver';
 import { ArmToolsDriver } from '../../../drivers/arm-tools-driver';
-import { copyTerminalText, waitForBuild } from '../../../utils/helper';
+import { runTaskAndExpectOutput, waitForBuild } from '../../../utils/helper';
 
 export { loadYamlFixture } from '../../../utils/usecases';
 
@@ -173,7 +172,7 @@ export const runWf001RefAppFVPSolution = async (
         await vsCodeDriver.page.logAndClearNotifications();
 
         const createdFiles = fixture.expected_files?.created ?? [];
-        await expectGeneratedSolutionFiles(artifacts, createdFiles);
+        await Promise.all(createdFiles.map(file => expectGeneratedFileExists(artifacts, file)));
 
         // 4) Configure FVP debug settings in Manage Solution Settings.
         const manageSolutionSettings = new ManageSolutionSettingsDriver(vsCodeDriver);
@@ -220,7 +219,7 @@ export const runWf001RefAppFVPSolution = async (
         await waitForBuild(buildTask);
 
         const builtFiles = fixture.expected_files?.built ?? [];
-        await expectGeneratedSolutionFiles(artifacts, builtFiles);
+        await Promise.all(builtFiles.map(file => expectGeneratedFileExists(artifacts, file)));
 
         const cbuildRunFilePath = await expectGeneratedFileExists(
             artifacts,
@@ -245,17 +244,13 @@ export const runWf001RefAppFVPSolution = async (
         const loadAndRunButton = vsCodeDriver.page.getRoleByName('button', {
             name: 'Load & Run Application',
         });
-        await expect(loadAndRunButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
-        await loadAndRunButton.click();
-
-        for (const expectedOutput of fixture.expected_run.output_contains ?? []) {
-            await expect.poll(async () =>
-                copyTerminalText(vsCodeDriver),
-            {
-                timeout: DEFAULT_TIMEOUT_MS,
-                intervals: [1000, 2000, 3000],
-            }).toContain(expectedOutput);
-        }
+        await runTaskAndExpectOutput({
+            vscode: vsCodeDriver,
+            workspaceDirectory: artifacts.solutionDirectory,
+            taskName: 'CMSIS Load+Run',
+            startButton: loadAndRunButton,
+            expectedOutput: fixture.expected_run.output_contains ?? [],
+        });
 
         await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/After FVP load and run task`);
     } finally {
