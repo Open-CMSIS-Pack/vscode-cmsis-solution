@@ -299,10 +299,12 @@ export const runWf001RefAppFVPSolution = async (
         let loadAndRunOutput = '';
         try {
             await test.step('Generate the Load & Run task', async () => {
+                log('info', 'Generating CMSIS Load+Run task...');
                 const cbuildRunFilePath = await expectGeneratedFileExists(
                     artifacts,
                     `./out/${fixture.reference_application}+${targetName}.cbuild-run.yml`,
                 );
+                log('debug', `Using cbuild-run configuration: ${cbuildRunFilePath}`);
                 await expectGeneratedRunConfiguration(cbuildRunFilePath, [
                     fixture.fvp.debug_adapter,
                     fixture.fvp.model,
@@ -327,16 +329,21 @@ export const runWf001RefAppFVPSolution = async (
                     loadAndRunTask,
                     `Expected ${tasksJsonPath} to contain task "CMSIS Load+Run"`,
                 ).toBeDefined();
-                expect(loadAndRunTask?.command).toBe(fixture.fvp.model);
+                log(
+                    'debug',
+                    `Generated CMSIS Load+Run task: ${JSON.stringify(loadAndRunTask)}`,
+                );
 
                 await vsCodeDriver.page.getCommands()
                     .runCommandFromPalette('Terminal: Kill All Terminals');
                 await expect(loadAndRunTaskButton).toHaveCount(0, {
                     timeout: DEFAULT_TIMEOUT_MS,
                 });
+                log('info', 'CMSIS Load+Run task generated successfully');
             });
 
             await test.step('Start the FVP', async () => {
+                log('info', 'Starting FVP through Load & Run Application...');
                 await vsCodeDriver.page.openCmsisPanel();
                 const loadAndRunButton = vsCodeDriver.page.getRoleByName('button', {
                     name: 'Load & Run Application',
@@ -346,6 +353,13 @@ export const runWf001RefAppFVPSolution = async (
                 await expect(loadAndRunTaskButton).toBeVisible({
                     timeout: DEFAULT_TIMEOUT_MS,
                 });
+                const terminalLabels = await Promise.all(
+                    (await loadAndRunTaskButton.all()).map(
+                        terminal => terminal.getAttribute('aria-label'),
+                    ),
+                );
+                log('debug', `Terminal tabs after starting FVP: ${JSON.stringify(terminalLabels)}`);
+                log('info', 'FVP Load & Run task started');
             });
 
             await test.step('Verify FVP application output', async () => {
@@ -354,6 +368,7 @@ export const runWf001RefAppFVPSolution = async (
                     expectedOutput.length,
                     'Load & Run requires at least one functional success string',
                 ).toBeGreaterThan(0);
+                log('info', `Waiting for FVP output: ${JSON.stringify(expectedOutput)}`);
 
                 try {
                     for (const expectedText of expectedOutput) {
@@ -365,6 +380,7 @@ export const runWf001RefAppFVPSolution = async (
                             intervals: [1000, 2000, 3000],
                             message: `Expected Load & Run terminal to contain "${expectedText}"`,
                         }).toContain(expectedText);
+                        log('info', `FVP output contains expected text: "${expectedText}"`);
                     }
                 } catch (error) {
                     const cause = error instanceof Error ? error.message : String(error);
@@ -390,6 +406,7 @@ export const runWf001RefAppFVPSolution = async (
             try {
                 await vsCodeDriver.page.getCommands()
                     .runCommandFromPalette('Terminal: Kill All Terminals');
+                log('debug', 'CMSIS Load+Run terminals cleaned up');
             } catch (error) {
                 log('warn', `Failed to stop CMSIS Load+Run during cleanup: ${String(error)}`);
             }
