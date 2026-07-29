@@ -293,8 +293,12 @@ export const runWf001RefAppFVPSolution = async (
         }
         await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/After successful build`);
 
-        const loadAndRunTaskButton = vsCodeDriver.page.getRoleByName('button', {
+        const loadAndRunTaskLabel = 'CMSIS Load+Run';
+        const terminalTaskButtons = vsCodeDriver.page.getRoleByName('button', {
             name: /^Focus Terminal.*Split Terminal/,
+        });
+        const loadAndRunTaskButton = terminalTaskButtons.filter({
+            hasText: loadAndRunTaskLabel,
         });
         let loadAndRunOutput = '';
         try {
@@ -323,11 +327,11 @@ export const runWf001RefAppFVPSolution = async (
                     await fs.readFile(tasksJsonPath, 'utf8'),
                 ) as GeneratedTasksJson;
                 const loadAndRunTask = tasksJson.tasks?.find(
-                    candidate => candidate.label === 'CMSIS Load+Run',
+                    candidate => candidate.label === loadAndRunTaskLabel,
                 );
                 expect(
                     loadAndRunTask,
-                    `Expected ${tasksJsonPath} to contain task "CMSIS Load+Run"`,
+                    `Expected ${tasksJsonPath} to contain task "${loadAndRunTaskLabel}"`,
                 ).toBeDefined();
                 log(
                     'debug',
@@ -336,7 +340,7 @@ export const runWf001RefAppFVPSolution = async (
 
                 await vsCodeDriver.page.getCommands()
                     .runCommandFromPalette('Terminal: Kill All Terminals');
-                await expect(loadAndRunTaskButton).toHaveCount(0, {
+                await expect(terminalTaskButtons).toHaveCount(0, {
                     timeout: DEFAULT_TIMEOUT_MS,
                 });
                 log('info', 'CMSIS Load+Run task generated successfully');
@@ -353,13 +357,17 @@ export const runWf001RefAppFVPSolution = async (
                 await expect(loadAndRunTaskButton).toBeVisible({
                     timeout: DEFAULT_TIMEOUT_MS,
                 });
+                await loadAndRunTaskButton.click();
                 const terminalLabels = await Promise.all(
-                    (await loadAndRunTaskButton.all()).map(
+                    (await terminalTaskButtons.all()).map(
                         terminal => terminal.getAttribute('aria-label'),
                     ),
                 );
                 log('debug', `Terminal tabs after starting FVP: ${JSON.stringify(terminalLabels)}`);
-                log('info', 'FVP Load & Run task started');
+                log(
+                    'info',
+                    `FVP Load & Run task started; selected "${loadAndRunTaskLabel}" terminal`,
+                );
             });
 
             await test.step('Verify FVP application output', async () => {
