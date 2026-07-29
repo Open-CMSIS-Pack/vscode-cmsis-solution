@@ -59,7 +59,7 @@ describe('MergeCommand', () => {
     let fileNode: COutlineItem;
 
     const mockedExec = child_process.exec as jest.MockedFunction<typeof child_process.exec>;
-    const mockedExecSync = child_process.execSync as jest.MockedFunction<typeof child_process.execSync>;
+    const mockedExecFileSync = child_process.execFileSync as jest.MockedFunction<typeof child_process.execFileSync>;
     const mockedPath = path as jest.Mocked<typeof path>;
 
     beforeAll(() => {
@@ -340,12 +340,12 @@ describe('MergeCommand', () => {
             const result = command['getVSCodeExecutablePath']();
 
             expect(result).toBe(expectedCodePath);
-            expect(mockedExecSync).not.toHaveBeenCalled();
+            expect(mockedExecFileSync).not.toHaveBeenCalled();
         });
 
         it('shows error if VS Code executable is not found before starting merge', async () => {
             jest.spyOn(os, 'platform').mockReturnValue('linux');
-            mockedExecSync.mockImplementation(() => {
+            mockedExecFileSync.mockImplementation(() => {
                 throw new Error('not found');
             });
 
@@ -378,7 +378,7 @@ describe('MergeCommand', () => {
         it('handles merge errors gracefully', async () => {
             const codePath = '/usr/bin/code';
             jest.spyOn(os, 'platform').mockReturnValue('linux');
-            mockedExecSync.mockReturnValue(codePath);
+            mockedExecFileSync.mockReturnValue(codePath);
             jest.spyOn(fsUtils, 'copyFile').mockImplementation(() => { });
             jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
             jest.spyOn(fsUtils, 'getFileModificationTime').mockReturnValue(1000);
