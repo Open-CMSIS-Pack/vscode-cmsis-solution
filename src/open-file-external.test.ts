@@ -34,7 +34,12 @@ describe('Open-file-external', () => {
             const url = 'https://www.arm.com';
             mockOpenFileExternal.openFile(url);
             console.log(`Command:  ${mockOpenFileExternal.calledCommand}`);
-            expect(mockOpenFileExternal.calledCommand.includes(url)).toBe(true);
+            const expectedCommand = process.platform === 'darwin'
+                ? `open "${url}"`
+                : process.platform === 'win32'
+                    ? `start "" "${url}"`
+                    : `xdg-open "${url}"`;
+            expect(mockOpenFileExternal.calledCommand).toBe(expectedCommand);
         });
 
         it('writes redirection file', async () => {
