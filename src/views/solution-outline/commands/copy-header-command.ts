@@ -19,13 +19,11 @@ import * as vscode from 'vscode';
 import * as manifest from '../../../manifest';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
-
-type HeaderOrigin = 'api' | 'component';
+import { formatHeaderIncludeForClipboard, formatHeaderQuickPickLabel } from './header-include-formatting';
 
 interface HeaderChoice {
     include: string;
-    origins: readonly HeaderOrigin[];
-    resourcePaths: readonly string[];
+    componentName?: string;
 }
 
 interface HeaderQuickPickItem extends vscode.QuickPickItem {
@@ -33,39 +31,19 @@ interface HeaderQuickPickItem extends vscode.QuickPickItem {
 }
 
 function createHeaderChoices(items: readonly COutlineItem[]): HeaderChoice[] {
-    const choicesByInclude = new Map<string, HeaderChoice>();
+    const choices = new Map<string, HeaderChoice>();
 
     for (const item of items) {
         const include = item.getHeader();
         if (!include) {
             continue;
         }
-        const origin = item.isApiHeader() ? 'api' : 'component';
-        const resourcePath = item.getResourcePath();
-        const existingChoice = choicesByInclude.get(include);
-        if (!existingChoice) {
-            choicesByInclude.set(include, {
-                include,
-                origins: [origin],
-                resourcePaths: resourcePath ? [resourcePath] : [],
-            });
-            continue;
-        }
-
-        const hasOrigin = existingChoice.origins.includes(origin);
-        const hasResourcePath = !resourcePath || existingChoice.resourcePaths.includes(resourcePath);
-        if (!hasOrigin || !hasResourcePath) {
-            choicesByInclude.set(include, {
-                ...existingChoice,
-                origins: hasOrigin ? existingChoice.origins : [...existingChoice.origins, origin],
-                resourcePaths: hasResourcePath
-                    ? existingChoice.resourcePaths
-                    : [...existingChoice.resourcePaths, resourcePath!],
-            });
-        }
+        const componentName = item.getParentOrThis('component')?.getAttribute('label');
+        const key = `${include}\0${componentName ?? ''}`;
+        choices.set(key, { include, componentName });
     }
 
-    return [...choicesByInclude.values()];
+    return [...choices.values()];
 }
 
 export class CopyHeaderCommand {
@@ -85,7 +63,7 @@ export class CopyHeaderCommand {
                 }
 
                 if (choices.length === 1) {
-                    await this.copy(choices[0].include);
+                    await this.copy(choices[0]);
                     return;
                 }
 
@@ -93,30 +71,24 @@ export class CopyHeaderCommand {
                     choices.map(choice => this.createQuickPickItem(choice)),
                     {
                         placeHolder: 'Select a header to copy',
-                        matchOnDescription: true,
                     }
                 );
                 if (selectedItem) {
-                    await this.copy(selectedItem.choice.include);
+                    await this.copy(selectedItem.choice);
                 }
             }, this),
         );
     }
 
     private createQuickPickItem(choice: HeaderChoice): HeaderQuickPickItem {
-        const description = choice.origins
-            .map(origin => origin === 'api' ? 'API' : 'Component')
-            .join(' · ');
         return {
-            label: choice.include,
-            description,
-            detail: choice.resourcePaths.length > 0 ? choice.resourcePaths.join(' · ') : undefined,
+            label: formatHeaderQuickPickLabel(choice.include, choice.componentName),
             choice,
         };
     }
 
-    public async copy(header : string): Promise<void> {
-        const incText = `#include "${header}"\n`;
-        await vscode.env.clipboard.writeText(incText);
+    private async copy(choice: HeaderChoice): Promise<void> {
+        const includeText = formatHeaderIncludeForClipboard(choice.include, choice.componentName);
+        await vscode.env.clipboard.writeText(includeText);
     }
 }
