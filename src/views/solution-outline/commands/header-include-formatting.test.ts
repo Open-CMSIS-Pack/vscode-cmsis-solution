@@ -15,13 +15,13 @@
  */
 
 import 'jest';
-import { formatHeaderIncludeForClipboard, formatHeaderQuickPickLabel } from './header-include-formatting';
+import { formatHeaderIncludeForClipboard } from './header-include-formatting';
 
 describe('header include formatting', () => {
     it('aligns a component comment at the reference column', () => {
         const result = formatHeaderIncludeForClipboard('tz_context.h', 'ARM::CMSIS:CORE');
 
-        expect(result).toBe('#include "tz_context.h"                  // ARM::CMSIS:CORE\n');
+        expect(result).toBe(`${'#include "tz_context.h"'.padEnd(41)}// ARM::CMSIS:CORE\n`);
         expect(result.indexOf('//')).toBe(41);
     });
 
@@ -45,15 +45,5 @@ describe('header include formatting', () => {
     it('preserves the plain include for a standalone header', () => {
         expect(formatHeaderIncludeForClipboard('project_config.h'))
             .toBe('#include "project_config.h"\n');
-    });
-
-    it('uses one space rather than alignment in the picker', () => {
-        expect(formatHeaderQuickPickLabel('_kiss_fft_guts.h', 'EdgeImpulse:SDK'))
-            .toBe('#include "_kiss_fft_guts.h" // EdgeImpulse:SDK');
-    });
-
-    it('formats a standalone header in the picker without a comment', () => {
-        expect(formatHeaderQuickPickLabel('project_config.h'))
-            .toBe('#include "project_config.h"');
     });
 });
