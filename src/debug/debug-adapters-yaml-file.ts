@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { createInterfaceFactory } from '../generic/interface-factory';
+import { constructor } from '../generic/constructor';
 import { ETextFileResult } from '../generic/text-file';
 import { ITreeItem, CTreeItem } from '../generic/tree-item';
 import { CTreeItemYamlFile, ITreeItemFile } from '../generic/tree-item-file';
@@ -158,7 +158,7 @@ class DebugAdaptersYamlFileImpl extends CTreeItemYamlFile implements DebugAdapte
     }
 };
 
-export const DebugAdaptersYamlFile = createInterfaceFactory<DebugAdaptersYamlFile>(DebugAdaptersYamlFileImpl);
+export const DebugAdaptersYamlFile = constructor<typeof DebugAdaptersYamlFileImpl, DebugAdaptersYamlFile>(DebugAdaptersYamlFileImpl);
 
 
 export async function loadDebugAdaptersYml(): Promise<DebugAdaptersYamlFile | undefined> {
