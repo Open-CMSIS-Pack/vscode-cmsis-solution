@@ -22,23 +22,12 @@ function createHeaderInclude(header: string): string {
     return `#include "${header}"`;
 }
 
-function createHeaderComment(componentName: string): string {
-    return `// ${componentName}`;
+function createHeaderComment(componentName?: string): string {
+    return componentName ? `// ${componentName}` : '';
 }
 
 export function formatHeaderIncludeForClipboard(header: string, componentName?: string): string {
     const headerInclude = createHeaderInclude(header);
-    if (!componentName) {
-        return `${headerInclude}\n`;
-    }
-
-    const indentation = Math.max(1, HEADER_COMMENT_REFERENCE_COLUMN - headerInclude.length);
+    const indentation = componentName ? Math.max(1, HEADER_COMMENT_REFERENCE_COLUMN - headerInclude.length) : 0;
     return `${headerInclude}${getIndentString(indentation, 1)}${createHeaderComment(componentName)}\n`;
-}
-
-export function formatHeaderQuickPickLabel(header: string, componentName?: string): string {
-    const headerInclude = createHeaderInclude(header);
-    return componentName
-        ? `${headerInclude} ${createHeaderComment(componentName)}`
-        : headerInclude;
 }

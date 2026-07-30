@@ -19,31 +19,19 @@ import * as vscode from 'vscode';
 import * as manifest from '../../../manifest';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
-import { formatHeaderIncludeForClipboard, formatHeaderQuickPickLabel } from './header-include-formatting';
+import { formatHeaderIncludeForClipboard } from './header-include-formatting';
 
-interface HeaderChoice {
-    include: string;
-    componentName?: string;
-}
 
-interface HeaderQuickPickItem extends vscode.QuickPickItem {
-    choice: HeaderChoice;
-}
-
-function createHeaderChoices(items: readonly COutlineItem[]): HeaderChoice[] {
-    const choices = new Map<string, HeaderChoice>();
+function createHeaderChoices(items: readonly COutlineItem[]) {
+    const choices : string[] = [];
 
     for (const item of items) {
         const include = item.getHeader();
-        if (!include) {
-            continue;
+        if (include) {
+            choices.push(include);
         }
-        const componentName = item.getParentOrThis('component')?.getAttribute('label');
-        const key = `${include}\0${componentName ?? ''}`;
-        choices.set(key, { include, componentName });
     }
-
-    return [...choices.values()];
+    return choices;
 }
 
 export class CopyHeaderCommand {
@@ -61,34 +49,33 @@ export class CopyHeaderCommand {
                 if (choices.length === 0) {
                     return;
                 }
+                const componentName = node.getParentOrThis('component')?.getAttribute('label');
 
                 if (choices.length === 1) {
-                    await this.copy(choices[0]);
+                    await this.copy(choices[0], componentName);
                     return;
                 }
+                const origin = componentName ? ` from ${componentName} component` : '';
 
-                const selectedItem = await this.vscodeWindow.showQuickPick(
+                const selectedInclude = await this.vscodeWindow.showQuickPick(
                     choices.map(choice => this.createQuickPickItem(choice)),
                     {
-                        placeHolder: 'Select a header to copy',
+                        placeHolder: `Select a header to copy${origin}`,
                     }
                 );
-                if (selectedItem) {
-                    await this.copy(selectedItem.choice);
+                if (selectedInclude) {
+                    await this.copy(selectedInclude, componentName);
                 }
             }, this),
         );
     }
 
-    private createQuickPickItem(choice: HeaderChoice): HeaderQuickPickItem {
-        return {
-            label: formatHeaderQuickPickLabel(choice.include, choice.componentName),
-            choice,
-        };
+    private createQuickPickItem(include: string): string {
+        return include;
     }
 
-    private async copy(choice: HeaderChoice): Promise<void> {
-        const includeText = formatHeaderIncludeForClipboard(choice.include, choice.componentName);
+    private async copy(include: string, componentName? :string): Promise<void> {
+        const includeText = formatHeaderIncludeForClipboard(include, componentName);
         await vscode.env.clipboard.writeText(includeText);
     }
 }
