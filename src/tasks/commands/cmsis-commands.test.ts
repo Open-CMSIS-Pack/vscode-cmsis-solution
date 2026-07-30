@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { mockWaitUntilFree, mockWaitUntilUsed } from '../../generic/tcp-port-monitor.mock';
+import { mockWaitUntilFree, mockWaitUntilUsed } from '../../tcp-port-monitor/tcp-port-monitor.mock';
 
 import * as vscode from 'vscode';
 import { CmsisCommands } from './cmsis-commands';

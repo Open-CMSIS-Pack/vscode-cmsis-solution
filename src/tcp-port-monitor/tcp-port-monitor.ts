@@ -15,7 +15,7 @@
  */
 
 import { waitUntilUsed, waitUntilFree } from 'tcp-port-used';
-import { constructor } from './constructor';
+import { constructor } from '../generic/constructor';
 
 export interface TCPPortMonitor {
     readonly port: number;
