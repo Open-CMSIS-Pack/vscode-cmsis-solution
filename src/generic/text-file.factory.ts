@@ -39,6 +39,4 @@ export const textFileFactory = makeFactory<ITextFile, IErrorList>({
     clear: () => jest.fn(),
     exists: () => jest.fn(),
     unlink: () => jest.fn(),
-    hasExternalFileChanged: () => jest.fn().mockReturnValue(false),
-    refreshExternalFileStamp: () => jest.fn(),
 }, errorListFactory);

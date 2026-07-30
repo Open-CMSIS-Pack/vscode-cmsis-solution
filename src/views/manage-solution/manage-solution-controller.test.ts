@@ -23,6 +23,7 @@ import path from 'path';
 import { ETextFileResult, TextFile } from '../../generic/text-file';
 import { stripTwoExtensions } from '../../generic/string-utils';
 import { solutionManagerFactory } from '../../solutions/solution-manager.factories';
+import * as fsUtils from '../../utils/fs-utils';
 import * as vscodeUtils from '../../utils/vscode-utils';
 
 /**
@@ -133,6 +134,25 @@ describe('manage-solution-controller', () => {
         const controller = new ManageSolutionController();
         expect(controller.solutionPath).toEqual('');
         expect(controller.customDebugAdapterDefaults).toEqual({});
+    });
+
+    it('detects external file changes and re-baselines both monitored files', async () => {
+        const solutionPath = path.join(tmpSolutionDir, 'simple/test.csolution.yml');
+        const originalSolution = fsUtils.readTextFile(solutionPath);
+        const controller = new ManageSolutionController();
+
+        await controller.loadSolution(solutionPath);
+        expect(controller.hasExternalFileChanges()).toBe(false);
+
+        try {
+            fsUtils.writeTextFile(solutionPath, `${originalSolution}\n# external change`);
+            fsUtils.writeTextFile(cmsisJsonFilePath, '{ "external": true }');
+
+            expect(controller.hasExternalFileChanges()).toBe(true);
+            expect(controller.hasExternalFileChanges()).toBe(false);
+        } finally {
+            fsUtils.writeTextFile(solutionPath, originalSolution);
+        }
     });
 
     it('should get active target type wrap', async () => {
