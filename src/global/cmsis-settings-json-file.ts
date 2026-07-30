@@ -20,7 +20,7 @@ import * as vscodeUtils from '../utils/vscode-utils';
 import { JsonFile } from '../generic/json-file';
 import { merge } from 'lodash';
 import { backToForwardSlashes, getFileNameNoExt } from '../utils/path-utils';
-import { stripTwoExtensions } from '../utils/string-utils';
+import { stripTwoExtensions } from '../generic/string-utils';
 
 export type SettingsValueType = boolean | string | number | undefined | object | null;
 

@@ -21,7 +21,7 @@ import { parseYamlToCTreeItem } from '../generic/tree-item-yaml-parser';
 import { CbuildRunYamlFile } from './files/cbuild-run-yaml-file';
 import { optional, arrayOf, nullable, Schema, string, InferType } from '../generic/schema';
 import { Optional, ArrayElement } from '../generic/type-helper';
-import { extractSuffix, stripPrefix, stripSuffix, stripTwoExtensions } from '../utils/string-utils';
+import { extractSuffix, stripPrefix, stripSuffix, stripTwoExtensions } from '../generic/string-utils';
 import { getFileNameNoExt } from '../utils/path-utils';
 import { CbuildIdxFile } from './files/cbuild-idx-file';
 import { ContextDescriptor, contextDescriptorFromString } from './descriptors/descriptors';

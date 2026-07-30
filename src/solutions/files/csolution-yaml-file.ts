@@ -21,7 +21,7 @@ import { CSolutionWrap, ICSolutionWrap, TargetSetWrap, TargetTypeWrap } from './
 import { ETextFileResult } from '../../generic/text-file';
 import { constructProjectYamlFile, CProjectYamlFile } from './cproject-yaml-file';
 import { getFileNameNoExt } from '../../utils/path-utils';
-import { extractVersion } from '../../utils/string-utils';
+import { extractVersion } from '../../generic/string-utils';
 import * as semver from 'semver';
 import { MIN_TOOLBOX_VERSION } from '../../manifest';
 

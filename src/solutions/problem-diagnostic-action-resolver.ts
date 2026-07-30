@@ -24,7 +24,7 @@ import {
     PACKAGE_NAME,
     RUN_GENERATOR_COMMAND_ID,
 } from '../manifest';
-import { stripVendor, stripVersion } from '../utils/string-utils';
+import { stripVendor, stripVersion } from '../generic/string-utils';
 import { contextDescriptorFromString } from './descriptors/descriptors';
 
 

@@ -16,7 +16,7 @@
 
 import * as path from 'path';
 import * as os from 'os';
-import { stripTwoExtensions } from './string-utils';
+import { stripTwoExtensions } from '../generic/string-utils';
 import { CMSIS_TOOLBOX_FOLDER } from '../manifest';
 
 /**

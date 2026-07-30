@@ -17,7 +17,7 @@
 import { CSolutionWrap, TargetTypeWrap, BuildTypeWrap } from './csolution-wrap';
 import { CSolutionYamlFile } from './csolution-yaml-file';
 import { CTreeItem } from '../../generic/tree-item';
-import { extractVersion, stripVersion } from '../../utils/string-utils';
+import { extractVersion, stripVersion } from '../../generic/string-utils';
 import { MIN_TOOLBOX_VERSION } from '../../manifest';
 
 

@@ -17,7 +17,7 @@
 import { CTreeItemYamlFile, ITreeItemFile } from '../../generic/tree-item-file';
 import { CTreeItem, ETreeItemKind } from '../../generic/tree-item';
 import { constructor } from '../../generic/constructor';
-import { extractPname } from '../../utils/string-utils';
+import { extractPname } from '../../generic/string-utils';
 import { ProjectRefWrap } from './csolution-wrap';
 import { ETextFileResult } from '../../generic/text-file';
 

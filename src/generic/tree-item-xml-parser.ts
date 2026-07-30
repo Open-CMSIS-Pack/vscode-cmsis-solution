@@ -19,7 +19,7 @@ import { CTreeItem, ITreeItem } from './tree-item';
 import { CTreeItemBuilder, ITreeItemBuilder } from './tree-item-builder';
 import { GenericTreeItemParser } from './tree-item-parser';
 import { SAXParser } from 'sax-ts';
-import { getIndentString } from '../utils/string-utils';
+import { getIndentString } from './string-utils';
 
 const specialXmlChars: Record<string, string> = {
     '&amp;': '&',

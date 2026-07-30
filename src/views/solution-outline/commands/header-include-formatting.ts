@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { getIndentString } from '../../../utils/string-utils';
+import { getIndentString } from '../../../generic/string-utils';
 
 const HEADER_COMMENT_REFERENCE_COLUMN = 41;
 

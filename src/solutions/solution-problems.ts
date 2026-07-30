@@ -21,7 +21,7 @@ import { LogMessages } from '../json-rpc/csolution-rpc-client';
 import { Severity } from './constants';
 import * as fsUtils from '../utils/fs-utils';
 import { getFileNameFromPath } from '../utils/path-utils';
-import { stripTwoExtensions } from '../utils/string-utils';
+import { stripTwoExtensions } from '../generic/string-utils';
 import { getWorkspaceFolder } from '../utils/vscode-utils';
 import { ProblemDiagnosticActionResolver } from './problem-diagnostic-action-resolver';
 import { SolutionLoadStateChangeEvent, SolutionManager } from './solution-manager';

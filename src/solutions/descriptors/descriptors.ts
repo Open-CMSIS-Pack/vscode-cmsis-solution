@@ -15,7 +15,7 @@
  */
 
 import '../../generic/map';
-import { splitInTwo } from '../../utils/string-utils';
+import { splitInTwo } from '../../generic/string-utils';
 
 
 /**

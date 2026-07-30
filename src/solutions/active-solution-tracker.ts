@@ -25,7 +25,7 @@ import { isUri } from '../util';
 import { WorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { SOLUTION_SUFFIX } from './constants';
 import { ConfigurationProvider } from '../vscode-api/configuration-provider';
-import { stripTwoExtensions } from '../utils/string-utils';
+import { stripTwoExtensions } from '../generic/string-utils';
 
 export const COMMAND_OPEN_SOLUTION = `${manifest.PACKAGE_NAME}.openSolution`;
 export const COMMAND_ACTIVATE_SOLUTION = `${manifest.PACKAGE_NAME}.activateSolution`;

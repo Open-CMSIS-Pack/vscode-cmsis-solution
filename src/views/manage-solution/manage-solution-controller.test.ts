@@ -21,7 +21,7 @@ import { ProjectSelection } from './view/state/manage-solution-state';
 import { TestDataHandler, TmpDirReplacer } from '../../__test__/test-data';
 import path from 'path';
 import { ETextFileResult, TextFile } from '../../generic/text-file';
-import { stripTwoExtensions } from '../../utils/string-utils';
+import { stripTwoExtensions } from '../../generic/string-utils';
 import { solutionManagerFactory } from '../../solutions/solution-manager.factories';
 import * as vscodeUtils from '../../utils/vscode-utils';
 

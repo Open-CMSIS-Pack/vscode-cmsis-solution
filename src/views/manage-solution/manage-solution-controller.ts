@@ -24,7 +24,7 @@ import { CSolutionYamlFile } from '../../solutions/files/csolution-yaml-file';
 import { SolutionManager } from '../../solutions/solution-manager';
 import * as fsUtils from '../../utils/fs-utils';
 import { getFileNameNoExt } from '../../utils/path-utils';
-import { extractSuffix, stripTwoExtensions } from '../../utils/string-utils';
+import { extractSuffix, stripTwoExtensions } from '../../generic/string-utils';
 import { CmsisSettingsJsonFile } from './../../global/cmsis-settings-json-file';
 import { GenericPropertyList, getSelectedTargetSet, ImageSelection, ProjectSelection, SolutionData, TargetSet, TargetType } from './view/state/manage-solution-state';
 import { CsolutionService } from '../../json-rpc/csolution-rpc-client';

@@ -18,7 +18,7 @@ import { CTreeItem, ETreeItemKind } from '../../generic/tree-item';
 import { CTreeItemWrap } from '../../generic/tree-item-wrapper';
 import { matchesContext } from '../../utils/context-utils';
 import { getFileNameNoExt } from '../../utils/path-utils';
-import { extractPname, stripSuffix } from '../../utils/string-utils';
+import { extractPname, stripSuffix } from '../../generic/string-utils';
 import { PROJECT_WEST_SUFFIX } from '../constants';
 
 // Allowed load modes for an Image entry

@@ -21,7 +21,7 @@ import * as vscodeUtils from '../utils/vscode-utils';
 import { ITextParser } from './text-parser';
 import { ITextRenderer } from './text-renderer';
 import { ErrorList, IErrorList } from './error-list';
-import { convertCrLfToLf } from '../utils/string-utils';
+import { convertCrLfToLf } from './string-utils';
 
 /** Describes the result of saving or reading a file.
  *

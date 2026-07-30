@@ -19,7 +19,7 @@ import { ComponentInstance, PackReference, UsedItems } from '../../json-rpc/csol
 import { SolutionManager } from '../solution-manager'; // Import SolutionManager
 import { CTreeItemYamlFile } from '../../generic/tree-item-file';
 import { ETextFileResult } from '../../generic/text-file';
-import { stripVendor, stripVendorAndVersion, stripVersion } from '../../utils/string-utils';
+import { stripVendor, stripVendorAndVersion, stripVersion } from '../../generic/string-utils';
 import { CTreeItem, ITreeItem } from '../../generic/tree-item';
 import { pathsEqual } from '../../utils/path-utils';
 import { backToForwardSlashes } from '../../utils/path-utils';
