@@ -1,6 +1,16 @@
 // See: https://reactjs.org/blog/2022/03/08/react-18-upgrade-guide.html#configuring-your-testing-environment
 global.IS_REACT_ACT_ENVIRONMENT = true;
 
+const { TextFile } = require('./src/generic/text-file');
+const fsUtils = require('./src/utils/fs-utils');
+
+TextFile.setFileSystem({
+  exists: fileName => fsUtils.fileExists(fileName),
+  read: fileName => fsUtils.readTextFile(fileName),
+  write: (fileName, content) => fsUtils.writeTextFile(fileName, content),
+  unlink: fileName => fsUtils.deleteFileIfExists(fileName),
+});
+
 // Fixes errors in tests, when components from vscode-webview-ui-toolkit are used.
 if (typeof window !== 'undefined') { // Only in jsdom
   Object.defineProperty(window, 'matchMedia', {

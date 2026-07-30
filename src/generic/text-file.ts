@@ -15,13 +15,19 @@
  */
 
 import path from 'node:path';
-import * as fsUtils from '../utils/fs-utils';
 import { ITextParser } from './text-parser';
 import { ITextRenderer } from './text-renderer';
 import { ErrorList, IErrorList } from './error-list';
 import { convertCrLfToLf } from './string-utils';
 
 export type TextFileErrorReporter = (message: string) => void;
+
+export interface ITextFileSystem {
+    exists(fileName: string): boolean;
+    read(fileName: string): string;
+    write(fileName: string, content: string): void;
+    unlink(fileName: string): void;
+}
 
 /** Describes the result of saving or reading a file.
  *
@@ -186,6 +192,7 @@ export interface ITextFile extends IErrorList {
 
 export class TextFile extends ErrorList implements ITextFile {
     private static errorReporter: TextFileErrorReporter = () => { };
+    private static fileSystem?: ITextFileSystem;
 
     private _dirty = false;
     private _fileName: string;
@@ -200,6 +207,17 @@ export class TextFile extends ErrorList implements ITextFile {
 
     public static setErrorReporter(errorReporter?: TextFileErrorReporter): void {
         TextFile.errorReporter = errorReporter ?? (() => { });
+    }
+
+    public static setFileSystem(fileSystem?: ITextFileSystem): void {
+        TextFile.fileSystem = fileSystem;
+    }
+
+    private static getFileSystem(): ITextFileSystem {
+        if (!TextFile.fileSystem) {
+            throw new Error('TextFile file system is not configured');
+        }
+        return TextFile.fileSystem;
     }
 
     /**
@@ -301,12 +319,12 @@ export class TextFile extends ErrorList implements ITextFile {
     }
 
     public exists(): boolean {
-        return fsUtils.fileExists(this.fileName);
+        return TextFile.getFileSystem().exists(this.fileName);
     }
 
     public unlink() {
-        if (!this.readOnly) {
-            fsUtils.deleteFileIfExists(this.fileName);
+        if (!this.readOnly && this.exists()) {
+            TextFile.getFileSystem().unlink(this.fileName);
         }
     }
 
@@ -315,8 +333,9 @@ export class TextFile extends ErrorList implements ITextFile {
      * @returns File content or empty string if error occurs
      */
     protected read(): string {
+        const fileSystem = TextFile.getFileSystem();
         try {
-            return fsUtils.readTextFile(this.fileName);
+            return fileSystem.read(this.fileName);
         } catch (e) {
             this.addError(
                 `${this.fileName}: Failed to read: ${e instanceof Error ? e.message : String(e)}`
@@ -333,8 +352,9 @@ export class TextFile extends ErrorList implements ITextFile {
         if (!this.fileName) {
             return false;
         }
+        const fileSystem = TextFile.getFileSystem();
         try {
-            fsUtils.writeTextFile(this.fileName, this.text);
+            fileSystem.write(this.fileName, this.text);
         } catch (e) {
             this.addError(
                 `${this.fileName}: Failed to write: ${e instanceof Error ? e.message : String(e)}`

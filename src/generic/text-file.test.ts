@@ -16,7 +16,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { TextFile, ETextFileResult } from './text-file';
+import { TextFile, ETextFileResult, ITextFileSystem } from './text-file';
 import { TestDataHandler } from '../__test__/test-data';
 import { EtaExt } from '../eta-ext/eta-ext';
 import { EtaTextRenderer } from '../eta-ext/eta-text-renderer';
@@ -47,13 +47,21 @@ describe('TextFile', () => {
     const tmpDataDir = testDataHandler.tmpDir;
     const TEST_FILE = path.join(tmpDataDir, 'textFile.txt');
     const errorReporter = jest.fn();
+    const fileSystem: ITextFileSystem = {
+        exists: fsUtils.fileExists,
+        read: fsUtils.readTextFile,
+        write: fsUtils.writeTextFile,
+        unlink: fsUtils.deleteFileIfExists,
+    };
 
     beforeEach(() => {
         TextFile.setErrorReporter(errorReporter);
+        TextFile.setFileSystem(fileSystem);
     });
 
     afterEach(() => {
         TextFile.setErrorReporter();
+        TextFile.setFileSystem();
         testDataHandler.rmFile(TEST_FILE);
     });
 
@@ -91,6 +99,35 @@ describe('TextFile', () => {
 
         tf.unlink();
         expect(tf.exists()).toBe(false);
+    });
+
+    it('should use the configured file system', async () => {
+        const mockFileSystem: jest.Mocked<ITextFileSystem> = {
+            exists: jest.fn().mockReturnValue(true),
+            read: jest.fn().mockReturnValue('Test content'),
+            write: jest.fn(),
+            unlink: jest.fn(),
+        };
+        TextFile.setFileSystem(mockFileSystem);
+        const tf = new TextFile(TEST_FILE);
+
+        expect(await tf.load()).toBe(ETextFileResult.Success);
+        expect(mockFileSystem.exists).toHaveBeenCalledWith(TEST_FILE);
+        expect(mockFileSystem.read).toHaveBeenCalledWith(TEST_FILE);
+
+        tf.text = 'Changed content';
+        expect(await tf.save()).toBe(ETextFileResult.Success);
+        expect(mockFileSystem.write).toHaveBeenCalledWith(TEST_FILE, 'Changed content');
+
+        tf.unlink();
+        expect(mockFileSystem.unlink).toHaveBeenCalledWith(TEST_FILE);
+    });
+
+    it('should fail when the file system is not configured', () => {
+        TextFile.setFileSystem();
+
+        expect(() => new TextFile(TEST_FILE).exists())
+            .toThrow('TextFile file system is not configured');
     });
 
     it('should return Error when loading non-existent file but keep existing data in memory', async () => {
@@ -181,31 +218,37 @@ describe('TextFile', () => {
     it('should handle errors from writeTextFile()', async () => {
         const tf = new TextFile(TEST_FILE);
         tf.text = 'dummy';
-        const spy = jest.spyOn(fsUtils, 'writeTextFile').mockImplementation(() => {
-            throw new Error('Simulated write error');
-        });
+        const fileSystem: ITextFileSystem = {
+            exists: fsUtils.fileExists,
+            read: fsUtils.readTextFile,
+            write: () => { throw new Error('Simulated write error'); },
+            unlink: fsUtils.deleteFileIfExists,
+        };
+        TextFile.setFileSystem(fileSystem);
 
         const result = await tf.save();
         expect(result).toBe(ETextFileResult.Error);
         expect(tf.errors.length).toBeGreaterThan(0);
         expect(tf.errors[0]).toEqual(`${TEST_FILE}: Failed to write: Simulated write error`);
         expect(errorReporter).toHaveBeenCalledWith(tf.errors.join('\n'));
-        spy.mockRestore();
     });
 
     it('should handle errors from readTextFile()', async () => {
         fsUtils.writeTextFile(TEST_FILE, 'dummy');
         const tf = new TextFile(TEST_FILE);
-        const spy = jest.spyOn(fsUtils, 'readTextFile').mockImplementation(() => {
-            throw new Error('Simulated read error');
-        });
+        const fileSystem: ITextFileSystem = {
+            exists: fsUtils.fileExists,
+            read: () => { throw new Error('Simulated read error'); },
+            write: fsUtils.writeTextFile,
+            unlink: fsUtils.deleteFileIfExists,
+        };
+        TextFile.setFileSystem(fileSystem);
 
         const result = await tf.load();
         expect(result).toBe(ETextFileResult.Error);
         expect(tf.errors.length).toBeGreaterThan(0);
         expect(tf.errors[0]).toEqual(`${TEST_FILE}: Failed to read: Simulated read error`);
         expect(errorReporter).toHaveBeenCalledWith(tf.errors.join('\n'));
-        spy.mockRestore();
     });
 
     it('should save and load content with specified filename', async () => {
