@@ -50,7 +50,7 @@
     "lint": "eslint src api",
     "lint:fix": "eslint src api --fix",
     "package": "tsx scripts/package.ts",
-    "test": "jest --runInBand --reporters=./node_modules/jest-html-reporter",
+    "test": "jest --runInBand --reporters=default --reporters=./node_modules/jest-html-reporter",
     "test:parallel": "jest",
     "test:watch": "jest --collectCoverage=false --watch",
     "e2e": "cross-env E2E_LOG_LEVEL=debug npx playwright test --config=playwright.config.ts",
