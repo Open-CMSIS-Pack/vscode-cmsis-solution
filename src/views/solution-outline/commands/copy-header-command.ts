@@ -19,53 +19,19 @@ import * as vscode from 'vscode';
 import * as manifest from '../../../manifest';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
+import { formatHeaderIncludeForClipboard } from './header-include-formatting';
 
-type HeaderOrigin = 'api' | 'component';
 
-interface HeaderChoice {
-    include: string;
-    origins: readonly HeaderOrigin[];
-    resourcePaths: readonly string[];
-}
-
-interface HeaderQuickPickItem extends vscode.QuickPickItem {
-    choice: HeaderChoice;
-}
-
-function createHeaderChoices(items: readonly COutlineItem[]): HeaderChoice[] {
-    const choicesByInclude = new Map<string, HeaderChoice>();
+function createHeaderChoices(items: readonly COutlineItem[]) {
+    const choices : string[] = [];
 
     for (const item of items) {
         const include = item.getHeader();
-        if (!include) {
-            continue;
-        }
-        const origin = item.isApiHeader() ? 'api' : 'component';
-        const resourcePath = item.getResourcePath();
-        const existingChoice = choicesByInclude.get(include);
-        if (!existingChoice) {
-            choicesByInclude.set(include, {
-                include,
-                origins: [origin],
-                resourcePaths: resourcePath ? [resourcePath] : [],
-            });
-            continue;
-        }
-
-        const hasOrigin = existingChoice.origins.includes(origin);
-        const hasResourcePath = !resourcePath || existingChoice.resourcePaths.includes(resourcePath);
-        if (!hasOrigin || !hasResourcePath) {
-            choicesByInclude.set(include, {
-                ...existingChoice,
-                origins: hasOrigin ? existingChoice.origins : [...existingChoice.origins, origin],
-                resourcePaths: hasResourcePath
-                    ? existingChoice.resourcePaths
-                    : [...existingChoice.resourcePaths, resourcePath!],
-            });
+        if (include) {
+            choices.push(include);
         }
     }
-
-    return [...choicesByInclude.values()];
+    return choices;
 }
 
 export class CopyHeaderCommand {
@@ -83,40 +49,33 @@ export class CopyHeaderCommand {
                 if (choices.length === 0) {
                     return;
                 }
+                const componentName = node.getParentOrThis('component')?.getAttribute('label');
 
                 if (choices.length === 1) {
-                    await this.copy(choices[0].include);
+                    await this.copy(choices[0], componentName);
                     return;
                 }
+                const origin = componentName ? ` from ${componentName} component` : '';
 
-                const selectedItem = await this.vscodeWindow.showQuickPick(
+                const selectedInclude = await this.vscodeWindow.showQuickPick(
                     choices.map(choice => this.createQuickPickItem(choice)),
                     {
-                        placeHolder: 'Select a header to copy',
-                        matchOnDescription: true,
+                        placeHolder: `Select a header to copy${origin}`,
                     }
                 );
-                if (selectedItem) {
-                    await this.copy(selectedItem.choice.include);
+                if (selectedInclude) {
+                    await this.copy(selectedInclude, componentName);
                 }
             }, this),
         );
     }
 
-    private createQuickPickItem(choice: HeaderChoice): HeaderQuickPickItem {
-        const description = choice.origins
-            .map(origin => origin === 'api' ? 'API' : 'Component')
-            .join(' · ');
-        return {
-            label: choice.include,
-            description,
-            detail: choice.resourcePaths.length > 0 ? choice.resourcePaths.join(' · ') : undefined,
-            choice,
-        };
+    private createQuickPickItem(include: string): string {
+        return include;
     }
 
-    public async copy(header : string): Promise<void> {
-        const incText = `#include "${header}"\n`;
-        await vscode.env.clipboard.writeText(incText);
+    private async copy(include: string, componentName? :string): Promise<void> {
+        const includeText = formatHeaderIncludeForClipboard(include, componentName);
+        await vscode.env.clipboard.writeText(includeText);
     }
 }
