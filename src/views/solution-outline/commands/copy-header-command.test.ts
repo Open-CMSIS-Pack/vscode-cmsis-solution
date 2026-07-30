@@ -22,6 +22,7 @@ import { CopyHeaderCommand } from './copy-header-command';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 
 const extensionContextFactory = (): Pick<ExtensionContext, 'subscriptions'> => ({ subscriptions: [] });
+const componentName = 'ARM::CMSIS:CORE';
 
 function addHeader(
     component: COutlineItem,
@@ -29,6 +30,9 @@ function addHeader(
     origin: 'api' | 'component',
     resourcePath?: string,
 ): COutlineItem {
+    if (!component.getAttribute('label')) {
+        component.setAttribute('label', componentName);
+    }
     const header = component.createChild('file');
     header.setAttribute('header', include);
     header.setAttribute('description', origin === 'api' ? ' (API)' : undefined);
@@ -78,7 +82,35 @@ describe('CopyHeaderCommand', () => {
         await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
 
         expect(vscode.window.showQuickPick).not.toHaveBeenCalled();
-        expect(vscode.env.clipboard.writeText).toHaveBeenCalledWith('#include "arm_math.h"\n');
+        expect(vscode.env.clipboard.writeText)
+            .toHaveBeenCalledWith('#include "arm_math.h"                    // ARM::CMSIS:CORE\n');
+    });
+
+    it('reuses the complete component identifier without rebuilding it', async () => {
+        const commandsProvider = commandsProviderFactory();
+        await new CopyHeaderCommand(commandsProvider).activate(extensionContextFactory());
+        const componentItem = new COutlineItem('component');
+        const fullComponentId = 'Vendor::Class&Bundle:Group:Sub&Variant@>=1.2.3';
+        componentItem.setAttribute('label', fullComponentId);
+        addHeader(componentItem, 'header.h', 'component');
+
+        await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
+
+        expect(vscode.env.clipboard.writeText)
+            .toHaveBeenCalledWith(`#include "header.h"                      // ${fullComponentId}\n`);
+    });
+
+    it('uses the implementing component name when an API header is copied directly', async () => {
+        const commandsProvider = commandsProviderFactory();
+        await new CopyHeaderCommand(commandsProvider).activate(extensionContextFactory());
+        const componentItem = new COutlineItem('component');
+        const apiHeader = addHeader(componentItem, 'cmsis_os2.h', 'api');
+
+        await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, apiHeader);
+
+        expect(vscode.window.showQuickPick).not.toHaveBeenCalled();
+        expect(vscode.env.clipboard.writeText)
+            .toHaveBeenCalledWith('#include "cmsis_os2.h"                   // ARM::CMSIS:CORE\n');
     });
 
     it('shows a picker and copies the selected component header', async () => {
@@ -92,13 +124,13 @@ describe('CopyHeaderCommand', () => {
         await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
 
         expect(vscode.window.showQuickPick).toHaveBeenCalledWith([
-            expect.objectContaining({ label: 'cmsis_os2.h', description: 'API' }),
-            expect.objectContaining({ label: 'rtx_os.h', description: 'Component' }),
+            'cmsis_os2.h',
+            'rtx_os.h',
         ], {
-            placeHolder: 'Select a header to copy',
-            matchOnDescription: true,
+            placeHolder: 'Select a header to copy from ARM::CMSIS:CORE component',
         });
-        expect(vscode.env.clipboard.writeText).toHaveBeenCalledWith('#include "rtx_os.h"\n');
+        expect(vscode.env.clipboard.writeText)
+            .toHaveBeenCalledWith('#include "rtx_os.h"                      // ARM::CMSIS:CORE\n');
     });
 
     it('does not change the clipboard when the picker is cancelled', async () => {
@@ -115,7 +147,7 @@ describe('CopyHeaderCommand', () => {
         expect(vscode.env.clipboard.writeText).not.toHaveBeenCalled();
     });
 
-    it('shows every resource path retained for a grouped include', async () => {
+    it('groups duplicate includes without displaying resource paths or origins', async () => {
         const commandsProvider = commandsProviderFactory();
         await new CopyHeaderCommand(commandsProvider).activate(extensionContextFactory());
         const componentItem = new COutlineItem('component');
@@ -127,12 +159,9 @@ describe('CopyHeaderCommand', () => {
         await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
 
         expect(vscode.window.showQuickPick).toHaveBeenCalledWith([
-            expect.objectContaining({
-                label: 'common.h',
-                description: 'API · Component',
-                detail: '/api/common.h · /component/common.h',
-            }),
-            expect.objectContaining({ label: 'other.h', detail: undefined }),
+            'common.h',
+            'common.h',
+            'other.h',
         ], expect.anything());
     });
 
@@ -148,13 +177,13 @@ describe('CopyHeaderCommand', () => {
         await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
 
         expect(vscode.window.showQuickPick).toHaveBeenCalledWith([
-            expect.objectContaining({ label: 'z_api.h' }),
-            expect.objectContaining({ label: 'a_api.h' }),
-            expect.objectContaining({ label: 'component.h' }),
+            'z_api.h',
+            'a_api.h',
+            'component.h',
         ], expect.anything());
     });
 
-    it('retains distinct paths when one origin contributes the same include', async () => {
+    it('groups duplicate includes from distinct resource paths', async () => {
         const commandsProvider = commandsProviderFactory();
         await new CopyHeaderCommand(commandsProvider).activate(extensionContextFactory());
         const componentItem = new COutlineItem('component');
@@ -166,11 +195,9 @@ describe('CopyHeaderCommand', () => {
         await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
 
         expect(vscode.window.showQuickPick).toHaveBeenCalledWith([
-            expect.objectContaining({
-                label: 'common.h',
-                detail: '/first/common.h · /second/common.h',
-            }),
-            expect.objectContaining({ label: 'other.h' }),
+            'common.h',
+            'common.h',
+            'other.h',
         ], expect.anything());
     });
 
@@ -185,8 +212,8 @@ describe('CopyHeaderCommand', () => {
         await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
 
         expect(vscode.window.showQuickPick).toHaveBeenCalledWith([
-            expect.objectContaining({ label: 'api/common.h' }),
-            expect.objectContaining({ label: 'component/common.h' }),
+            'api/common.h',
+            'component/common.h',
         ], expect.anything());
     });
 });

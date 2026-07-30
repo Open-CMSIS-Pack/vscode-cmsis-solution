@@ -17,7 +17,7 @@
 import * as vscode from 'vscode';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
 import { PACKAGE_NAME } from '../../../manifest';
-import { exec, ExecException, execSync } from 'child_process';
+import { exec, ExecException, execFileSync } from 'child_process';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 import path from 'path';
 import * as os from 'os';
@@ -196,7 +196,7 @@ export class MergeCommand {
 
             // fallback to using 'which code'
             try {
-                const resolved = execSync('which code', { stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim();
+                const resolved = execFileSync('which', ['code'], { stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim();
                 if (resolved && fsUtils.fileExists(resolved)) return resolved;
             } catch (err) {
                 this.messageProvider.showWarningMessage(`Could not resolve 'code' binary via 'which': ${err instanceof Error ? err.message : String(err)}`);

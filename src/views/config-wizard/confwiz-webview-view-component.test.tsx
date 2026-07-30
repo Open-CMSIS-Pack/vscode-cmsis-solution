@@ -106,7 +106,7 @@ const emitPanelActive = (active: boolean) => {
     });
 };
 
-const makeRoot = (children: TreeNodeElement[]): TreeNodeElement => ({
+const makeRoot = (children: TreeNodeElement[], issues?: string[]): TreeNodeElement => ({
     guiId: 0,
     name: 'Root',
     type: GuiTypes.group,
@@ -114,6 +114,7 @@ const makeRoot = (children: TreeNodeElement[]): TreeNodeElement => ({
     value: { value: 'Root', readOnly: true },
     newValue: { value: 'Root', readOnly: true },
     children,
+    errors: issues,
 });
 
 describe('ConfWiz functional component', () => {
@@ -198,6 +199,44 @@ describe('ConfWiz functional component', () => {
         expect(checkboxElement.newValue.value).toBe('1');
         const saveCalls = sendNotificationMock.mock.calls.filter(call => call[0] === saveElement);
         expect(saveCalls.length).toBe(1);
+    });
+
+    it('shows and hides line-numbered annotation issues from the tree header', () => {
+        const issues = [
+            'Line: 208: Unknown command "<9>" found.',
+            'Line: 211: Unknown command "<10>" found.',
+            'Line: 214: Unknown command "<8>" found.',
+            'Line: 1285: Unknown command "<0>" found.',
+        ];
+
+        const { getByRole, getByText, queryByRole } = render(<ConfWiz />);
+        emitWizardData({
+            element: makeRoot([], issues),
+            documentPath: 'board_defs.h',
+            noAnnotationsFound: false
+        });
+
+        const showButton = getByRole('button', { name: '4 annotation issues Show' });
+        expect(showButton.getAttribute('aria-expanded')).toBe('false');
+        expect(queryByRole('region', { name: 'Annotation issues' })).toBeNull();
+
+        fireEvent.click(showButton);
+
+        expect(getByRole('button', { name: '4 annotation issues Hide' }).getAttribute('aria-expanded')).toBe('true');
+        expect(getByRole('region', { name: 'Annotation issues' })).not.toBeNull();
+        expect(getByText(issues[0])).not.toBeNull();
+        expect(getByText(issues[3])).not.toBeNull();
+
+        fireEvent.click(getByRole('button', { name: '4 annotation issues Hide' }));
+
+        expect(queryByRole('region', { name: 'Annotation issues' })).toBeNull();
+    });
+
+    it('does not show an annotation issue control when parsing has no issues', () => {
+        const { queryByText } = render(<ConfWiz />);
+        emitWizardData({ element: makeRoot([]), documentPath: 'valid.h', noAnnotationsFound: false });
+
+        expect(queryByText(/annotation issues?/)).toBeNull();
     });
 
     it('moves focus to clicked row after panel is deactivated and reactivated', () => {

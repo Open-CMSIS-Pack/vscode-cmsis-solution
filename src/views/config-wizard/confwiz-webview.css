@@ -75,13 +75,53 @@ vscode-text-field {
 }
 
 .tree-table-header {
-    display: flex;
-    flex-direction: row;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
+    align-items: center;
 }
 
 .tree-table-filter {
     width: 100%;
+}
+
+.annotation-issues-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--vscode-editorWarning-foreground);
+    cursor: pointer;
+    white-space: nowrap;
+    font: inherit;
+}
+
+.annotation-issues-toggle:hover {
+    text-decoration: underline;
+}
+
+.annotation-issues-toggle:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
+}
+
+.annotation-issues-panel {
+    grid-column: 1 / -1;
+    padding: 8px 12px;
+    border: 1px solid var(--vscode-editorWarning-foreground);
+    background: var(--vscode-textBlockQuote-background);
+    color: var(--vscode-foreground);
+}
+
+.annotation-issues-panel h3 {
+    margin: 0 0 6px;
+}
+
+.annotation-issues-list {
+    max-height: 12rem;
+    overflow-y: auto;
 }
 
 .tree-table-column-name {

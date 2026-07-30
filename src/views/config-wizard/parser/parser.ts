@@ -296,9 +296,9 @@ export class Parser {
             } break;
             default: {
                 if (!isEnd) {
-                    LogErr(['Erronous command "<', cmd.text, '>" found.'], cmd.lineNo);
+                    LogErr(['Unknown command "<', cmd.text, '>" found.'], cmd.lineNo);
                 } else {
-                    LogErr(['Erronous end tag "<', cmd.text, '>" found.'], cmd.lineNo);
+                    LogErr(['Unknown end tag "<', cmd.text, '>" found.'], cmd.lineNo);
                 } break;
             }
         }
