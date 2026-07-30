@@ -18,8 +18,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { TextFile, ETextFileResult } from './text-file';
 import { TestDataHandler } from '../__test__/test-data';
-import { EtaExt } from './eta-ext';
-import { EtaTextRenderer } from './text-renderer';
+import { EtaExt } from '../eta-ext/eta-ext';
+import { EtaTextRenderer } from '../eta-ext/eta-text-renderer';
 import * as fsUtils from '../utils/fs-utils';
 import { TextParser } from './text-parser';
 

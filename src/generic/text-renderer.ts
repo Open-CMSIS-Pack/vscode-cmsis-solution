@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-import { Eta } from 'eta';
-import { EtaExt } from './eta-ext';
-
 export interface ITextRenderer {
     /**
      * Gets the data/context for rendering
@@ -55,26 +52,5 @@ export class TextRenderer implements ITextRenderer {
     public render(text: string): string {
         // default returns supplied text without change
         return text;
-    }
-}
-
-export class EtaTextRenderer extends TextRenderer {
-    private readonly eta: Eta;
-
-    constructor(renderData?: object, eta?: Eta) {
-        super(renderData);
-        this.eta = eta ? eta : new EtaExt({ useWith: true });
-    }
-
-    public override render(text: string): string {
-        if (!text || !this.renderData) {
-            return text;
-        }
-        try {
-            return this.eta.renderString(text, this.renderData);
-        } catch {
-            // If renderData is invalid or rendering fails, return original text
-            return text;
-        }
     }
 }

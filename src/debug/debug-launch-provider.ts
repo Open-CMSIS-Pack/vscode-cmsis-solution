@@ -26,7 +26,7 @@ import { ETextFileResult, TextFile } from '../generic/text-file';
 import { AdapterJson, AdapterJsonFile } from './adapter-json-file';
 import { TasksJsonFile } from './tasks-json-file';
 import { Configuration, LaunchJsonFile } from './launch-json-file';
-import { EtaExt } from '../generic/eta-ext';
+import { EtaExt } from '../eta-ext/eta-ext';
 import { CbuildRunYaml, DebugTopology } from '../solutions/files/cbuild-run-yaml-file';
 import { DebugAdapter } from './debug-adapters-yaml-file';
 import { ConfigurationProvider } from '../vscode-api/configuration-provider';

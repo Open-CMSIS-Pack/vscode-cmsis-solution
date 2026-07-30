@@ -21,7 +21,7 @@ import { CmsisCommands } from './cmsis-commands';
 import { commandsProviderFactory, MockCommandsProvider } from '../../vscode-api/commands-provider.factories';
 import { DebugLaunchProvider } from '../../debug/debug-launch-provider';
 import { MockSolutionManager, solutionManagerFactory } from '../../solutions/solution-manager.factories';
-import { EtaExt } from '../../generic/eta-ext';
+import { EtaExt } from '../../eta-ext/eta-ext';
 import { extensionContextFactory } from '../../vscode-api/extension-context.factories';
 import { configurationProviderFactory, MockConfigurationProvider } from '../../vscode-api/configuration-provider.factories';
 import { CONFIG_AUTO_CONFIGURE_TELNET_PORT_MONITOR, PACKAGE_NAME } from '../../manifest';

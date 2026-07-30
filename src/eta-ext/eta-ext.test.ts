@@ -15,7 +15,7 @@
  */
 
 import { EtaExt, renderTreeItem } from './eta-ext';
-import { CTreeItem } from './tree-item';
+import { CTreeItem } from '../generic/tree-item';
 
 describe('EtaExt configured with useWith', () => {
 

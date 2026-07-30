@@ -15,7 +15,7 @@
  */
 
 import { Eta, EtaConfig } from 'eta';
-import { ITreeItem } from './tree-item';
+import { ITreeItem } from '../generic/tree-item';
 
 import '../generic/array';
 import '../generic/map';
