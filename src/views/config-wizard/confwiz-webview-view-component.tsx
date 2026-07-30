@@ -394,7 +394,6 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     <TreeTable
                         value={filteredChildren}
                         header={header}
-                        tableStyle={{ minWidth: '30rem' }}
                         expandedKeys={this.state.expandedKeys}
                         onToggle={(event: { value: Record<string, boolean> }) => {
                             this.pendingRefocus = true;
@@ -632,6 +631,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
 
     protected createTextName(element: TreeNodeElement): React.ReactElement {
         const infos = this.getInfoItems(element);
+        const tooltipText = infos ? `${element.name}\n\n${infos}` : element.name;
         const key = this.getElementKey(element);
         this.keyboardNav.addVisibleKey(key);
         const isActive = this.keyboardNav.isActiveKey(key, this.state.activeKey);
@@ -653,7 +653,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     this.handleUserFocus(key);
                 }}
                 onKeyDown={(event) => this.keyboardNav.onRowKeyDown(event, key)}
-                title={infos}
+                title={tooltipText}
             >
                 {element.name}
             </span>
