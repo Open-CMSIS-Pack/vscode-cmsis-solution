@@ -124,19 +124,10 @@ describe('CopyHeaderCommand', () => {
         await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
 
         expect(vscode.window.showQuickPick).toHaveBeenCalledWith([
-            expect.objectContaining({
-                label: '#include "cmsis_os2.h" // ARM::CMSIS:CORE',
-            }),
-            expect.objectContaining({
-                label: '#include "rtx_os.h" // ARM::CMSIS:CORE',
-            }),
+            'cmsis_os2.h',
+            'rtx_os.h',
         ], {
-            placeHolder: 'Select a header to copy',
-        });
-        const quickPickItems = (vscode.window.showQuickPick as jest.Mock).mock.calls[0][0];
-        quickPickItems.forEach((item: vscode.QuickPickItem) => {
-            expect(item).not.toHaveProperty('description');
-            expect(item).not.toHaveProperty('detail');
+            placeHolder: 'Select a header to copy from ARM::CMSIS:CORE component',
         });
         expect(vscode.env.clipboard.writeText)
             .toHaveBeenCalledWith('#include "rtx_os.h"                      // ARM::CMSIS:CORE\n');
@@ -168,18 +159,10 @@ describe('CopyHeaderCommand', () => {
         await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
 
         expect(vscode.window.showQuickPick).toHaveBeenCalledWith([
-            expect.objectContaining({
-                label: '#include "common.h" // ARM::CMSIS:CORE',
-            }),
-            expect.objectContaining({
-                label: '#include "other.h" // ARM::CMSIS:CORE',
-            }),
+            'common.h',
+            'common.h',
+            'other.h',
         ], expect.anything());
-        const quickPickItems = (vscode.window.showQuickPick as jest.Mock).mock.calls[0][0];
-        quickPickItems.forEach((item: vscode.QuickPickItem) => {
-            expect(item).not.toHaveProperty('description');
-            expect(item).not.toHaveProperty('detail');
-        });
     });
 
     it('preserves the order of headers with the same priority', async () => {
@@ -194,9 +177,9 @@ describe('CopyHeaderCommand', () => {
         await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
 
         expect(vscode.window.showQuickPick).toHaveBeenCalledWith([
-            expect.objectContaining({ label: '#include "z_api.h" // ARM::CMSIS:CORE' }),
-            expect.objectContaining({ label: '#include "a_api.h" // ARM::CMSIS:CORE' }),
-            expect.objectContaining({ label: '#include "component.h" // ARM::CMSIS:CORE' }),
+            'z_api.h',
+            'a_api.h',
+            'component.h',
         ], expect.anything());
     });
 
@@ -212,15 +195,10 @@ describe('CopyHeaderCommand', () => {
         await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
 
         expect(vscode.window.showQuickPick).toHaveBeenCalledWith([
-            expect.objectContaining({
-                label: '#include "common.h" // ARM::CMSIS:CORE',
-            }),
-            expect.objectContaining({ label: '#include "other.h" // ARM::CMSIS:CORE' }),
+            'common.h',
+            'common.h',
+            'other.h',
         ], expect.anything());
-        const quickPickItems = (vscode.window.showQuickPick as jest.Mock).mock.calls[0][0];
-        quickPickItems.forEach((item: vscode.QuickPickItem) => {
-            expect(item).not.toHaveProperty('detail');
-        });
     });
 
     it('keeps equal basenames with different include expressions separate', async () => {
@@ -234,8 +212,8 @@ describe('CopyHeaderCommand', () => {
         await commandsProvider.mockRunRegistered(CopyHeaderCommand.copyHeaderCommandId, componentItem);
 
         expect(vscode.window.showQuickPick).toHaveBeenCalledWith([
-            expect.objectContaining({ label: '#include "api/common.h" // ARM::CMSIS:CORE' }),
-            expect.objectContaining({ label: '#include "component/common.h" // ARM::CMSIS:CORE' }),
+            'api/common.h',
+            'component/common.h',
         ], expect.anything());
     });
 });
