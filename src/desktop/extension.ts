@@ -93,11 +93,16 @@ import { SolutionRpcData } from '../solutions/solution-rpc-data';
 import { ManageSolutionCustomEditorProvider, registerManageSolutionCommand } from '../views/manage-solution/manage-solution-custom-editor';
 import { FileOpenGroupOrchestratorImpl } from '../views/file-open-group-orchestrator';
 import { OpenArmExamplesCommand } from '../views/solution-outline/commands/open-arm-examples-command';
+import { TextFile } from '../generic/text-file';
+import * as vscodeUtils from '../utils/vscode-utils';
 
 let installDefaultToolsetProcess: Promise<void> | undefined;
 
 export const activate = async (context: ExtensionContext): Promise<CsolutionExtension> => {
     console.log(`Activating extension ${manifest.PACKAGE_NAME}`);
+
+    TextFile.setErrorReporter(vscodeUtils.showErrorMessage);
+    context.subscriptions.push({ dispose: () => TextFile.setErrorReporter() });
 
     // Companion Extensions
     type SerialMonitorExtension = {

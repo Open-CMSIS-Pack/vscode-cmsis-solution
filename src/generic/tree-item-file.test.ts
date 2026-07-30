@@ -20,7 +20,7 @@ import { CTreeItemBuilder } from './tree-item-builder';
 import { ITreeItemParser } from './tree-item-parser';
 import { it } from '@jest/globals';
 import path from 'path';
-import { ETextFileResult } from './text-file';
+import { ETextFileResult, TextFile } from './text-file';
 import { TestDataHandler } from '../__test__/test-data';
 
 
@@ -151,9 +151,18 @@ describe('CTreeItemFile', () => {
 
 describe('CTreeItemYamlFile', () => {
     const testDataHandler = new TestDataHandler();
+    const errorReporter = jest.fn();
     let tmpSolutionDir: string;
     beforeAll(async () => {
         tmpSolutionDir = testDataHandler.copyTestDataToTmp('solutions');
+    });
+
+    beforeEach(() => {
+        TextFile.setErrorReporter(errorReporter);
+    });
+
+    afterEach(() => {
+        TextFile.setErrorReporter();
     });
 
     afterAll(async () => {
@@ -166,7 +175,7 @@ describe('CTreeItemYamlFile', () => {
         const fileName = testDataHandler.tmpFileName('dummyFile.yml');
         const loadResult = await ymlFile.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.NotExists);
-        expect(testDataHandler.errorMessageSpy).toHaveBeenCalledWith(ymlFile.errors.join('\n'));
+        expect(errorReporter).toHaveBeenCalledWith(ymlFile.errors.join('\n'));
         const root = ymlFile.rootItem;
         expect(root).toEqual(undefined);
         expect(ymlFile.text).toEqual('');

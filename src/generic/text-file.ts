@@ -17,11 +17,12 @@
 import path from 'node:path';
 import * as fs from 'node:fs';
 import * as fsUtils from '../utils/fs-utils';
-import * as vscodeUtils from '../utils/vscode-utils';
 import { ITextParser } from './text-parser';
 import { ITextRenderer } from './text-renderer';
 import { ErrorList, IErrorList } from './error-list';
 import { convertCrLfToLf } from './string-utils';
+
+export type TextFileErrorReporter = (message: string) => void;
 
 /** Describes the result of saving or reading a file.
  *
@@ -201,6 +202,8 @@ export interface ITextFile extends IErrorList {
 }
 
 export class TextFile extends ErrorList implements ITextFile {
+    private static errorReporter: TextFileErrorReporter = () => { };
+
     private _dirty = false;
     private _fileName: string;
     private _fileDir: string;
@@ -212,6 +215,10 @@ export class TextFile extends ErrorList implements ITextFile {
 
     private _readOnly = false;
     private externalFileStamp?: ExternalFileStamp;
+
+    public static setErrorReporter(errorReporter?: TextFileErrorReporter): void {
+        TextFile.errorReporter = errorReporter ?? (() => { });
+    }
 
     /**
      * Constructs a TextFile instance
@@ -366,7 +373,7 @@ export class TextFile extends ErrorList implements ITextFile {
         }
         if (result === ETextFileResult.Error ||
             (result === ETextFileResult.NotExists && this.readOnly)) {
-            vscodeUtils.showErrorMessage(this.errors.join('\n'));
+            TextFile.errorReporter(this.errors.join('\n'));
         }
     }
 

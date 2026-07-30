@@ -46,8 +46,14 @@ describe('TextFile', () => {
     const testDataHandler = new TestDataHandler();
     const tmpDataDir = testDataHandler.tmpDir;
     const TEST_FILE = path.join(tmpDataDir, 'textFile.txt');
+    const errorReporter = jest.fn();
+
+    beforeEach(() => {
+        TextFile.setErrorReporter(errorReporter);
+    });
 
     afterEach(() => {
+        TextFile.setErrorReporter();
         testDataHandler.rmFile(TEST_FILE);
     });
 
@@ -97,7 +103,7 @@ describe('TextFile', () => {
         expect(tf.isDirty).toBe(true);
         expect(tf.hasErrors()).toBe(true);
         expect(tf.errors[0]).toBe('nonexistent.txt: File not exists');
-        expect(testDataHandler.errorMessageSpy).toHaveBeenCalledWith(tf.errors.join('\n'));
+        expect(errorReporter).toHaveBeenCalledWith(tf.errors.join('\n'));
     });
 
     it('should not mark as dirty if content is unchanged', () => {
@@ -183,7 +189,7 @@ describe('TextFile', () => {
         expect(result).toBe(ETextFileResult.Error);
         expect(tf.errors.length).toBeGreaterThan(0);
         expect(tf.errors[0]).toEqual(`${TEST_FILE}: Failed to write: Simulated write error`);
-        expect(testDataHandler.errorMessageSpy).toHaveBeenCalledWith(tf.errors.join('\n'));
+        expect(errorReporter).toHaveBeenCalledWith(tf.errors.join('\n'));
         spy.mockRestore();
     });
 
@@ -198,7 +204,7 @@ describe('TextFile', () => {
         expect(result).toBe(ETextFileResult.Error);
         expect(tf.errors.length).toBeGreaterThan(0);
         expect(tf.errors[0]).toEqual(`${TEST_FILE}: Failed to read: Simulated read error`);
-        expect(testDataHandler.errorMessageSpy).toHaveBeenCalledWith(tf.errors.join('\n'));
+        expect(errorReporter).toHaveBeenCalledWith(tf.errors.join('\n'));
         spy.mockRestore();
     });
 
@@ -224,7 +230,7 @@ describe('TextFile', () => {
         expect(tf.errors.length).toBeGreaterThan(1);
         expect(tf.errors[0]).toEqual(`${TEST_FILE}: Failed to parse:`);
         expect(tf.errors[1]).toEqual('Parse failed at line 2, column 5');
-        expect(testDataHandler.errorMessageSpy).toHaveBeenCalledWith(tf.errors.join('\n'));
+        expect(errorReporter).toHaveBeenCalledWith(tf.errors.join('\n'));
     });
 
     it('checks if isModified returns true when content changes', () => {
