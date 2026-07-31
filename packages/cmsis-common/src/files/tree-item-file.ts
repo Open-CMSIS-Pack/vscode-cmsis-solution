@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { CTreeItem } from './tree-item';
-import { ITreeItemBuilder } from './tree-item-builder';
+import { CTreeItem } from '../tree/tree-item';
+import { ITreeItemBuilder } from '../tree/tree-item-builder';
 import { ITextFile, TextFile } from './text-file';
-import { ITreeItemParser } from './tree-item-parser';
-import { CTreeItemYamlParser } from './tree-item-yaml-parser';
-import { CTreeItemJsonParser } from './tree-item-json-parser';
-import { CTreeItemXmlParser } from './tree-item-xml-parser';
+import { ITreeItemParser } from '../tree/tree-item-parser';
+import { CTreeItemYamlParser } from '../tree/tree-item-yaml-parser';
+import { CTreeItemJsonParser } from '../tree/tree-item-json-parser';
+import { CTreeItemXmlParser } from '../tree/tree-item-xml-parser';
 
 /**
  * Interface for tree item file abstraction.

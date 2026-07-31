@@ -15,13 +15,11 @@
  */
 
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { TextFile, ETextFileResult } from './text-file';
-import { TestDataHandler } from '../__test__/test-data';
-import { EtaExt } from '../eta-ext/eta-ext';
-import { EtaTextRenderer } from '../eta-ext/eta-text-renderer';
-import * as fsUtils from '../utils/fs-utils';
-import { TextParser } from './text-parser';
+import { TextParser } from '../text/text-parser';
+import { TextRenderer } from '../text/text-renderer';
 import { ITextFileSystem } from './text-file-system';
 
 describe('TextFile', () => {
@@ -29,6 +27,13 @@ describe('TextFile', () => {
     const initialContent = 'Initial content';
     const changedContent = 'Changed content';
     const wrongContent = 'wrong';
+
+    class MockRenderer extends TextRenderer {
+        public override render(text: string): string {
+            const name = (this.renderData as { name?: string } | undefined)?.name ?? '';
+            return text.replace('<%= name %>', name);
+        }
+    }
 
     class MockParser extends TextParser {
         override parse(content: string) {
@@ -44,15 +49,17 @@ describe('TextFile', () => {
         };
     }
 
-    const testDataHandler = new TestDataHandler();
-    const tmpDataDir = testDataHandler.tmpDir;
+    const tmpDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cmsis-common-'));
     const TEST_FILE = path.join(tmpDataDir, 'textFile.txt');
     const errorReporter = jest.fn();
     const fileSystem: ITextFileSystem = {
-        exists: fsUtils.fileExists,
-        read: fsUtils.readTextFile,
-        write: fsUtils.writeTextFile,
-        unlink: fsUtils.deleteFileIfExists,
+        exists: fs.existsSync,
+        read: fileName => fs.existsSync(fileName) ? fs.readFileSync(fileName, 'utf8') : '',
+        write: (fileName, content) => {
+            fs.mkdirSync(path.dirname(fileName), { recursive: true });
+            fs.writeFileSync(fileName, content, 'utf8');
+        },
+        unlink: fileName => fs.rmSync(fileName, { force: true }),
         dirname: path.dirname,
         resolve: path.resolve,
     };
@@ -65,11 +72,11 @@ describe('TextFile', () => {
     afterEach(() => {
         TextFile.setErrorReporter();
         TextFile.setFileSystem();
-        testDataHandler.rmFile(TEST_FILE);
+        fs.rmSync(TEST_FILE, { force: true });
     });
 
     afterAll(() => {
-        testDataHandler.dispose();
+        fs.rmSync(tmpDataDir, { recursive: true, force: true });
     });
 
 
@@ -198,8 +205,7 @@ describe('TextFile', () => {
     });
 
     it('should use renderer to render text', () => {
-        const eta = new EtaExt({ useWith: true });
-        const renderer = new EtaTextRenderer({ name: 'World' }, eta);
+        const renderer = new MockRenderer({ name: 'World' });
         const tf = new TextFile(TEST_FILE);
         tf.renderer = renderer;
         tf.text = 'Hello, <%= name %>!';
@@ -214,8 +220,7 @@ describe('TextFile', () => {
     });
 
     it('should update rendered text when renderer data changes', () => {
-        const eta = new EtaExt({ useWith: true });
-        const renderer = new EtaTextRenderer({ name: 'Alice' }, eta);
+        const renderer = new MockRenderer({ name: 'Alice' });
         const tf = new TextFile(TEST_FILE);
         tf.renderer = renderer;
         tf.text = 'Hi, <%= name %>!';
@@ -228,10 +233,10 @@ describe('TextFile', () => {
         const tf = new TextFile(TEST_FILE);
         tf.text = 'dummy';
         const fileSystem: ITextFileSystem = {
-            exists: fsUtils.fileExists,
-            read: fsUtils.readTextFile,
+            exists: fs.existsSync,
+            read: fileName => fs.existsSync(fileName) ? fs.readFileSync(fileName, 'utf8') : '',
             write: () => { throw new Error('Simulated write error'); },
-            unlink: fsUtils.deleteFileIfExists,
+            unlink: fileName => fs.rmSync(fileName, { force: true }),
             dirname: path.dirname,
             resolve: path.resolve,
         };
@@ -245,13 +250,13 @@ describe('TextFile', () => {
     });
 
     it('should handle errors from readTextFile()', async () => {
-        fsUtils.writeTextFile(TEST_FILE, 'dummy');
+        fs.writeFileSync(TEST_FILE, 'dummy', 'utf8');
         const tf = new TextFile(TEST_FILE);
         const fileSystem: ITextFileSystem = {
-            exists: fsUtils.fileExists,
+            exists: fs.existsSync,
             read: () => { throw new Error('Simulated read error'); },
-            write: fsUtils.writeTextFile,
-            unlink: fsUtils.deleteFileIfExists,
+            write: (fileName, content) => fs.writeFileSync(fileName, content, 'utf8'),
+            unlink: fileName => fs.rmSync(fileName, { force: true }),
             dirname: path.dirname,
             resolve: path.resolve,
         };
@@ -279,7 +284,7 @@ describe('TextFile', () => {
     });
 
     it('should handle parser errors and add them to errors list', async () => {
-        fsUtils.writeTextFile(TEST_FILE, wrongContent);
+        fs.writeFileSync(TEST_FILE, wrongContent, 'utf8');
         const tf = new TextFile(TEST_FILE, new MockParser());
         // Simulate load which calls parser.parse
         await tf.load();
@@ -373,14 +378,14 @@ describe('TextFile', () => {
             'suffix'
         ].join('\n');
 
-        fsUtils.writeTextFile(TEST_FILE, initial);
+        fs.writeFileSync(TEST_FILE, initial, 'utf8');
         const tf = new TextFile(TEST_FILE, new MockParser());
 
         let loadResult = await tf.load();
         expect(loadResult).toBe(ETextFileResult.Success);
         expect(tf.text).toBe(initial);
 
-        fsUtils.writeTextFile(TEST_FILE, changed);
+        fs.writeFileSync(TEST_FILE, changed, 'utf8');
         loadResult = await tf.load();
         expect(loadResult).toBe(ETextFileResult.Success);
         expect(tf.text).toBe(changed);
@@ -408,7 +413,7 @@ describe('TextFile', () => {
         const updated = 'Line 1\nLigne 2\nCaffè (modifié)\n';
 
         // Ensure a clean slate
-        testDataHandler.rmDir(unicodeDir);
+        fs.rmSync(unicodeDir, { recursive: true, force: true });
 
         const tf = new TextFile(unicodeFile);
         tf.text = initial;
@@ -430,7 +435,7 @@ describe('TextFile', () => {
         expect(loadResult).toBe(ETextFileResult.Success);
         expect(tf3.text).toBe(updated);
 
-        testDataHandler.rmDir(unicodeDir);
+        fs.rmSync(unicodeDir, { recursive: true, force: true });
     });
 
 });

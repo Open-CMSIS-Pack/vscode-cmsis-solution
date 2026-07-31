@@ -16,7 +16,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { constructor } from './constructor';
+import { constructor } from '../constructor';
 
 /**
  * Provides the file and path operations used by {@link TextFile}.

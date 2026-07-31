@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { ITextParser } from './text-parser';
-import { ITextRenderer } from './text-renderer';
-import { ErrorList, IErrorList } from './error-list';
-import { convertCrLfToLf } from './string-utils';
+import { ITextParser } from '../text/text-parser';
+import { ITextRenderer } from '../text/text-renderer';
+import { ErrorList, IErrorList } from '../error-list';
+import { convertCrLfToLf } from '../string-utils';
 import { ITextFileSystem, TextFileSystem } from './text-file-system';
 
 export type TextFileErrorReporter = (message: string) => void;

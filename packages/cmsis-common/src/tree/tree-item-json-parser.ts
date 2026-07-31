@@ -18,7 +18,7 @@ import { CTreeItem, ETreeItemKind, ITreeItem } from './tree-item';
 import { CTreeItemBuilder, ITreeItemBuilder } from './tree-item-builder';
 import { GenericTreeItemParser } from './tree-item-parser';
 import { visit, JSONVisitor, JSONPath, ParseErrorCode, printParseErrorCode } from 'jsonc-parser';
-import { getIndentString } from './string-utils';
+import { getIndentString } from '../string-utils';
 
 export function getJsonIndentString(level: number) {
     return getIndentString(level, 4);

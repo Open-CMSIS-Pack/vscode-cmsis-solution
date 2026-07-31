@@ -20,6 +20,7 @@ module.exports = {
     collectCoverageFrom: [
         'src/**/*.ts',
         '!src/**/*.d.ts',
+        '!src/test-support/**',
     ],
     coverageDirectory: 'coverage',
     coverageReporters: ['lcov', 'text'],

@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import { CTreeItemFile, CTreeItemYamlFile, CTreeItemJsonFile, CTreeItemXmlFile } from './tree-item-file';
-import { CTreeItem, ETreeItemKind } from './tree-item';
-import { CTreeItemBuilder } from './tree-item-builder';
-import { ITreeItemParser } from './tree-item-parser';
+import { CTreeItem, ETreeItemKind } from '../tree/tree-item';
+import { CTreeItemBuilder } from '../tree/tree-item-builder';
+import { ITreeItemParser } from '../tree/tree-item-parser';
 import { it } from '@jest/globals';
-import path from 'path';
+import path from 'node:path';
 import { ETextFileResult, TextFile } from './text-file';
-import { TestDataHandler } from '../__test__/test-data';
 
 
 // A test utility function for creating a test root item
@@ -150,12 +151,9 @@ describe('CTreeItemFile', () => {
 });
 
 describe('CTreeItemYamlFile', () => {
-    const testDataHandler = new TestDataHandler();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cmsis-common-'));
     const errorReporter = jest.fn();
-    let tmpSolutionDir: string;
-    beforeAll(async () => {
-        tmpSolutionDir = testDataHandler.copyTestDataToTmp('solutions');
-    });
+    const fileName = path.join(tmpDir, 'test.csolution.yml');
 
     beforeEach(() => {
         TextFile.setErrorReporter(errorReporter);
@@ -166,14 +164,14 @@ describe('CTreeItemYamlFile', () => {
     });
 
     afterAll(async () => {
-        testDataHandler.dispose();
+        fs.rmSync(tmpDir, { recursive: true, force: true });
     });
 
     it('test loading non-existing file', async () => {
         const ymlFile = new CTreeItemYamlFile();
         ymlFile.readOnly = true;
-        const fileName = testDataHandler.tmpFileName('dummyFile.yml');
-        const loadResult = await ymlFile.load(fileName);
+        const missingFileName = path.join(tmpDir, 'dummyFile.yml');
+        const loadResult = await ymlFile.load(missingFileName);
         expect(loadResult).toEqual(ETextFileResult.NotExists);
         expect(errorReporter).toHaveBeenCalledWith(ymlFile.errors.join('\n'));
         const root = ymlFile.rootItem;
@@ -182,7 +180,7 @@ describe('CTreeItemYamlFile', () => {
     });
 
     it('test load/save existing file', async () => {
-        const fileName = path.join(tmpSolutionDir, 'simple', 'test.csolution.yml');
+        fs.writeFileSync(fileName, 'solution: { name: test }\n', 'utf8');
         const ymlFile = new CTreeItemYamlFile();
 
         let loadResult = await ymlFile.load(fileName);
@@ -252,16 +250,15 @@ describe('CTreeItemYamlFile', () => {
 });
 
 describe('CTreeItemJsonFile', () => {
-    const testDataHandler = new TestDataHandler();
-    const tmpDir = testDataHandler.tmpDir;
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cmsis-common-'));
     const fileName = path.join(tmpDir, 'testFile.json');
 
     afterEach(() => {
-        testDataHandler.rmFile(fileName);
+        fs.rmSync(fileName, { force: true });
     });
 
     afterAll(() => {
-        testDataHandler.dispose();
+        fs.rmSync(tmpDir, { recursive: true, force: true });
     });
 
     it('should create, save, load, and modify JSON tree item file', async () => {
@@ -304,16 +301,15 @@ describe('CTreeItemJsonFile', () => {
 });
 
 describe('CTreeItemXmlFile', () => {
-    const testDataHandler = new TestDataHandler();
-    const tmpDir = testDataHandler.tmpDir;
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cmsis-common-'));
     const fileName = path.join(tmpDir, 'testFile.xml');
 
     afterEach(() => {
-        testDataHandler.rmFile(fileName);
+        fs.rmSync(fileName, { force: true });
     });
 
     afterAll(() => {
-        testDataHandler.dispose();
+        fs.rmSync(tmpDir, { recursive: true, force: true });
     });
 
     it('should create, save, load, and modify XML tree item file', async () => {

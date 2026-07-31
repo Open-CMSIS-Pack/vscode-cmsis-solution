@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
-import { assureProperty } from './schema';
+import * as path from 'node:path';
+import { assureProperty } from '../schema';
 import { YamlFile } from './yaml-file';
 import * as YAML from 'yaml';
-import * as fsUtils from '../utils/fs-utils';
+import { TextFile } from './text-file';
+import { ITextFileSystem } from './text-file-system';
 
 interface TestContent {
     key: string;
@@ -41,15 +43,32 @@ class YamlFileTest extends YamlFile {
 
 describe('YamlFile', () => {
     const filePath = 'path/to/file.yaml';
+    const readFile = jest.fn<(fileName: string) => string>();
+    const writeFile = jest.fn<(fileName: string, content: string) => void>();
+    const fileSystem: ITextFileSystem = {
+        exists: () => true,
+        read: readFile,
+        write: writeFile,
+        unlink: jest.fn(),
+        dirname: path.dirname,
+        resolve: path.resolve,
+    };
     let yamlFile: YamlFileTest;
 
     beforeEach(() => {
+        readFile.mockReset();
+        writeFile.mockReset();
+        TextFile.setFileSystem(fileSystem);
         yamlFile = new YamlFileTest(filePath);
+    });
+
+    afterEach(() => {
+        TextFile.setFileSystem();
     });
 
     it('should load empty file', async () => {
         const mockContent = '';
-        jest.spyOn(fsUtils, 'readTextFile').mockReturnValue(mockContent);
+        readFile.mockReturnValue(mockContent);
 
         await yamlFile.load();
         expect(yamlFile.Content).toEqual({ key: '' });
@@ -57,25 +76,23 @@ describe('YamlFile', () => {
 
     it('should load YAML file but skip save without changes', async () => {
         const mockContent = YAML.stringify({ key: 'value' });
-        jest.spyOn(fsUtils, 'readTextFile').mockReturnValue(mockContent);
-        const writeSpy = jest.spyOn(fsUtils, 'writeTextFile').mockImplementation(() => {});
+        readFile.mockReturnValue(mockContent);
 
         await yamlFile.load();
         expect(yamlFile.Content).toEqual(YAML.parse(mockContent));
 
         await yamlFile.save();
-        expect(writeSpy).not.toHaveBeenCalled();
+        expect(writeFile).not.toHaveBeenCalled();
 
         await yamlFile.save();
-        expect(writeSpy).not.toHaveBeenCalled();
+        expect(writeFile).not.toHaveBeenCalled();
     });
 
     it('should load and save YAML file with changes', async () => {
         const mockContent = YAML.stringify({ key: 'value' });
         const mockChangedContent = YAML.stringify({ key: 'newValue' });
 
-        jest.spyOn(fsUtils, 'readTextFile').mockReturnValue(mockContent);
-        const writeSpy = jest.spyOn(fsUtils, 'writeTextFile').mockImplementation(() => {});
+        readFile.mockReturnValue(mockContent);
 
         await yamlFile.load();
         expect(yamlFile.Content).toEqual(YAML.parse(mockContent));
@@ -83,12 +100,12 @@ describe('YamlFile', () => {
         yamlFile.Content.key = 'newValue';
 
         await yamlFile.save();
-        expect(writeSpy).toHaveBeenCalledWith(filePath, mockChangedContent);
+        expect(writeFile).toHaveBeenCalledWith(filePath, mockChangedContent);
 
         yamlFile.Content.key = 'newValue';
 
         await yamlFile.save();
-        expect(writeSpy).toHaveBeenCalledWith(filePath, mockChangedContent);
+        expect(writeFile).toHaveBeenCalledWith(filePath, mockChangedContent);
     });
 
     it('should load YAML file with comments', async () => {
@@ -100,7 +117,7 @@ describe('YamlFile', () => {
                 type: extensionHost
                 request: launch
         `;
-        jest.spyOn(fsUtils, 'readTextFile').mockReturnValue(mockContent);
+        readFile.mockReturnValue(mockContent);
 
         await yamlFile.load();
         expect(yamlFile.object).toEqual(YAML.parse(mockContent));

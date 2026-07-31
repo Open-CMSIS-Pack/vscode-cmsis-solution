@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { getIndentString } from './string-utils';
-import { ErrorList } from './error-list';
-import { ITextParser } from './text-parser';
+import { getIndentString } from '../string-utils';
+import { ErrorList } from '../error-list';
+import { ITextParser } from '../text/text-parser';
 import { ITreeItem } from './tree-item';
 import { ITreeItemBuilder } from './tree-item-builder';
 

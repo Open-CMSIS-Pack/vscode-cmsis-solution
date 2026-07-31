@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import { TestDataHandler } from '../__test__/test-data';
-import * as fsUtils from '../utils/fs-utils';
+import * as path from 'node:path';
 import { JsonFile } from './json-file';
-import { assureProperty } from './schema';
+import { assureProperty } from '../schema';
 import { parse as parseJson } from 'jsonc-parser';
-import { ETextFileResult } from './text-file';
+import { ETextFileResult, TextFile } from './text-file';
+import { ITextFileSystem } from './text-file-system';
 
 interface TestContent {
     key: string;
@@ -38,23 +38,35 @@ class JsonFileTest extends JsonFile {
 }
 
 describe('JsonFile', () => {
-    const testDataHandler = new TestDataHandler();
     const filePath = 'path/to/file.json';
+    const readFile = jest.fn<(fileName: string) => string>();
+    const writeFile = jest.fn<(fileName: string, content: string) => void>();
+    const fileSystem: ITextFileSystem = {
+        exists: () => true,
+        read: readFile,
+        write: writeFile,
+        unlink: jest.fn(),
+        dirname: path.dirname,
+        resolve: path.resolve,
+    };
     let jsonFile : JsonFileTest;
 
     beforeEach(() => {
+        readFile.mockReset();
+        writeFile.mockReset();
+        TextFile.setFileSystem(fileSystem);
         jsonFile = new JsonFileTest(filePath);
     });
 
-    afterAll(async () => {
-        testDataHandler.dispose();
+    afterEach(() => {
+        TextFile.setFileSystem();
     });
 
 
     it('should load empty file', async () => {
         // Mock the file system operations
         const mockContent = '';
-        jest.spyOn(fsUtils, 'readTextFile').mockReturnValue(mockContent);
+        readFile.mockReturnValue(mockContent);
 
         await jsonFile.load();
         expect(jsonFile.content).toBeUndefined();
@@ -63,17 +75,16 @@ describe('JsonFile', () => {
 
     it('should load JSON file but skip save without changes', async () => {
         const mockContent = JSON.stringify({ key: 'value' }, null, 4);
-        jest.spyOn(fsUtils, 'readTextFile').mockReturnValue(mockContent);
-        const writeSpy = jest.spyOn(fsUtils, 'writeTextFile').mockImplementation(() => {});
+        readFile.mockReturnValue(mockContent);
 
         await jsonFile.load();
         expect(jsonFile.content).toEqual(JSON.parse(mockContent));
 
         await jsonFile.save();
-        expect(writeSpy).not.toHaveBeenCalled();
+        expect(writeFile).not.toHaveBeenCalled();
 
         await jsonFile.save();
-        expect(writeSpy).not.toHaveBeenCalled();
+        expect(writeFile).not.toHaveBeenCalled();
     });
 
     it('should load and save JSON file with changes', async () => {
@@ -81,8 +92,7 @@ describe('JsonFile', () => {
         const mockChangedContent = JSON.stringify({ key: 'newValue' }, null, 4);
         const mockObjectContent = JSON.stringify({ key: 'ObjectValue' }, null, 4);
 
-        jest.spyOn(fsUtils, 'readTextFile').mockReturnValue(mockContent);
-        const writeSpy = jest.spyOn(fsUtils, 'writeTextFile').mockImplementation(() => {});
+        readFile.mockReturnValue(mockContent);
 
         await jsonFile.load();
         expect(jsonFile.content).toEqual(JSON.parse(mockContent));
@@ -92,17 +102,17 @@ describe('JsonFile', () => {
         expect(jsonFile.isModified()).toBeTruthy();
 
         await jsonFile.save();
-        expect(writeSpy).toHaveBeenCalledWith(filePath, mockChangedContent);
+        expect(writeFile).toHaveBeenCalledWith(filePath, mockChangedContent);
         expect(jsonFile.isModified()).toBeFalsy();
 
         await jsonFile.save();
-        expect(writeSpy).toHaveBeenCalledWith(filePath, mockChangedContent);
+        expect(writeFile).toHaveBeenCalledWith(filePath, mockChangedContent);
         expect(jsonFile.isDirty).toBeFalsy();
 
         jsonFile.content = JSON.parse(mockObjectContent);
         expect(jsonFile.isDirty).toBeTruthy();
         await jsonFile.save();
-        expect(writeSpy).toHaveBeenCalledWith(filePath, mockObjectContent);
+        expect(writeFile).toHaveBeenCalledWith(filePath, mockObjectContent);
 
     });
 
@@ -114,7 +124,7 @@ describe('JsonFile', () => {
             "configurations": []
             }
             `;
-        jest.spyOn(fsUtils, 'readTextFile').mockReturnValue(mockContent);
+        readFile.mockReturnValue(mockContent);
         const result = await jsonFile.load();
         expect(result).toEqual(ETextFileResult.Success);
         expect(jsonFile.object).toEqual(parseJson(mockContent));

@@ -16,7 +16,7 @@
 
 import { ParseError, parse as parseJson, printParseErrorCode } from 'jsonc-parser';
 import * as YAML from 'yaml';
-import { ErrorList, IErrorList } from './error-list';
+import { ErrorList, IErrorList } from '../error-list';
 
 export interface ITextParser extends IErrorList {
     /**

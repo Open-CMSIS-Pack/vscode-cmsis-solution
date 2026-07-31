@@ -15,7 +15,7 @@
  */
 
 import { TextFile } from './text-file';
-import { SimpleYamlParser } from './text-parser';
+import { SimpleYamlParser } from '../text/text-parser';
 
 export class YamlFile extends TextFile {
     constructor(fileName?: string) {

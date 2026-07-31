@@ -15,7 +15,7 @@
  */
 
 import { TextFile } from './text-file';
-import { SimpleJsonParser } from './text-parser';
+import { SimpleJsonParser } from '../text/text-parser';
 
 export class JsonFile  extends TextFile {
     constructor(fileName: string) {
