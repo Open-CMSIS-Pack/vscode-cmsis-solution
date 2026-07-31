@@ -36,16 +36,16 @@ export interface ITextParser extends IErrorList {
 
 // base class for parsers, can be mocked
 export class TextParser extends ErrorList implements ITextParser {
-    parse(_content: string) {
+    parse(_content: string): object {
         return {};
     }
-    stringify(_obj?: unknown) {
+    stringify(_obj?: unknown): string {
         return '';
     }
 }
 
-export class SimpleJsonParser extends ErrorList {
-    parse(text: string) {
+export class SimpleJsonParser extends ErrorList implements ITextParser {
+    parse(text: string): object {
         this.clearErrors();
         const parseErrors: ParseError[] = [];
         let result = parseJson(text, parseErrors, { disallowComments: false, allowTrailingComma: true, allowEmptyContent: true });
@@ -65,8 +65,8 @@ export class SimpleJsonParser extends ErrorList {
     }
 }
 
-export class SimpleYamlParser extends ErrorList {
-    parse(content: string) {
+export class SimpleYamlParser extends ErrorList implements ITextParser {
+    parse(content: string): object {
         this.clearErrors();
         try {
             return YAML.parse(content);
