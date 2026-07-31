@@ -18,7 +18,7 @@ import { ITextParser } from './text-parser';
 import { ITextRenderer } from './text-renderer';
 import { ErrorList, IErrorList } from './error-list';
 import { convertCrLfToLf } from './string-utils';
-import { ITextFileSystem, TextFileSystem } from './test-file-filesystem';
+import { ITextFileSystem, TextFileSystem } from './text-file-system';
 
 export type TextFileErrorReporter = (message: string) => void;
 

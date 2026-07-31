@@ -19,18 +19,24 @@ import { parse as parseJsonc } from 'jsonc-parser';
 import { CTreeItemJsonParser, parseJsonToCTreeItem, toJsonString } from './tree-item-json-parser';
 import { CTreeItemBuilder } from './tree-item-builder';
 import { CTreeItem, ETreeItemKind } from './tree-item';
-import * as fsUtils from '../utils/fs-utils';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 describe('TreeItemJsonParser', () => {
     describe('parseJsonToCTreeItem', () => {
         it('uses the filename as source metadata without reading it', () => {
-            const readSpy = jest.spyOn(fsUtils, 'readTextFile');
+            const fileName = path.join(os.tmpdir(), 'tree-item-parser.json');
+            fs.writeFileSync(fileName, '{ "fromFile": true }');
 
-            const result = parseJsonToCTreeItem('', __filename);
+            try {
+                const result = parseJsonToCTreeItem('', fileName);
 
-            expect(readSpy).not.toHaveBeenCalled();
-            expect(result?.rootFileName).toBe(__filename);
-            readSpy.mockRestore();
+                expect(result?.rootFileName).toBe(fileName);
+                expect(result?.getValue('fromFile')).toBeUndefined();
+            } finally {
+                fs.rmSync(fileName, { force: true });
+            }
         });
 
         it('should parse simple JSON object', async () => {

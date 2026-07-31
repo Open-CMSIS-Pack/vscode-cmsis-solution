@@ -19,7 +19,9 @@ import { CTreeItemYamlParser, parseYamlToCTreeItem, toYamlString } from './tree-
 import { CTreeItem, ETreeItemKind } from './tree-item';
 import dedent from 'dedent';
 import { CTreeItemBuilder } from './tree-item-builder';
-import * as fsUtils from '../utils/fs-utils';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 const trimSpaces = (s: string): string => {
     return s.trim().replace(/ +/g, ' ');
@@ -41,13 +43,17 @@ describe('parseYamlToCTreeItem', () => {
     });
 
     it('uses the filename as source metadata without reading it', () => {
-        const readSpy = jest.spyOn(fsUtils, 'readTextFile');
+        const fileName = path.join(os.tmpdir(), 'tree-item-parser.yml');
+        fs.writeFileSync(fileName, 'fromFile: true\n');
 
-        const root = parseYamlToCTreeItem('', __filename);
+        try {
+            const root = parseYamlToCTreeItem('', fileName);
 
-        expect(readSpy).not.toHaveBeenCalled();
-        expect(root?.rootFileName).toBe(__filename);
-        readSpy.mockRestore();
+            expect(root?.rootFileName).toBe(fileName);
+            expect(root?.getValue('fromFile')).toBeUndefined();
+        } finally {
+            fs.rmSync(fileName, { force: true });
+        }
     });
 
     it('test parseYamlToCTreeItem parsing non-existing file', async () => {

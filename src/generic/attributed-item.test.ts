@@ -84,6 +84,62 @@ describe('CAttributedItem', () => {
         expect(target.getProperty('arr')).toEqual([1, 2, 3]);
         expect(target.getProperty('obj')).toEqual({ foo: 'a', bar: 42 });
     });
+    it('deeply clones complex property values', () => {
+        const source = new CAttributedItem();
+        const nested = { items: [{ value: 1 }] };
+        const date = new Date('2026-07-31T12:00:00.000Z');
+        const mapValue = { value: 2 };
+        const map = new Map([['key', mapValue]]);
+        const setValue = { value: 3 };
+        const set = new Set([setValue]);
+        const circular: { self?: unknown } = {};
+        circular.self = circular;
+        source.setProperty('nested', nested);
+        source.setProperty('date', date);
+        source.setProperty('map', map);
+        source.setProperty('set', set);
+        source.setProperty('circular', circular);
+
+        const target = new CAttributedItem();
+        source.copyTo(target);
+
+        const nestedClone = target.getProperty('nested') as typeof nested;
+        expect(nestedClone).toEqual(nested);
+        expect(nestedClone).not.toBe(nested);
+        expect(nestedClone.items).not.toBe(nested.items);
+        expect(nestedClone.items[0]).not.toBe(nested.items[0]);
+
+        const dateClone = target.getProperty('date') as Date;
+        expect(dateClone).toEqual(date);
+        expect(dateClone).not.toBe(date);
+
+        const mapClone = target.getProperty('map') as Map<string, typeof mapValue>;
+        expect(mapClone).toEqual(map);
+        expect(mapClone).not.toBe(map);
+        expect(mapClone.get('key')).not.toBe(mapValue);
+
+        const setClone = target.getProperty('set') as Set<typeof setValue>;
+        expect(setClone).toEqual(set);
+        expect(setClone).not.toBe(set);
+        expect([...setClone][0]).not.toBe(setValue);
+
+        const circularClone = target.getProperty('circular') as typeof circular;
+        expect(circularClone).not.toBe(circular);
+        expect(circularClone.self).toBe(circularClone);
+    });
+    it('copies property values unsupported by structuredClone without throwing', () => {
+        const source = new CAttributedItem();
+        const symbol = Symbol('value');
+        const callback = () => 'value';
+        source.setProperty('symbol', symbol);
+        source.setProperty('callback', callback);
+
+        const target = new CAttributedItem();
+        expect(() => source.copyTo(target)).not.toThrow();
+
+        expect(target.getProperty('symbol')).toBe(symbol);
+        expect(target.getProperty('callback')).toEqual({});
+    });
     it('resolves path', () => {
         const item = new CAttributedItem('sourceTag');
 

@@ -22,7 +22,7 @@ import { EtaExt } from '../eta-ext/eta-ext';
 import { EtaTextRenderer } from '../eta-ext/eta-text-renderer';
 import * as fsUtils from '../utils/fs-utils';
 import { TextParser } from './text-parser';
-import { ITextFileSystem } from './test-file-filesystem';
+import { ITextFileSystem } from './text-file-system';
 
 describe('TextFile', () => {
 
