@@ -23,9 +23,14 @@ import fs from "fs";
 async function main() {
 
     const argv = yargs(hideBin(process.argv))
-        .usage('Usage: $0 <json> <report> [--header <header>]')
+        .usage('Usage: $0 <json> <report> [--header <header>] [--manifest <manifest>]')
         .options('header', {
             describe: 'Header to add to the report',
+            type: 'string'
+        })
+        .options('manifest', {
+            default: 'package.json',
+            describe: 'Package manifest used to identify the release',
             type: 'string'
         })
         .command('$0 <json> <report>', '', y => {
@@ -48,10 +53,11 @@ async function main() {
     const json = argv.json as string;
     const report = argv.report as string;
     const header = argv.header;
+    const manifest = argv.manifest;
 
     let release: string | undefined;
-    if (fs.existsSync('package.json')) {
-        const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+    if (fs.existsSync(manifest)) {
+        const packageJson = JSON.parse(fs.readFileSync(manifest, 'utf8'));
         release = packageJson.version;
     }
 
@@ -62,12 +68,12 @@ async function main() {
 
     let data: string = '';
     if (header && fs.existsSync(header)) {
-        data += fs.readFileSync(header, "utf8");
+        data += fs.readFileSync(header, "utf8").trimEnd();
     } else {
-        data += "# TPIP Report\n\n";
+        data += "# TPIP Report";
     }
 
-    data += '\n';
+    data += '\n\n';
     data += `Generated for release: ${release ?? 'unknown'}\n\n`;
     data += '| *Package* | *Version* | *Repository* | *License* |\n';
     data += '|---|---|---|---|\n';
