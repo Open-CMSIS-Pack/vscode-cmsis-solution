@@ -131,10 +131,7 @@ vscode-text-field {
 }
 
 .cw-row-focus {
-    display: inline-flex;
-    align-items: center;
-    flex: 1;
-    min-width: 0;
+    display: inline;
     outline: none;
 }
 

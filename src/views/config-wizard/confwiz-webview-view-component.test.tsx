@@ -159,6 +159,28 @@ describe('ConfWiz functional component', () => {
         expect(saveCalls.length).toBe(1);
     });
 
+    it('keeps the full setting name in the DOM and tooltip', () => {
+        const settingName = 'DBGMCU APB2 peripheral freeze register CPU2 (DBGMCU_APB2FZ2)';
+        const textElement: TreeNodeElement = {
+            guiId: 2,
+            name: settingName,
+            type: GuiTypes.none,
+            group: false,
+            value: { value: '', readOnly: true },
+            newValue: { value: '', readOnly: true },
+            infoItems: ['Register configuration details'],
+        };
+
+        const { getByText } = render(<ConfWiz />);
+        emitWizardData({ element: makeRoot([textElement]), documentPath: 'test.c', noAnnotationsFound: false });
+
+        const settingNameElement = getByText(settingName);
+        expect(settingNameElement.textContent).toBe(settingName);
+        expect(settingNameElement.getAttribute('title')).toBe(
+            `${settingName}\n\nRegister configuration details`
+        );
+    });
+
     it('applies checkbox-inconsistent class and tooltip when inconsistent flag is true', () => {
         const checkboxElement: TreeNodeElement = {
             guiId: 2,
