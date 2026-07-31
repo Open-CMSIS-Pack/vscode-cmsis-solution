@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import * as fsUtils from '../utils/fs-utils';
 import { CTreeItem, ITreeItem } from './tree-item';
 import { CTreeItemBuilder, ITreeItemBuilder } from './tree-item-builder';
 import { GenericTreeItemParser } from './tree-item-parser';
@@ -194,9 +193,6 @@ export class CTreeItemXmlParser extends GenericTreeItemXmlParser<CTreeItem> {
 }
 
 export const parseXmlToCTreeItem = (input: string, fileName?: string): ITreeItem<CTreeItem> | undefined => {
-    if (!input && fileName && fsUtils.fileExists(fileName)) {
-        input = fsUtils.readTextFile(fileName);
-    }
     const parser = new CTreeItemXmlParser(new CTreeItemBuilder(fileName));
     return parser.parse(input);
 };

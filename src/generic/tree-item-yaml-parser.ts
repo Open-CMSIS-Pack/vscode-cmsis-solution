@@ -15,7 +15,6 @@
  */
 
 import * as YAML from 'yaml';
-import * as fsUtils from '../utils/fs-utils';
 import { CTreeItem, ITreeItem, ETreeItemKind } from './tree-item';
 import { CTreeItemBuilder, ITreeItemBuilder } from './tree-item-builder';
 import { GenericTreeItemParser } from './tree-item-parser';
@@ -242,9 +241,6 @@ export class CTreeItemYamlParser extends GenericTreeItemYamlParser<CTreeItem> {
 }
 
 export const parseYamlToCTreeItem = (input: string, fileName?: string, useAttributes?: boolean): ITreeItem<CTreeItem> | undefined => {
-    if (!input && fileName && fsUtils.fileExists(fileName)) {
-        input = fsUtils.readTextFile(fileName);
-    }
     const parser = new CTreeItemYamlParser(new CTreeItemBuilder(fileName) , useAttributes);
     return parser.parse(input);
 };

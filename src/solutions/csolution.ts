@@ -17,7 +17,7 @@
 import * as path from 'path';
 import { CTreeItem, ETreeItemKind, ITreeItem } from '../generic/tree-item';
 import { ETextFileResult } from '../generic/text-file';
-import { parseYamlToCTreeItem } from '../generic/tree-item-yaml-parser';
+import { CTreeItemYamlFile } from '../generic/tree-item-file';
 import { CbuildRunYamlFile } from './files/cbuild-run-yaml-file';
 import { optional, arrayOf, nullable, Schema, string, InferType } from '../generic/schema';
 import { Optional, ArrayElement } from '../generic/type-helper';
@@ -378,11 +378,15 @@ export class CSolution {
         if (loaded !== undefined) {
             return loaded; // already read
         }
-        const yml = parseYamlToCTreeItem('', fileName) as CTreeItem;
-        if (yml) {
-            collection.set(fileName, yml); //add to the supplied map
+        const ymlFile = new CTreeItemYamlFile(fileName);
+        if (await ymlFile.load() !== ETextFileResult.Success) {
+            return undefined;
         }
-        return yml;
+        const root = ymlFile.rootItem;
+        if (root) {
+            collection.set(fileName, root); //add to the supplied map
+        }
+        return root;
     }
 
     public async loadBuildFiles(): Promise<ETextFileResult> {

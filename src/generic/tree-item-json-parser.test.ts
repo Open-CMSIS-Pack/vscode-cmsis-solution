@@ -19,9 +19,20 @@ import { parse as parseJsonc } from 'jsonc-parser';
 import { CTreeItemJsonParser, parseJsonToCTreeItem, toJsonString } from './tree-item-json-parser';
 import { CTreeItemBuilder } from './tree-item-builder';
 import { CTreeItem, ETreeItemKind } from './tree-item';
+import * as fsUtils from '../utils/fs-utils';
 
 describe('TreeItemJsonParser', () => {
     describe('parseJsonToCTreeItem', () => {
+        it('uses the filename as source metadata without reading it', () => {
+            const readSpy = jest.spyOn(fsUtils, 'readTextFile');
+
+            const result = parseJsonToCTreeItem('', __filename);
+
+            expect(readSpy).not.toHaveBeenCalled();
+            expect(result?.rootFileName).toBe(__filename);
+            readSpy.mockRestore();
+        });
+
         it('should parse simple JSON object', async () => {
             const input = dedent`
                 {

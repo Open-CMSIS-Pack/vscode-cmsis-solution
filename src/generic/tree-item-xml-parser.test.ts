@@ -18,6 +18,7 @@ import { CTreeItemXmlParser, parseXmlToCTreeItem, toXmlString } from './tree-ite
 import { CTreeItem } from './tree-item';
 import dedent from 'dedent';
 import { CTreeItemBuilder } from './tree-item-builder';
+import * as fsUtils from '../utils/fs-utils';
 
 describe('parseXmlToCTreeItem', () => {
     it('test parseXmlToCTreeItem parsing empty input', async () => {
@@ -26,6 +27,16 @@ describe('parseXmlToCTreeItem', () => {
         expect(root).toBeInstanceOf(CTreeItem);
         expect(root!.rootFileName).toEqual('');
         expect(root!.getTag()).toEqual(undefined);
+    });
+
+    it('uses the filename as source metadata without reading it', () => {
+        const readSpy = jest.spyOn(fsUtils, 'readTextFile');
+
+        const root = parseXmlToCTreeItem('', __filename);
+
+        expect(readSpy).not.toHaveBeenCalled();
+        expect(root?.rootFileName).toBe(__filename);
+        readSpy.mockRestore();
     });
 
     it('test parseXmlToCTreeItem parsing non-existing file', async () => {
