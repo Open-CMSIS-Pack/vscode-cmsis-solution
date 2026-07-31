@@ -266,18 +266,21 @@ describe('MergeCommand', () => {
 
         it('throws for shell-sensitive characters in merge paths', () => {
             mockedPath.isAbsolute.mockReturnValue(true);
+            jest.spyOn(os, 'platform').mockReturnValue('win32');
 
             expect(() => command['assertMergeFilePath']('C:/safe/path&bad', 'local file')).toThrow('Invalid local file: contains unsupported shell-sensitive characters.');
         });
 
         it('throws for double quotes in merge paths', () => {
             mockedPath.isAbsolute.mockReturnValue(true);
+            jest.spyOn(os, 'platform').mockReturnValue('win32');
 
             expect(() => command['assertMergeFilePath']('C:/safe/"quoted"/path', 'local file')).toThrow('Invalid local file: contains unsupported shell-sensitive characters.');
         });
 
         it('throws for single quotes in merge paths', () => {
             mockedPath.isAbsolute.mockReturnValue(true);
+            jest.spyOn(os, 'platform').mockReturnValue('linux');
 
             expect(() => command['assertMergeFilePath']("C:/safe/'quoted'/path", 'local file')).toThrow('Invalid local file: contains unsupported shell-sensitive characters.');
         });
@@ -289,20 +292,24 @@ describe('MergeCommand', () => {
             ['output redirection', 'C:/safe/path>bad'],
             ['caret', 'C:/safe/path^bad'],
             ['percent', 'C:/safe/path%bad'],
+            ['exclamation mark', 'C:/safe/path!bad'],
             ['double quote', 'C:/safe/path"bad'],
-            ['single quote', "C:/safe/path'bad"],
+            ['null character', 'C:/safe/path\0bad'],
             ['line feed', 'C:/safe/path\nbad'],
             ['carriage return', 'C:/safe/path\rbad'],
         ])('rejects shell-sensitive edge case: %s', (_label, filePath) => {
             mockedPath.isAbsolute.mockReturnValue(true);
+            jest.spyOn(os, 'platform').mockReturnValue('win32');
 
             expect(() => command['assertMergeFilePath'](filePath, 'local file')).toThrow('Invalid local file: contains unsupported shell-sensitive characters.');
         });
 
         it('builds merge command with validated absolute paths', () => {
-            const local = path.join(tmpDir, 'local.c');
-            const update = path.join(tmpDir, 'update.c');
-            const base = path.join(tmpDir, 'base.c');
+            jest.spyOn(os, 'platform').mockReturnValue('linux');
+
+            const local = '/tmp/merge files/local.c';
+            const update = '/tmp/merge files/update.c';
+            const base = '/tmp/merge files/base.c';
             const merged = `${local}.merged`;
 
             const result = command['buildMergeCommand'](
@@ -313,21 +320,21 @@ describe('MergeCommand', () => {
                 merged,
             );
 
-            expect(result).toEqual(`"/usr/bin/code" --wait --merge "${local}" "${update}" "${base}" "${merged}"`);
+            expect(result).toEqual(`'/usr/bin/code' '--wait' '--merge' '${local}' '${update}' '${base}' '${merged}'`);
         });
 
         it('builds merge command with Windows-style absolute paths', () => {
             mockedPath.isAbsolute.mockImplementation((filePath: string) => actualPath.isAbsolute(filePath) || actualPath.win32.isAbsolute(filePath));
+            jest.spyOn(os, 'platform').mockReturnValue('win32');
 
             const codePath = 'C:\\Users\\dev\\AppData\\Local\\Programs\\Microsoft VS Code\\bin\\code.cmd';
-            const local = 'C:\\workspace\\component.c';
+            const local = "C:\\workspace\\O'Brien files\\component.c";
             const update = 'C:\\workspace\\component.update.c';
             const base = 'C:\\workspace\\component.base.c';
             const merged = 'C:\\workspace\\component.c.merged';
-
             const result = command['buildMergeCommand'](codePath, local, update, base, merged);
 
-            expect(result).toEqual(`"${codePath}" --wait --merge "${local}" "${update}" "${base}" "${merged}"`);
+            expect(result).toEqual(`"${codePath}" "--wait" "--merge" "${local}" "${update}" "${base}" "${merged}"`);
         });
     });
 
@@ -392,6 +399,7 @@ describe('MergeCommand', () => {
         });
 
         it('shows a merge failure message when merge command validation throws', async () => {
+            jest.spyOn(os, 'platform').mockReturnValue('linux');
             const node = new COutlineItem('file');
             const local = path.join(tmpDir, 'safe-local.c');
             node.setAttribute('local', local);
@@ -403,7 +411,7 @@ describe('MergeCommand', () => {
             };
             jest.spyOn(commandPrivate, 'getVSCodeExecutablePath').mockReturnValue('/usr/bin/code');
             jest.spyOn(commandPrivate, 'findNewestMergeFiles').mockReturnValue({
-                update: `${local}.update@1.0.0&unsafe`,
+                update: `${local}.update@1.0.0'unsafe`,
                 base: `${local}.base@1.0.0`,
             });
             jest.spyOn(fsUtils, 'copyFile').mockImplementation(() => { });

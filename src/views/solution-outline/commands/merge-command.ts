@@ -30,7 +30,9 @@ import type { MessageProvider } from '../../../vscode-api/message-provider';
 export class MergeCommand {
     public static readonly mergeFile = `${PACKAGE_NAME}.mergeFile`;
     private static readonly mergeAppliedSuccessMessage = 'Merge applied successfully. Merge View can be closed.';
-    private static readonly disallowedCmdChars = /[\r\n&|<>^%"']/;
+    private static readonly disallowedPosixChars = /[\0\r\n']/;
+    // cmd.exe expands '%' and may expand '!', even inside double quotes.
+    private static readonly disallowedWindowsChars = /[\0\r\n&|<>^%"!]/;
 
     constructor(
         private readonly commandsProvider: CommandsProvider,
@@ -213,13 +215,24 @@ export class MergeCommand {
         base: string,
         merged: string,
     ): string {
-        const safeCodePath = this.assertMergeFilePath(codePath, 'VS Code CLI path');
-        const safeLocal = this.assertMergeFilePath(local, 'local file');
-        const safeUpdate = this.assertMergeFilePath(update, 'update file');
-        const safeBase = this.assertMergeFilePath(base, 'base file');
-        const safeMerged = this.assertMergeFilePath(merged, 'merged file');
+        const commandArgs = [
+            this.assertMergeFilePath(codePath, 'VS Code CLI path'),
+            '--wait',
+            '--merge',
+            this.assertMergeFilePath(local, 'local file'),
+            this.assertMergeFilePath(update, 'update file'),
+            this.assertMergeFilePath(base, 'base file'),
+            this.assertMergeFilePath(merged, 'merged file'),
+        ];
 
-        return `"${safeCodePath}" --wait --merge "${safeLocal}" "${safeUpdate}" "${safeBase}" "${safeMerged}"`;
+        return commandArgs.map(argument => this.quoteCommandArgument(argument)).join(' ');
+    }
+
+    private quoteCommandArgument(argument: string): string {
+        if (os.platform() === 'win32') {
+            return `"${argument}"`;
+        }
+        return `'${argument}'`;
     }
 
     private assertMergeFilePath(filePath: string, label: string): string {
@@ -227,7 +240,10 @@ export class MergeCommand {
             throw new Error(`Invalid ${label}: path must be absolute.`);
         }
 
-        if (MergeCommand.disallowedCmdChars.test(filePath)) {
+        const disallowedChars = os.platform() === 'win32'
+            ? MergeCommand.disallowedWindowsChars
+            : MergeCommand.disallowedPosixChars;
+        if (disallowedChars.test(filePath)) {
             throw new Error(`Invalid ${label}: contains unsupported shell-sensitive characters.`);
         }
 
