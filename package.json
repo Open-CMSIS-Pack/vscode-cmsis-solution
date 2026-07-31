@@ -7,6 +7,9 @@
   "publisher": "Arm",
   "author": "Jonatan Antoni <jonatan.antoni@arm.com>",
   "license": "SEE LICENSE IN LICENSE",
+  "workspaces": [
+    "packages/*"
+  ],
   "main": "dist/extension.js",
   "repository": "https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution",
   "qna": "https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/issues/new/choose",
