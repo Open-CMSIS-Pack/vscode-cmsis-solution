@@ -70,6 +70,13 @@
         "license": "https://github.com/microsoft/node-jsonc-parser/blob/main/LICENSE.md"
     },
     {
+        "name": "lodash",
+        "version": "4.18.1",
+        "spdx": "MIT",
+        "url": "https://github.com/lodash/lodash",
+        "license": "https://github.com/lodash/lodash/blob/master/LICENSE"
+    },
+    {
         "name": "lodash.debounce",
         "version": "4.0.8",
         "spdx": "MIT",
@@ -236,5 +243,12 @@
         "spdx": "MIT",
         "url": "https://github.com/raszi/node-tmp",
         "license": "https://github.com/raszi/node-tmp/blob/master/LICENSE"
+    },
+    {
+        "name": "lodash",
+        "version": "4.18.1",
+        "spdx": "MIT",
+        "url": "<FIXME>",
+        "license": "<FIXME>"
     }
 ]
