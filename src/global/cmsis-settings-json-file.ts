@@ -17,10 +17,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscodeUtils from '../utils/vscode-utils';
-import { JsonFile } from '../generic/json-file';
+import { JsonFile } from '@open-cmsis-pack/cmsis-common/json-file';
 import { merge } from 'lodash';
 import { backToForwardSlashes, getFileNameNoExt } from '../utils/path-utils';
-import { stripTwoExtensions } from '../generic/string-utils';
+import { stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
 
 export type SettingsValueType = boolean | string | number | undefined | object | null;
 

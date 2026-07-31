@@ -17,10 +17,10 @@
 import path from 'path';
 import { ComponentInstance, PackReference, UsedItems } from '../../json-rpc/csolution-rpc-client';
 import { SolutionManager } from '../solution-manager'; // Import SolutionManager
-import { CTreeItemYamlFile } from '../../generic/tree-item-file';
-import { ETextFileResult } from '../../generic/text-file';
-import { stripVendor, stripVendorAndVersion, stripVersion } from '../../generic/string-utils';
-import { CTreeItem, ITreeItem } from '../../generic/tree-item';
+import { CTreeItemYamlFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { stripVendor, stripVendorAndVersion, stripVersion } from '@open-cmsis-pack/cmsis-common/string-utils';
+import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { pathsEqual } from '../../utils/path-utils';
 import { backToForwardSlashes } from '../../utils/path-utils';
 import { matchesContext } from '../../utils/context-utils';

@@ -15,7 +15,7 @@
  */
 
 import { waitUntilUsed, waitUntilFree } from 'tcp-port-used';
-import { constructor } from '../generic/constructor';
+import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 
 export interface TCPPortMonitor {
     readonly port: number;

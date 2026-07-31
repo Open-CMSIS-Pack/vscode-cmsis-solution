@@ -15,7 +15,7 @@
  */
 
 import { FileItemBuilder } from './solution-outline-file-item';
-import { parseYamlToCTreeItem } from '../../../generic/tree-item-yaml-parser';
+import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
 import * as manifest from '../../../manifest';
 import path from 'path';
 import { COutlineItem } from './solution-outline-item';

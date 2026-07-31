@@ -1,7 +1,7 @@
 // See: https://reactjs.org/blog/2022/03/08/react-18-upgrade-guide.html#configuring-your-testing-environment
 global.IS_REACT_ACT_ENVIRONMENT = true;
 
-const { TextFile } = require('./src/generic/text-file');
+const { TextFile } = require('@open-cmsis-pack/cmsis-common/text-file');
 const fsUtils = require('./src/utils/fs-utils');
 const path = require('node:path');
 

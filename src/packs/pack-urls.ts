@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { extractPrefix, stripAffix } from '../generic/string-utils';
+import { extractPrefix, stripAffix } from '@open-cmsis-pack/cmsis-common/string-utils';
 
 export const KEIL_ARM_COM_PACKS = 'https://www.keil.arm.com/packs';
 

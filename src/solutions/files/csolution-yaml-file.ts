@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import { CTreeItemYamlFile, ITreeItemFile } from '../../generic/tree-item-file';
-import { CTreeItem, ETreeItemKind } from '../../generic/tree-item';
-import { constructor } from '../../generic/constructor';
+import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
+import { CTreeItem, ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { CSolutionWrap, ICSolutionWrap, TargetSetWrap, TargetTypeWrap } from './csolution-wrap';
-import { ETextFileResult } from '../../generic/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { constructProjectYamlFile, CProjectYamlFile } from './cproject-yaml-file';
 import { getFileNameNoExt } from '../../utils/path-utils';
-import { extractVersion } from '../../generic/string-utils';
+import { extractVersion } from '@open-cmsis-pack/cmsis-common/string-utils';
 import * as semver from 'semver';
 import { MIN_TOOLBOX_VERSION } from '../../manifest';
 

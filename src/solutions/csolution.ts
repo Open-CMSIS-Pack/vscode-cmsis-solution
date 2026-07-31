@@ -15,13 +15,13 @@
  */
 
 import * as path from 'path';
-import { CTreeItem, ETreeItemKind, ITreeItem } from '../generic/tree-item';
-import { ETextFileResult } from '../generic/text-file';
-import { CTreeItemYamlFile } from '../generic/tree-item-file';
+import { CTreeItem, ETreeItemKind, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { CTreeItemYamlFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { CbuildRunYamlFile } from './files/cbuild-run-yaml-file';
-import { optional, arrayOf, nullable, Schema, string, InferType } from '../generic/schema';
-import { Optional, ArrayElement } from '../generic/type-helper';
-import { extractSuffix, stripPrefix, stripSuffix, stripTwoExtensions } from '../generic/string-utils';
+import { optional, arrayOf, nullable, Schema, string, InferType } from '@open-cmsis-pack/cmsis-common/schema';
+import { Optional, ArrayElement } from '@open-cmsis-pack/cmsis-common/type-helper';
+import { extractSuffix, stripPrefix, stripSuffix, stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { getFileNameNoExt } from '../utils/path-utils';
 import { CbuildIdxFile } from './files/cbuild-idx-file';
 import { ContextDescriptor, contextDescriptorFromString } from './descriptors/descriptors';

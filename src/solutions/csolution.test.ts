@@ -18,9 +18,9 @@ import * as YAML from 'yaml';
 import { TestDataHandler } from '../__test__/test-data';
 import path from 'node:path';
 import { CSolution } from './csolution';
-import { ETextFileResult } from '../generic/text-file';
-import { CTreeItem } from '../generic/tree-item';
-import { parseYamlToCTreeItem } from '../generic/tree-item-yaml-parser';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
 import { CProjectYamlFile } from './files/cproject-yaml-file';
 
 describe('CSolution', () => {

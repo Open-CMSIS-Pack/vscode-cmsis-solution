@@ -15,7 +15,7 @@
  */
 
 import { EtaExt, renderTreeItem } from './eta-ext';
-import { CTreeItem } from '../generic/tree-item';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 
 describe('EtaExt configured with useWith', () => {
 

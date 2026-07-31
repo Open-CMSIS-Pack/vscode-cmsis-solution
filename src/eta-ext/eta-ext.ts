@@ -15,10 +15,10 @@
  */
 
 import { Eta, EtaConfig } from 'eta';
-import { ITreeItem } from '../generic/tree-item';
+import { ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 
-import '../generic/array';
-import '../generic/map';
+import '@open-cmsis-pack/cmsis-common/array';
+import '@open-cmsis-pack/cmsis-common/map';
 
 function render<T extends string>(eta: Eta, value: T, data: object): string | object;
 function render<T extends []>(eta: Eta, value: T, data: object): T

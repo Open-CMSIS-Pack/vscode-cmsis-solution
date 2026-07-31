@@ -16,9 +16,9 @@
 
 import { Device } from '../solar-search/solar-search-client';
 import { PackId } from './pack-data';
-import { LazyPromise } from '../generic/lazy';
+import { LazyPromise } from '@open-cmsis-pack/cmsis-common/lazy';
 import { Device as CsolutionDevice } from '../json-rpc/csolution-rpc-client';
-import { Optional } from '../generic/type-helper';
+import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { splitPackId, splitDeviceId } from '../json-rpc/csolution-rpc-helper';
 
 

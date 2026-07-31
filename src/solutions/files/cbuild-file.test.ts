@@ -16,7 +16,7 @@
 
 import path from 'node:path';
 import { TestDataHandler } from '../../__test__/test-data';
-import { ETextFileResult } from '../../generic/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { CbuildFile } from './cbuild-file';
 
 describe('CbuildFile', () => {

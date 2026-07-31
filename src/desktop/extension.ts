@@ -93,7 +93,7 @@ import { SolutionRpcData } from '../solutions/solution-rpc-data';
 import { ManageSolutionCustomEditorProvider, registerManageSolutionCommand } from '../views/manage-solution/manage-solution-custom-editor';
 import { FileOpenGroupOrchestratorImpl } from '../views/file-open-group-orchestrator';
 import { OpenArmExamplesCommand } from '../views/solution-outline/commands/open-arm-examples-command';
-import { TextFile } from '../generic/text-file';
+import { TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
 import * as vscodeUtils from '../utils/vscode-utils';
 
 let installDefaultToolsetProcess: Promise<void> | undefined;

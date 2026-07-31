@@ -15,10 +15,10 @@
  */
 
 import * as vscode from 'vscode';
-import { constructor } from '../generic/constructor';
+import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { ConfigurationProvider } from '../vscode-api/configuration-provider';
 import path from 'path';
-import { Optional } from '../generic/type-helper';
+import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { CONFIG_ENVIRONMENT_VARIABLES, OPEN_ENV_VAR_SETTINGS_COMMAND_ID, PACKAGE_NAME } from '../manifest';
 import process from 'process';
 import { PythonEnvironment, PythonEnvironmentApi } from '../vscode-api/ms-python.vscode-python-envs.api';

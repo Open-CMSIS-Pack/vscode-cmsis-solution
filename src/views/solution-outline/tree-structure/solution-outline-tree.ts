@@ -18,7 +18,7 @@ import { COutlineItem } from './solution-outline-item';
 import { CSolution } from '../../../solutions/csolution';
 import path from 'path';
 import * as fsUtils from '../../../utils/fs-utils';
-import { CTreeItem } from '../../../generic/tree-item';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import * as manifest from '../../../manifest';
 import { HardwareItemBuilder } from './solution-outline-hardware-item';
 import { ProjectItemsBuilder } from './solution-outline-project-items';

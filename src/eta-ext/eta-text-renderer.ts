@@ -15,7 +15,7 @@
  */
 
 import { Eta } from 'eta';
-import { TextRenderer } from '../generic/text-renderer';
+import { TextRenderer } from '@open-cmsis-pack/cmsis-common/text-renderer';
 import { EtaExt } from './eta-ext';
 
 export class EtaTextRenderer extends TextRenderer {

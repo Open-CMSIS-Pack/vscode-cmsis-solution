@@ -29,7 +29,7 @@ import { COutlineItem } from '../tree-structure/solution-outline-item';
 import * as path from 'path';
 import { CSolution } from '../../../solutions/csolution';
 import { TestDataHandler } from '../../../__test__/test-data';
-import { ETextFileResult } from '../../../generic/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { waitTimeout } from '../../../__test__/test-waits';
 
 const vscodeWindowFactory = (): jest.Mocked<Pick<typeof vscode.window,

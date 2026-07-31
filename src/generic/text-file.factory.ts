@@ -15,9 +15,9 @@
  */
 
 import { makeFactory } from '../__test__/test-data-factory';
-import { IErrorList } from './error-list';
+import { IErrorList } from '@open-cmsis-pack/cmsis-common/error-list';
 import { errorListFactory } from './error-list.factory';
-import { ETextFileResult, ITextFile } from './text-file';
+import { ETextFileResult, ITextFile } from '@open-cmsis-pack/cmsis-common/text-file';
 
 export const textFileFactory = makeFactory<ITextFile, IErrorList>({
     text: () => 'Sample text',

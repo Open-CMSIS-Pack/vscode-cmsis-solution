@@ -19,7 +19,7 @@ import * as vscodeUtils from '../utils/vscode-utils';
 import * as fsUtils from '../utils/fs-utils';
 import { CmsisSettingsJsonFile, ContextSelectionSettings } from './cmsis-settings-json-file';
 import { TestDataHandler } from '../__test__/test-data';
-import { ETextFileResult } from '../generic/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 
 
 describe('WorkspaceSettingsService', () => {

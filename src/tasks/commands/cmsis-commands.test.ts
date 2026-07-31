@@ -26,7 +26,7 @@ import { extensionContextFactory } from '../../vscode-api/extension-context.fact
 import { configurationProviderFactory, MockConfigurationProvider } from '../../vscode-api/configuration-provider.factories';
 import { CONFIG_AUTO_CONFIGURE_TELNET_PORT_MONITOR, PACKAGE_NAME } from '../../manifest';
 import { CSolution } from '../../solutions/csolution';
-import { CTreeItem } from '../../generic/tree-item';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { SolutionManager } from '../../solutions/solution-manager';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
 import path from 'path';

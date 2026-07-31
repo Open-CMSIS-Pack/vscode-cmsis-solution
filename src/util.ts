@@ -20,7 +20,7 @@ import * as vscode from 'vscode';
 import { CONFIG_USE_WEBSERVICES, OUTPUT_DIRECTORY } from './manifest';
 import { SolutionManager } from './solutions/solution-manager';
 import { ConfigurationProvider } from './vscode-api/configuration-provider';
-import { CTreeItem, ITreeItem } from './generic/tree-item';
+import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { getCmsisPackRoot } from './utils/path-utils';
 
 export const isUri = (uri: unknown): uri is vscode.Uri => !!uri && (uri as vscode.Uri).path !== undefined && (uri as vscode.Uri).fsPath !== undefined;

@@ -3,7 +3,7 @@
  */
 
 
-import { Optional } from '../generic/type-helper';
+import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 
 
 export function splitPackId(packId: string) : { vendor: string, name: string, version?: string };

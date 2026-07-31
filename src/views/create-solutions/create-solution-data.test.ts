@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import '../../generic/map';
+import '@open-cmsis-pack/cmsis-common/map';
 
 import { ExtensionContext } from 'vscode';
 import { CreateSolutionData } from './create-solution-data';

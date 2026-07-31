@@ -15,7 +15,7 @@
  */
 
 import { TargetTypeWrap, TargetSetWrap, TypedWrap, ProjectRefWrap, ImageWrap, LoadImageType, DebuggerWrap } from './csolution-wrap';
-import { CTreeItem, ETreeItemKind } from '../../generic/tree-item';
+import { CTreeItem, ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import path from 'path';
 import { PROJECT_WEST_SUFFIX } from '../constants';
 

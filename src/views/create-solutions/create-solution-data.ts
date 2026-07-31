@@ -21,7 +21,7 @@ import { DataManager } from '../../data-manager/data-manager';
 import { DataSet } from '../../data-manager/dataset';
 import { DeviceData, DeviceId } from '../../data-manager/device-data';
 import { DraftProjectData, DraftProjectFormat, DraftProjectSource, DraftProjectType } from '../../data-manager/draft-project-data';
-import { LazyPromise } from '../../generic/lazy';
+import { LazyPromise } from '@open-cmsis-pack/cmsis-common/lazy';
 import { TreeViewCategory, TreeViewItem } from '../common/components/tree-view';
 import { buildTreeViewCategories } from '../common/components/tree-view-builder';
 import { getDocUrlForAssetReference, getImageDataUrl } from '../webview-asset-retrieval';
@@ -31,7 +31,7 @@ import * as Messages from './messages';
 import { HardwareLists } from './messages';
 import { DataManagerExample } from './view/state/reducer';
 import { SemVer } from 'semver';
-import { Optional } from '../../generic/type-helper';
+import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 
 
 export class CreateSolutionData {

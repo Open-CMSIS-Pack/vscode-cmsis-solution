@@ -81,6 +81,7 @@
     "@fortawesome/fontawesome-free": "^7.2.0",
     "@lydell/node-pty": "^1.1.0",
     "@microsoft/vscode-serial-monitor-api": "^0.1.7",
+    "@open-cmsis-pack/cmsis-common": "^0.1.0",
     "@vscode/codicons": "^0.0.44",
     "antd": "^5.29.3",
     "async-mutex": "^0.5.0",
@@ -1586,8 +1587,8 @@
     ],
     "setupFilesAfterEnv": [
       "./src/__test__/custom-matchers.ts",
-      "./src/generic/map.ts",
-      "./src/generic/array.ts"
+      "@open-cmsis-pack/cmsis-common/map",
+      "@open-cmsis-pack/cmsis-common/array"
     ],
     "clearMocks": true,
     "collectCoverage": true,

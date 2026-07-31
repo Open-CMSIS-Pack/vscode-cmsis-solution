@@ -17,7 +17,7 @@
 import { COutlineItem } from './solution-outline-item';
 import * as manifest from '../../../manifest';
 import * as fs from 'fs';
-import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
+import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import path from 'path';
 
 export function setContextMenuAttributes(item: COutlineItem, fileUri: string, rootFileName: string, topTag?: string): void {
