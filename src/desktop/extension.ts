@@ -94,7 +94,6 @@ import { ManageSolutionCustomEditorProvider, registerManageSolutionCommand } fro
 import { FileOpenGroupOrchestratorImpl } from '../views/file-open-group-orchestrator';
 import { OpenArmExamplesCommand } from '../views/solution-outline/commands/open-arm-examples-command';
 import { TextFile } from '../generic/text-file';
-import * as fsUtils from '../utils/fs-utils';
 import * as vscodeUtils from '../utils/vscode-utils';
 
 let installDefaultToolsetProcess: Promise<void> | undefined;
@@ -103,18 +102,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     console.log(`Activating extension ${manifest.PACKAGE_NAME}`);
 
     TextFile.setErrorReporter(vscodeUtils.showErrorMessage);
-    TextFile.setFileSystem({
-        exists: fsUtils.fileExists,
-        read: fsUtils.readTextFile,
-        write: fsUtils.writeTextFile,
-        unlink: fsUtils.deleteFileIfExists,
-    });
-    context.subscriptions.push({
-        dispose: () => {
-            TextFile.setErrorReporter();
-            TextFile.setFileSystem();
-        }
-    });
+    context.subscriptions.push({ dispose: () => TextFile.setErrorReporter() });
 
     // Companion Extensions
     type SerialMonitorExtension = {

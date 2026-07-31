@@ -3,12 +3,16 @@ global.IS_REACT_ACT_ENVIRONMENT = true;
 
 const { TextFile } = require('./src/generic/text-file');
 const fsUtils = require('./src/utils/fs-utils');
+const path = require('node:path');
 
+// Route TextFile operations through fsUtils so tests can replace them with Jest spies after setup.
 TextFile.setFileSystem({
   exists: fileName => fsUtils.fileExists(fileName),
   read: fileName => fsUtils.readTextFile(fileName),
   write: (fileName, content) => fsUtils.writeTextFile(fileName, content),
   unlink: fileName => fsUtils.deleteFileIfExists(fileName),
+  dirname: fileName => path.dirname(fileName),
+  resolve: (...pathSegments) => path.resolve(...pathSegments),
 });
 
 // Fixes errors in tests, when components from vscode-webview-ui-toolkit are used.

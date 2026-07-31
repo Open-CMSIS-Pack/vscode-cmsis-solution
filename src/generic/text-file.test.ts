@@ -16,12 +16,13 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { TextFile, ETextFileResult, ITextFileSystem } from './text-file';
+import { TextFile, ETextFileResult } from './text-file';
 import { TestDataHandler } from '../__test__/test-data';
 import { EtaExt } from '../eta-ext/eta-ext';
 import { EtaTextRenderer } from '../eta-ext/eta-text-renderer';
 import * as fsUtils from '../utils/fs-utils';
 import { TextParser } from './text-parser';
+import { ITextFileSystem } from './test-file-filesystem';
 
 describe('TextFile', () => {
 
@@ -52,6 +53,8 @@ describe('TextFile', () => {
         read: fsUtils.readTextFile,
         write: fsUtils.writeTextFile,
         unlink: fsUtils.deleteFileIfExists,
+        dirname: path.dirname,
+        resolve: path.resolve,
     };
 
     beforeEach(() => {
@@ -107,13 +110,20 @@ describe('TextFile', () => {
             read: jest.fn().mockReturnValue('Test content'),
             write: jest.fn(),
             unlink: jest.fn(),
+            dirname: jest.fn(fileName => path.dirname(fileName)),
+            resolve: jest.fn((...pathSegments) => path.resolve(...pathSegments)),
         };
         TextFile.setFileSystem(mockFileSystem);
         const tf = new TextFile(TEST_FILE);
 
+        expect(mockFileSystem.dirname).toHaveBeenCalledWith(TEST_FILE);
         expect(await tf.load()).toBe(ETextFileResult.Success);
         expect(mockFileSystem.exists).toHaveBeenCalledWith(TEST_FILE);
         expect(mockFileSystem.read).toHaveBeenCalledWith(TEST_FILE);
+
+        const relativePath = 'relative/path.txt';
+        expect(tf.resolvePath(relativePath)).toBe(path.resolve(path.dirname(TEST_FILE), relativePath));
+        expect(mockFileSystem.resolve).toHaveBeenCalledWith(path.dirname(TEST_FILE), relativePath);
 
         tf.text = 'Changed content';
         expect(await tf.save()).toBe(ETextFileResult.Success);
@@ -123,11 +133,10 @@ describe('TextFile', () => {
         expect(mockFileSystem.unlink).toHaveBeenCalledWith(TEST_FILE);
     });
 
-    it('should fail when the file system is not configured', () => {
+    it('should restore the default file system', () => {
         TextFile.setFileSystem();
 
-        expect(() => new TextFile(TEST_FILE).exists())
-            .toThrow('TextFile file system is not configured');
+        expect(new TextFile(TEST_FILE).exists()).toBe(false);
     });
 
     it('should return Error when loading non-existent file but keep existing data in memory', async () => {
@@ -223,6 +232,8 @@ describe('TextFile', () => {
             read: fsUtils.readTextFile,
             write: () => { throw new Error('Simulated write error'); },
             unlink: fsUtils.deleteFileIfExists,
+            dirname: path.dirname,
+            resolve: path.resolve,
         };
         TextFile.setFileSystem(fileSystem);
 
@@ -241,6 +252,8 @@ describe('TextFile', () => {
             read: () => { throw new Error('Simulated read error'); },
             write: fsUtils.writeTextFile,
             unlink: fsUtils.deleteFileIfExists,
+            dirname: path.dirname,
+            resolve: path.resolve,
         };
         TextFile.setFileSystem(fileSystem);
 

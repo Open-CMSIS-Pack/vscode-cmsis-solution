@@ -14,20 +14,13 @@
  * limitations under the License.
  */
 
-import path from 'node:path';
 import { ITextParser } from './text-parser';
 import { ITextRenderer } from './text-renderer';
 import { ErrorList, IErrorList } from './error-list';
 import { convertCrLfToLf } from './string-utils';
+import { ITextFileSystem, TextFileSystem } from './test-file-filesystem';
 
 export type TextFileErrorReporter = (message: string) => void;
-
-export interface ITextFileSystem {
-    exists(fileName: string): boolean;
-    read(fileName: string): string;
-    write(fileName: string, content: string): void;
-    unlink(fileName: string): void;
-}
 
 /** Describes the result of saving or reading a file.
  *
@@ -192,7 +185,7 @@ export interface ITextFile extends IErrorList {
 
 export class TextFile extends ErrorList implements ITextFile {
     private static errorReporter: TextFileErrorReporter = () => { };
-    private static fileSystem?: ITextFileSystem;
+    private static fileSystem: ITextFileSystem = new TextFileSystem();
 
     private _dirty = false;
     private _fileName: string;
@@ -210,13 +203,10 @@ export class TextFile extends ErrorList implements ITextFile {
     }
 
     public static setFileSystem(fileSystem?: ITextFileSystem): void {
-        TextFile.fileSystem = fileSystem;
+        TextFile.fileSystem = fileSystem ?? new TextFileSystem();
     }
 
     private static getFileSystem(): ITextFileSystem {
-        if (!TextFile.fileSystem) {
-            throw new Error('TextFile file system is not configured');
-        }
         return TextFile.fileSystem;
     }
 
@@ -235,7 +225,7 @@ export class TextFile extends ErrorList implements ITextFile {
         this._fileName = fileName ?? '';
         this.textParser = textParser;
         this.textRenderer = textRenderer;
-        this._fileDir = fileName ? path.dirname(fileName) : '';
+        this._fileDir = fileName ? TextFile.getFileSystem().dirname(fileName) : '';
     }
 
     /**
@@ -309,7 +299,7 @@ export class TextFile extends ErrorList implements ITextFile {
     public set fileName(value: string) {
         if (value !== this._fileName) {
             this._fileName = value;
-            this._fileDir = path.dirname(value);
+            this._fileDir = TextFile.getFileSystem().dirname(value);
         }
     }
 
@@ -541,7 +531,7 @@ export class TextFile extends ErrorList implements ITextFile {
         if (pathToResolve === undefined) {
             return '';
         }
-        return path.resolve(this.fileDir, pathToResolve);
+        return TextFile.getFileSystem().resolve(this.fileDir, pathToResolve);
     }
 
     public isModified(): boolean {
