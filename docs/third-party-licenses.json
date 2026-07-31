@@ -243,12 +243,5 @@
         "spdx": "MIT",
         "url": "https://github.com/raszi/node-tmp",
         "license": "https://github.com/raszi/node-tmp/blob/master/LICENSE"
-    },
-    {
-        "name": "lodash",
-        "version": "4.18.1",
-        "spdx": "MIT",
-        "url": "<FIXME>",
-        "license": "<FIXME>"
     }
 ]
