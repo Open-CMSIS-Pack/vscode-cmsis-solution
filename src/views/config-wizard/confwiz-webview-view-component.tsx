@@ -453,10 +453,6 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         return infos;
     }
 
-    private getTooltipText(text: string, infos: string): string {
-        return infos ? `${text}\n\n${infos}` : text;
-    }
-
     protected createCombobox(element: TreeNodeElement, shouldDisable: boolean = false): React.ReactElement {
         // const options = this.getComboDropItems(element);
         const infos = this.getInfoItems(element);
@@ -481,13 +477,13 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
             // );
         }
 
-        let tooltipMessage = infos;
+        let warningMessage: string | undefined;
         if (hasOverflow) {
             const displayValue = overflowValue ?? extractedValue ?? selectedValue;
-            tooltipMessage = `Value '${displayValue}' overflows ${bitWidth} bits`;
+            warningMessage = `Value '${displayValue}' overflows ${bitWidth} bits`;
         } else if (isInvalid) {
             const displayValue = extractedValue !== undefined ? extractedValue : selectedValue;
-            tooltipMessage = `Value '${displayValue}' is not in the list`;
+            warningMessage = `Value '${displayValue}' is not in the list`;
         }
 
         return (
@@ -498,7 +494,6 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     selected={selectedValue}
                     available={dropItems}
                     style={{ width: '100%' }}
-                    titleText={(value) => value}
                     onChange={(value) => {
                         // const selectElement = event.target as HTMLSelectElement;
                         // this.inputDropdown(selectElement, element);
@@ -510,8 +505,8 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                         this.setState(prevState => ({ forceRender: !prevState.forceRender }));
                         this.messenger.sendNotification(saveElement, HOST_EXTENSION, { documentPath: this.state.documentPath, element, noAnnotationsFound: false });
                     }}
-                    title={tooltipMessage}
-                    warning={isInvalid || hasOverflow ? tooltipMessage : undefined}
+                    title={infos}
+                    warning={warningMessage}
                 />
             </div>
         );
@@ -520,7 +515,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         const infos = this.getInfoItems(element);
         const option = <label
             className='cw-value-text'
-            title={this.getTooltipText(element.value.value, infos)}
+            title={infos}
         >
             {element.value.value}
         </label>;
@@ -535,9 +530,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         const isInconsistent = element.value.inconsistent === true;
         const key = this.getElementKey(element);
 
-        const tooltipText = isInconsistent
-            ? `Inconsistent comment state detected: Some lines in this code block are commented while others are not.\n\nToggling this checkbox will force ALL lines to the same state.\n\n${infos}`
-            : infos;
+        const warningMessage = 'Inconsistent comment state detected: Some lines in this code block are commented while others are not.\n\nToggling this checkbox will force ALL lines to the same state.';
 
         const option = (
             <Checkbox
@@ -560,11 +553,19 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     this.onKeyDownFilter(event);
                 }}
                 checked={checked}
-                title={tooltipText}
+                title={infos}
             />
         );
         return (
-            <div ref={this.keyboardNav.registerValueRef(key)} onFocusCapture={() => this.handleUserFocus(key)}>{option}</div>
+            <div ref={this.keyboardNav.registerValueRef(key)} onFocusCapture={() => this.handleUserFocus(key)}>
+                {option}
+                {isInconsistent && <span
+                    className='codicon codicon-warning checkbox-inconsistent-warning'
+                    role='img'
+                    aria-label={warningMessage}
+                    title={warningMessage}
+                />}
+            </div>
         );
     }
 
@@ -631,7 +632,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         return (
             <label
                 className='cw-value-text'
-                title={this.getTooltipText(element.value.value, infos)}
+                title={infos}
             >
                 {element.value.value}</label>
         );
@@ -639,7 +640,6 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
 
     protected createTextName(element: TreeNodeElement): React.ReactElement {
         const infos = this.getInfoItems(element);
-        const tooltipText = this.getTooltipText(element.name, infos);
         const key = this.getElementKey(element);
         this.keyboardNav.addVisibleKey(key);
         const isActive = this.keyboardNav.isActiveKey(key, this.state.activeKey);
@@ -661,7 +661,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     this.handleUserFocus(key);
                 }}
                 onKeyDown={(event) => this.keyboardNav.onRowKeyDown(event, key)}
-                title={tooltipText}
+                title={infos}
             >
                 {element.name}
             </span>
