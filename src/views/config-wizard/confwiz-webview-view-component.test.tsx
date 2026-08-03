@@ -159,7 +159,7 @@ describe('ConfWiz functional component', () => {
         expect(saveCalls.length).toBe(1);
     });
 
-    it('keeps the full setting name in the DOM and tooltip', () => {
+    it('uses only info annotations for the option tooltip', () => {
         const settingName = 'DBGMCU APB2 peripheral freeze register CPU2 (DBGMCU_APB2FZ2)';
         const textElement: TreeNodeElement = {
             guiId: 2,
@@ -168,7 +168,7 @@ describe('ConfWiz functional component', () => {
             group: false,
             value: { value: '', readOnly: true },
             newValue: { value: '', readOnly: true },
-            infoItems: ['Register configuration details'],
+            infoItems: ['Register configuration details', 'Default: enabled'],
         };
 
         const { getByText } = render(<ConfWiz />);
@@ -176,12 +176,10 @@ describe('ConfWiz functional component', () => {
 
         const settingNameElement = getByText(settingName);
         expect(settingNameElement.textContent).toBe(settingName);
-        expect(settingNameElement.getAttribute('title')).toBe(
-            `${settingName}\n\nRegister configuration details`
-        );
+        expect(settingNameElement.getAttribute('title')).toBe('Register configuration details\nDefault: enabled');
     });
 
-    it('keeps a full static value in a truncatable element and tooltip', () => {
+    it('keeps a full static value in the DOM but not in the value tooltip', () => {
         const longValue = 'A static configuration value that does not fit in a narrow value column';
         const textElement: TreeNodeElement = {
             guiId: 3,
@@ -198,10 +196,10 @@ describe('ConfWiz functional component', () => {
 
         const valueElement = getByText(longValue);
         expect(valueElement.classList.contains('cw-value-text')).toBe(true);
-        expect(valueElement.getAttribute('title')).toBe(`${longValue}\n\nValue details`);
+        expect(valueElement.getAttribute('title')).toBe('Value details');
     });
 
-    it('applies checkbox-inconsistent class and tooltip when inconsistent flag is true', () => {
+    it('keeps checkbox info and inconsistency diagnostics in separate tooltips', () => {
         const checkboxElement: TreeNodeElement = {
             guiId: 2,
             name: 'Check Field',
@@ -217,8 +215,11 @@ describe('ConfWiz functional component', () => {
 
         const checkbox = document.querySelector('input[type="checkbox"]')?.parentElement as HTMLInputElement;
         expect(checkbox.parentElement?.className).toContain('checkbox-inconsistent');
-        expect(checkbox.getAttribute('title')).toContain('Inconsistent comment state detected');
-        expect(checkbox.getAttribute('title')).toContain('Original tooltip info');
+        expect(checkbox.getAttribute('title')).toBe('Original tooltip info');
+
+        const warning = document.querySelector('.checkbox-inconsistent-warning');
+        expect(warning?.getAttribute('title')).toContain('Inconsistent comment state detected');
+        expect(warning?.getAttribute('title')).not.toContain('Original tooltip info');
     });
 
     it('toggles checkbox on Space key press', () => {
@@ -341,14 +342,16 @@ describe('ConfWiz dropdown overflow tooltips', () => {
                 bitWidth: 8,
             },
             newValue: { value: '256 entries', readOnly: false },
-            dropItems: ['4 entries', '256 entries']
+            dropItems: ['4 entries', '256 entries'],
+            infoItems: ['Choose the queue size']
         };
 
         const confWiz = new TestableDropdownConfWiz({});
         const { getByRole } = render(confWiz.getCreateCombobox(element));
         const dropdown = getByRole('combobox') as HTMLSelectElement;
 
-        expect(dropdown.title).toBe("Value '256' overflows 8 bits\n256 entries");
+        expect(dropdown.title).toBe('Choose the queue size');
+        expect(document.querySelector('.compact-dropdown-warn')?.getAttribute('title')).toBe("Value '256' overflows 8 bits");
         expect(dropdown.className).toContain('compact-dropdown-trigger');
     });
 
@@ -365,14 +368,16 @@ describe('ConfWiz dropdown overflow tooltips', () => {
                 bitWidth: 8,
             },
             newValue: { value: '0', readOnly: false },
-            dropItems: ['4 entries', '8 entries']
+            dropItems: ['4 entries', '8 entries'],
+            infoItems: ['Choose the queue size']
         };
 
         const confWiz = new TestableDropdownConfWiz({});
         const { getByRole } = render(confWiz.getCreateCombobox(element));
         const dropdown = getByRole('combobox') as HTMLSelectElement;
 
-        expect(dropdown.title).toBe("Value '0' is not in the list\n0");
+        expect(dropdown.title).toBe('Choose the queue size');
+        expect(document.querySelector('.compact-dropdown-warn')?.getAttribute('title')).toBe("Value '0' is not in the list");
         expect(dropdown.className).toContain('compact-dropdown-trigger');
     });
 });
