@@ -181,6 +181,26 @@ describe('ConfWiz functional component', () => {
         );
     });
 
+    it('keeps a full static value in a truncatable element and tooltip', () => {
+        const longValue = 'A static configuration value that does not fit in a narrow value column';
+        const textElement: TreeNodeElement = {
+            guiId: 3,
+            name: 'Static value',
+            type: GuiTypes.none,
+            group: false,
+            value: { value: longValue, readOnly: true },
+            newValue: { value: longValue, readOnly: true },
+            infoItems: ['Value details'],
+        };
+
+        const { getByText } = render(<ConfWiz />);
+        emitWizardData({ element: makeRoot([textElement]), documentPath: 'test.c', noAnnotationsFound: false });
+
+        const valueElement = getByText(longValue);
+        expect(valueElement.classList.contains('cw-value-text')).toBe(true);
+        expect(valueElement.getAttribute('title')).toBe(`${longValue}\n\nValue details`);
+    });
+
     it('applies checkbox-inconsistent class and tooltip when inconsistent flag is true', () => {
         const checkboxElement: TreeNodeElement = {
             guiId: 2,
@@ -328,7 +348,7 @@ describe('ConfWiz dropdown overflow tooltips', () => {
         const { getByRole } = render(confWiz.getCreateCombobox(element));
         const dropdown = getByRole('combobox') as HTMLSelectElement;
 
-        expect(dropdown.title).toBe('Value \'256\' overflows 8 bits');
+        expect(dropdown.title).toBe("Value '256' overflows 8 bits\n256 entries");
         expect(dropdown.className).toContain('compact-dropdown-trigger');
     });
 
@@ -352,7 +372,7 @@ describe('ConfWiz dropdown overflow tooltips', () => {
         const { getByRole } = render(confWiz.getCreateCombobox(element));
         const dropdown = getByRole('combobox') as HTMLSelectElement;
 
-        expect(dropdown.title).toBe("Value '0' is not in the list");
+        expect(dropdown.title).toBe("Value '0' is not in the list\n0");
         expect(dropdown.className).toContain('compact-dropdown-trigger');
     });
 });

@@ -417,7 +417,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                         <Column
                             header='Option'
                             className='tree-table-column-name'
-                            style={{ width: '50%' }}
+                            style={{ width: '60%' }}
                             expander
                             body={(data: TreeNode, _options: ColumnBodyOptions) => {
                                 return this.createTextName(data.data as TreeNodeElement);
@@ -425,7 +425,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                         />
                         <Column
                             header='Value'
-                            style={{ width: '50%' }}
+                            style={{ width: '40%' }}
                             body={(data: TreeNode, _options: ColumnBodyOptions) => {
                                 const treeNodeData = data.data as TreeNodeElement;
                                 const isDimmed = (data as DTreeNode).dimmed || false;
@@ -451,6 +451,10 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         const infos = element.infoItems.join('\n');
 
         return infos;
+    }
+
+    private getTooltipText(text: string, infos: string): string {
+        return infos ? `${text}\n\n${infos}` : text;
     }
 
     protected createCombobox(element: TreeNodeElement, shouldDisable: boolean = false): React.ReactElement {
@@ -489,10 +493,12 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         return (
             <div ref={this.keyboardNav.registerValueRef(key)} onFocusCapture={() => this.handleUserFocus(key)}>
                 <CompactDropdown
+                    className='tree-dropdown'
                     disabled={element.value.readOnly || shouldDisable}
                     selected={selectedValue}
                     available={dropItems}
                     style={{ width: '100%' }}
+                    titleText={(value) => value}
                     onChange={(value) => {
                         // const selectElement = event.target as HTMLSelectElement;
                         // this.inputDropdown(selectElement, element);
@@ -513,7 +519,8 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
     protected createGroup(element: TreeNodeElement, _shouldDisable: boolean = false): React.ReactElement {
         const infos = this.getInfoItems(element);
         const option = <label
-            title={infos}
+            className='cw-value-text'
+            title={this.getTooltipText(element.value.value, infos)}
         >
             {element.value.value}
         </label>;
@@ -623,7 +630,8 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         const infos = this.getInfoItems(element);
         return (
             <label
-                title={infos}
+                className='cw-value-text'
+                title={this.getTooltipText(element.value.value, infos)}
             >
                 {element.value.value}</label>
         );
@@ -631,7 +639,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
 
     protected createTextName(element: TreeNodeElement): React.ReactElement {
         const infos = this.getInfoItems(element);
-        const tooltipText = infos ? `${element.name}\n\n${infos}` : element.name;
+        const tooltipText = this.getTooltipText(element.name, infos);
         const key = this.getElementKey(element);
         this.keyboardNav.addVisibleKey(key);
         const isActive = this.keyboardNav.isActiveKey(key, this.state.activeKey);
