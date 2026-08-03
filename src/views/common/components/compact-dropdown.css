@@ -47,6 +47,7 @@
 
 .mbs-dropdown.compact-dropdown-popover {
     width: 100%;
+    min-width: 0;
     max-width: 100%;
 }
 
@@ -63,10 +64,13 @@
 
 .compact-dropdown {
     border: var(--arm-compact-dropdown-border-width) solid var(--vscode-panel-border);
+    box-sizing: border-box;
     padding: var(--arm-compact-dropdown-vertical-padding) var(--arm-compact-dropdown-horizontal-padding);
     border-radius: var(--arm-button-radius);
     margin-right: 1em;
     width: fit-content;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .compact-dropdown-trigger {
@@ -74,7 +78,26 @@
     cursor: pointer;
     display: flex;
     justify-content: space-between;
+    min-width: 0;
     width: 100%;
+}
+
+.compact-dropdown-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.compact-dropdown-caret,
+.compact-dropdown-warn,
+.compact-dropdown-tag {
+    flex: 0 0 auto;
+}
+
+.compact-dropdown-tag {
+    margin-left: 4px;
 }
 
 .compact-dropdown-one {
@@ -85,6 +108,8 @@
 
 .compact-dropdown-inner {
     display: flex;
+    min-width: 0;
+    width: 100%;
 }
 
 .vscode-dark .compact-dropdown-addon-before,
