@@ -44,6 +44,7 @@ import { dataManagerFactory, MockDataManager } from '../../data-manager/data-man
 import { CreateSolutionFromDataManager } from '../../solutions/create-solution-from-data-manager';
 import { pathsEqual } from '../../utils/path-utils';
 import { CreateSolutionData } from './create-solution-data';
+import { CreateSolutionController } from './create-solution-controller';
 
 jest.mock('fs', () => ({
     existsSync: jest.fn(),
@@ -127,7 +128,22 @@ describe('CreateSolutionWebviewMain', () => {
 
         mockSolutionCreator = new SolutionCreatorImp(mockCreateSolutionFromDataManager, mockSolutionInitialiser, workspaceFsProvider, mockReconcileSolutionFiles);
 
-        webviewMain = new CreateSolutionWebviewMain(mockSolutionCreator, { extensionUri: EXTENSION_URI } as unknown as ExtensionContext, messageProvider, commandsProvider, workspaceFoldersProvider, dataManager, webviewManager as unknown as WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>);
+        const extensionContext = { extensionUri: EXTENSION_URI } as unknown as ExtensionContext;
+        const dataModel = new CreateSolutionData(extensionContext, webviewManager.asWebviewUri, dataManager);
+        const controller = new CreateSolutionController(
+            dataModel,
+            mockSolutionCreator,
+            messageProvider,
+            commandsProvider,
+            workspaceFoldersProvider,
+            mockFsExistsSync,
+            mockOpenDialog,
+        );
+        webviewMain = new CreateSolutionWebviewMain(
+            webviewManager as unknown as WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>,
+            controller,
+            dataModel,
+        );
 
         await webviewMain.activate({ subscriptions: [] } as unknown as ExtensionContext);
 
@@ -245,23 +261,23 @@ describe('CreateSolutionWebviewMain', () => {
     });
 
     it('waits for forwarded model calls before acknowledging the request', async () => {
-        let resolveTargetData!: () => void;
-        const targetDataPending = new Promise<void>(resolve => {
+        let resolveTargetData!: (value: Awaited<ReturnType<CreateSolutionData['getTargets']>>) => void;
+        const targetDataPending = new Promise<Awaited<ReturnType<CreateSolutionData['getTargets']>>>(resolve => {
             resolveTargetData = resolve;
         });
-        const sendTargetData = jest.spyOn(CreateSolutionData.prototype, 'sendTargetData').mockReturnValue(targetDataPending);
+        const getTargets = jest.spyOn(CreateSolutionData.prototype, 'getTargets').mockReturnValue(targetDataPending);
 
         receiveMessageEmitter.fire({ type: 'DATA_GET_TARGETS', requestId });
         await waitTimeout();
 
-        expect(sendTargetData).toHaveBeenCalledTimes(1);
+        expect(getTargets).toHaveBeenCalledTimes(1);
         expect(webviewManager.sendMessage).not.toHaveBeenCalledWith({
             type: 'REQUEST_SUCCESSFUL',
             requestType: 'DATA_GET_TARGETS',
             requestId,
         });
 
-        resolveTargetData();
+        resolveTargetData({ data: { boards: [], devices: [] }, errors: [] });
         await waitTimeout();
 
         expect(webviewManager.sendMessage).toHaveBeenCalledWith({
@@ -269,7 +285,7 @@ describe('CreateSolutionWebviewMain', () => {
             requestType: 'DATA_GET_TARGETS',
             requestId,
         });
-        sendTargetData.mockRestore();
+        getTargets.mockRestore();
     });
 
     it('handles the OPEN_FILE_PICKER message', async () => {
@@ -298,6 +314,8 @@ describe('CreateSolutionWebviewMain', () => {
         ];
 
         receiveMessageEmitter.fire({ type: 'DATA_GET_DEFAULT_LOCATION', requestId });
+
+        await waitTimeout();
 
         const currentLocation = workspaceFoldersProvider.workspaceFolders[0].uri.fsPath;
         const defaultLocation = path.dirname(currentLocation);

@@ -23,10 +23,8 @@ import { DraftProjectData, DraftProjectFormat, DraftProjectSource, DraftProjectT
 import { LazyPromise } from '@open-cmsis-pack/cmsis-common/lazy';
 import { TreeViewCategory, TreeViewItem } from '../common/components/tree-view';
 import { buildTreeViewCategories } from '../common/components/tree-view-builder';
-import { WebviewManager } from '../webview-manager';
 import { BoardHardwareOption, DeviceHardwareOption, HardwareInfo } from './cmsis-solution-types';
-import { DeviceReference, HardwareLists } from './create-solution-dto';
-import * as Messages from './messages';
+import { DeviceReference, DraftProjectDetails, HardwareLists } from './create-solution-dto';
 import { SemVer } from 'semver';
 import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 
@@ -40,7 +38,7 @@ export class CreateSolutionData {
 
     constructor(
         private readonly context: vscode.ExtensionContext,
-        private readonly webviewManager: WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>,
+        private readonly asWebviewUri: (uri: vscode.Uri) => string,
         private readonly dataManager: DataManager,
     ) {
         this.targetTreeCache = new LazyPromise(() => this.generateTargetTree());
@@ -55,8 +53,8 @@ export class CreateSolutionData {
         this.boardMap.reset();
     }
 
-    public async sendTargetData(requestId: Messages.RequestId): Promise<void> {
-        this.webviewManager.sendMessage({ type: 'TARGET_DATA', requestId, data: await this.targetTreeCache, errors: this.dataManager.errors });
+    public async getTargets(): Promise<{ data: HardwareLists; errors: string[] }> {
+        return { data: await this.targetTreeCache, errors: this.dataManager.errors };
     }
 
     private async generateTargetTree(): Promise<HardwareLists> {
@@ -94,7 +92,7 @@ export class CreateSolutionData {
         return { devices, boards };
     }
 
-    public async sendBoardInfo(boardKey: string, requestId: Messages.RequestId): Promise<void> {
+    public async getBoardInfo(boardKey: string): Promise<HardwareInfo | undefined> {
         const createDeviceInfo = async (device: DeviceData) : Promise<DeviceHardwareOption> => {
             const pack = await device.pack;
             const processors = await device.processors;
@@ -127,17 +125,17 @@ export class CreateSolutionData {
             const resolvedDevices = await Promise.all(mountedDevices.map(d => createDeviceInfo(d)));
             const unresolvedDevices = devices.filter(d => !deviceMap.has(d));
 
-            const data: HardwareInfo = {
+            return {
                 image: await this.getImage(await boardData?.image),
                 memoryInfo: Object.fromEntries(memories.map(m => [ m.name, { size: m.size, count: 1 } ])),
                 debugInterfacesList: await boardData.debugInterfaces,
                 boardInfo: await createBoardInfo(boardData, resolvedDevices, unresolvedDevices),
             };
-            this.webviewManager.sendMessage({ type: 'HARDWARE_INFO', requestId, data });
         }
+        return undefined;
     }
 
-    public async sendDeviceInfo(deviceKey: string, requestId: Messages.RequestId): Promise<void> {
+    public async getDeviceInfo(deviceKey: string): Promise<HardwareInfo | undefined> {
         const createDeviceInfo = async (device: DeviceData) : Promise<DeviceHardwareOption> => {
             const pack = await device.pack;
             const processors = await device.processors;
@@ -151,15 +149,14 @@ export class CreateSolutionData {
 
         const device = (await this.deviceMap).get(deviceKey);
         if (device) {
-            const data: HardwareInfo = {
+            return {
                 image: this.getImagePlaceholderPath(),
                 debugInterfacesList: [],
                 memoryInfo: Object.fromEntries((await device.memories).map(m => [ m.name, { size: m.size, count: 1 } ])),
                 deviceInfo: await createDeviceInfo(device),
             };
-
-            this.webviewManager.sendMessage({ type: 'HARDWARE_INFO', requestId, data });
         }
+        return undefined;
     }
 
     protected listedDraftProjects(draftProjects: DataSet<DraftProjectData>, fromAllPackVersions: boolean) : DraftProjectData[] {
@@ -187,7 +184,7 @@ export class CreateSolutionData {
         return listedDrafts;
     }
 
-    public async sendDatamanagerAppsData(requestId: Messages.RequestId, deviceId?: string, boardId?: string, fromAllPackVersions?: boolean): Promise<void> {
+    public async getDraftProjects(deviceId?: string, boardId?: string, fromAllPackVersions?: boolean): Promise<Array<TreeViewCategory<string>>> {
         const board = (await this.boardMap).id(boardId);
         const device = (await this.deviceMap).id(deviceId);
 
@@ -198,10 +195,7 @@ export class CreateSolutionData {
 
         const listedDrafts = this.listedDraftProjects(this.draftProjects, fromAllPackVersions ?? false);
 
-        const appsTree: Array<TreeViewCategory<string>> = this.generateDraftTree(new DataSet(listedDrafts));
-        if (appsTree) {
-            this.webviewManager.sendMessage({ type: 'DATAMANAGER_APPS_DATA', requestId, data: appsTree });
-        }
+        return this.generateDraftTree(new DataSet(listedDrafts));
     }
 
     private generateDraftTree(drafts: DataSet<DraftProjectData>) {
@@ -245,24 +239,24 @@ export class CreateSolutionData {
         return buildTreeViewCategories(drafts, itemBuilder, categoryMain, categorySub);
     }
 
-    public async getDraftProjectById(id: string) {
+    public async getDraftProject(id: string): Promise<DraftProjectData | undefined> {
         if (this.draftProjects) {
             return this.draftProjects.get(id);
         }
         return undefined;
     }
 
-    public async getDraftProjectInfo(id: string, requestId: Messages.RequestId) {
-        const draftProject = await this.getDraftProjectById(id);
+    public async getDraftProjectInfo(id: string): Promise<DraftProjectDetails | undefined> {
+        const draftProject = await this.getDraftProject(id);
         if (draftProject) {
-            const data = {
+            return {
                 id,
                 name: draftProject.name,
                 description: draftProject.description,
                 draftType: draftProject.draftType,
             };
-            this.webviewManager.sendMessage({ type: 'DRAFTPROJECT_INFO', requestId, data });
         }
+        return undefined;
     }
 
     public async getImage(imagePath?: string) {
@@ -292,7 +286,7 @@ export class CreateSolutionData {
         const svgPath = isDarkTheme ? 'hardware-placeholder-dark.svg' : 'hardware-placeholder-light.svg';
 
         const imageUri = vscode.Uri.joinPath(this.context.extensionUri, 'media', svgPath);
-        return this.webviewManager.asWebviewUri(imageUri);
+        return this.asWebviewUri(imageUri);
     }
 
 }
