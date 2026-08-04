@@ -168,14 +168,25 @@ export class CreateSolutionController {
     private async createSolution(message: Messages.NewSolutionMessage): Promise<void> {
         const request: CreateSolutionRequest = {
             solutionName: message.solutionName,
-            projects: message.projects,
-            targetTypes: message.targetTypes,
-            packs: message.packs,
+            projects: message.projects.map(project => ({
+                name: project.name,
+                processorName: project.processorName,
+                trustzone: project.trustzone,
+            })),
+            targetTypes: message.targetTypes.map(targetType => ({
+                type: targetType.type,
+                board: targetType.board,
+                device: targetType.device,
+            })),
+            packs: message.packs.map(pack => ({
+                pack: pack.pack,
+                forContext: pack.forContext,
+                notForContext: pack.notForContext,
+            })),
             gitInit: message.gitInit,
             solutionLocation: message.solutionLocation,
             solutionFolder: message.solutionFolder,
             compiler: message.compiler,
-            selectedDraftId: message.selectedDraftId,
             showOpenDialog: message.showOpenDialog,
             draftProject: message.selectedDraftId
                 ? await this.dataModel.getDraftProject(message.selectedDraftId)

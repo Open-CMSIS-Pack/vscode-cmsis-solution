@@ -21,8 +21,6 @@ import { Uri } from 'vscode';
 import { URI } from 'vscode-uri';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { DraftProjectData } from '../data-manager/draft-project-data';
-import { NewProject } from '../views/create-solutions/cmsis-solution-types';
-import { CreateSolutionSubmission } from '../views/create-solutions/create-solution-dto';
 import { PROJECT_SUFFIX, SOLUTION_SUFFIX } from './constants';
 import { CreateSolutionFromDataManager } from './create-solution-from-data-manager';
 import { SolutionInitialiser } from './solution-initialiser';
@@ -38,7 +36,34 @@ export type CreatedSolution = {
     forceRteUpdate: boolean;
 }
 
-export type CreateSolutionRequest = CreateSolutionSubmission & {
+export type CreateSolutionProject = {
+    name: string;
+    processorName: string;
+    trustzone: 'off' | 'secure' | 'non-secure';
+}
+
+export type CreateSolutionTargetType = {
+    type: string;
+    board?: string;
+    device?: string;
+}
+
+export type CreateSolutionPackRequirement = {
+    pack: string;
+    forContext: string[];
+    notForContext: string[];
+}
+
+export type CreateSolutionRequest = {
+    solutionName: string;
+    projects: CreateSolutionProject[];
+    targetTypes: CreateSolutionTargetType[];
+    packs: CreateSolutionPackRequirement[];
+    gitInit: boolean;
+    solutionLocation: string;
+    solutionFolder: string;
+    compiler: string;
+    showOpenDialog?: boolean;
     draftProject?: DraftProjectData;
 }
 
@@ -109,7 +134,7 @@ export class SolutionCreatorImp  implements SolutionCreator {
         return { solutionFile: solutionFileUri, solutionDir: solutionDirUri, conversionStatus: 'none', vcpkgConfigured: false, forceRteUpdate: true };
     }
 
-    private async createFiles(solutionDir: string, projectsWithPath: { project: NewProject, path: string }[]) {
+    private async createFiles(solutionDir: string, projectsWithPath: { project: CreateSolutionProject, path: string }[]) {
         await promisify(mkdir)(solutionDir, { recursive: true });
         await Promise.all(projectsWithPath.map(async ({ project, path: projectPath }): Promise<void> => {
             const templateFileName = {

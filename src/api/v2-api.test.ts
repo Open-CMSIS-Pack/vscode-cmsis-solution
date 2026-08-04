@@ -172,6 +172,7 @@ describe('CsolutionApiV2Impl', () => {
             folder: '/path/to/newSolutionFolder',
         };
 
+        mockDataManager.getDraftProjects.mockResolvedValue(new DataSet([draft]));
         mockSolutionCreator.createSolution.mockResolvedValue(createdSolutionFactory());
 
         await api.createNewSolution(options);
@@ -197,11 +198,21 @@ describe('CsolutionApiV2Impl', () => {
             solutionLocation: options.folder,
             solutionFolder: '',
             compiler: '',
-            selectedDraftId: draft.id.key,
             draftProject: draft,
         };
 
         expect(mockSolutionCreator.createSolution).toHaveBeenCalledWith(expectedRequest);
+    });
+
+    it('rejects createNewSolution when the draft cannot be resolved', async () => {
+        const draft = draftProjectDataFactory();
+        mockDataManager.getDraftProjects.mockResolvedValue(new DataSet());
+
+        await expect(api.createNewSolution({
+            draft: draft as CsolutionApiV2.DraftProjectData,
+            folder: '/path/to/newSolutionFolder',
+        })).rejects.toThrow(`Draft project not found: ${draft.id.key}`);
+        expect(mockSolutionCreator.createSolution).not.toHaveBeenCalled();
     });
 
     it('build', async () => {

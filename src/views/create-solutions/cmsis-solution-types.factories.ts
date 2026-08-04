@@ -36,7 +36,6 @@ export const boardHardwareOptionFactory = makeFactory<BoardHardwareOption>({
     key: () => faker.string.uuid(),
     pack: () => ({ vendor: faker.company.name(), name: faker.word.noun(), version: faker.system.semver() }),
     mountedDevices: () => [ deviceHardwareOptionFactory() ],
-    unresolvedDevices: () => [],
 });
 
 export const newProjectFactory = makeFactory<NewProject>({

@@ -15,8 +15,7 @@
  */
 
 import { compareBoardId, compareDeviceId, validTrustZone } from './cmsis-solution-types';
-import { DeviceReference } from './create-solution-dto';
-import { boardIdFactory } from '../../core-tools/core-tools-service.factories';
+import { BoardReference, DeviceReference } from './create-solution-dto';
 import { faker } from '@faker-js/faker';
 import { uniqueFake } from '../../__test__/custom-faker';
 
@@ -48,7 +47,7 @@ describe('compareDeviceId', () => {
 
 describe('compareBoardId', () => {
     it('return true when the ids are identical', () => {
-        const id1 = boardIdFactory().toObject();
+        const id1: BoardReference = { name: 'board', vendor: 'vendor', revision: 'revision' };
         const id2 = { ...id1 };
 
         const result = compareBoardId(id1)(id2);
@@ -56,7 +55,7 @@ describe('compareBoardId', () => {
     });
 
     it('return false when the ids differ by one field', () => {
-        const id = boardIdFactory().toObject();
+        const id: BoardReference = { name: 'board', vendor: 'vendor', revision: 'revision' };
         const idDifferentByVendor = { ...id, vendor: uniqueFake(faker.word.noun, id.vendor) };
         const idDifferentByName = { ...id, name: uniqueFake(faker.word.noun, id.name) };
         const idDifferentByRevision = { ...id, revision: uniqueFake(faker.word.noun, id.revision) };

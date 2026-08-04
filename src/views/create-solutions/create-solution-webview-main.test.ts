@@ -61,7 +61,7 @@ describe('CreateSolutionWebviewMain', () => {
     const solutionLocation = __dirname;
     const solutionFolder = solutionName;
 
-    const targetTypes = [{ type: 'some-type', misc: [] }];
+    const targetTypes = [{ type: 'some-type' }];
     const compiler = 'TEST_COMPILER';
 
     let webviewManager: {
@@ -135,13 +135,12 @@ describe('CreateSolutionWebviewMain', () => {
         expect(mockSolutionCreator.createSolution).toHaveBeenCalledWith({
             solutionName,
             projects,
-            targetTypes,
+            targetTypes: [{ type: 'some-type', board: undefined, device: undefined }],
             packs: [],
             gitInit: false,
             solutionLocation,
             solutionFolder,
             compiler,
-            selectedDraftId: undefined,
             showOpenDialog: undefined,
             draftProject: undefined,
         });

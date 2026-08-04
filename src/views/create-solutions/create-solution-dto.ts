@@ -51,7 +51,6 @@ export type BoardHardwareOption = {
     key: string;
     pack?: PackReference;
     mountedDevices: DeviceHardwareOption[];
-    unresolvedDevices: DeviceReference[];
 }
 
 export type DebugAdapter = {

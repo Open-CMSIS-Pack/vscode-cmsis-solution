@@ -129,12 +129,13 @@ describe('Csolution Extension APIv2', () => {
                 draftType: DraftProjectType.Example,
                 copyTo: mockCopyTo,
             };
-            const draft = draftProjectDataFactory(draftOptions) as CsolutionApiV2.DraftProjectData;
+            const draft = draftProjectDataFactory(draftOptions);
+            mockDataSource.getDraftProjects.mockResolvedValue([draft]);
 
             const api = extension.getApi(2);
 
             await api.createNewSolution({
-                draft: draft,
+                draft: draft as CsolutionApiV2.DraftProjectData,
                 folder: tempFolder,
             });
 

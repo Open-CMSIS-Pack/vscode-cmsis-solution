@@ -16,12 +16,11 @@
 
 import { dedupe } from '../../../array';
 import { serialisePackId } from '../../../packs/pack-id';
-import { TargetType } from '../../../solutions/parsing/solution-file';
 import { serialiseBoardIdWithoutVendor, serialiseDeviceWithoutVendor } from '../../../solutions/solution-serialisers';
 import { TreeViewCategory, TreeViewItem } from '../../common/components/tree-view';
 import { MessageHandler } from '../../message-handler';
 import { NewProject, Trustzone, validTrustZone } from '../cmsis-solution-types';
-import { PackRequirement } from '../create-solution-dto';
+import { PackRequirement, TargetType } from '../create-solution-dto';
 import { addRequestId, IncomingMessage, OutgoingMessage, RequestMessage, RequestMessagePayload } from '../messages';
 import { FieldAndInteraction } from './state/field-and-interaction';
 import { CreateSolutionAction, CreateSolutionState, createSolutionReducer, initialState } from './state/reducer';

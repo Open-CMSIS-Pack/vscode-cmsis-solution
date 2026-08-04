@@ -24,7 +24,7 @@ import { LazyPromise } from '@open-cmsis-pack/cmsis-common/lazy';
 import { TreeViewCategory, TreeViewItem } from '../common/components/tree-view';
 import { buildTreeViewCategories } from '../common/components/tree-view-builder';
 import { BoardHardwareOption, DeviceHardwareOption, HardwareInfo } from './cmsis-solution-types';
-import { DeviceReference, DraftProjectDetails, HardwareLists } from './create-solution-dto';
+import { DraftProjectDetails, HardwareLists } from './create-solution-dto';
 import { SemVer } from 'semver';
 import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 
@@ -81,7 +81,6 @@ export class CreateSolutionData {
                 key: board.id.key,
                 pack: undefined,
                 mountedDevices: [],
-                unresolvedDevices: []
             };
         };
 
@@ -104,14 +103,13 @@ export class CreateSolutionData {
             };
         };
 
-        const createBoardInfo = async (board: BoardData, mountedDevices: DeviceHardwareOption[], unresolvedDevices: DeviceReference[]) : Promise<BoardHardwareOption> => {
+        const createBoardInfo = async (board: BoardData, mountedDevices: DeviceHardwareOption[]) : Promise<BoardHardwareOption> => {
             const pack = await board.pack;
             return {
                 id: { vendor: board.vendor, name: board.name, revision: board.revision ?? '' },
                 key: board.id.key,
                 pack: { name: pack?.name ?? '', vendor: pack?.vendor ?? '', version: pack?.version ?? '' },
                 mountedDevices,
-                unresolvedDevices,
             };
         };
 
@@ -123,13 +121,12 @@ export class CreateSolutionData {
                 .filter((d): d is DeviceData => !!d);
             const memories = await mountedDevices.at(0)?.memories || [];
             const resolvedDevices = await Promise.all(mountedDevices.map(d => createDeviceInfo(d)));
-            const unresolvedDevices = devices.filter(d => !deviceMap.has(d));
 
             return {
                 image: await this.getImage(await boardData?.image),
                 memoryInfo: Object.fromEntries(memories.map(m => [ m.name, { size: m.size, count: 1 } ])),
                 debugInterfacesList: await boardData.debugInterfaces,
-                boardInfo: await createBoardInfo(boardData, resolvedDevices, unresolvedDevices),
+                boardInfo: await createBoardInfo(boardData, resolvedDevices),
             };
         }
         return undefined;

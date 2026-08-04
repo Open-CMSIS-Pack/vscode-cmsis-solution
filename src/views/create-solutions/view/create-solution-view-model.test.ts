@@ -17,11 +17,11 @@
 import { faker } from '@faker-js/faker';
 import { waitTimeout } from '../../../__test__/test-waits';
 import { serialisePackId } from '../../../packs/pack-id';
-import { TargetType } from '../../../solutions/parsing/solution-file';
 import { serialiseBoardIdWithoutVendor, serialiseDeviceWithoutVendor } from '../../../solutions/solution-serialisers';
 import { MockMessageHandler } from '../../__test__/mock-message-handler';
 import { DeviceHardwareOption } from '../cmsis-solution-types';
 import { boardHardwareOptionFactory, deviceHardwareOptionFactory } from '../cmsis-solution-types.factories';
+import { TargetType } from '../create-solution-dto';
 import { IncomingMessage, OutgoingMessage, RequestMessage, RequestMessagePayload } from '../messages';
 import { buildNewSolutionMessage, CreateSolutionViewModel } from './create-solution-view-model';
 import { CreateSolutionState, initialState } from './state/reducer';

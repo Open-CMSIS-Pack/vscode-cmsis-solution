@@ -584,7 +584,6 @@ describe('createSolutionReducer', () => {
                         },
                         key: '',
                         mountedDevices: [],
-                        unresolvedDevices: []
                     }, hadInteraction: true
                 },
                 boardPreview: {
@@ -595,7 +594,6 @@ describe('createSolutionReducer', () => {
                     },
                     key: '',
                     mountedDevices: [],
-                    unresolvedDevices: []
                 },
                 deviceSelection: {
                     value: {
