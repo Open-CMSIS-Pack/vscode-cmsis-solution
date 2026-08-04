@@ -15,13 +15,13 @@
  */
 
 import * as path from 'path';
-import { CTreeItem, ETreeItemKind, ITreeItem } from '../generic/tree-item';
-import { ETextFileResult } from '../generic/text-file';
-import { parseYamlToCTreeItem } from '../generic/tree-item-yaml-parser';
+import { CTreeItem, ETreeItemKind, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { CTreeItemYamlFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { CbuildRunYamlFile } from './files/cbuild-run-yaml-file';
-import { optional, arrayOf, nullable, Schema, string, InferType } from '../generic/schema';
-import { Optional, ArrayElement } from '../generic/type-helper';
-import { extractSuffix, stripPrefix, stripSuffix, stripTwoExtensions } from '../utils/string-utils';
+import { optional, arrayOf, nullable, Schema, string, InferType } from '@open-cmsis-pack/cmsis-common/schema';
+import { Optional, ArrayElement } from '@open-cmsis-pack/cmsis-common/type-helper';
+import { extractSuffix, stripPrefix, stripSuffix, stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { getFileNameNoExt } from '../utils/path-utils';
 import { CbuildIdxFile } from './files/cbuild-idx-file';
 import { ContextDescriptor, contextDescriptorFromString } from './descriptors/descriptors';
@@ -378,11 +378,15 @@ export class CSolution {
         if (loaded !== undefined) {
             return loaded; // already read
         }
-        const yml = parseYamlToCTreeItem('', fileName) as CTreeItem;
-        if (yml) {
-            collection.set(fileName, yml); //add to the supplied map
+        const ymlFile = new CTreeItemYamlFile(fileName);
+        if (await ymlFile.load() !== ETextFileResult.Success) {
+            return undefined;
         }
-        return yml;
+        const root = ymlFile.rootItem;
+        if (root) {
+            collection.set(fileName, root); //add to the supplied map
+        }
+        return root;
     }
 
     public async loadBuildFiles(): Promise<ETextFileResult> {

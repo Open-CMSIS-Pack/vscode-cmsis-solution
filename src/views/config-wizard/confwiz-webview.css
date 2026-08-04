@@ -131,11 +131,23 @@ vscode-text-field {
 }
 
 .cw-row-focus {
-    display: inline-flex;
-    align-items: center;
-    flex: 1;
-    min-width: 0;
+    display: inline;
     outline: none;
+}
+
+.cw-value-text {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.tree-dropdown {
+    min-width: 0;
+    margin-right: 0;
 }
 
 .cw-row-focus:focus-visible {

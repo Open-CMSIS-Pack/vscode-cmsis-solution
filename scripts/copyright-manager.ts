@@ -24,8 +24,8 @@ const args = minimist(process.argv.slice(2));
 const mode = args.mode || 'check';
 
 
-const DEFAULT_INCLUDE_GLOBS = ['src/**/*.ts', 'scripts/**/*.ts', 'api/**/*.ts', '__mocks__/**/*.ts', '**/*.tsx', '**/*.css'];
-const DEFAULT_EXCLUDE_GLOBS = ['**/node_modules/**', 'coverage/**', 'dist/**', 'tools/**', 'src/json-rpc/**', 'test-data/**', 'test-workspace/**'];
+const DEFAULT_INCLUDE_GLOBS = ['src/**/*.ts', 'scripts/**/*.ts', 'api/**/*.ts', 'packages/**/*.ts', '__mocks__/**/*.ts', '**/*.tsx', '**/*.css'];
+const DEFAULT_EXCLUDE_GLOBS = ['**/node_modules/**', '**/coverage/**', '**/dist/**', 'tools/**', 'src/json-rpc/**', 'test-data/**', 'test-workspace/**'];
 
 const includeGlobs: string[] = args.include ? args.include.split(',') : DEFAULT_INCLUDE_GLOBS;
 const excludeGlobs: string[] = args.exclude ? args.exclude.split(',') : DEFAULT_EXCLUDE_GLOBS;

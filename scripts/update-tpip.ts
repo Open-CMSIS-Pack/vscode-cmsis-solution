@@ -21,6 +21,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 type Package = {
     version: string,
     dependencies: { [ name: string ]: string },
+    link?: boolean,
+    resolved?: string,
 };
 
 type PackageJson = {
@@ -44,9 +46,9 @@ type TpipDependency = {
 const FIXME = '<FIXME>' as const;
 
 function getPackage(name: string, lockJson: PackageLockJson) {
-    const node_module = name === '' ? name : `node_modules/${name}`;
-    if (node_module in lockJson.packages) {
-        return lockJson.packages[node_module];
+    const packagePath = (name === '' || name in lockJson.packages) ? name : `node_modules/${name}`;
+    if (packagePath in lockJson.packages) {
+        return lockJson.packages[packagePath];
     }
     console.error(`Package ${name} not found ...`);
     return undefined;
@@ -79,23 +81,25 @@ function resolveInternal(lockJson: PackageLockJson, name: string = '', results?:
     }
     const dependencies = nodePackage.dependencies ?? {};
     for (const dependency of Object.keys(dependencies)) {
-        if (dependency.startsWith('@arm-debug')) {
+        const dependencyPackage = getPackage(dependency, lockJson);
+        if (dependencyPackage?.link && dependencyPackage.resolved) {
+            resolveInternal(lockJson, dependencyPackage.resolved, results);
+        } else if (dependency.startsWith('@arm-debug')) {
             resolveInternal(lockJson, dependency, results);
         } else if (!dependency.startsWith('@types')) {
             if (dependency in results) {
-                const dependencyPackage = getPackage(dependency, lockJson);
                 if (results[dependency] !== dependencyPackage?.version) {
                     console.warn(` Conflicting dependency version ${dependency}: ${results[dependency]} vs ${dependencyPackage?.version}`);
                 }
             } else {
-                results[dependency] = dependencies[dependency];
+                results[dependency] = dependencyPackage?.version ?? dependencies[dependency];
             }
         }
     }
     return results;
 }
 
-function main(jsonFile: string) {
+function main(jsonFile: string, workspace: string = '') {
     let result = 0;
 
     console.log('Updating TPIP information ...');
@@ -113,7 +117,7 @@ function main(jsonFile: string) {
 
     let lockedDepencencies: { [name: string]: string } = {};
     try {
-        lockedDepencencies = resolveInternal(lockJson);
+        lockedDepencencies = resolveInternal(lockJson, workspace);
     } catch (e) {
         if (e instanceof Error) {
             console.error(e.message);
@@ -165,5 +169,5 @@ function main(jsonFile: string) {
     return result;
 }
 
-const retval = main(process.argv[2]);
+const retval = main(process.argv[2], process.argv[3]);
 process.exit(retval);

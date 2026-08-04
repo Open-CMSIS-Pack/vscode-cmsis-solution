@@ -20,7 +20,7 @@ import { DataManager } from '../../data-manager/data-manager';
 import { DataSet } from '../../data-manager/dataset';
 import { DeviceData, DeviceId } from '../../data-manager/device-data';
 import { DraftProjectData, DraftProjectFormat, DraftProjectSource, DraftProjectType } from '../../data-manager/draft-project-data';
-import { LazyPromise } from '../../generic/lazy';
+import { LazyPromise } from '@open-cmsis-pack/cmsis-common/lazy';
 import { TreeViewCategory, TreeViewItem } from '../common/components/tree-view';
 import { buildTreeViewCategories } from '../common/components/tree-view-builder';
 import { WebviewManager } from '../webview-manager';
@@ -28,7 +28,7 @@ import { BoardHardwareOption, DeviceHardwareOption, HardwareInfo } from './cmsis
 import { DeviceReference, HardwareLists } from './create-solution-dto';
 import * as Messages from './messages';
 import { SemVer } from 'semver';
-import { Optional } from '../../generic/type-helper';
+import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 
 
 export class CreateSolutionData {

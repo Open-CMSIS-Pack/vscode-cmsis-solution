@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { constructor } from '../../generic/constructor';
-import { CTreeItemYamlFile, ITreeItemFile } from '../../generic/tree-item-file';
+import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
+import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { getFileNameNoExt } from '../../utils/path-utils';
 import { PROJECT_WEST_SUFFIX } from '../constants';
 

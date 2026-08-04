@@ -16,7 +16,7 @@
 
 import * as fs from 'node:fs';
 import * as fsUtils from '../utils/fs-utils';
-import { EtaExt } from '../generic/eta-ext';
+import { EtaExt } from '../eta-ext/eta-ext';
 import { CSolution } from '../solutions/csolution';
 import { CbuildRunYaml, CbuildRunYamlFile, DebugTopology } from '../solutions/files/cbuild-run-yaml-file';
 import { solutionManagerFactory } from '../solutions/solution-manager.factories';

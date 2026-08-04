@@ -15,21 +15,27 @@
  */
 
 import path from 'path';
+import * as fs from 'node:fs';
 import { DebugAdapter, DebugAdaptersYamlFile, loadDebugAdaptersYml, UISection, UISectionChildren } from '../../debug/debug-adapters-yaml-file';
-import { ETextFileResult } from '../../generic/text-file';
-import { ETreeItemKind } from '../../generic/tree-item';
-import { Optional } from '../../generic/type-helper';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { DebuggerWrap, ImageWrap, ProjectRefWrap, TargetSetWrap, TargetTypeWrap } from '../../solutions/files/csolution-wrap';
 import { CSolutionYamlFile } from '../../solutions/files/csolution-yaml-file';
 import { SolutionManager } from '../../solutions/solution-manager';
 import * as fsUtils from '../../utils/fs-utils';
 import { getFileNameNoExt } from '../../utils/path-utils';
-import { extractSuffix, stripTwoExtensions } from '../../utils/string-utils';
+import { extractSuffix, stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { CmsisSettingsJsonFile } from './../../global/cmsis-settings-json-file';
 import { GenericPropertyList, getSelectedTargetSet, ImageSelection, ProjectSelection, SolutionData, TargetSet, TargetType } from './view/state/manage-solution-state';
 import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
 
 export type CustomDebugAdapterDefaults = { [adapterName: string]: { [propertyName: string]: string | number } };
+
+type FileStamp = {
+    mtimeMs: number;
+    size: number;
+};
 
 /**
  * Class to connect Csolution model represented by CsolutionYmlFile with ManageSolutionWebviewMain
@@ -43,6 +49,8 @@ export class ManageSolutionController {
     private availableCoreNamesCache: string[] = [];
     public customDebugAdapterDefaults: CustomDebugAdapterDefaults = {};
     private _csolutionService?: CsolutionService;
+    private csolutionFileStamp?: FileStamp | null;
+    private cmsisJsonFileStamp?: FileStamp | null;
 
     /**
      * Gets the initialized csolution service instance.
@@ -114,6 +122,7 @@ export class ManageSolutionController {
         const result = await this.csolutionYml.load(csolutionPath);
         this.cmsisJsonFile.solutionPath = this.solutionPath;
         await this.cmsisJsonFile.load();
+        this.refreshFileStamps();
         return result;
     }
 
@@ -137,10 +146,12 @@ export class ManageSolutionController {
         const cmsisJsonRes = csolution.cmsisJsonFile.copyFrom(this.cmsisJsonFile);
         if (cmsisJsonRes !== ETextFileResult.Unchanged) {
             await this.cmsisJsonFile.save();
+            this.cmsisJsonFileStamp = this.getCurrentFileStamp(this.cmsisJsonFile.fileName);
         }
         const solutionRes = csolution.csolutionYml.copyFrom(this.csolutionYml);
         if (solutionRes !== ETextFileResult.Unchanged) {
             await this.csolutionYml.save();
+            this.csolutionFileStamp = this.getCurrentFileStamp(this.csolutionYml.fileName);
         } else if (cmsisJsonRes !== ETextFileResult.Unchanged) {
             await solutionManager.refresh(); // trigger reload and cbuild-setup run
         }
@@ -185,6 +196,7 @@ export class ManageSolutionController {
         }
 
         await this.cmsisJsonFile.save();
+        this.cmsisJsonFileStamp = this.getCurrentFileStamp(this.cmsisJsonFile.fileName);
         return true;
     }
 
@@ -196,7 +208,45 @@ export class ManageSolutionController {
      * outside the current controller instance.
      */
     public hasExternalFileChanges(): boolean {
-        return this.csolutionYml.hasExternalFileChanged() || this.cmsisJsonFile.hasExternalFileChanged();
+        const currentCsolutionFileStamp = this.getCurrentFileStamp(this.csolutionYml.fileName);
+        const currentCmsisJsonFileStamp = this.getCurrentFileStamp(this.cmsisJsonFile.fileName);
+        const csolutionChanged = this.hasFileStampChanged(this.csolutionFileStamp, currentCsolutionFileStamp);
+        const cmsisJsonChanged = this.hasFileStampChanged(this.cmsisJsonFileStamp, currentCmsisJsonFileStamp);
+
+        this.csolutionFileStamp = currentCsolutionFileStamp;
+        this.cmsisJsonFileStamp = currentCmsisJsonFileStamp;
+        return csolutionChanged || cmsisJsonChanged;
+    }
+
+    private refreshFileStamps(): void {
+        this.csolutionFileStamp = this.getCurrentFileStamp(this.csolutionYml.fileName);
+        this.cmsisJsonFileStamp = this.getCurrentFileStamp(this.cmsisJsonFile.fileName);
+    }
+
+    private getCurrentFileStamp(fileName: string): FileStamp | null {
+        if (!fileName || !fsUtils.fileExists(fileName)) {
+            return null;
+        }
+        try {
+            const stat = fs.statSync(fileName);
+            return {
+                mtimeMs: stat.mtimeMs,
+                size: stat.size,
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    private hasFileStampChanged(previousStamp: FileStamp | null | undefined, currentStamp: FileStamp | null): boolean {
+        if (previousStamp === undefined) {
+            return false;
+        }
+        if (previousStamp === null || currentStamp === null) {
+            return previousStamp !== currentStamp;
+        }
+        return currentStamp.mtimeMs !== previousStamp.mtimeMs
+            || currentStamp.size !== previousStamp.size;
     }
 
     /**

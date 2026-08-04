@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { CTreeItem } from '../../../generic/tree-item';
-import { ETextFileResult } from '../../../generic/text-file';
-import { parseYamlToCTreeItem } from '../../../generic/tree-item-yaml-parser';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
 import { CSolution } from '../../../solutions/csolution';
 import { HardwareItemBuilder } from './solution-outline-hardware-item';
 import { TestDataHandler } from '../../../__test__/test-data';

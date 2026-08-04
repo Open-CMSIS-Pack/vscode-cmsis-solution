@@ -1,0 +1,248 @@
+{
+  "name": "@open-cmsis-pack/cmsis-common",
+  "version": "0.1.0",
+  "description": "Shared foundations and CMSIS file-model APIs",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution.git",
+    "directory": "packages/cmsis-common"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://npm.pkg.github.com"
+  },
+  "engines": {
+    "node": "^22.22.0",
+    "npm": "^10.0.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "constructor": [
+        "dist/constructor.d.ts"
+      ],
+      "error-list": [
+        "dist/error-list.d.ts"
+      ],
+      "lazy": [
+        "dist/lazy.d.ts"
+      ],
+      "schema": [
+        "dist/schema.d.ts"
+      ],
+      "string-utils": [
+        "dist/string-utils.d.ts"
+      ],
+      "type-helper": [
+        "dist/type-helper.d.ts"
+      ],
+      "text-parser": [
+        "dist/text/text-parser.d.ts"
+      ],
+      "text-renderer": [
+        "dist/text/text-renderer.d.ts"
+      ],
+      "attributed-item": [
+        "dist/tree/attributed-item.d.ts"
+      ],
+      "tree-item-builder": [
+        "dist/tree/tree-item-builder.d.ts"
+      ],
+      "tree-item-json-parser": [
+        "dist/tree/tree-item-json-parser.d.ts"
+      ],
+      "tree-item-parser": [
+        "dist/tree/tree-item-parser.d.ts"
+      ],
+      "tree-item-wrapper": [
+        "dist/tree/tree-item-wrapper.d.ts"
+      ],
+      "tree-item-xml-parser": [
+        "dist/tree/tree-item-xml-parser.d.ts"
+      ],
+      "tree-item-yaml-parser": [
+        "dist/tree/tree-item-yaml-parser.d.ts"
+      ],
+      "tree-item": [
+        "dist/tree/tree-item.d.ts"
+      ],
+      "json-file": [
+        "dist/files/json-file.d.ts"
+      ],
+      "text-file-system": [
+        "dist/files/text-file-system.d.ts"
+      ],
+      "text-file": [
+        "dist/files/text-file.d.ts"
+      ],
+      "tree-item-file": [
+        "dist/files/tree-item-file.d.ts"
+      ],
+      "yaml-file": [
+        "dist/files/yaml-file.d.ts"
+      ],
+      "array": [
+        "dist/extensions/array.d.ts"
+      ],
+      "map": [
+        "dist/extensions/map.d.ts"
+      ]
+    }
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./constructor": {
+      "types": "./dist/constructor.d.ts",
+      "require": "./dist/constructor.js",
+      "default": "./dist/constructor.js"
+    },
+    "./error-list": {
+      "types": "./dist/error-list.d.ts",
+      "require": "./dist/error-list.js",
+      "default": "./dist/error-list.js"
+    },
+    "./lazy": {
+      "types": "./dist/lazy.d.ts",
+      "require": "./dist/lazy.js",
+      "default": "./dist/lazy.js"
+    },
+    "./schema": {
+      "types": "./dist/schema.d.ts",
+      "require": "./dist/schema.js",
+      "default": "./dist/schema.js"
+    },
+    "./string-utils": {
+      "types": "./dist/string-utils.d.ts",
+      "require": "./dist/string-utils.js",
+      "default": "./dist/string-utils.js"
+    },
+    "./type-helper": {
+      "types": "./dist/type-helper.d.ts",
+      "require": "./dist/type-helper.js",
+      "default": "./dist/type-helper.js"
+    },
+    "./text-parser": {
+      "types": "./dist/text/text-parser.d.ts",
+      "require": "./dist/text/text-parser.js",
+      "default": "./dist/text/text-parser.js"
+    },
+    "./text-renderer": {
+      "types": "./dist/text/text-renderer.d.ts",
+      "require": "./dist/text/text-renderer.js",
+      "default": "./dist/text/text-renderer.js"
+    },
+    "./attributed-item": {
+      "types": "./dist/tree/attributed-item.d.ts",
+      "require": "./dist/tree/attributed-item.js",
+      "default": "./dist/tree/attributed-item.js"
+    },
+    "./tree-item-builder": {
+      "types": "./dist/tree/tree-item-builder.d.ts",
+      "require": "./dist/tree/tree-item-builder.js",
+      "default": "./dist/tree/tree-item-builder.js"
+    },
+    "./tree-item-json-parser": {
+      "types": "./dist/tree/tree-item-json-parser.d.ts",
+      "require": "./dist/tree/tree-item-json-parser.js",
+      "default": "./dist/tree/tree-item-json-parser.js"
+    },
+    "./tree-item-parser": {
+      "types": "./dist/tree/tree-item-parser.d.ts",
+      "require": "./dist/tree/tree-item-parser.js",
+      "default": "./dist/tree/tree-item-parser.js"
+    },
+    "./tree-item-wrapper": {
+      "types": "./dist/tree/tree-item-wrapper.d.ts",
+      "require": "./dist/tree/tree-item-wrapper.js",
+      "default": "./dist/tree/tree-item-wrapper.js"
+    },
+    "./tree-item-xml-parser": {
+      "types": "./dist/tree/tree-item-xml-parser.d.ts",
+      "require": "./dist/tree/tree-item-xml-parser.js",
+      "default": "./dist/tree/tree-item-xml-parser.js"
+    },
+    "./tree-item-yaml-parser": {
+      "types": "./dist/tree/tree-item-yaml-parser.d.ts",
+      "require": "./dist/tree/tree-item-yaml-parser.js",
+      "default": "./dist/tree/tree-item-yaml-parser.js"
+    },
+    "./tree-item": {
+      "types": "./dist/tree/tree-item.d.ts",
+      "require": "./dist/tree/tree-item.js",
+      "default": "./dist/tree/tree-item.js"
+    },
+    "./json-file": {
+      "types": "./dist/files/json-file.d.ts",
+      "require": "./dist/files/json-file.js",
+      "default": "./dist/files/json-file.js"
+    },
+    "./text-file-system": {
+      "types": "./dist/files/text-file-system.d.ts",
+      "require": "./dist/files/text-file-system.js",
+      "default": "./dist/files/text-file-system.js"
+    },
+    "./text-file": {
+      "types": "./dist/files/text-file.d.ts",
+      "require": "./dist/files/text-file.js",
+      "default": "./dist/files/text-file.js"
+    },
+    "./tree-item-file": {
+      "types": "./dist/files/tree-item-file.d.ts",
+      "require": "./dist/files/tree-item-file.js",
+      "default": "./dist/files/tree-item-file.js"
+    },
+    "./yaml-file": {
+      "types": "./dist/files/yaml-file.d.ts",
+      "require": "./dist/files/yaml-file.js",
+      "default": "./dist/files/yaml-file.js"
+    },
+    "./array": {
+      "types": "./dist/extensions/array.d.ts",
+      "require": "./dist/extensions/array.js",
+      "default": "./dist/extensions/array.js"
+    },
+    "./map": {
+      "types": "./dist/extensions/map.d.ts",
+      "require": "./dist/extensions/map.js",
+      "default": "./dist/extensions/map.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md",
+    "third-party-licenses.md"
+  ],
+  "sideEffects": [
+    "./dist/extensions/array.js",
+    "./dist/extensions/map.js"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "prepack": "npm run clean && npm run build",
+    "test": "jest --config jest.config.js --passWithNoTests",
+    "watch": "tsc -p tsconfig.json --watch --preserveWatchOutput"
+  },
+  "dependencies": {
+    "jsonc-parser": "^3.3.1",
+    "lodash": "^4.18.1",
+    "sax-ts": "^1.2.13",
+    "yaml": "^2.8.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/lodash": "^4.17.24",
+    "@types/node": "^22.19.15",
+    "dedent": "1.7.1",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.4.6",
+    "typescript": "^5.9.3"
+  }
+}

@@ -2,6 +2,7 @@
     "compilerOptions": {
         "target": "ES2021",
         "module": "commonjs",
+        "rootDir": "src",
         "outDir": "out",
         "strict": true,
         "sourceMap": true,

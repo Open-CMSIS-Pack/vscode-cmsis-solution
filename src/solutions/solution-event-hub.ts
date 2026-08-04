@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 import * as vscode from 'vscode';
-import { constructor } from '../generic/constructor';
+import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { LogMessages, VariablesConfiguration } from '../json-rpc/csolution-rpc-client';
 import { Severity } from './constants';
 

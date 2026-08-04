@@ -394,7 +394,6 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     <TreeTable
                         value={filteredChildren}
                         header={header}
-                        tableStyle={{ minWidth: '30rem' }}
                         expandedKeys={this.state.expandedKeys}
                         onToggle={(event: { value: Record<string, boolean> }) => {
                             this.pendingRefocus = true;
@@ -418,7 +417,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                         <Column
                             header='Option'
                             className='tree-table-column-name'
-                            style={{ width: '50%' }}
+                            style={{ width: '60%' }}
                             expander
                             body={(data: TreeNode, _options: ColumnBodyOptions) => {
                                 return this.createTextName(data.data as TreeNodeElement);
@@ -426,7 +425,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                         />
                         <Column
                             header='Value'
-                            style={{ width: '50%' }}
+                            style={{ width: '40%' }}
                             body={(data: TreeNode, _options: ColumnBodyOptions) => {
                                 const treeNodeData = data.data as TreeNodeElement;
                                 const isDimmed = (data as DTreeNode).dimmed || false;
@@ -478,18 +477,19 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
             // );
         }
 
-        let tooltipMessage = infos;
+        let warningMessage: string | undefined;
         if (hasOverflow) {
             const displayValue = overflowValue ?? extractedValue ?? selectedValue;
-            tooltipMessage = `Value '${displayValue}' overflows ${bitWidth} bits`;
+            warningMessage = `Value '${displayValue}' overflows ${bitWidth} bits`;
         } else if (isInvalid) {
             const displayValue = extractedValue !== undefined ? extractedValue : selectedValue;
-            tooltipMessage = `Value '${displayValue}' is not in the list`;
+            warningMessage = `Value '${displayValue}' is not in the list`;
         }
 
         return (
             <div ref={this.keyboardNav.registerValueRef(key)} onFocusCapture={() => this.handleUserFocus(key)}>
                 <CompactDropdown
+                    className='tree-dropdown'
                     disabled={element.value.readOnly || shouldDisable}
                     selected={selectedValue}
                     available={dropItems}
@@ -505,8 +505,8 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                         this.setState(prevState => ({ forceRender: !prevState.forceRender }));
                         this.messenger.sendNotification(saveElement, HOST_EXTENSION, { documentPath: this.state.documentPath, element, noAnnotationsFound: false });
                     }}
-                    title={tooltipMessage}
-                    warning={isInvalid || hasOverflow ? tooltipMessage : undefined}
+                    title={infos}
+                    warning={warningMessage}
                 />
             </div>
         );
@@ -514,6 +514,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
     protected createGroup(element: TreeNodeElement, _shouldDisable: boolean = false): React.ReactElement {
         const infos = this.getInfoItems(element);
         const option = <label
+            className='cw-value-text'
             title={infos}
         >
             {element.value.value}
@@ -529,9 +530,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         const isInconsistent = element.value.inconsistent === true;
         const key = this.getElementKey(element);
 
-        const tooltipText = isInconsistent
-            ? `Inconsistent comment state detected: Some lines in this code block are commented while others are not.\n\nToggling this checkbox will force ALL lines to the same state.\n\n${infos}`
-            : infos;
+        const warningMessage = 'Inconsistent comment state detected: Some lines in this code block are commented while others are not.\n\nToggling this checkbox will force ALL lines to the same state.';
 
         const option = (
             <Checkbox
@@ -554,11 +553,19 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     this.onKeyDownFilter(event);
                 }}
                 checked={checked}
-                title={tooltipText}
+                title={infos}
             />
         );
         return (
-            <div ref={this.keyboardNav.registerValueRef(key)} onFocusCapture={() => this.handleUserFocus(key)}>{option}</div>
+            <div ref={this.keyboardNav.registerValueRef(key)} onFocusCapture={() => this.handleUserFocus(key)}>
+                {option}
+                {isInconsistent && <span
+                    className='codicon codicon-warning checkbox-inconsistent-warning'
+                    role='img'
+                    aria-label={warningMessage}
+                    title={warningMessage}
+                />}
+            </div>
         );
     }
 
@@ -624,6 +631,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         const infos = this.getInfoItems(element);
         return (
             <label
+                className='cw-value-text'
                 title={infos}
             >
                 {element.value.value}</label>

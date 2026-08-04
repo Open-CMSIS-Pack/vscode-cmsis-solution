@@ -21,9 +21,9 @@ import {
     setHeaderContext,
     setLinkerContext,
 } from './solution-outline-utils';
-import { CTreeItem } from '../../../generic/tree-item';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import path from 'path';
-import { parseYamlToCTreeItem } from '../../../generic/tree-item-yaml-parser';
+import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
 import { COutlineItem } from './solution-outline-item';
 import * as manifest from '../../../manifest';
 import { TestDataHandler } from '../../../__test__/test-data';

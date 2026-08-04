@@ -15,7 +15,7 @@
  */
 
 import path from 'path';
-import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
+import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { buildDocFilePath } from '../../../util';
 import { FileItemBuilder } from './solution-outline-file-item';
 import { COutlineItem } from './solution-outline-item';

@@ -20,7 +20,7 @@ import { MockSolutionManager, solutionManagerFactory } from '../../solutions/sol
 import { extensionContextFactory } from '../../vscode-api/extension-context.factories';
 import { PACKAGE_NAME } from '../../manifest';
 import { CSolution } from '../../solutions/csolution';
-import { CTreeItem } from '../../generic/tree-item';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { BuildStopCommand } from './build-stop-command';
 import { BuildTaskProviderImpl } from './build-task-provider';
 

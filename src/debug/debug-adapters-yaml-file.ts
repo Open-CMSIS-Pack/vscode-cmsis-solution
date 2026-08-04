@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { createInterfaceFactory } from '../generic/interface-factory';
-import { ETextFileResult } from '../generic/text-file';
-import { ITreeItem, CTreeItem } from '../generic/tree-item';
-import { CTreeItemYamlFile, ITreeItemFile } from '../generic/tree-item-file';
-import { Optional } from '../generic/type-helper';
+import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { ITreeItem, CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
+import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { DEBUG_ADAPTERS_YAML_FILE_PATH } from '../manifest';
 import type { PathType } from '../views/manage-solution/types';
 
@@ -158,7 +158,7 @@ class DebugAdaptersYamlFileImpl extends CTreeItemYamlFile implements DebugAdapte
     }
 };
 
-export const DebugAdaptersYamlFile = createInterfaceFactory<DebugAdaptersYamlFile>(DebugAdaptersYamlFileImpl);
+export const DebugAdaptersYamlFile = constructor<typeof DebugAdaptersYamlFileImpl, DebugAdaptersYamlFile>(DebugAdaptersYamlFileImpl);
 
 
 export async function loadDebugAdaptersYml(): Promise<DebugAdaptersYamlFile | undefined> {

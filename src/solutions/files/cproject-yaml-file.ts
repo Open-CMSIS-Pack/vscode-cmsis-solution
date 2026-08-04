@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import { CTreeItemYamlFile, ITreeItemFile } from '../../generic/tree-item-file';
-import { CTreeItem, ETreeItemKind } from '../../generic/tree-item';
-import { constructor } from '../../generic/constructor';
-import { extractPname } from '../../utils/string-utils';
+import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
+import { CTreeItem, ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
+import { extractPname } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { ProjectRefWrap } from './csolution-wrap';
-import { ETextFileResult } from '../../generic/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 
 
 /**
