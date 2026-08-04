@@ -17,13 +17,16 @@
 import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { CTreeItem, ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
-import { CSolutionWrap, ICSolutionWrap, TargetSetWrap, TargetTypeWrap } from './csolution-wrap';
+import { CSolutionWrap, ICSolutionWrap, ProjectRefWrap, TargetSetWrap, TargetTypeWrap } from './csolution-wrap';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { constructProjectYamlFile, CProjectYamlFile } from './cproject-yaml-file';
 import { getFileNameNoExt } from '../../utils/path-utils';
 import { extractVersion } from '@open-cmsis-pack/cmsis-common/string-utils';
 import * as semver from 'semver';
 import { MIN_TOOLBOX_VERSION } from '../../manifest';
+import { appendSequenceMapEntry, setContextRestrictions } from './yaml-creation-helpers';
+
+const SUPPORTED_COMPILERS = ['AC6', 'GCC', 'IAR', 'CLANG'] as const;
 
 
 /**
@@ -38,6 +41,12 @@ import { MIN_TOOLBOX_VERSION } from '../../manifest';
  * offering methods to access solution wrappers and target sets.
  */
 export interface CSolutionYamlFile extends ITreeItemFile, ICSolutionWrap {
+    /**
+     * Loads a solution template without loading projects or synthesizing target sets,
+     * then rebases the parsed tree onto a destination file.
+     */
+    loadTemplate(templateFileName: string, destinationFileName: string): Promise<ETextFileResult>;
+
     /**
      * Gets the underlying {@link CSolutionWrap} instance associated with this YAML file.
      */
@@ -57,6 +66,19 @@ export interface CSolutionYamlFile extends ITreeItemFile, ICSolutionWrap {
      * @returns array of strings
      */
     get compilers(): string[];
+
+    /**
+     * Gets or sets the solution compiler. Unsupported compiler identifiers are rejected.
+     */
+    get compiler(): string | undefined;
+    set compiler(compiler: string | undefined);
+
+    /**
+     * Appends creation data while preserving request order.
+     */
+    appendProjectRef(reference: string): ProjectRefWrap;
+    appendTargetType(name: string, device?: string, board?: string): TargetTypeWrap;
+    addPack(pack: string, forContext?: readonly string[], notForContext?: readonly string[]): CTreeItem;
 
     /**
      * Returns cproject for given projectName or path
@@ -86,6 +108,19 @@ class CSolutionYamlFileImpl extends CTreeItemYamlFile implements CSolutionYamlFi
         const topItem = super.ensureTopItem(tag);
         topItem.createChild('target-types', true).setKind(ETreeItemKind.Sequence);
         return topItem;
+    }
+
+    async loadTemplate(templateFileName: string, destinationFileName: string): Promise<ETextFileResult> {
+        const result = await super.load(templateFileName);
+        if (result === ETextFileResult.Success || result === ETextFileResult.Unchanged) {
+            this._solutionWrap = undefined;
+            this._cprojects.clear();
+            this.fileName = destinationFileName;
+            if (this.rootItem) {
+                this.rootItem.rootFileName = destinationFileName;
+            }
+        }
+        return result;
     }
 
     get solutionWrap(): CSolutionWrap {
@@ -121,6 +156,40 @@ class CSolutionYamlFileImpl extends CTreeItemYamlFile implements CSolutionYamlFi
             }
         }
         return Array.from(compilers);
+    }
+
+    get compiler(): string | undefined {
+        return this.topItem?.getValue('compiler');
+    }
+
+    set compiler(compiler: string | undefined) {
+        if (compiler && !SUPPORTED_COMPILERS.includes(compiler as typeof SUPPORTED_COMPILERS[number])) {
+            throw new Error(`Unsupported compiler '${compiler}'`);
+        }
+        this.ensureTopItem('solution').setValue('compiler', compiler || undefined);
+    }
+
+    appendProjectRef(reference: string): ProjectRefWrap {
+        return new ProjectRefWrap(appendSequenceMapEntry(this.ensureTopItem('solution'), 'projects', 'project', reference));
+    }
+
+    appendTargetType(name: string, device?: string, board?: string): TargetTypeWrap {
+        const targetType = new TargetTypeWrap(appendSequenceMapEntry(this.ensureTopItem('solution'), 'target-types', 'type', name));
+        targetType.device = device;
+        targetType.board = board;
+        return targetType;
+    }
+
+    addPack(pack: string, forContext: readonly string[] = [], notForContext: readonly string[] = []): CTreeItem {
+        const packs = this.ensureTopItem('solution').createChild('packs', true).setKind(ETreeItemKind.Sequence);
+        const existingPack = packs.getChildren().find(item => item.getValue('pack') === pack) as CTreeItem | undefined;
+        if (existingPack) {
+            setContextRestrictions(existingPack, forContext, notForContext);
+            return existingPack;
+        }
+        const packItem = appendSequenceMapEntry(this.ensureTopItem('solution'), 'packs', 'pack', pack);
+        setContextRestrictions(packItem, forContext, notForContext);
+        return packItem;
     }
 
     purgeProjectContexts(targetSet: TargetSetWrap) {

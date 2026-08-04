@@ -16,8 +16,9 @@
 
 import { faker } from '@faker-js/faker';
 import { waitTimeout } from '../../../__test__/test-waits';
+import { serialisePackId } from '../../../packs/pack-id';
 import { TargetType } from '../../../solutions/parsing/solution-file';
-import { serialiseBoardIdWithoutVendor, serialiseDeviceWithoutVendor, serialisePackReference } from '../../../solutions/solution-serialisers';
+import { serialiseBoardIdWithoutVendor, serialiseDeviceWithoutVendor } from '../../../solutions/solution-serialisers';
 import { MockMessageHandler } from '../../__test__/mock-message-handler';
 import { DeviceHardwareOption } from '../cmsis-solution-types';
 import { boardHardwareOptionFactory, deviceHardwareOptionFactory } from '../cmsis-solution-types.factories';
@@ -256,7 +257,7 @@ describe('CreateSolutionViewModel', () => {
                 solutionLocation: '/solution/location',
                 solutionFolder: 'Solution Name',
                 packs: [
-                    { pack: serialisePackReference(device.pack), forContext: [], notForContext: [] },
+                    { pack: serialisePackId(device.pack!), forContext: [], notForContext: [] },
                     { pack: 'ARM::CMSIS', forContext: [], notForContext: [] },
                 ],
                 targetTypes: [{ type: inputState.targetType.value, device: device.id.name }],
@@ -282,8 +283,8 @@ describe('CreateSolutionViewModel', () => {
 
             expect(output.targetTypes).toEqual([expectedTargetType]);
             expect(output.packs).toEqual([
-                { pack: serialisePackReference(board.pack), forContext: [], notForContext: [] },
-                { pack: serialisePackReference(device.pack), forContext: [], notForContext: [] },
+                { pack: serialisePackId(board.pack!), forContext: [], notForContext: [] },
+                { pack: serialisePackId(device.pack!), forContext: [], notForContext: [] },
                 { pack: 'ARM::CMSIS', forContext: [], notForContext: [] },
             ]);
         });

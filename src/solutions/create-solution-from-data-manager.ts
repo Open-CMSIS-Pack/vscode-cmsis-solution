@@ -19,7 +19,6 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { RelativePattern, Uri } from 'vscode';
 import { DraftProjectType } from '../data-manager/draft-project-data';
-import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { WorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { MdkToCsolutionConverter } from './mdk-conversion/convert-mdk-command';
@@ -76,22 +75,8 @@ export const getCreateSolutionFromDataManager = (
 };
 
 function addPacksToYamlTree(ymlFile: CSolutionYamlFile, message: CreateSolutionRequest) {
-    if (!message.packs.length) {
-        return;
-    }
-
-    const topItem = ymlFile.topItem;
-    if (!topItem) {
-        return;
-    }
-
-    // TODO: Move into CSolutionYamlFile
-    const packsItem = topItem.createChild('packs', true).setKind(ETreeItemKind.Sequence);
     for (const pack of message.packs) {
-        const existingPack = packsItem.getChildren().find(p => p.getValue('pack') === pack.pack);
-        if (!existingPack) {
-            packsItem.createChild('-').setValue('pack', pack.pack);
-        }
+        ymlFile.addPack(pack.pack, pack.forContext, pack.notForContext);
     }
 }
 
@@ -109,11 +94,10 @@ function addTargetTypesToYamlTree(ymlFile: CSolutionYamlFile, message: CreateSol
     }
 
     const newTargetType = message.targetTypes[0];   // Only one target type is supported for now
-    ymlFile.ensureTargetTypeAndSet(newTargetType.type);
-
-    const targetType = ymlFile.getTargetType(newTargetType.type);
-    targetType?.setValue('device', newTargetType.device);
-    targetType?.setValue('board', newTargetType.board);
+    const targetType = ymlFile.getTargetType(newTargetType.type)
+        ?? ymlFile.appendTargetType(newTargetType.type);
+    targetType.device = newTargetType.device;
+    targetType.board = newTargetType.board;
 }
 
 

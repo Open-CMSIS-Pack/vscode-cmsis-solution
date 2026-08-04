@@ -85,7 +85,6 @@ describe('Csolution Extension APIv2', () => {
         const solutionCreator = new SolutionCreatorImp(
             createSolutionFromDataManager,
             solutionInitialiserImp,
-            mockWorkspaceFsProvider,
         );
 
         mockRunner = { run: jest.fn() };

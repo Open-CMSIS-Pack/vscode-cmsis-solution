@@ -20,6 +20,7 @@ import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { extractPname } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { ProjectRefWrap } from './csolution-wrap';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { appendSequenceMapEntry, setContextRestrictions } from './yaml-creation-helpers';
 
 
 /**
@@ -30,6 +31,11 @@ import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 
  */
 export interface CProjectYamlFile extends ITreeItemFile {
+    /**
+     * Loads a project template and rebases the parsed tree onto a destination file.
+     */
+    loadTemplate(templateFileName: string, destinationFileName: string): Promise<ETextFileResult>;
+
     /**
      * Gets and returns device processor in the format :Pname
      * @returns processor string as Pname or undefined
@@ -51,6 +57,11 @@ export interface CProjectYamlFile extends ITreeItemFile {
      * Set project type, e.g. 'West'
      */
     set projectType(type: string | undefined);
+
+    /**
+     * Appends a component requirement while preserving request order.
+     */
+    addComponent(reference: string, forContext?: readonly string[], notForContext?: readonly string[]): CTreeItem;
 }
 
 
@@ -62,6 +73,17 @@ class CProjectYamlFileImpl extends CTreeItemYamlFile implements CProjectYamlFile
         const topItem = super.ensureTopItem(tag ?? 'project');
         topItem.setKind(ETreeItemKind.Map);
         return topItem;
+    }
+
+    async loadTemplate(templateFileName: string, destinationFileName: string): Promise<ETextFileResult> {
+        const result = await super.load(templateFileName);
+        if (result === ETextFileResult.Success || result === ETextFileResult.Unchanged) {
+            this.fileName = destinationFileName;
+            if (this.rootItem) {
+                this.rootItem.rootFileName = destinationFileName;
+            }
+        }
+        return result;
     }
 
     get deviceProcessor(): string | undefined {
@@ -81,6 +103,12 @@ class CProjectYamlFileImpl extends CTreeItemYamlFile implements CProjectYamlFile
 
     set projectType(type: string | undefined) {
         this._projectType = type;
+    }
+
+    addComponent(reference: string, forContext: readonly string[] = [], notForContext: readonly string[] = []): CTreeItem {
+        const component = appendSequenceMapEntry(this.ensureTopItem(), 'components', 'component', reference);
+        setContextRestrictions(component, forContext, notForContext);
+        return component;
     }
 }
 

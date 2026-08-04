@@ -15,8 +15,9 @@
  */
 
 import { dedupe } from '../../../array';
+import { serialisePackId } from '../../../packs/pack-id';
 import { TargetType } from '../../../solutions/parsing/solution-file';
-import { serialiseBoardIdWithoutVendor, serialiseDeviceWithoutVendor, serialisePackReference } from '../../../solutions/solution-serialisers';
+import { serialiseBoardIdWithoutVendor, serialiseDeviceWithoutVendor } from '../../../solutions/solution-serialisers';
 import { TreeViewCategory, TreeViewItem } from '../../common/components/tree-view';
 import { MessageHandler } from '../../message-handler';
 import { NewProject, Trustzone, validTrustZone } from '../cmsis-solution-types';
@@ -421,8 +422,8 @@ const getSerialisedPacksFromState = (state: BoardDeviceState): string[] => {
     const packs: string[] = [];
     const boardPack = state.boardSelection.value?.pack;
     const devicePack = state.deviceSelection.value?.pack;
-    if (boardPack) packs.push(serialisePackReference(boardPack));
-    if (devicePack) packs.push(serialisePackReference(devicePack));
+    if (boardPack) packs.push(serialisePackId(boardPack));
+    if (devicePack) packs.push(serialisePackId(devicePack));
     packs.push('ARM::CMSIS');
     return dedupe<string>()(packs);
 };
