@@ -61,9 +61,11 @@ export class CreateSolutionController {
                 ? `Failed to create solution: ${errorMessage}`
                 : errorMessage;
 
+            const stack = error instanceof Error ? error.stack : undefined;
+            const details = stack ? `${errorMessage}\n${stack}` : errorMessage;
             this.messageProvider.showErrorMessage(message.type === 'NEW_SOLUTION'
                 ? failureMessage
-                : `Solution service failure: ${errorMessage}\n${error instanceof Error ? error.stack : undefined}`);
+                : `Solution service failure: ${details}`);
 
             return [{
                 type: 'REQUEST_FAILED',
