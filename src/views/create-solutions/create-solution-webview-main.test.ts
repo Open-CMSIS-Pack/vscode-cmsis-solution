@@ -121,7 +121,7 @@ describe('CreateSolutionWebviewMain', () => {
 
         await webviewMain.activate({ subscriptions: [] } as unknown as ExtensionContext);
 
-        mockFsExistsSync.mockResolvedValue(true);
+        mockFsExistsSync.mockReturnValue(true);
         mockShowTextDocument.mockResolvedValue(undefined);
         messageProvider.showInformationMessage.mockResolvedValue(undefined);
     });
