@@ -2,6 +2,15 @@
 
 Shared TypeScript foundations and CMSIS file-model APIs for Open-CMSIS-Pack tools.
 
+## Publish
+
+For publishing, the following steps should be followed:
+1. Set version number in `packages/cmsis-common/package.json`
+2. Create a matching git tag using `git tag cmsis-common-<version_number>`
+3. Push the tag using `git push origin cmsis-common-<version_number>`
+
+That in turn would trigger the workflow titled "CMSIS Common Release" and publish the package. Bare in mind, if the version numbers in `packages/cmsis-common/package.json` and the tag don't match, that would cause a failure in the workflow
+
 ## Install
 
 Configure npm to use GitHub Packages for the `@open-cmsis-pack` scope. The token requires the

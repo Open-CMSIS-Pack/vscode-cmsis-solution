@@ -42,9 +42,15 @@ jobs:
           registry-url: https://npm.pkg.github.com
           package-manager-cache: false
 
+      - name: Get Version
+        id: get_version
+        run: |
+          VERSION=$(node -p "require('./packages/cmsis-common/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      
       - name: Verify release tag
         run: |
-          PACKAGE_VERSION=$(node -p "require('./packages/cmsis-common/package.json').version")
+          PACKAGE_VERSION=${{ steps.get_version.outputs.version }}
           TAG_VERSION="${GITHUB_REF_NAME#cmsis-common-v}"
           if [[ "$TAG_VERSION" != "$PACKAGE_VERSION" ]]; then
             echo "Tag version $TAG_VERSION does not match package version $PACKAGE_VERSION"
