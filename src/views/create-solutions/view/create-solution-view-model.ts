@@ -112,15 +112,18 @@ export class CreateSolutionViewModel {
         const draftProjectType = selectedTemplate?.type === 'dataManagerApp'
             ? selectedTemplate.value.draftType
             : undefined;
+        const hasRequiredSelections = [
+            this.state.deviceSelection.value?.key,
+            this.state.solutionLocation.value,
+            selectedTemplate,
+        ].every(Boolean);
+        const formReady = hasRequiredSelections && !hasErrors(validationErrors);
+        const canCreate = formReady && !this.dropdownOpen;
 
         return {
             state: this.state,
             validationErrors,
-            canCreate: !!this.state.deviceSelection.value?.key
-                && !!this.state.solutionLocation.value
-                && !!selectedTemplate
-                && !hasErrors(validationErrors)
-                && !this.dropdownOpen,
+            canCreate,
             disabled: this.state.createProgress !== 'idle',
             enableSetSolutionName,
             targetTypeFieldEnabled: enableSetSolutionName || draftProjectType === 'Template',
@@ -308,16 +311,16 @@ export class CreateSolutionViewModel {
         const solutionPathChanged = previousState.solutionLocation.value !== this.state.solutionLocation.value
             || previousState.solutionName.value !== this.state.solutionName.value
             || previousState.solutionFolder.value !== this.state.solutionFolder.value;
-        const existenceQuery = [
+        const solutionPathValues = [
             this.state.solutionLocation.value,
             this.state.solutionName.value,
             this.state.solutionFolder.value,
-        ].join('\n');
-        if (solutionPathChanged
-            && this.state.solutionLocation.value
-            && this.state.solutionName.value
-            && this.state.solutionFolder.value
-            && existenceQuery !== this.lastExistenceQuery) {
+        ];
+        const existenceQuery = solutionPathValues.join('\n');
+        const solutionPathComplete = solutionPathValues.every(Boolean);
+        const shouldCheckSolutionPath = solutionPathChanged && solutionPathComplete;
+
+        if (shouldCheckSolutionPath && existenceQuery !== this.lastExistenceQuery) {
             this.lastExistenceQuery = existenceQuery;
             void this.checkSolutionExists(
                 this.state.solutionLocation.value,
