@@ -21,7 +21,7 @@ import { workspaceFsProviderFactory } from '../../../vscode-api/workspace-fs-pro
 import { ExtensionContext } from 'vscode';
 import path from 'node:path';
 import * as fs from 'fs';
-import { parseYamlToCTreeItem } from '../../../generic/tree-item-yaml-parser';
+import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 import * as vscode from 'vscode';
 

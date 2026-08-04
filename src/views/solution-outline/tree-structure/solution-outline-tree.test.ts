@@ -16,14 +16,14 @@
 
 import { TestDataHandler } from '../../../__test__/test-data';
 import { CSolution } from '../../../solutions/csolution';
-import { ETextFileResult, TextFile } from '../../../generic/text-file';
+import { ETextFileResult, TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
 import path from 'node:path';
 import { SolutionOutlineTree } from './solution-outline-tree';
 import { COutlineItem } from './solution-outline-item';
 import { getCmsisPackRoot } from '../../../utils/path-utils';
-import { toGenericString } from '../../../generic/tree-item-parser';
+import { toGenericString } from '@open-cmsis-pack/cmsis-common/tree-item-parser';
 import * as fsUtils from '../../../utils/fs-utils';
-import { CTreeItem } from '../../../generic/tree-item';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { solutionRpcDataFactory, SolutionRpcDataMock } from '../../../solutions/solution-rpc-data.factory';
 
 describe('CSolution', () => {

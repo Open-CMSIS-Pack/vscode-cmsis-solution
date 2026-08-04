@@ -15,7 +15,7 @@
  */
 
 import * as vscode from 'vscode';
-import { Optional } from '../generic/type-helper';
+import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { IExtensionApiWrapper } from './extension-api-wrapper';
 
 export type ExtensionApiWrapperMock<A> = IExtensionApiWrapper<jest.Mocked<A>> & { setApi: (newApi: Optional<jest.Mocked<A>>) => void };

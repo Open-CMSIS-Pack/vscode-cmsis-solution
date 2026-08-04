@@ -15,9 +15,9 @@
  */
 
 import { ConfigurationSchema } from './launch-json-file';
-import { array, arrayOf, assureProperty, InferType, object, optional, Schema } from '../generic/schema';
+import { array, arrayOf, assureProperty, InferType, object, optional, Schema } from '@open-cmsis-pack/cmsis-common/schema';
 import { TaskSchema } from './tasks-json-file';
-import { CTreeItemJsonFile } from '../generic/tree-item-file';
+import { CTreeItemJsonFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 
 export const AdapterJsonSchema = new Schema({
     data: optional(object),

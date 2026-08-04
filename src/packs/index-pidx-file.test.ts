@@ -15,7 +15,7 @@
  */
 
 import 'jest';
-import type { CTreeItem } from '../generic/tree-item';
+import type { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { getLatestAvailablePacks, IndexPidxFile, isPackIndexCurrent } from './index-pidx-file';
 import * as pathUtils from '../utils/path-utils';
 import * as fsUtils from '../utils/fs-utils';

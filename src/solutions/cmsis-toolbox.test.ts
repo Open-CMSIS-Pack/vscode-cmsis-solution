@@ -17,7 +17,7 @@
 import path from 'path';
 import * as vscode from 'vscode';
 import { CmsisToolboxManager, CmsisToolboxManagerImpl } from './cmsis-toolbox';
-import { CTreeItem } from '../generic/tree-item';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { HandleBuildEnoent } from '../../src/tasks/build/handle-enoent';
 import { MockProcessManager, processManagerFactory } from '../vscode-api/runner/process-manager.factories';
 import { csolutionServiceFactory } from '../json-rpc/csolution-rpc-client.factory';

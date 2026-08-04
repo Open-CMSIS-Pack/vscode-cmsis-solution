@@ -27,7 +27,7 @@ import { DebugAdaptersYamlFile } from '../../debug/debug-adapters-yaml-file';
 import { configurationProviderFactory } from '../../vscode-api/configuration-provider.factories';
 import { IOpenFileExternal } from '../../open-file-external-if';
 import { openFileExternalFactory } from '../../open-file-external.factories';
-import { ETextFileResult } from '../../generic/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { SolutionData } from './view/state/manage-solution-state';
 import { ManageSolutionController } from './manage-solution-controller';
 import { CsolutionService } from '../../json-rpc/csolution-rpc-client';

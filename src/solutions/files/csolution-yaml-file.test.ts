@@ -16,8 +16,8 @@
 
 import { CSolutionWrap, TargetTypeWrap, BuildTypeWrap } from './csolution-wrap';
 import { CSolutionYamlFile } from './csolution-yaml-file';
-import { CTreeItem } from '../../generic/tree-item';
-import { extractVersion, stripVersion } from '../../utils/string-utils';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { extractVersion, stripVersion } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { MIN_TOOLBOX_VERSION } from '../../manifest';
 
 

@@ -46,7 +46,7 @@ module.exports = [{
         sourceType: "module",
 
         parserOptions: {
-            project: ["./tsconfig.json", "./scripts/tsconfig.json", "./api/tsconfig.json"],
+            project: ["./tsconfig.json", "./scripts/tsconfig.json", "./api/tsconfig.json", "./packages/cmsis-common/tsconfig.eslint.json"],
         },
 
         globals: {

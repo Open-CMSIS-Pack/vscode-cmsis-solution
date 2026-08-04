@@ -15,7 +15,7 @@
  */
 
 import { makeFactory } from '../__test__/test-data-factory';
-import { IErrorList } from './error-list';
+import { IErrorList } from '@open-cmsis-pack/cmsis-common/error-list';
 
 export const errorListFactory = makeFactory<IErrorList>({
     errors: () => [],

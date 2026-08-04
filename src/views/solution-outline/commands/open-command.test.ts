@@ -26,7 +26,7 @@ import { commandsProviderFactory, MockCommandsProvider } from '../../../vscode-a
 import { activeSolutionLoadStateFactory, solutionManagerFactory } from '../../../solutions/solution-manager.factories';
 import { Uri } from 'vscode';
 import * as vscode from 'vscode';
-import type { CTreeItem } from '../../../generic/tree-item';
+import type { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import type { CSolution } from '../../../solutions/csolution';
 import { README_FILE_PATH } from '../../../manifest';
 import { faker } from '@faker-js/faker';

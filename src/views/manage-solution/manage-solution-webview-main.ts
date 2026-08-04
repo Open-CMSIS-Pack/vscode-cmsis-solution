@@ -18,7 +18,7 @@ import path, { dirname } from 'path';
 import * as vscode from 'vscode';
 import { ExtensionContext } from 'vscode';
 import { URI } from 'vscode-uri';
-import { ETextFileResult } from '../../generic/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import * as manifest from '../../manifest';
 import { SolutionLoadStateChangeEvent, SolutionManager } from '../../solutions/solution-manager';
 import { backToForwardSlashes } from '../../utils/path-utils';

@@ -17,11 +17,11 @@
 import { Board, MountedDevice, PackFamilyId } from '../solar-search/solar-search-client';
 import { DeviceId } from './device-data';
 import { PackId } from './pack-data';
-import { LazyPromise } from '../generic/lazy';
+import { LazyPromise } from '@open-cmsis-pack/cmsis-common/lazy';
 
 import { Board as CsolutionBoard, Device as CsolutionDevice, DebugInterface as CsolutionDebugInterface } from '../json-rpc/csolution-rpc-client';
 import { splitBoardId, splitDeviceId, splitPackId } from '../json-rpc/csolution-rpc-helper';
-import { Optional } from '../generic/type-helper';
+import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 
 export class BoardId {
     public readonly key: string;

@@ -34,7 +34,7 @@ import { componentTreeWalker } from './data/component-tree-walker';
 import { cloneDeep, uniqWith } from 'lodash';
 import { parsePackId } from './data/pack-parse';
 import { lineOf, readTextFile } from '../../utils/fs-utils';
-import { stripTwoExtensions } from '../../utils/string-utils';
+import { stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { getLatestAvailablePacksInfo, isPackIndexCurrent } from '../../packs/index-pidx-file';
 import { isDeepStrictEqual } from 'util';
 import { openFileWithPolicy } from '../file-open-policy';

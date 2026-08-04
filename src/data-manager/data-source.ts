@@ -17,7 +17,7 @@
 import { Board, Device, PackFamilyId, SolarSearchClient } from '../solar-search/solar-search-client';
 import { CsolutionDeviceData, DeviceData, DeviceId, SolarDeviceData } from './device-data';
 import { BoardId, BoardData, SolarBoardData, CsolutionBoardData } from './board-data';
-import { LazyPromise } from '../generic/lazy';
+import { LazyPromise } from '@open-cmsis-pack/cmsis-common/lazy';
 import { CsolutionExampleData, CsolutionTemplateData, DraftProjectData, DraftProjectType, SolarExampleData } from './draft-project-data';
 import { CsolutionService } from '../json-rpc/csolution-rpc-client';
 

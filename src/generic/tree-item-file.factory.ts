@@ -15,9 +15,9 @@
  */
 
 import { makeFactory } from '../__test__/test-data-factory';
-import { ITextFile } from './text-file';
+import { ITextFile } from '@open-cmsis-pack/cmsis-common/text-file';
 import { textFileFactory } from './text-file.factory';
-import { ITreeItemFile } from './tree-item-file';
+import { ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 
 export const treeItemFileFactory = makeFactory<ITreeItemFile, ITextFile>({
     rootItem: () => undefined,

@@ -15,7 +15,7 @@
  */
 
 import * as path from 'path';
-import { CTreeItem } from '../../generic/tree-item';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { constructProjectYamlFile, CProjectYamlFile } from './cproject-yaml-file';
 import { ProjectRefWrap } from './csolution-wrap';
 import { PROJECT_WEST_SUFFIX } from '../constants';

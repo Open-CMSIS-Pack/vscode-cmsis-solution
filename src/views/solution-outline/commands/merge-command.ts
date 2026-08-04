@@ -22,7 +22,7 @@ import { COutlineItem } from '../tree-structure/solution-outline-item';
 import path from 'path';
 import * as os from 'os';
 import semver from 'semver';
-import { extractVersion } from '../../../utils/string-utils';
+import { extractVersion } from '@open-cmsis-pack/cmsis-common/string-utils';
 import * as fsUtils from '../../../utils/fs-utils';
 import { MergeSessionCoordinator } from './merge-session-coordinator';
 import type { MessageProvider } from '../../../vscode-api/message-provider';

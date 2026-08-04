@@ -19,7 +19,7 @@ import { TestDataHandler } from '../../__test__/test-data';
 import path from 'node:path';
 import * as fsUtils from '../../utils/fs-utils';
 import { CbuildIdxFile } from './cbuild-idx-file';
-import { ETextFileResult } from '../../generic/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { getFileNameNoExt } from '../../utils/path-utils';
 
 describe('CbuildIdxFile', () => {
