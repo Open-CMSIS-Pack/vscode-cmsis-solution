@@ -19,14 +19,26 @@ import { createRoot } from 'react-dom/client';
 import { Simulate } from 'react-dom/test-utils';
 import { ExampleDropdownTree } from './example-dropdown-tree';
 import { blankTemplate, trustZoneTemplate } from '../state/templates';
+import { TreeViewCategory } from '../../../common/components/tree-view';
 
 describe('ExampleDropdownTree', () => {
     let container: Element;
-    let dispatch: jest.Mock;
+    let onSelect: jest.Mock;
     let close: jest.Mock;
 
+    const templateEntries = (templates = [blankTemplate, trustZoneTemplate]): Array<TreeViewCategory<string>> => [{
+        header: 'Templates',
+        categories: [],
+        items: templates.map(template => ({
+            label: template.name,
+            value: `template::${template.name}`,
+            tooltip: template.description,
+            className: 'template',
+        })),
+    }];
+
     beforeEach(() => {
-        dispatch = jest.fn();
+        onSelect = jest.fn();
         close = jest.fn();
         container = document.createElement('div');
     });
@@ -38,13 +50,13 @@ describe('ExampleDropdownTree', () => {
     it('renders the number of templates', () => {
         React.act(() => {
             createRoot(container).render(<ExampleDropdownTree
-                templates={[blankTemplate, trustZoneTemplate]}
-                dispatch={dispatch}
+                entries={templateEntries()}
                 label='Test'
                 onChange={close}
+                onSelect={onSelect}
                 searchText=''
+                selectedText='Select Project'
                 title='Test'
-                datamanagerApps={[]}
             />);
         });
 
@@ -61,13 +73,13 @@ describe('ExampleDropdownTree', () => {
         const templates = [blankTemplate, trustZoneTemplate];
         React.act(() => {
             createRoot(container).render(<ExampleDropdownTree
-                templates={templates}
-                dispatch={dispatch}
+                entries={templateEntries(templates)}
                 label='Test'
                 onChange={close}
+                onSelect={onSelect}
                 searchText=''
+                selectedText='Select Project'
                 title='Test'
-                datamanagerApps={[]}
             />);
         });
 
@@ -84,16 +96,16 @@ describe('ExampleDropdownTree', () => {
         expect(exampleEntries[1].innerHTML).toContain(templates[1].description);
     });
 
-    it('clicking a template dispatches its selection', () => {
+    it('emits a selected template value', () => {
         React.act(() => {
             createRoot(container).render(<ExampleDropdownTree
-                templates={[blankTemplate]}
-                dispatch={dispatch}
+                entries={templateEntries([blankTemplate])}
                 label='Test'
                 onChange={jest.fn()}
+                onSelect={onSelect}
                 searchText=''
+                selectedText='Select Project'
                 title='Test'
-                datamanagerApps={[]}
             />);
         });
 
@@ -107,24 +119,24 @@ describe('ExampleDropdownTree', () => {
         React.act(() => {
             Simulate.click(triggerEl!);
         });
-        expect(dispatch).toHaveBeenCalledTimes(1);
-        expect(dispatch).toHaveBeenCalledWith({ type: 'SET_SELECTED_TEMPLATE', template: { type: 'template', value: blankTemplate } });
+        expect(onSelect).toHaveBeenCalledWith(`template::${blankTemplate.name}`);
     });
 
     it('clicking a DataManager project dispatches its stable ID', () => {
         const draftId = 'draft-project-id';
         React.act(() => {
             createRoot(container).render(<ExampleDropdownTree
-                dispatch={dispatch}
-                label='Test'
-                onChange={jest.fn()}
-                searchText=''
-                title='Test'
-                datamanagerApps={[{
+                entries={[{
                     header: 'Examples',
                     categories: [],
                     items: [{ label: 'DataManager project', value: draftId }],
                 }]}
+                label='Test'
+                onChange={jest.fn()}
+                onSelect={onSelect}
+                searchText=''
+                selectedText='Select Project'
+                title='Test'
             />);
         });
 
@@ -138,6 +150,6 @@ describe('ExampleDropdownTree', () => {
             Simulate.click(triggerEl!);
         });
 
-        expect(dispatch).toHaveBeenCalledWith({ type: 'SET_SELECTED_DRAFTPROJECT_ID', id: draftId });
+        expect(onSelect).toHaveBeenCalledWith(draftId);
     });
 });

@@ -17,13 +17,7 @@
 import * as React from 'react';
 import { FileLocationPicker } from '../../../common/components/file-path-picker';
 import { TooltipQuestion } from '../../../common/components/tooltip-question';
-import { MessageHandler } from '../../../message-handler';
-import { IncomingMessage, OutgoingMessage } from '../../messages';
-import { CreationActions } from '../actions';
-import { createSolutionReducer, initialState } from '../state/reducer';
-import { hardwareTemplateOptions } from '../state/templates';
-import { pushRequest } from './message-service';
-import { validate } from '../state/validation';
+import { CreateSolutionViewModel } from '../create-solution-view-model';
 import './create-solution.css';
 import { ExampleDropdownTree } from './example-dropdown-tree';
 import { HardwareRow } from './hardware-row';
@@ -35,15 +29,7 @@ import { SettingOutlined } from '@ant-design/icons';
 import { useDisableContextMenu } from '../../../hooks/use-disable-context-menu';
 
 export interface CreateSolutionProps {
-    /**
-     * Responsible for communication with the extension backend.
-     */
-    messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>;
-
-    /**
-     * Actions to perform during solution creation.
-     */
-    creationActions: CreationActions;
+    viewModel: CreateSolutionViewModel;
 }
 
 const SettingsLink = ({ setting, children }: { setting: string, children?: React.ReactNode }) => (
@@ -85,84 +71,26 @@ const WebServiceIndicator = ({ enabled, errors }: { enabled: boolean; errors: st
     );
 };
 
-export const CreateSolution = ({ creationActions, messageHandler }: CreateSolutionProps) => {
-    const [state, dispatch] = React.useReducer(createSolutionReducer, initialState);
-    const disabled = state.createProgress !== 'idle';
-    const [ready, setReady] = React.useState(false);
-
-    // required to not fall into infinit loops when validating the solution sub folders
-    const lastCheckedRef = React.useRef({ location: '', name: '', folder: '' });
-
-    // Ref to track dropdown open state
-    const [dropdownOpenRef, setDropdownOpenRef] = React.useState(false);
-
-    const validationErrors = validate(state, state.solutionExists, false);
-    const hasValidationErrors = Object.entries(validationErrors).some(([key, v]) => {
-        if (key === 'projects' && Array.isArray(v)) {
-            return v.some(Boolean);
-        }
-        return Array.isArray(v) ? v.length > 0 : !!v;
-    });
-
-    const isReady = React.useCallback((): boolean => {
-        return state.deviceSelection.value?.key && state.solutionLocation.value && state.selectedTemplate.value && !hasValidationErrors && !dropdownOpenRef ? true : false;
-    }, [dropdownOpenRef, state.deviceSelection.value?.key, state.solutionLocation.value, state.selectedTemplate.value, hasValidationErrors]);
+export const CreateSolution = ({ viewModel }: CreateSolutionProps) => {
+    const snapshot = React.useSyncExternalStore(viewModel.subscribe, viewModel.getSnapshot);
+    const {
+        canCreate,
+        disabled,
+        enableSetSolutionName,
+        exampleEntries,
+        projectRows,
+        selectedExampleText,
+        showTrustzoneInfo,
+        state,
+        targetTypeFieldEnabled,
+        validationErrors,
+    } = snapshot;
+    const dispatch = viewModel.dispatch;
 
     React.useEffect(() => {
-        const unsubscribe = messageHandler.subscribe(message => {
-            dispatch({ type: 'INCOMING_MESSAGE', message });
-        });
-        pushRequest(messageHandler, { type: 'GET_PLATFORM' });
-        pushRequest(messageHandler, { type: 'GET_STATE_USE_WEBSERVICES' });
-        pushRequest(messageHandler, { type: 'DATA_GET_TARGETS' });
-        pushRequest(messageHandler, { type: 'DATA_GET_DEFAULT_LOCATION' });
-        return unsubscribe;
-    }, [messageHandler]);
-
-    React.useEffect(() => {
-        const { location, name, folder } = lastCheckedRef.current;
-        if (state.solutionName.value && state.solutionLocation.value && state.solutionFolder.value && (state.solutionName.value !== name || state.solutionLocation.value !== location || state.solutionFolder.value !== folder)) {
-            creationActions.checkSolutionExists(messageHandler, dispatch, state.solutionLocation.value, state.solutionName.value, state.solutionFolder.value);
-            lastCheckedRef.current = {
-                location: state.solutionLocation.value,
-                name: state.solutionName.value,
-                folder: state.solutionFolder.value,
-            };
-        }
-        setReady(isReady());
-        // the missing creationActions dependancy would trigger a warning whic is false, as the content of creationActions never changes
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [state.solutionLocation, state.solutionName, state.solutionFolder, messageHandler, isReady]);
-
-    React.useEffect(() => {
-        const boardId = state.boardSelection.value?.key;
-        const deviceId = state.deviceSelection.value?.key;
-        if (boardId || deviceId) {
-            pushRequest(messageHandler, {
-                type: 'DATA_GET_DATAMANAGER_APPS',
-                board: boardId,
-                device: deviceId,
-                fromAllPackVersions: state.fromAllPackVersions,
-            });
-        }
-        setReady(isReady());
-    }, [messageHandler, state.boardSelection, state.deviceSelection, state.fromAllPackVersions, isReady]);
-
-    React.useEffect(() => {
-        if (state.hardwareLists.type === 'loaded') {
-            pushRequest(messageHandler, { type: 'DATA_GET_CONNECTED_DEVICE' });
-        }
-    }, [messageHandler, state.hardwareLists]);
-
-    React.useEffect(() => {
-        if (state.selectedDraftProjectId) {
-            pushRequest(messageHandler, { type: 'DATA_GET_DRAFTPROJECT_INFO', id: state.selectedDraftProjectId });
-        }
-    }, [messageHandler, state.selectedDraftProjectId]);
-
-    const enableSetSolutionName = state.selectedTemplate.value?.type == 'template';
-    const draftProjectType = state.selectedTemplate.value?.type == 'dataManagerApp' ? state.selectedTemplate.value.value.draftType : undefined;
-    const targetTypeFieldEnabled = enableSetSolutionName || draftProjectType == 'Template';
+        viewModel.initialize();
+        return () => viewModel.dispose();
+    }, [viewModel]);
 
     const isDarkTheme = useVSCodeTheme();
     useDisableContextMenu();
@@ -181,7 +109,7 @@ export const CreateSolution = ({ creationActions, messageHandler }: CreateSoluti
                 <div className="create-solution-frame">
                     <div className="create-solution-header">
                         <h2>Create Solution</h2>
-                        <button className="codicon codicon-link-external" onClick={() => pushRequest(messageHandler, { type: 'HELP_OPEN' })} title="Open help documentation"></button>
+                        <button className="codicon codicon-link-external" onClick={() => viewModel.openHelp()} title="Open help documentation"></button>
                         <WebServiceIndicator
                             enabled={state.webServicesEnabled}
                             errors={state.servicesErrors}
@@ -201,13 +129,12 @@ export const CreateSolution = ({ creationActions, messageHandler }: CreateSoluti
                                 targetTypeFieldEnabled={targetTypeFieldEnabled}
                                 validationErrors={validationErrors}
                                 webServicesEnabled={state.webServicesEnabled}
-                                messageHandler={messageHandler}
                                 dispatch={dispatch}
                                 onClose={() => {
-                                    setDropdownOpenRef(false);
+                                    viewModel.setDropdownOpen(false);
                                 }}
                                 onOpen={() => {
-                                    setDropdownOpenRef(true);
+                                    viewModel.setDropdownOpen(true);
                                 }}
                             />
 
@@ -224,21 +151,20 @@ export const CreateSolution = ({ creationActions, messageHandler }: CreateSoluti
                                             </span>
                                         </>
                                     }
-                                    templates={hardwareTemplateOptions(state.deviceSelection.value, state.datamanagerApps)}
+                                    entries={exampleEntries}
                                     onChange={(val: string) => {
                                         dispatch({ type: 'SET_EXAMPLES_TREE_VIEW_SEARCH', search: val });
                                     }}
                                     searchText={state.examplesTreeViewSearch}
-                                    selectedTemplate={state.selectedTemplate}
-                                    datamanagerApps={state.datamanagerApps}
-                                    dispatch={dispatch}
+                                    selectedText={selectedExampleText}
+                                    onSelect={value => viewModel.selectExample(value)}
                                 />
                                 {validationError(validationErrors.selectedTemplate)}
                             </div>
 
                             {state.deviceSelection.value && state.projects.length > 0 && (
                                 <div id="create-solution-project-configuration" className="form-row">
-                                    <ProjectConfiguration device={state.deviceSelection.value} projects={state.projects} dispatch={dispatch} errors={validationErrors.projects} />
+                                    <ProjectConfiguration rows={projectRows} showTrustzoneInfo={showTrustzoneInfo} dispatch={dispatch} errors={validationErrors.projects} />
                                 </div>
                             )}
                         </fieldset>
@@ -274,7 +200,7 @@ export const CreateSolution = ({ creationActions, messageHandler }: CreateSoluti
                             {state.platform === 'vscode' ? (
                                 <div className="form-row form-row--narrow">
                                     <label htmlFor="create-solution-file-locator">Solution Base Folder</label>
-                                    <FileLocationPicker id="create-solution-file-locator" disabled={disabled} location={state.solutionLocation.value} dispatch={dispatch} openFilePicker={() => pushRequest(messageHandler, { type: 'OPEN_FILE_PICKER', solutionLocation: state.solutionLocation.value })} />
+                                    <FileLocationPicker id="create-solution-file-locator" disabled={disabled} location={state.solutionLocation.value} dispatch={dispatch} openFilePicker={() => viewModel.openFilePicker()} />
                                     {validationError(validationErrors.solutionLocation)}
                                 </div>
                             ) : (
@@ -297,13 +223,11 @@ export const CreateSolution = ({ creationActions, messageHandler }: CreateSoluti
                                     title="Cancel"
                                     type="default"
                                     disabled={state.createProgress !== 'idle'}
-                                    onClick={() => {
-                                        messageHandler.push({ type: 'WEBVIEW_CLOSE' });
-                                    }}
+                                    onClick={() => viewModel.close()}
                                 >
                                     Cancel
                                 </Button>
-                                <Button title="Create Solution" type="primary" disabled={disabled || !ready} onClick={() => creationActions.createSolution(dispatch, state, messageHandler)}>
+                                <Button title="Create Solution" type="primary" disabled={disabled || !canCreate} onClick={() => void viewModel.createSolution()}>
                                     {state.createProgress === 'checking' ? 'Checking…' : state.createProgress === 'creating' ? 'Creating…' : 'Create'}
                                 </Button>
                             </div>

@@ -18,10 +18,9 @@ import React from 'react';
 import { Simulate } from 'react-dom/test-utils';
 import { createRoot } from 'react-dom/client';
 import { ProjectConfiguration } from './project-configuration';
-import { NewProject } from '../../cmsis-solution-types';
-import { deviceHardwareOptionFactory, newProjectFactory } from '../../cmsis-solution-types.factories';
-import { FieldAndInteraction } from '../state/field-and-interaction';
+import { newProjectFactory } from '../../cmsis-solution-types.factories';
 import { simulateChangeEvent } from '../../../../__test__/dom-events';
+import { ProjectConfigurationRow } from '../create-solution-view-model';
 
 describe('ProjectConfiguration', () => {
     let container: Element;
@@ -36,31 +35,31 @@ describe('ProjectConfiguration', () => {
         container.remove();
     });
 
+    const createRow = (overrides: Partial<ProjectConfigurationRow> = {}): ProjectConfigurationRow => ({
+        project: { value: newProjectFactory(), hadInteraction: false },
+        coreOptions: ['core'],
+        selectedCore: 'core',
+        trustzoneOptions: ['off'],
+        ...overrides,
+    });
+
     it('renders the project configuration info for device reference', () => {
-        const projects: FieldAndInteraction<NewProject>[] = [{
-            value: newProjectFactory({
+        const rows = [createRow({
+            project: { value: newProjectFactory({
                 trustzone: 'secure',
                 processorName: '',
                 name: 'IO6-Alen',
             }),
-            hadInteraction: false
-        }
-        ];
-        const device = {
-            id: { name: 'blast-blast-2000', vendor: 'c7-mark12-intergalatic' },
-            key: 'boardHardwareOption::blast-blast-2000',
-            processors: [{ supportsTrustZone: true, core: 'M0', name: '' }],
-            pack: {
-                name: '',
-                vendor: '',
-                version: ''
-            },
-        };
+            hadInteraction: false },
+            coreOptions: [''],
+            selectedCore: 'M0',
+            trustzoneOptions: ['secure', 'non-secure', 'off'],
+        })];
 
         React.act(() => {
             createRoot(container).render(<ProjectConfiguration
-                device={device}
-                projects={projects}
+                rows={rows}
+                showTrustzoneInfo={true}
                 dispatch={dispatch}
                 errors={[]}
             />);
@@ -80,13 +79,12 @@ describe('ProjectConfiguration', () => {
     });
 
     it('Add project configuration', () => {
-        const projects = [{ value: newProjectFactory(), hadInteraction: false }];
-        const device = deviceHardwareOptionFactory();
+        const rows = [createRow()];
 
         React.act(() => {
             createRoot(container).render(<ProjectConfiguration
-                device={device}
-                projects={projects}
+                rows={rows}
+                showTrustzoneInfo={false}
                 dispatch={dispatch}
                 errors={[]}
             />);
@@ -99,13 +97,12 @@ describe('ProjectConfiguration', () => {
     });
 
     it('Remove project configuration', () => {
-        const projects = [{ value: newProjectFactory(), hadInteraction: false }, { value: newProjectFactory(), hadInteraction: false }];
-        const device = deviceHardwareOptionFactory();
+        const rows = [createRow(), createRow()];
 
         React.act(() => {
             createRoot(container).render(<ProjectConfiguration
-                device={device}
-                projects={projects}
+                rows={rows}
+                showTrustzoneInfo={false}
                 dispatch={dispatch}
                 errors={[]}
             />);
@@ -119,13 +116,12 @@ describe('ProjectConfiguration', () => {
 
 
     it('update project configuration', () => {
-        const projects = [{ value: newProjectFactory(), hadInteraction: false }, { value: newProjectFactory(), hadInteraction: false }];
-        const device = deviceHardwareOptionFactory();
+        const rows = [createRow(), createRow()];
 
         React.act(() => {
             createRoot(container).render(<ProjectConfiguration
-                device={device}
-                projects={projects}
+                rows={rows}
+                showTrustzoneInfo={false}
                 dispatch={dispatch}
                 errors={[]}
             />);
@@ -138,22 +134,19 @@ describe('ProjectConfiguration', () => {
     });
 
     it('update to the core selected in the dropdown', async () => {
-        const projects = [
-            { value: newProjectFactory({ name: '', processorName: 'core1' }), hadInteraction: false },
-            { value: newProjectFactory(), hadInteraction: false }
+        const rows = [
+            createRow({
+                project: { value: newProjectFactory({ name: '', processorName: 'core1' }), hadInteraction: false },
+                coreOptions: ['the-core', ''],
+                selectedCore: 'core1',
+            }),
+            createRow(),
         ];
-
-        const device = {
-            id: { name: 'device1', vendor: 'vendor1' },
-            key: 'vendor1::device1',
-            processors: [{ name: 'the-core', core: 'core1-0', supportsTrustZone: false }, { name: '', core: 'core1-1', supportsTrustZone: false }],
-            pack: { name: '', vendor: '', version: '' },
-        };
 
         React.act(() => {
             createRoot(container).render(<ProjectConfiguration
-                device={device}
-                projects={projects}
+                rows={rows}
+                showTrustzoneInfo={false}
                 dispatch={dispatch}
                 errors={[]}
             />);
@@ -173,16 +166,15 @@ describe('ProjectConfiguration', () => {
     });
 
     it('update to the trustzone selected in the dropdown', async () => {
-        const projects = [{ value: newProjectFactory({ processorName: 'coreA', trustzone: 'secure' }), hadInteraction: false }];
-        const device = deviceHardwareOptionFactory({
-            id: { name: 'some-device', vendor: 'some-vendor' },
-            processors: [{ name: 'coreA', core: 'Cortex-M', supportsTrustZone: true }]
-        });
+        const rows = [createRow({
+            project: { value: newProjectFactory({ processorName: 'coreA', trustzone: 'secure' }), hadInteraction: false },
+            trustzoneOptions: ['secure', 'non-secure', 'off'],
+        })];
 
         React.act(() => {
             createRoot(container).render(<ProjectConfiguration
-                device={device}
-                projects={projects}
+                rows={rows}
+                showTrustzoneInfo={true}
                 dispatch={dispatch}
                 errors={[]}
             />);
@@ -201,13 +193,12 @@ describe('ProjectConfiguration', () => {
     });
 
     it('display the validation error for the project configuration', () => {
-        const projects = [{ value: newProjectFactory(), hadInteraction: false }, { value: newProjectFactory(), hadInteraction: true }];
-        const device = deviceHardwareOptionFactory();
+        const rows = [createRow(), createRow({ project: { value: newProjectFactory(), hadInteraction: true } })];
 
         React.act(() => {
             createRoot(container).render(<ProjectConfiguration
-                device={device}
-                projects={projects}
+                rows={rows}
+                showTrustzoneInfo={false}
                 dispatch={dispatch}
                 errors={['', 'another-error']}
             />);

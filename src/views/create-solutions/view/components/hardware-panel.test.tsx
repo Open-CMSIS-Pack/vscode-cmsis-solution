@@ -18,8 +18,6 @@ import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Simulate } from 'react-dom/test-utils';
 import { HardwarePanel } from './hardware-panel';
-import { MockMessageHandler } from '../../../__test__/mock-message-handler';
-import { IncomingMessage, OutgoingMessage } from '../../messages';
 import { HardwareSelection } from '../state/hardware-selection';
 import { boardHardwareOptionFactory, deviceHardwareOptionFactory } from '../../cmsis-solution-types.factories';
 import { HardwareInfo, labelForHardwareOption } from '../../cmsis-solution-types';
@@ -28,8 +26,6 @@ import { serialisePackId } from '../../../../packs/pack-id';
 
 describe('Hardware Panel', () => {
     let container: Element;
-    let listener: jest.Mock;
-    let messageHandler: MockMessageHandler<IncomingMessage, OutgoingMessage>;
     let dispatch: jest.Mock;
     let onClick: jest.Mock;
 
@@ -45,25 +41,8 @@ describe('Hardware Panel', () => {
 
     beforeEach(() => {
         container = document.createElement('div');
-        listener = jest.fn();
-        messageHandler = new MockMessageHandler(listener);
         dispatch = jest.fn();
         onClick = jest.fn();
-
-        listener.mockImplementation(async (message: OutgoingMessage) => {
-            if (message.type === 'WEBVIEW_CLOSE') {
-                return;
-            }
-            switch (message.type) {
-                case 'DATA_GET_BOARD_INFO':
-                    messageHandler.postWindowMessage({ type: 'HARDWARE_INFO', requestId: message.requestId, data: hardwareInfo });
-                    break;
-                case 'DATA_GET_DEVICE_INFO':
-                    messageHandler.postWindowMessage({ type: 'HARDWARE_INFO', requestId: message.requestId, data: hardwareInfo });
-                    break;
-            }
-            messageHandler.postWindowMessage({ type: 'REQUEST_SUCCESSFUL', requestType: message.type, requestId: message.requestId });
-        });
     });
 
     afterEach(() => {
@@ -72,7 +51,7 @@ describe('Hardware Panel', () => {
 
     it('render hardware info panel for the selected Board/Device', () => {
         React.act(() => {
-            createRoot(container).render(<HardwarePanel hardwareSelection={boardSelection} hardwareInfo={hardwareInfo} onClick={onClick} messageHandler={messageHandler} previewHardware={boardSelection} dispatch={dispatch} />);
+            createRoot(container).render(<HardwarePanel hardwareSelection={boardSelection} hardwareInfo={hardwareInfo} onClick={onClick} previewHardware={boardSelection} dispatch={dispatch} />);
         });
         const HardwareInfoTitlesEntry = container.querySelector('.details-header-item');
         expect(HardwareInfoTitlesEntry!.querySelector('#board-device')?.innerHTML).toBe(labelForHardwareOption(boardHardwareOption));
@@ -87,21 +66,9 @@ describe('Hardware Panel', () => {
         expect(HardwareInfoDataTitlesEntry).toHaveLength(5);
     });
 
-    it('requests board/device hardwareInfo data on startup', () => {
-        React.act(() => {
-            createRoot(container).render(<HardwarePanel hardwareSelection={boardSelection} hardwareInfo={hardwareInfo} onClick={onClick} messageHandler={messageHandler} previewHardware={boardSelection} dispatch={dispatch} />);
-        });
-        expect(listener).toHaveBeenCalledWith(expect.objectContaining({
-            type: 'DATA_GET_BOARD_INFO',
-            requestId: expect.any(String),
-            boardKey: boardHardwareOption.key,
-        }));
-        expect(listener).toHaveBeenCalledTimes(1);
-    });
-
     it('dispatches a SET_BOARD_SELECTION action when the select button is clicked and a board is selected', () => {
         React.act(() => {
-            createRoot(container).render(<HardwarePanel hardwareSelection={boardSelection} hardwareInfo={hardwareInfo} onClick={onClick} messageHandler={messageHandler} previewHardware={boardSelection} dispatch={dispatch} />);
+            createRoot(container).render(<HardwarePanel hardwareSelection={boardSelection} hardwareInfo={hardwareInfo} onClick={onClick} previewHardware={boardSelection} dispatch={dispatch} />);
         });
         const selectBtn = container.querySelector('.select-button button') as HTMLButtonElement;
 
@@ -116,7 +83,7 @@ describe('Hardware Panel', () => {
         const deviceHardwareOption = deviceHardwareOptionFactory();
         const deviceSelection: HardwareSelection = { type: 'Devices', value: deviceHardwareOption };
         React.act(() => {
-            createRoot(container).render(<HardwarePanel hardwareSelection={deviceSelection} hardwareInfo={hardwareInfo} onClick={onClick} messageHandler={messageHandler} previewHardware={deviceSelection} dispatch={dispatch} />);
+            createRoot(container).render(<HardwarePanel hardwareSelection={deviceSelection} hardwareInfo={hardwareInfo} onClick={onClick} previewHardware={deviceSelection} dispatch={dispatch} />);
         });
         const selectBtn = container.querySelector('.select-button button') as HTMLButtonElement;
 

@@ -21,10 +21,9 @@ import { simulateChangeEvent } from '../../../../__test__/dom-events';
 import { MockMessageHandler } from '../../../__test__/mock-message-handler';
 import { boardHardwareOptionFactory, deviceHardwareOptionFactory } from '../../cmsis-solution-types.factories';
 import { IncomingMessage, OutgoingMessage } from '../../messages';
-import { CreationActions } from '../actions';
 import { CreateSolution } from './create-solution';
 import { act } from 'react';
-import { CreateSolutionState } from '../state/reducer';
+import { CreateSolutionViewModel } from '../create-solution-view-model';
 
 
 
@@ -57,7 +56,7 @@ describe('CreateSolution', () => {
     let container: Element;
     let listener: jest.Mock;
     let messageHandler: MockMessageHandler<IncomingMessage, OutgoingMessage>;
-    let creationActions: { [key in keyof CreationActions]: jest.Mock<ReturnType<CreationActions[key]>, Parameters<CreationActions[key]>> };
+    let viewModel: CreateSolutionViewModel;
 
     const getElements = () => ({
         createBtn: container.querySelector('button[title="Create Solution"]') as HTMLButtonElement,
@@ -104,14 +103,14 @@ describe('CreateSolution', () => {
     };
 
     const renderCreateSolution = async (): Promise<void> => act(async () => createRoot(container).render(
-        <CreateSolution messageHandler={messageHandler} creationActions={creationActions}></CreateSolution>
+        <CreateSolution viewModel={viewModel} />
     ));
 
     beforeEach(async () => {
         container = document.createElement('div');
         listener = jest.fn();
         messageHandler = new MockMessageHandler(listener);
-        creationActions = { createSolution: jest.fn(), checkSolutionExists: jest.fn() };
+        viewModel = new CreateSolutionViewModel(messageHandler);
 
         listener.mockImplementation(async (message: OutgoingMessage) => {
             if (message.type === 'WEBVIEW_CLOSE') {
@@ -196,37 +195,28 @@ describe('CreateSolution', () => {
         await renderCreateSolution();
 
         await fillOutFormFields();
-        creationActions.checkSolutionExists.mockClear();
+        listener.mockClear();
 
         simulateChangeEvent(getElements().fInput, 'The new value');
 
-        expect(creationActions.checkSolutionExists).toHaveBeenCalledWith(
-            messageHandler,
-            expect.any(Function),
-            'test-location',
-            'Blank_solution',
-            'The new value',
-        );
+        expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'CHECK_SOLUTION_DOES_NOT_EXIST',
+            solutionLocation: 'test-location',
+            solutionName: 'Blank_solution',
+            solutionFolder: 'The new value',
+        }));
     });
 
     describe('when the form is filled in and the create button is clicked', () => {
-        beforeEach(async () => {
-            creationActions.createSolution.mockImplementation(async (dispatch) => {
-                dispatch({ type: 'CREATION_CHECK_START' });
-            });
-        });
-
-        it('calls the createSolution creation action', async () => {
+        it('submits the solution', async () => {
             await renderCreateSolution();
             await fillOutFormFields();
             await act(async () => getElements().createBtn!.click());
 
-            const expectedSolutionNameState: CreateSolutionState['solutionFolder'] = { hadInteraction: true, value: 'test solution' };
-            expect(creationActions.createSolution).toHaveBeenCalledWith(
-                expect.any(Function),
-                expect.objectContaining({ solutionFolder: expectedSolutionNameState }),
-                messageHandler,
-            );
+            expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+                type: 'NEW_SOLUTION',
+                solutionFolder: 'test solution',
+            }));
         });
 
         it('disables interactive elements', async () => {
@@ -270,9 +260,15 @@ describe('CreateSolution', () => {
 
     it('displays an error if solution at given location already exists', async () => {
         await renderCreateSolution();
-        creationActions.checkSolutionExists.mockImplementation(async (_messageHandler, dispatch) => {
-            dispatch({ type: 'END_SOLUTION_EXISTS_CHECK', result: true });
-            return true;
+        listener.mockImplementation((message: OutgoingMessage) => {
+            if (message.type === 'CHECK_SOLUTION_DOES_NOT_EXIST') {
+                messageHandler.postWindowMessage({
+                    type: 'REQUEST_FAILED',
+                    requestType: message.type,
+                    requestId: message.requestId,
+                    errorMessage: 'already exists',
+                });
+            }
         });
 
         simulateChangeEvent(getElements().fInput, 'some solution');

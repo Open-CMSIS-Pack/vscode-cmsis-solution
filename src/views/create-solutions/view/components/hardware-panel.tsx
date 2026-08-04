@@ -17,9 +17,6 @@
 import * as React from 'react';
 import './hardware-panel.css';
 import { HardwareInfo, debugInterfaceAdaptersAreEqual, labelForHardwareOption } from '../../cmsis-solution-types';
-import { messageServiceAwaitResult } from './message-service';
-import { MessageHandler } from '../../../message-handler';
-import { IncomingMessage, OutgoingMessage } from '../../messages';
 import { formatBytes } from '../../units-conversion';
 import { HardwareSelection } from '../state/hardware-selection';
 import { dedupe } from '../../../../array';
@@ -32,7 +29,6 @@ interface HardwarePanelProps {
     hardwareInfo: HardwareInfo | undefined;
     hardwareSelection: HardwareSelection | undefined;
     previewHardware: HardwareSelection | undefined;
-    messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>;
     onClick: () => void;
     // Feature flag IOTIDE-5591, enable once URL slugs are sorted
     enableWebsiteLinks?: boolean;
@@ -40,7 +36,7 @@ interface HardwarePanelProps {
 }
 
 export const HardwarePanel = (props: HardwarePanelProps) => {
-    const { dispatch, enableWebsiteLinks = false, hardwareInfo, messageHandler, onClick } = props;
+    const { dispatch, enableWebsiteLinks = false, hardwareInfo, onClick } = props;
     let { previewHardware } = props;
 
     const dispatchSelect = (previewHardware: HardwareSelection | undefined) => {
@@ -50,19 +46,6 @@ export const HardwarePanel = (props: HardwarePanelProps) => {
             dispatch({ type: 'SET_DEVICE_SELECTION', deviceSelection: previewHardware.value });
         }
     };
-
-    const boardPreview = previewHardware?.type === 'Boards' ? previewHardware.value : undefined;
-    const devicePreview = previewHardware?.type === 'Devices' ? previewHardware.value : undefined;
-
-    React.useEffect(() => {
-        if (boardPreview) {
-            const message = { type: 'DATA_GET_BOARD_INFO' as const, boardKey: boardPreview.key };
-            messageServiceAwaitResult(messageHandler, message);
-        } else if (devicePreview) {
-            const message = { type: 'DATA_GET_DEVICE_INFO' as const, deviceKey: devicePreview.key };
-            messageServiceAwaitResult(messageHandler, message);
-        }
-    }, [boardPreview, devicePreview, messageHandler]);
 
     let content;
     if (hardwareInfo && previewHardware) {

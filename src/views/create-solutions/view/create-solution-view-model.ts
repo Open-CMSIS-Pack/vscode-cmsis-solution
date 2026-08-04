@@ -19,12 +19,12 @@ import { TargetType } from '../../../solutions/parsing/solution-file';
 import { serialiseBoardIdWithoutVendor, serialiseDeviceWithoutVendor, serialisePackReference } from '../../../solutions/solution-serialisers';
 import { TreeViewCategory, TreeViewItem } from '../../common/components/tree-view';
 import { MessageHandler } from '../../message-handler';
-import { DeviceHardwareOption, NewProject, Trustzone, validTrustZone } from '../cmsis-solution-types';
+import { NewProject, Trustzone, validTrustZone } from '../cmsis-solution-types';
 import { PackRequirement } from '../create-solution-dto';
 import { addRequestId, IncomingMessage, OutgoingMessage, RequestMessage, RequestMessagePayload } from '../messages';
 import { FieldAndInteraction } from './state/field-and-interaction';
-import { CreateSolutionAction, CreateSolutionState, createSolutionReducer, DraftProject, initialState } from './state/reducer';
-import { CSolutionTemplate, hardwareTemplateOptions } from './state/templates';
+import { CreateSolutionAction, CreateSolutionState, createSolutionReducer, initialState } from './state/reducer';
+import { hardwareTemplateOptions } from './state/templates';
 import { ValidationErrors, hasErrors, validate } from './state/validation';
 
 const MESSAGE_TIMEOUT = 10000;
@@ -305,12 +305,16 @@ export class CreateSolutionViewModel {
     }
 
     private requestDependentData(previousState: CreateSolutionState, action: CreateSolutionAction): void {
+        const solutionPathChanged = previousState.solutionLocation.value !== this.state.solutionLocation.value
+            || previousState.solutionName.value !== this.state.solutionName.value
+            || previousState.solutionFolder.value !== this.state.solutionFolder.value;
         const existenceQuery = [
             this.state.solutionLocation.value,
             this.state.solutionName.value,
             this.state.solutionFolder.value,
         ].join('\n');
-        if (this.state.solutionLocation.value
+        if (solutionPathChanged
+            && this.state.solutionLocation.value
             && this.state.solutionName.value
             && this.state.solutionFolder.value
             && existenceQuery !== this.lastExistenceQuery) {
@@ -438,9 +442,3 @@ export const buildNewSolutionMessage = (state: CreateSolutionState): Extract<Req
         ? state.selectedTemplate.value.value.id
         : undefined,
 });
-
-export const selectTemplate = (template: CSolutionTemplate): DraftProject => ({
-    type: 'template',
-    value: template,
-});
-}

@@ -17,13 +17,11 @@
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Simulate } from 'react-dom/test-utils';
-import { MockMessageHandler } from '../../../__test__/mock-message-handler';
 import { AsyncStatus, asyncLoaded } from '../../../async-status';
 import { TreeViewCategory } from '../../../common/components/tree-view';
 import { BoardHardwareOption, DeviceHardwareOption } from '../../cmsis-solution-types';
 import { boardHardwareOptionFactory, deviceHardwareOptionFactory } from '../../cmsis-solution-types.factories';
 import { HardwareLists } from '../../create-solution-dto';
-import { IncomingMessage, OutgoingMessage } from '../../messages';
 import { hadInteraction } from '../state/field-and-interaction';
 import { CreateSolutionState, initialState } from '../state/reducer';
 import { ValidationErrors } from '../state/validation';
@@ -31,8 +29,6 @@ import { HardwareRow } from './hardware-row';
 
 describe('HardwareRow', () => {
     let container: Element;
-    let listener: jest.Mock;
-    let messageHandler: MockMessageHandler<IncomingMessage, OutgoingMessage>;
     let dispatch: jest.Mock;
     let validationErrors: Pick<ValidationErrors, 'targetType' | 'deviceSelection'>;
     let state: CreateSolutionState;
@@ -64,8 +60,6 @@ describe('HardwareRow', () => {
     beforeEach(async () => {
         container = document.createElement('div');
         jest.clearAllMocks();
-        listener = jest.fn();
-        messageHandler = new MockMessageHandler(listener);
         dispatch = jest.fn();
         state = { ...initialState, hardwareLists };
         validationErrors = { targetType: '', deviceSelection: '' };
@@ -84,7 +78,6 @@ describe('HardwareRow', () => {
                 targetTypeFieldEnabled={true}
                 validationErrors={validationErrors}
                 webServicesEnabled={state.webServicesEnabled}
-                messageHandler={messageHandler}
                 dispatch={dispatch} />
         ));
 
@@ -100,7 +93,6 @@ describe('HardwareRow', () => {
                 targetTypeFieldEnabled={true}
                 validationErrors={validationErrors}
                 webServicesEnabled={state.webServicesEnabled}
-                messageHandler={messageHandler}
                 dispatch={dispatch} />
         ));
 
@@ -119,7 +111,6 @@ describe('HardwareRow', () => {
                 targetTypeFieldEnabled={true}
                 validationErrors={validationErrors}
                 webServicesEnabled={state.webServicesEnabled}
-                messageHandler={messageHandler}
                 dispatch={dispatch} />
         ));
 
@@ -139,7 +130,6 @@ describe('HardwareRow', () => {
                 targetTypeFieldEnabled={true}
                 validationErrors={validationErrors}
                 webServicesEnabled={state.webServicesEnabled}
-                messageHandler={messageHandler}
                 dispatch={dispatch} />
         ));
         const clearButton = container.querySelector('[title="clear-selection"]') as HTMLButtonElement;
@@ -159,7 +149,6 @@ describe('HardwareRow', () => {
                 targetTypeFieldEnabled={true}
                 validationErrors={validationErrors}
                 webServicesEnabled={state.webServicesEnabled}
-                messageHandler={messageHandler}
                 dispatch={dispatch} />
         ));
 
