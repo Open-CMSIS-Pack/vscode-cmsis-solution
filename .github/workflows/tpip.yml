@@ -8,6 +8,9 @@ on:
       - .github/workflows/tpip.yml
       - docs/third-party-licenses.json
       - docs/tpip-header.md
+      - packages/cmsis-common/package.json
+      - packages/cmsis-common/third-party-licenses.json
+      - packages/cmsis-common/tpip-header.md
       - scripts/tpip-reporter.ts
       - package-lock.json
       - docs/*
@@ -63,7 +66,7 @@ jobs:
         id: report
         run: |
           npm run tpip
-          if git diff --exit-code docs/third-party-licenses.md > /dev/null; then
+          if git diff --exit-code docs/third-party-licenses.md packages/cmsis-common/third-party-licenses.md > /dev/null; then
             echo "update=0" >> $GITHUB_OUTPUT
           else
             echo "update=1" >> $GITHUB_OUTPUT
@@ -76,3 +79,4 @@ jobs:
           message: "Update TPIP report [skip ci]"
           add: |
             docs/third-party-licenses.*
+            packages/cmsis-common/third-party-licenses.*

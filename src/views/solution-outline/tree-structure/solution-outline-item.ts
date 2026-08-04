@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { CTreeItem } from '../../../generic/tree-item';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 
 export class COutlineItem extends CTreeItem {
     constructor(tag: string, parent?: COutlineItem) {

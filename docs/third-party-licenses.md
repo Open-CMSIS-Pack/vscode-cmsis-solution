@@ -21,6 +21,7 @@ Generated for release: 1.70.0
 |graphql-request|7.4.0|https://github.com/jasonkuhrt/graphql-request|https://github.com/jasonkuhrt/graphql-request/blob/main/LICENSE|
 |graphql-tag|2.12.6|https://github.com/apollographql/graphql-tag|https://github.com/apollographql/graphql-tag/blob/main/LICENSE|
 |jsonc-parser|3.3.1|https://github.com/microsoft/node-jsonc-parser|https://github.com/microsoft/node-jsonc-parser/blob/main/LICENSE.md|
+|lodash|4.18.1|https://github.com/lodash/lodash|https://github.com/lodash/lodash/blob/master/LICENSE|
 |lodash.debounce|4.0.8|https://github.com/lodash/lodash|https://github.com/lodash/lodash/blob/master/LICENSE|
 |node-fetch|3.3.2|https://github.com/node-fetch/node-fetch|https://github.com/node-fetch/node-fetch/blob/master/LICENSE.md|
 |primereact|10.9.7|https://github.com/primefaces/primereact|https://github.com/primefaces/primereact/blob/master/LICENSE.md|

@@ -15,7 +15,7 @@
  */
 
 import { makeFactory } from '../../__test__/test-data-factory';
-import { ITreeItemFile } from '../../generic/tree-item-file';
+import { ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { treeItemFileFactory } from '../../generic/tree-item-file.factory';
 import { CbuildFile } from './cbuild-file';
 

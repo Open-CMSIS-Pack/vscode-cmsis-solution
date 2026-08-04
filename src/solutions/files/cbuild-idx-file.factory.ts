@@ -19,9 +19,9 @@ import { makeFactory } from '../../__test__/test-data-factory';
 import { contextDescriptorFactory } from '../descriptors/descriptors.factory';
 import { cbuildFileFactory } from './cbuild-file.factory';
 import { treeItemFileFactory } from '../../generic/tree-item-file.factory';
-import { ITreeItemFile } from '../../generic/tree-item-file';
+import { ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { CbuildIdxFile } from './cbuild-idx-file';
-import { ETextFileResult } from '../../generic/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 
 export const cbuildIdxFileFactory = makeFactory<CbuildIdxFile, ITreeItemFile>({
     activeContexts: () => [contextDescriptorFactory()],

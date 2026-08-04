@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { constructor } from '../generic/constructor';
+import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { Board, CsolutionService, Device, Variables } from '../json-rpc/csolution-rpc-client';
 import { CSolution } from './csolution';
 

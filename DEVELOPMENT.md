@@ -60,6 +60,33 @@ Use the `vscode-uri` module to access the `URI` class.
 Factories for test data that is used in multiple tests are stored in `<name>.factories.ts` files,
 where `<name>` is the source file where their return type is defined.
 
+### CMSIS Common package
+
+The `@open-cmsis-pack/cmsis-common` workspace is the single source for shared file-model and tree
+APIs used by the extension. Build and test it independently with:
+
+```sh
+npm run build --workspace @open-cmsis-pack/cmsis-common
+npm test --workspace @open-cmsis-pack/cmsis-common
+```
+
+The root extension build, compile, test, watch, and package scripts build the workspace first. The
+production package output is bundled into the extension's webpack output; package source, tests,
+and package-local build output are excluded from the VSIX.
+
+Regenerate both the extension and package third-party reports after changing runtime dependencies:
+
+```sh
+npm run tpip:update
+npm run tpip
+```
+
+Inspect the npm artifact before publishing:
+
+```sh
+npm pack --workspace @open-cmsis-pack/cmsis-common --dry-run --json
+```
+
 ### End-to-end tests
 
 A limited number of end-to-end (E2E) tests are maintained for key extension features, using the
@@ -142,6 +169,22 @@ Use the following commands:
 4. Create a new release at [Open-CMSIS-Pack/vscode-cmsis-solution releases](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/releases).
    - This will trigger the `CI.yml` workflow.
    - Once the workflow completes successfully, the release artifacts will be generated automatically.
+
+### CMSIS Common release workflow
+
+The npm package is versioned and published independently from the extension. To release it:
+
+1. Update the version in `packages/cmsis-common/package.json`, the matching extension dependency in
+   `package.json`, and `package-lock.json`.
+2. Run package tests, repository lint and copyright checks, regenerate third-party reports, and
+   inspect the package with the commands above.
+3. Merge those changes into `main`.
+4. Create and push a tag named `cmsis-common-v<version>`, where `<version>` exactly matches the
+   package manifest, for example `cmsis-common-v0.2.0`.
+
+The `CMSIS Common Release` workflow validates the tag, rebuilds and tests the package, verifies the
+third-party report and tarball, and publishes to GitHub Packages. This tag does not publish or
+version the VSIX.
 
 ## JSON-RPC Protocol (`csolution`)
 

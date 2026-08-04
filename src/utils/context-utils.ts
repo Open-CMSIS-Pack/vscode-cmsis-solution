@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ITreeItem, CTreeItem } from '../generic/tree-item';
+import { ITreeItem, CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 
 /**
  * Checks if a value matches a pattern, supporting both direct string comparison and regular expressions.

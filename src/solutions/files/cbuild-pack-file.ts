@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { constructor } from '../../generic/constructor';
-import { ETextFileResult } from '../../generic/text-file';
-import { CTreeItem } from '../../generic/tree-item';
-import { CTreeItemYamlFile, ITreeItemFile } from '../../generic/tree-item-file';
+import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 
 /**
  * Access a <solutionName>.cbuild-pack.yml file

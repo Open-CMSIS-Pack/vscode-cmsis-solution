@@ -20,13 +20,13 @@ import path from 'path';
 import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import { HandleBuildEnoent } from '../../src/tasks/build/handle-enoent';
-import { CTreeItem, ITreeItem } from '../generic/tree-item';
+import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { ProcessManager, isProcessResult } from '../vscode-api/runner/process-manager';
 import { CancellationToken } from '../vscode-api/runner/runner';
 import which from 'which';
 import { SemVer } from 'semver';
 import { MIN_TOOLBOX_VERSION } from '../manifest';
-import { Optional } from '../generic/type-helper';
+import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { CsolutionService } from '../json-rpc/csolution-rpc-client';
 import type * as rpc from '../json-rpc/csolution-rpc-client';
 

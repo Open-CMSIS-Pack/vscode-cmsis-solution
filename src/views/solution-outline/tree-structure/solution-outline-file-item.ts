@@ -15,7 +15,7 @@
  */
 
 import path from 'path';
-import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
+import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { FILE_TAGS } from '../../../solutions/constants';
 import { COutlineItem } from './solution-outline-item';
 import { setContextMenuAttributes, setHeaderContext, setMergeFileContext } from './solution-outline-utils';

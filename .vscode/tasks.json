@@ -18,7 +18,7 @@
 			},
 			"problemMatcher": [],
 			"label": "Webpack Watch",
-			"detail": "webpack -w"
+			"detail": "Watch cmsis-common and extension bundles"
 		},
 		{
 			"type": "npm",
@@ -42,7 +42,8 @@
 			"problemMatcher": [
 				"$tsc-watch"
 			],
-			"label": "Compile Watch"
+			"label": "Compile Watch",
+			"detail": "Watch cmsis-common and extension TypeScript"
 		},
 		{
 			"type": "npm",

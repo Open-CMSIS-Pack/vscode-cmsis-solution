@@ -30,7 +30,7 @@ import { solutionDataFactory } from './view/state/manage-solution-state.factorie
 import { solutionManagerFactory } from '../../solutions/solution-manager.factories';
 import * as Messages from './messages';
 import { SolutionLoadStateChangeEvent } from '../../solutions/solution-manager';
-import { ETextFileResult } from '../../generic/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { configurationProviderFactory } from '../../vscode-api/configuration-provider.factories';
 import { csolutionFactory } from '../../solutions/csolution.factory';
 

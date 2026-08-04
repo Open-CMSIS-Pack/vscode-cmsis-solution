@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import '../../generic/map';
-import { CTreeItemYamlFile, ITreeItemFile } from '../../generic/tree-item-file';
-import { ETextFileResult } from '../../generic/text-file';
-import { CTreeItem, ITreeItem } from '../../generic/tree-item';
+import '@open-cmsis-pack/cmsis-common/map';
+import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { ContextDescriptor, contextDescriptorFromString, LayerDescriptor } from '../descriptors/descriptors';
 import { getFileNameNoExt } from '../../utils/path-utils';
 import { CbuildFile } from './cbuild-file';
-import { constructor } from '../../generic/constructor';
+import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 
 export interface CbuildIdxFile extends ITreeItemFile {
     get activeContexts(): ContextDescriptor[];

@@ -16,7 +16,7 @@
 
 import { COutlineItem } from './solution-outline-item';
 import { buildDocFilePath, isWebAddress } from '../../../util';
-import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
+import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import path from 'path';
 import { FileItemBuilder } from './solution-outline-file-item';
 import { CSolution } from '../../../solutions/csolution';

@@ -19,7 +19,7 @@ import { commandsProviderFactory, MockCommandsProvider } from '../vscode-api/com
 import { BinaryFileLocator } from './binary-file-locator';
 import { MockSolutionManager, solutionManagerFactory } from './solution-manager.factories';
 import { CSolution } from './csolution';
-import { ETextFileResult } from '../generic/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import path from 'node:path';
 
 class BinaryFileLocatorTest extends BinaryFileLocator {
