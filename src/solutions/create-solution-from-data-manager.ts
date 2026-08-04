@@ -21,7 +21,6 @@ import { RelativePattern, Uri } from 'vscode';
 import { DraftProjectType } from '../data-manager/draft-project-data';
 import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
-import { NewSolutionMessage } from '../views/create-solutions/messages';
 import { WorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { MdkToCsolutionConverter } from './mdk-conversion/convert-mdk-command';
 import { uvmpwExtension, uvprojxExtension } from './mdk-conversion/mdk-projects';
