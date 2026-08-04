@@ -29,8 +29,6 @@ import {
     TreeNodeElement
 } from './confwiz-webview-common';
 import { GuiTree } from './parser/gui-tree';
-import { CwOption } from './parser/cw-option';
-import { NumberType } from './parser/number-type';
 
 interface ConfigWizDocument {
     document: vscode.TextDocument;
@@ -319,7 +317,7 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
 
         const docText = configWizDocument.document.getText();
         if (guiTree.saveElement(docText, configWizardData.element, configWizDocument.document.version)) { // must update
-            this.updatePendingOverflow(configWizardData.documentPath, guiTree, configWizardData.element);
+            this.updatePendingOverflow(configWizardData.documentPath, configWizardData.element);
             await this.save(configWizardData.element, configWizDocument.document);
             // BUGFIX #476: Refresh after GUI edit to update editRect and all cached state from file
             // Without this, editRect points to stale positions, causing incorrect replacements
@@ -341,28 +339,9 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
         return root;
     }
 
-    private updatePendingOverflow(documentPath: string, guiTree: GuiTree, element: TreeNodeElement): void {
-        const item = guiTree.getFromItemMap(element.guiId);
-        if (!(item instanceof CwOption) || !item.isDropdown || !item.bitfield.isValid()) {
-            this.clearPendingOverflow(documentPath, element);
-            return;
-        }
-
-        const selectedLabel = element.newValue?.value ?? element.value?.value;
-        if (!selectedLabel) {
-            this.clearPendingOverflow(documentPath, element);
-            return;
-        }
-
-        const option = item.getOptionFromGui(selectedLabel);
-        if (!option || !(option.value instanceof NumberType)) {
-            this.clearPendingOverflow(documentPath, element);
-            return;
-        }
-
-        const selectedValue = option.value.val;
-        const maxValue = item.bitfield.getMaxValue();
-        if (selectedValue <= maxValue) {
+    private updatePendingOverflow(documentPath: string, element: TreeNodeElement): void {
+        const selectedValue = element.newValue;
+        if (selectedValue.overflow !== true || selectedValue.overflowValue === undefined || selectedValue.bitWidth === undefined) {
             this.clearPendingOverflow(documentPath, element);
             return;
         }
@@ -374,10 +353,10 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
         }
 
         const pending: PendingOverflow = {
-            selectedLabel,
-            overflowValue: selectedValue,
-            extractedValue: selectedValue,
-            bitWidth: item.bitfield.getBitWidth()
+            selectedLabel: selectedValue.value,
+            overflowValue: selectedValue.overflowValue,
+            extractedValue: selectedValue.extractedValue ?? selectedValue.overflowValue,
+            bitWidth: selectedValue.bitWidth
         };
 
         let pendingMap = this.pendingOverflowByDocument.get(documentPath);

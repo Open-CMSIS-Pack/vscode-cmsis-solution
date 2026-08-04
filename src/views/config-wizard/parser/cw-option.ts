@@ -291,16 +291,11 @@ export class CwOption extends CwItem {
             return val.getGuiValue();
         }
 
-        let hasOverflow = false;
         let extractedValue = 0;
 
         if (v instanceof NumberType) {
             if (this.bitfield.isValid()) {
                 extractedValue = this.bitfield.getExtractedValue(v);
-                const maxValue = this.bitfield.getMaxValue();
-                if (extractedValue > maxValue) {
-                    hasOverflow = true;
-                }
             }
 
             this.bitfield.applyRead(v);  // apply bitfield (move position of value)
@@ -315,10 +310,6 @@ export class CwOption extends CwItem {
                 guiVal.extractedValue = extractedValue;
                 guiVal.bitWidth = this.bitfield.getBitWidth();
             }
-            if (hasOverflow) {
-                guiVal.overflow = true;
-                guiVal.overflowValue = extractedValue;
-            }
             return guiVal;
         }
 
@@ -326,10 +317,6 @@ export class CwOption extends CwItem {
         if (this.bitfield.isValid()) {
             guiVal.extractedValue = extractedValue;
             guiVal.bitWidth = this.bitfield.getBitWidth();
-        }
-        if (hasOverflow) {
-            guiVal.overflow = true;
-            guiVal.overflowValue = extractedValue;
         }
         return guiVal;
     }
@@ -431,6 +418,12 @@ export class CwOption extends CwItem {
         }
 
         if (optVal instanceof NumberType && oldVal instanceof NumberType) {
+            if (this.bitfield.isValid()) {
+                newValue.extractedValue = optVal.val;
+                newValue.bitWidth = this.bitfield.getBitWidth();
+                newValue.overflow = !this.bitfield.isValueRepresentable(optVal);
+                newValue.overflowValue = newValue.overflow ? optVal.val : undefined;
+            }
             this.mathOperation.applyWrite(optVal);
             this.bitfield.applyWrite(optVal, oldVal);
         }
