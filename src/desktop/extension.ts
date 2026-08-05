@@ -51,10 +51,7 @@ import { initUtils } from '../util';
 import { getConfigureVcpkgForSolution } from '../vcpkg/configure-vcpkg';
 import { VcpkgManager } from '../vcpkg/vcpkg-manager';
 import { ConfWizWebview } from '../views/config-wizard/confwiz-webview-main';
-import { CreateSolutionController } from '../views/create-solutions/create-solution-controller';
-import { CreateSolutionData } from '../views/create-solutions/create-solution-data';
-import { CREATE_SOLUTION_WEBVIEW_OPTIONS, CreateSolutionWebviewMain } from '../views/create-solutions/create-solution-webview-main';
-import * as CreateSolutionMessages from '../views/create-solutions/messages';
+import { CreateSolutionWebviewMain } from '../views/create-solutions/create-solution-webview-main';
 import { ManageLayersWebviewMain } from '../views/manage-layers/manage-layers-webview-main';
 import { AddToGroupCommand } from '../views/solution-outline/commands/add-to-group-command';
 import { DeleteCommand } from '../views/solution-outline/commands/delete-command';
@@ -66,7 +63,6 @@ import { MergeSessionCoordinatorImpl } from '../views/solution-outline/commands/
 import { SolutionOutlineView } from '../views/solution-outline/solution-outline';
 import { TreeViewFileDecorationProvider } from '../views/solution-outline/treeview-decoration-provider';
 import { TreeViewProviderImpl } from '../views/solution-outline/treeview-provider';
-import { WebviewManager } from '../views/webview-manager';
 import { commandsProvider } from '../vscode-api/commands-provider';
 import { ConfigurationProviderImpl } from '../vscode-api/configuration-provider';
 import { ExtensionApiProviderImpl } from '../vscode-api/extension-api-provider';
@@ -216,27 +212,13 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         new CsolutionDataSource(csolutionService),
     );
 
-    const createSolutionWebviewManager = new WebviewManager<CreateSolutionMessages.IncomingMessage, CreateSolutionMessages.OutgoingMessage>(
+    const createSolution = new CreateSolutionWebviewMain(
         context,
-        CREATE_SOLUTION_WEBVIEW_OPTIONS,
-        commandsProvider,
-    );
-    const createSolutionData = new CreateSolutionData(
-        context,
-        createSolutionWebviewManager.asWebviewUri.bind(createSolutionWebviewManager),
-        dataManager,
-    );
-    const createSolutionController = new CreateSolutionController(
-        createSolutionData,
         solutionCreator,
+        dataManager,
         messageProvider,
         commandsProvider,
         workspaceFoldersProvider,
-    );
-    const createSolution = new CreateSolutionWebviewMain(
-        createSolutionWebviewManager,
-        createSolutionController,
-        createSolutionData,
     );
     const manageLayers = new ManageLayersWebviewMain(
         context,

@@ -114,6 +114,12 @@ describe('CreateSolutionWebviewMain', () => {
             mockOpenDialog,
         );
         webviewMain = new CreateSolutionWebviewMain(
+            extensionContext,
+            mockSolutionCreator,
+            dataManager,
+            messageProvider,
+            commandsProvider,
+            workspaceFoldersProvider,
             webviewManager as unknown as WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>,
             controller,
             dataModel,

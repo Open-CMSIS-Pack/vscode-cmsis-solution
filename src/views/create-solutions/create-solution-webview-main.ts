@@ -16,7 +16,12 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { DataManager } from '../../data-manager/data-manager';
 import * as manifest from '../../manifest';
+import { SolutionCreator } from '../../solutions/solution-creator';
+import { CommandsProvider } from '../../vscode-api/commands-provider';
+import { MessageProvider } from '../../vscode-api/message-provider';
+import { WorkspaceFoldersProvider } from '../../vscode-api/workspace-folders-provider';
 import { WebviewManager, WebviewManagerOptions } from '../webview-manager';
 import { CreateSolutionController } from './create-solution-controller';
 import { CreateSolutionData } from './create-solution-data';
@@ -35,11 +40,39 @@ export const CREATE_SOLUTION_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> =
   };
 
 export class CreateSolutionWebviewMain {
+    private readonly webviewManager: WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>;
+    private readonly controller: CreateSolutionController;
+    private readonly dataModel: CreateSolutionData;
+
     constructor(
-        private readonly webviewManager: WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>,
-        private readonly controller: CreateSolutionController,
-        private readonly dataModel: CreateSolutionData,
-    ) {}
+        context: vscode.ExtensionContext,
+        solutionCreator: SolutionCreator,
+        dataManager: DataManager,
+        messageProvider: MessageProvider,
+        commandsProvider: CommandsProvider,
+        workspaceFoldersProvider: WorkspaceFoldersProvider,
+        webviewManager?: WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>,
+        controller?: CreateSolutionController,
+        dataModel?: CreateSolutionData,
+    ) {
+        this.webviewManager = webviewManager ?? new WebviewManager(
+            context,
+            CREATE_SOLUTION_WEBVIEW_OPTIONS,
+            commandsProvider,
+        );
+        this.dataModel = dataModel ?? new CreateSolutionData(
+            context,
+            this.webviewManager.asWebviewUri.bind(this.webviewManager),
+            dataManager,
+        );
+        this.controller = controller ?? new CreateSolutionController(
+            this.dataModel,
+            solutionCreator,
+            messageProvider,
+            commandsProvider,
+            workspaceFoldersProvider,
+        );
+    }
 
     public async activate(context: vscode.ExtensionContext): Promise<void> {
         context.subscriptions.push(
