@@ -182,7 +182,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
             if (versionReturnCode !== 0 || !version) {
                 console.warn(`Could not determine version of ${toolCmd}`);
                 console.warn(versionMsg);
-            } else if (version !== '0.0.0' && MIN_TOOL_VERSIONS[tool].compare(version) === 1) {
+            } else if (MIN_TOOL_VERSIONS[tool].compare(version) === 1) {
                 msg = `Version of ${tool} is ${version}\r\n(${toolCmd})\r\nArm CMSIS Solution Extension requires version ${MIN_TOOL_VERSIONS[tool].format()} or higher.`;
                 console.error(msg);
                 onOutput(msg);
