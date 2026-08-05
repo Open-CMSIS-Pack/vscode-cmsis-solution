@@ -1552,7 +1552,8 @@
     "workspace"
   ],
   "extensionPack": [
-    "redhat.vscode-yaml"
+    "redhat.vscode-yaml",
+    "llvm-vs-code-extensions.vscode-clangd"
   ],
   "jest": {
     "moduleFileExtensions": [
