@@ -656,7 +656,7 @@ describe('CwOption', () => {
             }
         });
 
-        it('should flag overflow metadata when extracted value exceeds bit width', () => {
+        it('should ignore backing-value bits outside the configured range', () => {
             const lines = [
                 '//   <o0.8..15>ISR FIFO Queue',
                 '#define OS_ISR_FIFO_QUEUE           0x10000'
@@ -665,10 +665,39 @@ describe('CwOption', () => {
             const guiValue = option.getGuiValueDropOption(lines);
 
             expect(guiValue.notFound).toBe(true);
-            expect(guiValue.overflow).toBe(true);
-            expect(guiValue.overflowValue).toBe(256);
-            expect(guiValue.extractedValue).toBe(256);
+            expect(guiValue.overflow).toBeUndefined();
+            expect(guiValue.overflowValue).toBeUndefined();
+            expect(guiValue.extractedValue).toBe(0);
             expect(guiValue.bitWidth).toBe(8);
+        });
+
+        it('should decode raw value 4 as option 0 for bits 0 through 1', () => {
+            const memoryDomain = new CwOption();
+            memoryDomain.addProperty(
+                tokenizer.tokenizeCmd('o.0..1', 1),
+                tokenizer.tokenizeDescr('Memory domain', 1),
+                1
+            );
+
+            const descriptions = ['Non-shareable', 'Inner shareable', 'Outer shareable', 'System'];
+            descriptions.forEach((description, value) => {
+                const assignment = new CwOptionAssign(memoryDomain);
+                assignment.addProperty(
+                    tokenizer.tokenizeCmd(`${value}=`, value + 2),
+                    tokenizer.tokenizeDescr(description, value + 2),
+                    value + 2
+                );
+            });
+
+            const guiValue = memoryDomain.getGuiValueDropOption([
+                '// <o.0..1> Memory domain',
+                '#define MEM_ATTR3 4'
+            ]);
+
+            expect(guiValue.value).toBe('Non-shareable');
+            expect(guiValue.extractedValue).toBe(0);
+            expect(guiValue.overflow).toBeUndefined();
+            expect(guiValue.notFound).toBeUndefined();
         });
 
         it('should not flag overflow when extracted value fits bit width', () => {
@@ -683,6 +712,20 @@ describe('CwOption', () => {
             expect(guiValue.extractedValue).toBe(128);
             expect(guiValue.bitWidth).toBe(8);
             expect(guiValue.value).toBe('128 entries');
+        });
+
+        it('should flag a selected option that cannot be represented by the bitfield', () => {
+            const newGuiValue: GuiValue = { value: '256 entries', readOnly: false };
+
+            option.setGuiValueDropOption([
+                '//   <o0.8..15>ISR FIFO Queue',
+                '#define OS_ISR_FIFO_QUEUE           0x00'
+            ], newGuiValue);
+
+            expect(newGuiValue.overflow).toBe(true);
+            expect(newGuiValue.overflowValue).toBe(256);
+            expect(newGuiValue.extractedValue).toBe(256);
+            expect(newGuiValue.bitWidth).toBe(8);
         });
     });
 });

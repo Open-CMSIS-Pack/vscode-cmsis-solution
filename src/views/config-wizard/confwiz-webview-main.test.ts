@@ -18,10 +18,6 @@ import * as vscode from 'vscode';
 import { WebviewIdMessageParticipant } from 'vscode-messenger-common';
 import { ConfWizWebview } from './confwiz-webview-main';
 import { GuiTree } from './parser/gui-tree';
-import { CwOption } from './parser/cw-option';
-import { CwOptionAssign } from './parser/cw-option-assign';
-import { NumberType } from './parser/number-type';
-import { TextType } from './parser/text-type';
 import { TreeNodeElement, GuiTypes, setWizardDataType } from './confwiz-webview-common';
 
 // Mock vscode-messenger
@@ -593,7 +589,7 @@ describe('ConfWizWebview', () => {
     });
 
     describe('pending overflow tracking', () => {
-        it('should store pending overflow when selection exceeds bitfield max', () => {
+        it('should store pending overflow metadata produced by the parser', () => {
             const element: TreeNodeElement = {
                 guiId: 1,
                 name: 'Mode',
@@ -607,24 +603,15 @@ describe('ConfWizWebview', () => {
                 newValue: {
                     value: 'Overflow',
                     readOnly: false,
+                    overflow: true,
+                    overflowValue: 5,
+                    extractedValue: 5,
+                    bitWidth: 2,
                 },
             };
 
-            const optionItem = new CwOption();
-            optionItem.bitfield.lsb = new NumberType(0);
-            optionItem.bitfield.msb = new NumberType(1);
-            optionItem.bitfield.validate();
-
-            const optionAssign = new CwOptionAssign(optionItem);
-            optionAssign.description = new TextType('Overflow');
-            optionAssign.value = new NumberType(5);
-
-            const mockGuiTree = {
-                getFromItemMap: jest.fn().mockReturnValue(optionItem),
-            } as unknown as GuiTree;
-
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (confWizWebview as any).updatePendingOverflow(mockDocument.uri.fsPath, mockGuiTree, element);
+            (confWizWebview as any).updatePendingOverflow(mockDocument.uri.fsPath, element);
 
             const expectedKey = 'Mode:3:5:12';
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
