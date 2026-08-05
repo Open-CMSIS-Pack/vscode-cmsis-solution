@@ -19,21 +19,14 @@ import * as path from 'path';
 import { promisify } from 'util';
 import { Uri } from 'vscode';
 import { URI } from 'vscode-uri';
-import * as YAML from 'yaml';
-import { createSolutionData } from '../core-tools/core-tools-data-building';
-import { NewProject } from '../views/create-solutions/cmsis-solution-types';
-import { NewSolutionMessage } from '../views/create-solutions/messages';
-import { WorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { DraftProjectData } from '../data-manager/draft-project-data';
 import { PROJECT_SUFFIX, SOLUTION_SUFFIX } from './constants';
 import { CreateSolutionFromDataManager } from './create-solution-from-data-manager';
-import { ComponentData } from './parsing/common-file-parsing';
-import { ParsedProjectFile } from './parsing/file-loader';
-import { emptyProcessorData } from './parsing/processor-data-parsing';
-import { newProject } from './parsing/project-file-parsing';
-import { newSolution } from './parsing/solution-file-parsing';
-import { reconcileSolutionFiles as defaultReconcileSolutionFiles } from './reconciliation/solution-file-reconciler';
 import { SolutionInitialiser } from './solution-initialiser';
 import { TEMPLATES_FOLDER } from '../manifest';
+import { CProjectYamlFile } from './files/cproject-yaml-file';
+import { CSolutionYamlFile } from './files/csolution-yaml-file';
 
 export type CreatedSolution = {
     vcpkgConfigured: boolean;
@@ -43,8 +36,39 @@ export type CreatedSolution = {
     forceRteUpdate: boolean;
 }
 
+export type CreateSolutionProject = {
+    name: string;
+    processorName: string;
+    trustzone: 'off' | 'secure' | 'non-secure';
+}
+
+export type CreateSolutionTargetType = {
+    type: string;
+    board?: string;
+    device?: string;
+}
+
+export type CreateSolutionPackRequirement = {
+    pack: string;
+    forContext: string[];
+    notForContext: string[];
+}
+
+export type CreateSolutionRequest = {
+    solutionName: string;
+    projects: CreateSolutionProject[];
+    targetTypes: CreateSolutionTargetType[];
+    packs: CreateSolutionPackRequirement[];
+    gitInit: boolean;
+    solutionLocation: string;
+    solutionFolder: string;
+    compiler: string;
+    showOpenDialog?: boolean;
+    draftProject?: DraftProjectData;
+}
+
 export interface SolutionCreator {
-    createSolution(message: NewSolutionMessage): Promise<CreatedSolution>;
+    createSolution(message: CreateSolutionRequest): Promise<CreatedSolution>;
 }
 
 export class SolutionCreatorImp  implements SolutionCreator {
@@ -52,12 +76,10 @@ export class SolutionCreatorImp  implements SolutionCreator {
     constructor(
         private readonly createSolutionFromDataManager: CreateSolutionFromDataManager,
         private readonly solutionInitialiser: SolutionInitialiser,
-        private readonly workspaceFsProvider: WorkspaceFsProvider,
-        public readonly reconcileSolutionFiles = defaultReconcileSolutionFiles,
     ) {
     }
 
-    public async createSolution(message: NewSolutionMessage): Promise<CreatedSolution> {
+    public async createSolution(message: CreateSolutionRequest): Promise<CreatedSolution> {
         const solutionDirUri = URI.file(path.join(message.solutionLocation, message.solutionFolder));
         const solutionFileUri = Uri.joinPath(solutionDirUri, `${message.solutionName}${SOLUTION_SUFFIX}`);
         const createdSolution = await this.createSolutionWithSelectedTemplate(solutionDirUri, solutionFileUri, message);
@@ -70,25 +92,15 @@ export class SolutionCreatorImp  implements SolutionCreator {
         return createdSolution;
     }
 
-    public async createSolutionWithSelectedTemplate(solutionDirUri: Uri, solutionFileUri: Uri, message: NewSolutionMessage): Promise<CreatedSolution> {
-        if (message.selectedTemplate?.type === 'example') {
-            throw new Error('Not implemented');
-        } else if (message.selectedTemplate?.type === 'refApp') {
-            throw new Error('Not implemented');
-        } else if (message.selectedTemplate?.type === 'localExample') {
-            throw new Error('Not implemented');
-        } else if (message.selectedTemplate?.type === 'dataManagerApp') {
+    public async createSolutionWithSelectedTemplate(solutionDirUri: Uri, solutionFileUri: Uri, message: CreateSolutionRequest): Promise<CreatedSolution> {
+        if (message.draftProject) {
             return this.createSolutionFromDataManager(solutionDirUri, message);
         } else {
-            if (message.selectedTemplate?.value.origin) {
-                throw new Error('Not implemented');
-            } else {
-                return this.createSolutionFromTemplate(solutionDirUri, solutionFileUri, message);
-            }
+            return this.createSolutionFromTemplate(solutionDirUri, solutionFileUri, message);
         }
     }
 
-    public async createSolutionFromTemplate(solutionDirUri: Uri, solutionFileUri: Uri, message: NewSolutionMessage): Promise<CreatedSolution> {
+    public async createSolutionFromTemplate(solutionDirUri: Uri, solutionFileUri: Uri, message: CreateSolutionRequest): Promise<CreatedSolution> {
         const projectsWithPaths = message.projects.map(project => ({
             project,
             path: path.join(solutionDirUri.fsPath, project.name, `${project.name}${PROJECT_SUFFIX}`),
@@ -96,32 +108,33 @@ export class SolutionCreatorImp  implements SolutionCreator {
             referencePath: [project.name, `${project.name}${PROJECT_SUFFIX}`].join('/'),
         }));
 
-        await this.createFiles(solutionDirUri.fsPath, solutionFileUri.fsPath, projectsWithPaths);
+        await this.createFiles(solutionDirUri.fsPath, projectsWithPaths);
 
         projectsWithPaths.sort((a, b) => {
             // Put secure projects first in the build order
             const trustzonePriority = { 'secure': 0, 'non-secure': 1, 'off': 2 };
             return trustzonePriority[a.project.trustzone] - trustzonePriority[b.project.trustzone];
         });
-        const solution = newSolution(solutionFileUri.fsPath, projectsWithPaths.map(p => p.referencePath), message.targetTypes, message.packs, message.compiler);
-
-        const projects: ParsedProjectFile[] = projectsWithPaths.map(({ project, path: projectPath, referencePath }) =>  ({
-            file: newProject(path.resolve(projectPath), project.processorName, { ...emptyProcessorData, trustzone: project.trustzone }, this.getProjectComponents()),
-            referencePath,
-            cloneYamlDocument: () => new YAML.Document(),
-        }));
-
-        const solutionData = createSolutionData({
-            solution: { file: solution, cloneYamlDocument: () => new YAML.Document() },
-            projects,
-            layers: [],
-        });
-        await this.reconcileSolutionFiles(this.workspaceFsProvider, solutionFileUri.fsPath, solution.value.projects, solutionData.toObject());
+        const solution = new CSolutionYamlFile();
+        await this.assertFileResult(
+            solution.loadTemplate(path.resolve(TEMPLATES_FOLDER, 'template.csolution.yml'), solutionFileUri.fsPath),
+            `load solution template for ${solutionFileUri.fsPath}`,
+        );
+        for (const { referencePath } of projectsWithPaths) {
+            solution.appendProjectRef(referencePath);
+        }
+        for (const targetType of message.targetTypes) {
+            solution.appendTargetType(targetType.type, targetType.device, targetType.board);
+        }
+        for (const pack of message.packs) {
+            solution.addPack(pack.pack, pack.forContext, pack.notForContext);
+        }
+        solution.compiler = message.compiler;
+        await this.assertFileResult(solution.save(), `save solution ${solutionFileUri.fsPath}`);
         return { solutionFile: solutionFileUri, solutionDir: solutionDirUri, conversionStatus: 'none', vcpkgConfigured: false, forceRteUpdate: true };
     }
 
-    private async createFiles(solutionDir: string, solutionPath: string, projectsWithPath: { project: NewProject, path: string }[]) {
-        const solutionTemplatePath = path.resolve(TEMPLATES_FOLDER, 'template.csolution.yml');
+    private async createFiles(solutionDir: string, projectsWithPath: { project: CreateSolutionProject, path: string }[]) {
         await promisify(mkdir)(solutionDir, { recursive: true });
         await Promise.all(projectsWithPath.map(async ({ project, path: projectPath }): Promise<void> => {
             const templateFileName = {
@@ -132,18 +145,25 @@ export class SolutionCreatorImp  implements SolutionCreator {
 
             const templatePath = path.resolve(TEMPLATES_FOLDER, templateFileName);
             await promisify(mkdir)(path.dirname(projectPath), { recursive: true });
-            await promisify(copyFile)(templatePath, projectPath);
+            const projectFile = new CProjectYamlFile();
+            await this.assertFileResult(
+                projectFile.loadTemplate(templatePath, projectPath),
+                `load project template for ${projectPath}`,
+            );
+            projectFile.deviceProcessor = project.processorName;
+            projectFile.addComponent('ARM::CMSIS:CORE');
+            projectFile.addComponent('Device:Startup');
+            await this.assertFileResult(projectFile.save(), `save project ${projectPath}`);
 
             await promisify(copyFile)(path.join(TEMPLATES_FOLDER, 'c', 'main.c'), path.join(path.dirname(projectPath), 'main.c'));
         }));
-        // Write csolution last - the file watcher triggers ConvertSolution
-        // when it appears on disk, so all referenced cproject files must exist.
-        await promisify(copyFile)(solutionTemplatePath, solutionPath);
     }
 
-    private getProjectComponents(): ComponentData[] {
-        return [{ reference: 'ARM::CMSIS:CORE', forContext: [], notForContext: [], instances: 1 },
-            { reference: 'Device:Startup', forContext: [], notForContext: [], instances: 1 }];
+    private async assertFileResult(result: Promise<ETextFileResult>, action: string): Promise<void> {
+        const fileResult = await result;
+        if (fileResult !== ETextFileResult.Success && fileResult !== ETextFileResult.Unchanged) {
+            throw new Error(`Failed to ${action}`);
+        }
     }
 
 }

@@ -19,6 +19,9 @@ import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { constructProjectYamlFile, CProjectYamlFile } from './cproject-yaml-file';
 import { ProjectRefWrap } from './csolution-wrap';
 import { PROJECT_WEST_SUFFIX } from '../constants';
+import { TEMPLATES_FOLDER } from '../../manifest';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import * as YAML from 'yaml';
 
 
 
@@ -31,6 +34,33 @@ function makeFile(deviceValue?: string): CProjectYamlFile {
     return file;
 }
 describe('CProjectYamlFile', () => {
+    it('loads and mutates a creation template while preserving TrustZone configuration', async () => {
+        const destination = path.join('destination', 'Secure.cproject.yml');
+        const file = new CProjectYamlFile();
+
+        const result = await file.loadTemplate(path.join(TEMPLATES_FOLDER, 'secure.cproject.yml'), destination);
+        file.deviceProcessor = 'cm33';
+        file.addComponent('ARM::CMSIS:CORE');
+        file.addComponent('Device:Startup', ['+Target'], ['.Release+Target', '.Debug+Target']);
+
+        const output = YAML.parse(file.stringify());
+
+        expect(result).toBe(ETextFileResult.Success);
+        expect(file.fileName).toBe(destination);
+        expect(file.rootItem?.rootFileName).toBe(destination);
+        expect(output.project.device).toBe(':cm33');
+        expect(output.project.processor.trustzone).toBe('secure');
+        expect(output.project.components).toEqual([
+            { component: 'ARM::CMSIS:CORE' },
+            {
+                component: 'Device:Startup',
+                'for-context': '+Target',
+                'not-for-context': ['.Release+Target', '.Debug+Target'],
+            },
+        ]);
+        expect(file.stringify()).toContain('# This project is executed in secure mode.');
+    });
+
     describe('CProjectYamlFile deviceProcessor', () => {
         it('returns processor if specified', () => {
             const file = makeFile(':core1');

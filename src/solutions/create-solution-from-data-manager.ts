@@ -19,19 +19,17 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { RelativePattern, Uri } from 'vscode';
 import { DraftProjectType } from '../data-manager/draft-project-data';
-import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
-import { NewSolutionMessage } from '../views/create-solutions/messages';
 import { WorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { MdkToCsolutionConverter } from './mdk-conversion/convert-mdk-command';
 import { uvmpwExtension, uvprojxExtension } from './mdk-conversion/mdk-projects';
-import { CreatedSolution } from './solution-creator';
+import { CreatedSolution, CreateSolutionRequest } from './solution-creator';
 import { DEFAULT_VCPKG_FILENAME } from '../vcpkg/vcpkg-manager';
 import { CSolutionYamlFile } from './files/csolution-yaml-file';
 
 export type CreateSolutionFromDataManager = (
     solutionDirUri: Uri,
-    message: NewSolutionMessage,
+    message: CreateSolutionRequest,
 ) => Promise<CreatedSolution>;
 
 export const getCreateSolutionFromDataManager = (
@@ -39,7 +37,7 @@ export const getCreateSolutionFromDataManager = (
     mdkToCsolutionConverter: MdkToCsolutionConverter,
     findFiles: typeof vscode.workspace.findFiles,
 ): CreateSolutionFromDataManager => async (solutionDirUri, message) => {
-    const draftProjectObject = message.dataManagerObject;
+    const draftProjectObject = message.draftProject;
     if (!draftProjectObject) {
         throw ('DraftProject Object undefined!');
     }
@@ -76,27 +74,13 @@ export const getCreateSolutionFromDataManager = (
     return createdSolution;
 };
 
-function addPacksToYamlTree(ymlFile: CSolutionYamlFile, message: NewSolutionMessage) {
-    if (!message.packs.length) {
-        return;
-    }
-
-    const topItem = ymlFile.topItem;
-    if (!topItem) {
-        return;
-    }
-
-    // TODO: Move into CSolutionYamlFile
-    const packsItem = topItem.createChild('packs', true).setKind(ETreeItemKind.Sequence);
+function addPacksToYamlTree(ymlFile: CSolutionYamlFile, message: CreateSolutionRequest) {
     for (const pack of message.packs) {
-        const existingPack = packsItem.getChildren().find(p => p.getValue('pack') === pack.pack);
-        if (!existingPack) {
-            packsItem.createChild('-').setValue('pack', pack.pack);
-        }
+        ymlFile.addPack(pack.pack, pack.forContext, pack.notForContext);
     }
 }
 
-function addTargetTypesToYamlTree(ymlFile: CSolutionYamlFile, message: NewSolutionMessage) {
+function addTargetTypesToYamlTree(ymlFile: CSolutionYamlFile, message: CreateSolutionRequest) {
     if (!message.targetTypes.length) {
         return;
     }
@@ -110,15 +94,14 @@ function addTargetTypesToYamlTree(ymlFile: CSolutionYamlFile, message: NewSoluti
     }
 
     const newTargetType = message.targetTypes[0];   // Only one target type is supported for now
-    ymlFile.ensureTargetTypeAndSet(newTargetType.type);
-
-    const targetType = ymlFile.getTargetType(newTargetType.type);
-    targetType?.setValue('device', newTargetType.device);
-    targetType?.setValue('board', newTargetType.board);
+    const targetType = ymlFile.getTargetType(newTargetType.type)
+        ?? ymlFile.appendTargetType(newTargetType.type);
+    targetType.device = newTargetType.device;
+    targetType.board = newTargetType.board;
 }
 
 
-async function addAdditionalInfoToSolutionFile(createdSolution: CreatedSolution, message: NewSolutionMessage) {
+async function addAdditionalInfoToSolutionFile(createdSolution: CreatedSolution, message: CreateSolutionRequest) {
     const solutionFile = createdSolution.solutionFile?.fsPath;
     if (!solutionFile?.length) {
         return;

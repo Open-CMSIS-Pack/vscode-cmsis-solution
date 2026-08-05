@@ -14,31 +14,28 @@
  * limitations under the License.
  */
 
-import { Tz } from '../../core-tools/client/packs_pb';
-import { boardIdFactory, deviceReferenceFactory, packIdFactory } from '../../core-tools/core-tools-service.factories';
 import { BoardHardwareOption, DeviceHardwareOption, NewProject, ProcessorInfo } from './cmsis-solution-types';
 import { faker } from '@faker-js/faker';
 import { makeFactory } from '../../__test__/test-data-factory';
 
 export const deviceHardwareOptionFactory = makeFactory<DeviceHardwareOption>({
-    id: () => deviceReferenceFactory().toObject(),
+    id: () => ({ vendor: faker.company.name(), name: faker.word.noun() }),
     key: () => faker.string.uuid(),
-    pack: () => packIdFactory().toObject(),
+    pack: () => ({ vendor: faker.company.name(), name: faker.word.noun(), version: faker.system.semver() }),
     processors: () => [ processorInfoFactory() ]
 });
 
 export const processorInfoFactory = makeFactory<ProcessorInfo>({
     name: () => faker.word.noun(),
     core: () => `Cortex-M${faker.number.int()}`,
-    tz: () => faker.helpers.arrayElement(Object.values(Tz)) ,
+    supportsTrustZone: () => faker.datatype.boolean(),
 });
 
 export const boardHardwareOptionFactory = makeFactory<BoardHardwareOption>({
-    id: () => boardIdFactory().toObject(),
+    id: () => ({ vendor: faker.company.name(), name: faker.word.noun(), revision: faker.system.semver() }),
     key: () => faker.string.uuid(),
-    pack: () => packIdFactory().toObject(),
+    pack: () => ({ vendor: faker.company.name(), name: faker.word.noun(), version: faker.system.semver() }),
     mountedDevices: () => [ deviceHardwareOptionFactory() ],
-    unresolvedDevices: () => [],
 });
 
 export const newProjectFactory = makeFactory<NewProject>({
