@@ -31,8 +31,8 @@ import { mementoFactory } from '../vscode-api/memento.factories';
 import { faker } from '@faker-js/faker';
 import { ContextDescriptor } from './descriptors/descriptors';
 import { CSolution } from './csolution';
-import { cbuildIdxFileFactory } from './files/cbuild-idx-file.factory';
-import { cbuildFileFactory } from './files/cbuild-file.factory';
+import { CbuildIdxFile } from './files/cbuild-idx-file';
+import { CbuildFile } from './files/cbuild-file';
 
 type MockArmclangDefineGetter = jest.Mocked<ArmclangDefineGetter>;
 type MockCompileCommandsParser = jest.Mocked<Pick<CompileCommandsParser, 'getAllIncludeCommands'>>;
@@ -80,7 +80,15 @@ describe('ClangdManager', () => {
         mockCSolution.solutionPath = solutionPath;
         mockCSolution.getContextDescriptors = jest.fn().mockReturnValue(activeContexts);
         mockCSolution.getContextDescriptor = jest.fn().mockReturnValue(activeContexts[0]);
-        mockCSolution.cbuildIdxFile = cbuildIdxFileFactory({ activeContexts });
+        mockCSolution.cbuildIdxFile = new CbuildIdxFile();
+        mockCSolution.cbuildIdxFile.activeContexts.push(...activeContexts);
+        for (const context of activeContexts) {
+            if (context.projectPath) {
+                const cbuildFile = new CbuildFile(path.join(path.dirname(context.projectPath), `${context.displayName}.cbuild.yml`));
+                cbuildFile.ensureTopItem('build').createChild('output-dirs').setValue('outdir', 'out');
+                mockCSolution.cbuildIdxFile.cbuildFiles.set(context.projectName, cbuildFile);
+            }
+        }
 
         mockSolutionManager = solutionManagerFactory({
             getCsolution: jest.fn(() => mockCSolution),
@@ -290,10 +298,7 @@ describe('ClangdManager', () => {
         csolution!.getContextDescriptors = jest.fn().mockReturnValue([activeContexts[0]]);
         const cbuildFiles = csolution!.cbuildIdxFile!.cbuildFiles;
         const cbuild = cbuildFiles.get(activeContexts[0].projectName)!;
-        cbuildFiles.set(activeContexts[0].projectName, cbuildFileFactory({
-            compiler: 'CLANG',
-            outDir: cbuild.outDir,
-        }));
+        cbuild.ensureTopItem('build').setValue('compiler', 'CLANG');
         mockFs.exists.mockResolvedValue(true);
 
         mockSolutionManager.onUpdatedCompileCommandsEmitter.fire();
