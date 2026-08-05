@@ -155,10 +155,11 @@ export const hasToolWarning = (lines?: string[]): boolean => {
 };
 
 export const getToolsSeverity = (lines?: string[]): Severity => {
-    if (hasToolError(lines)) {
+    const normalizedLines = normalizeToolOutputLines(lines);
+    if (hasToolError(normalizedLines)) {
         return 'error';
     }
-    if (hasToolWarning(lines)) {
+    if (hasToolWarning(normalizedLines)) {
         return 'warning';
     }
     return 'success';

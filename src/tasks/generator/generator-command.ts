@@ -108,20 +108,18 @@ export class GeneratorCommand {
         const outputChannel = this.outputChannelProvider.getOrCreate(CMSIS_SOLUTION_OUTPUT_CHANNEL);
         outputChannel.appendLine(msg);
 
-        // Capture output lines for diagnostics
-        const outputLines: string[] = [];
-        const [result] = await this.cmsisToolboxManager.runCmsisTool('csolution', executableArgs, line => {
-            const trimmedLine = line.trimEnd();
-            outputChannel.appendLine(trimmedLine);
-            outputLines.push(trimmedLine);
-        }, undefined, undefined, true);
+        const outputChunks: string[] = [];
+        const [result] = await this.cmsisToolboxManager.runCmsisTool('csolution', executableArgs, chunk => {
+            outputChannel.append(chunk);
+            outputChunks.push(chunk);
+        }, undefined, undefined, true, { usePty: true });
 
         // Fire event with generator run result for diagnostics
-        const severity = getToolsSeverity(outputLines);
+        const severity = getToolsSeverity([outputChunks.join('')]);
         await this.eventHub.fireGeneratorRunCompleted({
             success: result === 0,
             severity: severity,
-            toolsOutputMessages: outputLines,
+            toolsOutputMessages: outputChunks,
         });
 
         if (result != 0) {

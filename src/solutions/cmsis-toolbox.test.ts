@@ -133,9 +133,43 @@ describe('CmsisToolbox', () => {
     it('does not emit execute line when emitExecuteLine is false', async () => {
         const outputSpy = jest.fn();
 
-        await toolbox.runCmsisTool('cbuild', ['arg1', 'arg2'], outputSpy, undefined, undefined, undefined, false);
+        await toolbox.runCmsisTool('cbuild', ['arg1', 'arg2'], outputSpy, undefined, undefined, undefined, { emitExecuteLine: false });
 
         expect(outputSpy).not.toHaveBeenCalledWith('cbuild arg1 arg2\r\n');
+    });
+
+    it('uses PTY only for the requested tool execution', async () => {
+        mockProcessManager.mockOutputLines(['csolution 99.0.0']);
+        mockCsolutionService.getCsolutionBin.mockReturnValue(path.join('path', 'to', 'csolution'));
+
+        await toolbox.runCmsisTool(
+            'csolution',
+            ['run', 'solution.csolution.yml', '-g', 'generator'],
+            jest.fn(),
+            undefined,
+            undefined,
+            true,
+            { usePty: true },
+        );
+
+        expect(mockProcessManager.spawn).toHaveBeenNthCalledWith(
+            1,
+            expect.anything(),
+            ['--version'],
+            expect.not.objectContaining({ usePty: true }),
+            expect.any(Function),
+            undefined,
+            undefined,
+        );
+        expect(mockProcessManager.spawn).toHaveBeenNthCalledWith(
+            2,
+            expect.anything(),
+            ['run', 'solution.csolution.yml', '-g', 'generator'],
+            expect.objectContaining({ usePty: true }),
+            expect.any(Function),
+            undefined,
+            undefined,
+        );
     });
 
     it('collect setup messages', () => {

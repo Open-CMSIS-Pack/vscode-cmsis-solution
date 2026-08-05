@@ -781,6 +781,11 @@ describe('SolutionProblems', () => {
             it('prioritizes error over warning', () => {
                 expect(getToolsSeverity([warningLine, errorLine])).toBe('error');
             });
+
+            it('normalizes prefixes split across PTY chunks', () => {
+                expect(getToolsSeverity(['warning cbui', 'ld: generated warning\r\n'])).toBe('warning');
+                expect(getToolsSeverity(['error csol', 'ution: generated error\r\n'])).toBe('error');
+            });
         });
 
         describe('getSeverity', () => {

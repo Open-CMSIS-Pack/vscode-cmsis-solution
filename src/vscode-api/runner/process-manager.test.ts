@@ -17,6 +17,8 @@
 import 'jest';
 import { EventEmitter } from 'events';
 import { type SpawnOptions } from 'child_process';
+import * as inspector from 'inspector';
+import * as pty from '@lydell/node-pty';
 import { ProcessManagerImpl } from './process-manager';
 
 const spawnMock = jest.fn();
@@ -39,6 +41,11 @@ jest.mock('inspector', () => ({
 }));
 
 describe('process-manager.ts', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        (inspector.url as jest.Mock).mockReturnValue(undefined);
+    });
+
     describe('spawn', () => {
         it('forwards stdout and stderr line output and resolves on close code 0', async () => {
             const stdoutStream = {};
@@ -85,6 +92,47 @@ describe('process-manager.ts', () => {
             expect(spawnMock).toHaveBeenCalledWith('tool', ['--flag'], { ...spawnOptions, env: { AUGMENTED: '1' } });
             expect(onOutput).toHaveBeenNthCalledWith(1, 'stdout line\r\n');
             expect(onOutput).toHaveBeenNthCalledWith(2, 'stderr line\r\n');
+        });
+
+        it('forces PTY with default dimensions while debugging on Windows', async () => {
+            (inspector.url as jest.Mock).mockReturnValue('ws://debugger');
+
+            let onData: ((data: string) => void) | undefined;
+            let onExit: ((event: { exitCode: number }) => void) | undefined;
+            const ptyProcess = {
+                onData: jest.fn((callback: (data: string) => void) => { onData = callback; }),
+                onExit: jest.fn((callback: (event: { exitCode: number }) => void) => { onExit = callback; }),
+                write: jest.fn(),
+                kill: jest.fn(),
+            };
+            (pty.spawn as jest.Mock).mockReturnValue(ptyProcess);
+
+            const environmentManager = {
+                augmentEnv: jest.fn(() => ({ vars: { AUGMENTED: '1' } })),
+            };
+            const processManager = new ProcessManagerImpl(environmentManager as never);
+            const onOutput = jest.fn();
+
+            const resultPromise = processManager.spawn(
+                'tool',
+                ['--flag'],
+                { cwd: '.', env: { ORIGINAL: '1' }, usePty: true },
+                onOutput,
+            );
+
+            onData?.('output chunk');
+            onExit?.({ exitCode: 0 });
+
+            await expect(resultPromise).resolves.toEqual({ code: 0 });
+            expect(pty.spawn).toHaveBeenCalledWith('tool', ['--flag'], {
+                name: 'xterm-256color',
+                cols: 80,
+                rows: 24,
+                cwd: '.',
+                env: { AUGMENTED: '1' },
+            });
+            expect(spawnMock).not.toHaveBeenCalled();
+            expect(onOutput).toHaveBeenCalledWith('output chunk');
         });
     });
 });
