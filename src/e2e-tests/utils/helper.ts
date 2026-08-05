@@ -42,7 +42,8 @@ export function escapeRegExp(value: string): string {
 export async function copyTerminalText(vscode: VsCodeDriver): Promise<string> {
     const page = vscode.page.getPage();
 
-    await page.context().grantPermissions(['clipboard-read']);
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.evaluate(() => navigator.clipboard.writeText(''));
 
     await vscode.page.getCommands().runCommandFromPalette('Terminal: Select All');
     await vscode.page.getCommands().runCommandFromPalette('Terminal: Copy Selection');

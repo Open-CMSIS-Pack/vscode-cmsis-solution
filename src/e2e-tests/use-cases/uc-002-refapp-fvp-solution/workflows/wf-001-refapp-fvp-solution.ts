@@ -306,9 +306,7 @@ export const runWf001RefAppFVPSolution = async (
         const terminalTaskButtons = vsCodeDriver.page.getRoleByName('button', {
             name: /^Focus Terminal.*Split Terminal/,
         });
-        const runTaskButton = terminalTaskButtons.filter({
-            hasText: 'CMSIS Run',
-        });
+        const runTaskButton = terminalTaskButtons.filter({ hasText: 'CMSIS Run' });
         let loadAndRunOutput = '';
         try {
             await test.step('Generate the Load & Run task', async () => {
@@ -357,83 +355,47 @@ export const runWf001RefAppFVPSolution = async (
                 log('info', 'CMSIS Load+Run task generated successfully');
             });
 
-            await test.step('Start compound Load & Run task and wait for the Run phase', async () => {
+            await test.step('Run the compound Load & Run task and verify its terminal output', async () => {
                 log('info', 'Starting sequential CMSIS Load then CMSIS Run tasks...');
                 await vsCodeDriver.page.openCmsisPanel();
                 const loadAndRunButton = vsCodeDriver.page.getRoleByName('button', {
                     name: 'Load & Run Application',
                 });
-                await expect(loadAndRunButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
-                await loadAndRunButton.click();
-                try {
-                    // CMSIS Load+Run is a compound task. The Run terminal appears only after
-                    // the preceding Load dependency has completed successfully.
-                    await expect(runTaskButton).toBeVisible({
-                        timeout: DEFAULT_TIMEOUT_MS,
-                    });
-                } catch (error) {
-                    const visibleTerminals = await terminalTaskButtons.allTextContents();
-                    const cause = error instanceof Error ? error.message : String(error);
-                    throw new Error(
-                        'CMSIS Run did not start after the CMSIS Load phase.\n'
-                        + `Terminal tabs found: ${JSON.stringify(visibleTerminals)}\n`
-                        + `Cause: ${cause}`,
-                    );
-                }
-                await runTaskButton.click();
-                const terminalLabels = await Promise.all(
-                    (await terminalTaskButtons.all()).map(
-                        terminal => terminal.getAttribute('aria-label'),
-                    ),
-                );
-                log('debug', `Terminal tabs after starting FVP: ${JSON.stringify(terminalLabels)}`);
-                log(
-                    'info',
-                    'CMSIS Load completed; selected the subsequent "CMSIS Run" terminal',
-                );
-            });
-
-            await test.step('Verify FVP application output', async () => {
                 const expectedOutput = fixture.expected_run.output_contains ?? [];
                 expect(
                     expectedOutput.length,
                     'Load & Run requires at least one functional success string',
                 ).toBeGreaterThan(0);
-                log('info', `Waiting for FVP output: ${JSON.stringify(expectedOutput)}`);
+                await expect(loadAndRunButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+                await loadAndRunButton.click();
 
-                try {
-                    for (const expectedText of expectedOutput) {
-                        await expect.poll(async () => {
-                            loadAndRunOutput = await copyTerminalText(vsCodeDriver);
-                            return loadAndRunOutput;
-                        }, {
-                            timeout: DEFAULT_TIMEOUT_MS,
-                            intervals: [1000, 2000, 3000],
-                            message: `Expected Load & Run terminal to contain "${expectedText}"`,
-                        }).toContain(expectedText);
-                        log('info', `FVP output contains expected text: "${expectedText}"`);
-                    }
-                } catch (error) {
-                    const cause = error instanceof Error ? error.message : String(error);
-                    throw new Error(
-                        'FVP did not produce the expected application output.\n'
-                        + `Terminal output:\n${loadAndRunOutput}\n`
-                        + `Cause: ${cause}`,
-                    );
+                // The Run child starts only after the compound task's Load child succeeds.
+                await expect(runTaskButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+                const taskSucceeded = runTaskButton.locator('.codicon-check');
+                const taskFailed = runTaskButton.locator('.codicon-error');
+                await expect(taskSucceeded.or(taskFailed)).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+
+                for (const expectedText of expectedOutput) {
+                    await expect.poll(async () => {
+                        await runTaskButton.click();
+                        loadAndRunOutput = await copyTerminalText(vsCodeDriver);
+                        return loadAndRunOutput;
+                    }, {
+                        timeout: DEFAULT_TIMEOUT_MS,
+                        intervals: [1000, 2000, 3000],
+                        message: `Expected CMSIS Run terminal to contain "${expectedText}"`,
+                    }).toContain(expectedText);
+                    log('info', `CMSIS Run terminal contains expected text: "${expectedText}"`);
                 }
+
+                if (await taskFailed.isVisible()) {
+                    log('warn', 'CMSIS Run exited non-zero after producing the expected output');
+                }
+                log('info', 'CMSIS Load completed and CMSIS Run produced the expected output');
                 await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/After FVP Load & Run`);
             });
         } finally {
-            log('debug', `CMSIS Load+Run terminal output: ${JSON.stringify(loadAndRunOutput)}`);
-            const taskFailed = await runTaskButton.locator('.codicon-error')
-                .isVisible()
-                .catch(() => false);
-            if (taskFailed) {
-                log(
-                    'warn',
-                    'CMSIS Load+Run reported a non-zero exit status after producing terminal output.',
-                );
-            }
+            log('debug', `CMSIS Run terminal output: ${JSON.stringify(loadAndRunOutput)}`);
             try {
                 await vsCodeDriver.page.getCommands()
                     .runCommandFromPalette('Terminal: Kill All Terminals');
