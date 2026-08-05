@@ -497,6 +497,26 @@ describe('ContextSelection', () => {
         expect(input.value).toBe('');
     });
     describe('sendDebugAdapterProperty', () => {
+        it('commits the current string input value when change and blur are batched', () => {
+            createContextSelectionComponent();
+            postGenericDataContext();
+            listener.mockClear();
+
+            const input = container.querySelector('.section-control input:not([data-yml-node])') as HTMLInputElement;
+
+            React.act(() => {
+                fireEvent.change(input, { target: { value: '--simlimit 25' } });
+                fireEvent.blur(input);
+            });
+
+            expect(listener).toHaveBeenCalledWith({
+                type: 'SET_DEBUG_ADAPTER_PROPERTY',
+                service: undefined,
+                key: 'telnet-prop_a',
+                value: '--simlimit 25',
+            });
+        });
+
         it('calls messageHandler.push with correct parameters for number type property', () => {
             createContextSelectionComponent();
 
