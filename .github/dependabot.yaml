@@ -4,6 +4,7 @@ registries:
   npm-github:
     type: npm-registry
     url: https://npm.pkg.github.com
+    scope: "@open-cmsis-pack"
     token: ${{secrets.GH_PACKAGES_TOKEN}}
 
 updates:
@@ -15,6 +16,11 @@ updates:
       time: "02:00"
     cooldown:
       default-days: 3
+
+    groups:
+      codeql-actions:
+        patterns:
+          - "github/codeql-action/*"
 
   # Maintain dependencies for the JavaScript package
   - package-ecosystem: "npm"
