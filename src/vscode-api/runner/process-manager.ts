@@ -20,6 +20,7 @@ import { createInterface } from 'readline';
 import * as inspector from 'inspector';
 import * as pty from '@lydell/node-pty';
 import { Environment, EnvironmentManager } from '../../desktop/env-manager';
+import { TerminalOutputFilter } from '../../utils/terminal-output-filter';
 
 const DEFAULT_PTY_DIMENSIONS: TerminalDimensions = { columns: 80, rows: 24 };
 
@@ -74,6 +75,7 @@ export class ProcessManagerImpl implements ProcessManager {
 
             if (usePty || (dimensions && !this.debuggingOnWindows)) {
                 const ptyDimensions = dimensions ?? DEFAULT_PTY_DIMENSIONS;
+                const outputFilter = new TerminalOutputFilter();
                 const ptyProcess = pty.spawn(command, args, {
                     name: 'xterm-256color',
                     cols: ptyDimensions.columns,
@@ -81,7 +83,12 @@ export class ProcessManagerImpl implements ProcessManager {
                     cwd: typeof spawnOptions.cwd === 'string' ? spawnOptions.cwd : undefined,
                     env: augmentedEnv
                 });
-                ptyProcess.onData((data) => { onOutput(data); });
+                ptyProcess.onData((data) => {
+                    const output = outputFilter.write(data);
+                    if (output.length > 0) {
+                        onOutput(output);
+                    }
+                });
                 ptyProcess.onExit(({ exitCode }) => {
                     if (exitCode === 0) {
                         resolve({ code: 0 });

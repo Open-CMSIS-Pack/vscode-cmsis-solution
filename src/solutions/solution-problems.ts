@@ -26,6 +26,7 @@ import { getWorkspaceFolder } from '../utils/vscode-utils';
 import { ProblemDiagnosticActionResolver } from './problem-diagnostic-action-resolver';
 import { SolutionLoadStateChangeEvent, SolutionManager } from './solution-manager';
 import { ConvertResultData, CbuildResultData, SolutionEventHub } from './solution-event-hub';
+import { TerminalOutputFilter } from '../utils/terminal-output-filter';
 
 interface SettingsLocation {
     filePath: string;
@@ -43,81 +44,16 @@ export const toolsPrefixPatterns = {
 };
 
 const ESC = String.fromCharCode(27);
-const BEL = String.fromCharCode(7);
-
-const stripAnsiControlSequences = (line: string): string => {
-    let normalized = '';
-
-    for (let i = 0; i < line.length;) {
-        if (line[i] !== ESC) {
-            normalized += line[i];
-            i++;
-            continue;
-        }
-
-        const next = line[i + 1];
-
-        // CSI sequence: ESC [ ... final-byte(0x40-0x7E)
-        if (next === '[') {
-            i += 2;
-            while (i < line.length) {
-                const code = line.charCodeAt(i);
-                i++;
-                if (code >= 0x40 && code <= 0x7E) {
-                    break;
-                }
-            }
-            continue;
-        }
-
-        // OSC sequence: ESC ] ... BEL  OR  ESC \
-        if (next === ']') {
-            i += 2;
-            while (i < line.length) {
-                if (line[i] === BEL) {
-                    i++;
-                    break;
-                }
-                if (line[i] === ESC && line[i + 1] === '\\') {
-                    i += 2;
-                    break;
-                }
-                i++;
-            }
-            continue;
-        }
-
-        // Single-character escape sequence: ESC <code>
-        i += Math.min(2, line.length - i);
-    }
-
-    return normalized;
-};
-
-const stripNonPrintableControls = (line: string): string => {
-    let normalized = '';
-    for (let i = 0; i < line.length; i++) {
-        const code = line.charCodeAt(i);
-        const isTab = code === 0x09;
-        const isLf = code === 0x0A;
-        const isCr = code === 0x0D;
-        const isPrintable = code >= 0x20 && code !== 0x7F;
-        if (isTab || isLf || isCr || isPrintable) {
-            normalized += line[i];
-        }
-    }
-    return normalized;
-};
-
 const normalizeToolOutputLines = (lines?: string[]): string[] => {
     if (!lines || lines.length === 0) {
         return [];
     }
 
+    const outputFilter = new TerminalOutputFilter();
     const isPtyLike = lines.some(line => line.includes(ESC) || line.includes('\r') || line.includes('\n'));
     if (!isPtyLike) {
         return lines
-            .map(line => stripNonPrintableControls(stripAnsiControlSequences(line)).trimEnd())
+            .map(line => outputFilter.write(line).trimEnd())
             .filter(line => line.length > 0);
     }
 
@@ -125,7 +61,7 @@ const normalizeToolOutputLines = (lines?: string[]): string[] => {
     let pending = '';
 
     for (const chunk of lines) {
-        const sanitizedChunk = stripNonPrintableControls(stripAnsiControlSequences(chunk));
+        const sanitizedChunk = outputFilter.write(chunk);
         const combined = pending + sanitizedChunk;
         const parts = combined.split(/\r\n|\n|\r/);
         pending = parts.pop() ?? '';

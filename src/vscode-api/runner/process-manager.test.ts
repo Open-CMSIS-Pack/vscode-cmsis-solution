@@ -120,7 +120,7 @@ describe('process-manager.ts', () => {
                 onOutput,
             );
 
-            onData?.('output chunk');
+            onData?.('\x1b[?9001h\x1b[?1004houtput chunk');
             onExit?.({ exitCode: 0 });
 
             await expect(resultPromise).resolves.toEqual({ code: 0 });
@@ -133,6 +133,34 @@ describe('process-manager.ts', () => {
             });
             expect(spawnMock).not.toHaveBeenCalled();
             expect(onOutput).toHaveBeenCalledWith('output chunk');
+        });
+
+        it('filters PTY control sequences split across output chunks', async () => {
+            let onData: ((data: string) => void) | undefined;
+            let onExit: ((event: { exitCode: number }) => void) | undefined;
+            const ptyProcess = {
+                onData: jest.fn((callback: (data: string) => void) => { onData = callback; }),
+                onExit: jest.fn((callback: (event: { exitCode: number }) => void) => { onExit = callback; }),
+                write: jest.fn(),
+                kill: jest.fn(),
+            };
+            (pty.spawn as jest.Mock).mockReturnValue(ptyProcess);
+
+            const environmentManager = {
+                augmentEnv: jest.fn(() => ({ vars: {} })),
+            };
+            const processManager = new ProcessManagerImpl(environmentManager as never);
+            const onOutput = jest.fn();
+
+            const resultPromise = processManager.spawn('tool', [], { usePty: true }, onOutput);
+
+            onData?.('\x1b[?90');
+            onData?.('01hGenerator output\r\n');
+            onExit?.({ exitCode: 0 });
+
+            await expect(resultPromise).resolves.toEqual({ code: 0 });
+            expect(onOutput).toHaveBeenCalledTimes(1);
+            expect(onOutput).toHaveBeenCalledWith('Generator output\r\n');
         });
     });
 });
