@@ -240,14 +240,6 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=8192
         run: npm ci
 
-      - name: Inspect FVP debug-adapter template
-        shell: pwsh
-        run: |
-          Write-Host 'Debug adapter registry revision:'
-          Get-Content -LiteralPath 'templates/debug/version.txt' -ErrorAction Stop
-          Write-Host 'FVP adapter template:'
-          Get-Content -LiteralPath 'templates/debug/FVP.adapter.json' -ErrorAction Stop
-
       - name: Run build
         run: npm run build
 
@@ -271,43 +263,7 @@ jobs:
 
       - name: Verify Corstone SSE-300 FVP
         shell: pwsh
-        run: |
-          Get-Command FVP_Corstone_SSE-300.exe -ErrorAction Stop
-          where.exe FVP_Corstone_SSE-300.exe
-
-      - name: Inspect AVH FVP installation
-        shell: pwsh
-        run: |
-          $fvpPath = (Get-Command FVP_Corstone_SSE-300.exe -ErrorAction Stop).Source
-          $artifactRoot = Split-Path (Split-Path $fvpPath -Parent) -Parent
-          $pluginsPath = Join-Path $artifactRoot 'plugins'
-
-          Write-Host "FVP executable: $fvpPath"
-          Write-Host "AVH artifact root: $artifactRoot"
-          Write-Host "AVH_FVP_PLUGINS: $env:AVH_FVP_PLUGINS"
-          Write-Host "Expected plugins directory: $pluginsPath"
-
-          if (Test-Path -LiteralPath $pluginsPath) {
-            Write-Host 'Installed AVH plugins:'
-            Get-ChildItem -LiteralPath $pluginsPath -Recurse -File |
-              Select-Object Name, FullName, Length |
-              Format-Table -AutoSize
-          } else {
-            Write-Warning "AVH plugins directory does not exist: $pluginsPath"
-          }
-
-          $gdbServerFiles = @(
-            Get-ChildItem -LiteralPath $artifactRoot -Recurse -Filter GDBServer.dll -File `
-              -ErrorAction SilentlyContinue
-          )
-          if ($gdbServerFiles.Count -eq 0) {
-            Write-Warning "GDBServer.dll was not found under $artifactRoot"
-          } else {
-            Write-Host 'GDBServer.dll locations:'
-            $gdbServerFiles |
-              Select-Object FullName, Length |
-              Format-Table -AutoSize
-          }
+        run: Get-Command FVP_Corstone_SSE-300.exe -ErrorAction Stop
 
       - name: Activate Arm tool license
         run: armlm activate --server https://mdk-preview.keil.arm.com --product KEMDK-COM0
@@ -321,24 +277,16 @@ jobs:
           python-version: '3.13'
 
       - name: Install prerequisites
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install pyaudio opencv-python
+        run: python -m pip install pyaudio opencv-python
 
       - name: Add CMSIS Toolbox to PATH
         run: echo "$GITHUB_WORKSPACE/tools/cmsis-toolbox/bin" >> "$GITHUB_PATH"
-
-      - name: Verify cpackget
-        run: cpackget --version
 
       - name: Configure CMSIS pack root
         run: |
           echo "CMSIS_PACK_ROOT=$RUNNER_TEMP/cmsis-packs" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/cmsis-packs"
 
-      - name: Show CMSIS environment
-        run: cbuild list environment
-      
       - name: Initialize CMSIS pack root folder
         run: |
           cpackget init https://www.keil.com/pack/index.pidx

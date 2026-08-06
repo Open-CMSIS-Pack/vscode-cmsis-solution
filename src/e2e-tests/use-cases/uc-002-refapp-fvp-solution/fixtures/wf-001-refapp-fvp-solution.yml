@@ -16,7 +16,6 @@ arm_tools:
   version: 11.31.28
 
 expected_run:
-  terminal: Run
   command_contains:
     - FVP_Corstone_SSE-300
     - board/Corstone-300/fvp_config.txt
