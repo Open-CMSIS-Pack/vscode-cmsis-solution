@@ -112,6 +112,7 @@ export class CSolution {
     cbuilds?: ITreeItem<CTreeItem>[];
     cbuildYmlRoot: Map<string, CTreeItem> = new Map();
     clayerYmlRoot: Map<string, CTreeItem> = new Map();
+    clayerYmlFiles: Map<string, CTreeItemYamlFile> = new Map();
 
     // local configuration
     cbuildSetYmlFileName = '';
@@ -350,6 +351,7 @@ export class CSolution {
         this.cbuildIdxFile?.clear();
         this.cbuildYmlRoot = new Map();
         this.clayerYmlRoot = new Map();
+        this.clayerYmlFiles = new Map();
     }
 
     private async loadClayerYmlFiles(parent?: ITreeItem<CTreeItem>): Promise<void> {
@@ -360,7 +362,7 @@ export class CSolution {
         for (const cbuild of this.cbuilds) {
             const clayers: CTreeItem[] = [];
             for (const clayer of cbuild.getGrandChildren('clayers')) {
-                const clayerYml = await this.loadChildYml('clayer', clayer, this.clayerYmlRoot);
+                const clayerYml = await this.loadChildYml('clayer', clayer, this.clayerYmlRoot, this.clayerYmlFiles);
                 if (clayerYml) {
                     clayers.push(clayerYml);
                 }
@@ -372,7 +374,12 @@ export class CSolution {
         }
     }
 
-    private async loadChildYml(tag: string, element: ITreeItem<CTreeItem>, collection: Map<string, CTreeItem>): Promise<CTreeItem | undefined> {
+    private async loadChildYml(
+        tag: string,
+        element: ITreeItem<CTreeItem>,
+        collection: Map<string, CTreeItem>,
+        fileCollection?: Map<string, CTreeItemYamlFile>,
+    ): Promise<CTreeItem | undefined> {
         const fileName = path.join(this.solutionDir, element.getValue(tag) ?? '');
         const loaded = collection.get(fileName);
         if (loaded !== undefined) {
@@ -385,6 +392,7 @@ export class CSolution {
         const root = ymlFile.rootItem;
         if (root) {
             collection.set(fileName, root); //add to the supplied map
+            fileCollection?.set(fileName, ymlFile);
         }
         return root;
     }
@@ -492,8 +500,17 @@ export class CSolution {
      * @returns CTreeItem or undefined
      */
     public getClayer(fileName: string): CTreeItem | undefined {
+        return this.getClayerYamlFile(fileName)?.rootItem;
+    }
+
+    /**
+     * Returns the YAML file associated with a clayer.yml file.
+     * @param fileName Absolute path or path relative to the solution directory
+     * @returns CTreeItemYamlFile or undefined
+     */
+    public getClayerYamlFile(fileName: string): CTreeItemYamlFile | undefined {
         const absPath = path.resolve(this.solutionDir, fileName);
-        return this.clayerYmlRoot.get(absPath);
+        return this.clayerYmlFiles.get(absPath);
     }
 
     public getClayersForContext(context?: string): CTreeItem[] {

@@ -18,18 +18,16 @@ import { Uri, ExtensionContext, QuickPickItem } from 'vscode';
 import * as vscode from 'vscode';
 import _ from 'lodash';
 import { FileOrGroup, addItemToExistingGroup } from '../../../solutions/edit/manage-group-items';
-import { editYamlFile as defaultEditYamlFile } from '../../../solutions/edit/edit-yaml-file';
-import { FileData, GroupData } from '../../../solutions/parsing/common-file-parsing';
 import * as path from 'path';
 import { WorkspaceFsProvider } from '../../../vscode-api/workspace-fs-provider';
 import * as manifest from '../../../manifest';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
-import { Document as YamlDocument } from 'yaml';
 import { CodeTemplate, buildTemplatesFromCbuild } from './user-code-templates';
 import { SolutionManager } from '../../../solutions/solution-manager';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 import { backToForwardSlashes, getCmsisPackRoot } from '../../../utils/path-utils';
 import { collectGroupFiles, getGroupPathArray } from '../utils';
+import { mutateAndSaveOutlineYamlFile } from './outline-yaml-file';
 
 const parentFileUriFromGroupData = (groupData: COutlineItem): Uri => {
     const projectUri = groupData.getAttribute('projectUri') ?? '';
@@ -44,10 +42,6 @@ const parentFileUriFromGroupData = (groupData: COutlineItem): Uri => {
 };
 const projectRootFromGroupData = (groupData: COutlineItem): Uri => Uri.joinPath(parentFileUriFromGroupData(groupData), '..');
 const groupNameFromPath = (groupPath: string[]) => _.tail(groupPath);
-const getParentTypeFromGroupData = (groupData: COutlineItem): 'project' | 'layer' => {
-    const layerUri = groupData.getAttribute('layerUri');
-    return layerUri ? 'layer' : 'project';
-};
 
 export const addNewFileOption = {
     id: 'AddNewFile',
@@ -101,7 +95,6 @@ export class AddToGroupCommand {
         private readonly commandsProvider: CommandsProvider,
         private readonly solutionManager: Pick<SolutionManager, 'loadState' | 'getCsolution'>,
         private readonly vscodeWindow: Pick<typeof vscode.window, 'showInputBox' | 'showSaveDialog' | 'showOpenDialog' | 'showQuickPick'> = vscode.window,
-        private readonly editYamlFile = defaultEditYamlFile,
     ) { }
 
     public async activate(context: Pick<ExtensionContext, 'subscriptions'>) {
@@ -126,7 +119,7 @@ export class AddToGroupCommand {
         }
 
         if (chosenOption.id === addNewGroupOption.id) {
-            this.addGroup(groupData);
+            await this.addGroup(groupData);
         } else {
             const filesToAdd = await this.getFilesToAddForOption(groupData, chosenOption.id);
 
@@ -134,7 +127,7 @@ export class AddToGroupCommand {
             const newFiles = this.checkFilesInGroups(groupData, filesToAdd);
 
             if (newFiles.length > 0) {
-                this.addFiles(groupData, newFiles);
+                await this.addFiles(groupData, newFiles);
             }
         }
     }
@@ -183,7 +176,7 @@ export class AddToGroupCommand {
             },
         });
         if (name) {
-            this.addGroupToGroup(groupData, name);
+            await this.addGroupToGroup(groupData, name);
         }
     }
 
@@ -295,7 +288,7 @@ export class AddToGroupCommand {
     ): Promise<void> {
         const parentUri = parentFileUriFromGroupData(groupData);
         const modifications = fileUris.map((fileUri): FileOrGroup => {
-            const fileData: FileData = {
+            const fileData = {
                 name: backToForwardSlashes(path.relative(path.resolve(parentUri.fsPath, '..'), fileUri.fsPath)),
                 forContext: [],
                 notForContext: [],
@@ -312,10 +305,8 @@ export class AddToGroupCommand {
         newGroupName: string,
     ): Promise<void> {
 
-        const groupData: GroupData = {
+        const groupData = {
             name: newGroupName,
-            files: [],
-            groups: [],
             forContext: [],
             notForContext: [],
         };
@@ -326,16 +317,17 @@ export class AddToGroupCommand {
         parentGroupData: COutlineItem,
         fileOrGroups: FileOrGroup[],
     ): Promise<void> {
-        const parentUri = parentFileUriFromGroupData(parentGroupData);
-        const parentType = getParentTypeFromGroupData(parentGroupData);
         const groupPath = getGroupPathArray(parentGroupData);
-
-        const modifications = fileOrGroups.map(fileOrGroup => {
-            return (yamlDocument: YamlDocument) => {
-                addItemToExistingGroup(yamlDocument, parentType, groupPath, fileOrGroup);
-            };
+        await mutateAndSaveOutlineYamlFile(this.solutionManager, parentGroupData, topItem => {
+            let changed = false;
+            for (const fileOrGroup of fileOrGroups) {
+                const result = addItemToExistingGroup(topItem, groupPath, fileOrGroup);
+                if (result === 'invalid-path') {
+                    throw new Error(`Unable to find group path '${groupPath.join('/')}'`);
+                }
+                changed = result === 'changed' || changed;
+            }
+            return changed;
         });
-
-        await this.editYamlFile(this.workspaceFsProvider, parentUri, modifications);
     }
 }
