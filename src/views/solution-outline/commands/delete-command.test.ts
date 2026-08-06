@@ -14,16 +14,20 @@
  * limitations under the License.
  */
 
-import { TestDataHandler } from '../../../__test__/test-data';
-import { DeleteCommand } from './delete-command';
-import { commandsProviderFactory } from '../../../vscode-api/commands-provider.factories';
-import { workspaceFsProviderFactory } from '../../../vscode-api/workspace-fs-provider.factories';
-import { ExtensionContext } from 'vscode';
-import path from 'node:path';
-import * as fs from 'fs';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { CTreeItemYamlFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
-import { COutlineItem } from '../tree-structure/solution-outline-item';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import * as fs from 'fs';
+import os from 'node:os';
+import path from 'node:path';
+import { ExtensionContext } from 'vscode';
 import * as vscode from 'vscode';
+import { CSolution } from '../../../solutions/csolution';
+import { CProjectYamlFile } from '../../../solutions/files/cproject-yaml-file';
+import { commandsProviderFactory } from '../../../vscode-api/commands-provider.factories';
+import { COutlineItem } from '../tree-structure/solution-outline-item';
+import { DeleteCommand } from './delete-command';
 
 jest.mock('vscode', () => ({
     window: {
@@ -32,483 +36,249 @@ jest.mock('vscode', () => ({
         showInformationMessage: jest.fn(),
     },
     Uri: {
-        file: (path: string) => ({ fsPath: path })
+        file: (filePath: string) => ({ fsPath: filePath }),
     },
     workspace: {
         fs: {
-            delete: jest.fn() // we'll override this in the test
-        }
+            delete: jest.fn(),
+        },
     },
 }));
 
 const extensionContextFactory = (): Pick<ExtensionContext, 'subscriptions'> => ({ subscriptions: [] });
+const commandsProvider = commandsProviderFactory();
+const projectPath = path.resolve('project', 'test.cproject.yml');
+
+const yamlFileFixture = (
+    yaml: string,
+    layerPath?: string,
+    saveResult: ETextFileResult = ETextFileResult.Unchanged,
+) => {
+    const yamlFile = layerPath
+        ? new CTreeItemYamlFile(layerPath)
+        : new CProjectYamlFile(projectPath);
+    const rootItem = parseYamlToCTreeItem(yaml);
+    if (!(rootItem instanceof CTreeItem)) {
+        throw new Error('YAML root item was not parsed');
+    }
+    yamlFile.rootItem = rootItem;
+    rootItem.rootFileName = yamlFile.fileName;
+    const save = jest.spyOn(yamlFile, 'save').mockResolvedValue(saveResult);
+    const load = jest.spyOn(yamlFile, 'load').mockResolvedValue(ETextFileResult.Success);
+    const csolution = {
+        getCproject: jest.fn(() => yamlFile),
+        getClayerYamlFile: jest.fn(() => yamlFile),
+    } as unknown as CSolution;
+    const solutionManager = { getCsolution: jest.fn(() => csolution) };
+    const command = new DeleteCommand(commandsProvider, solutionManager);
+    return { command, csolution, load, save, yamlFile };
+};
+
+const groupNode = (groupPath: string, layerPath?: string): COutlineItem => {
+    const node = new COutlineItem('group');
+    node.setAttribute('label', groupPath.split(';').at(-1));
+    node.setAttribute('type', 'group');
+    node.setAttribute('groupPath', groupPath);
+    node.setAttribute('projectUri', projectPath);
+    node.setAttribute('layerUri', layerPath);
+    return node;
+};
+
+const fileNode = (parent: COutlineItem, fileUri: string, resourcePath?: string): COutlineItem => {
+    const node = parent.createChild('file');
+    node.setAttribute('label', path.basename(fileUri));
+    node.setAttribute('fileUri', fileUri);
+    node.setAttribute('resourcePath', resourcePath ?? path.resolve(path.dirname(projectPath), fileUri));
+    node.setAttribute('projectUri', parent.getAttribute('projectUri'));
+    node.setAttribute('layerUri', parent.getAttribute('layerUri'));
+    return node;
+};
+
+const groupNames = (topItem: CTreeItem, groupPath: string[] = []): string[] => {
+    let item = topItem;
+    for (const groupName of groupPath) {
+        item = item.getChild('groups')?.getChildByValue('group', groupName) as CTreeItem;
+    }
+    return item.getGrandChildren('groups').map(group => group.getValueAsString('group'));
+};
+
+const fileNames = (topItem: CTreeItem, groupPath: string[]): string[] => {
+    let item = topItem;
+    for (const groupName of groupPath) {
+        item = item.getChild('groups')?.getChildByValue('group', groupName) as CTreeItem;
+    }
+    return item.getGrandChildren('files').map(file => file.getValueAsString('file'));
+};
 
 describe('DeleteCommand', () => {
-    let deleteCommand: DeleteCommand;
-    const commandsProvider = commandsProviderFactory();
-    const workspaceFsProvider = workspaceFsProviderFactory();
-    const testDataHandler = new TestDataHandler();
-    let tmpSolutionDir: string;
-    beforeAll(async () => {
-        tmpSolutionDir = testDataHandler.copyTestDataToTmp('solutions');
-        deleteCommand = new DeleteCommand(commandsProvider, workspaceFsProvider);
+    let tempDir: string;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'delete-command-'));
     });
 
-    afterAll(async () => {
-        testDataHandler.dispose();
+    afterEach(() => {
+        fs.rmSync(tempDir, { recursive: true, force: true });
     });
 
-    it('should register remove command on activation', async () => {
-        const newDeleteCommand = new DeleteCommand(commandsProvider, workspaceFsProviderFactory());
-        await newDeleteCommand.activate(extensionContextFactory());
+    it('registers the remove command on activation', async () => {
+        const { command } = yamlFileFixture('project: {}');
+
+        await command.activate(extensionContextFactory());
+
         expect(commandsProvider.registerCommand).toHaveBeenCalledWith(
             DeleteCommand.removeCommandId,
             expect.any(Function),
-            newDeleteCommand
+            command,
         );
     });
 
-    it('removes a file from yaml and writes updated file', async () => {
-        const projectPath = path.join(tmpSolutionDir, 'USBD', 'HID', 'HID.cproject.yml');
+    it('removes a file from the loaded project and saves it once', async () => {
+        const fixture = yamlFileFixture(`project:
+  groups:
+    - group: Source
+      files:
+        - file: keep.c
+        - file: remove.c
+`);
+        const group = groupNode('Source');
+        const file = fileNode(group, 'remove.c');
 
-        const solutionNode = new COutlineItem('file');
-        solutionNode.setAttribute('label', 'USBD_User_HID_0.c');
-        solutionNode.setAttribute('tag', 'file');
-        solutionNode.setAttribute('resourcePath', path.join(tmpSolutionDir, 'USBD', 'HID', 'USBD_User_HID_0.c'));
+        await fixture.command.delete(true, file, 'remove.c', false);
 
-        await (deleteCommand).delete(true, solutionNode, 'USBD_User_HID_0.c', true);
-
-        const cprojectContent = fs.readFileSync(projectPath, 'utf8');
-        const root = await parseYamlToCTreeItem(cprojectContent);
-        expect(root).toBeDefined();
-        const topChild = root?.getChild();
-        root!.rootFileName = projectPath;
-
-        const children = topChild?.getChildren();
-        const groups = children?.[2];
-        const groupItems = groups?.getChildren();
-
-        const want: string[] = ['README.md', 'HID.c', '$OutDir()$/testOutput.test'];
-        const got: string[] = [];
-        if (groupItems) {
-            for (const gi of groupItems) {
-                const children = gi.getChildren();
-                const fs = children[1];
-                const fs1 = fs.getGrandChildren();
-                for (const f of fs1) {
-                    const fileName = f.getText();
-                    got.push(fileName ?? '');
-                }
-            }
-        }
-        expect(got).toEqual(want);
+        expect(fileNames(fixture.yamlFile.topItem!, ['Source'])).toEqual(['keep.c']);
+        expect(fixture.save).toHaveBeenCalledTimes(1);
+        expect(vscode.window.showInformationMessage).toHaveBeenCalledWith("'remove.c' has been removed.");
     });
 
-    it('does not remove a file from yaml if file deletion fails', async () => {
-        const projectPath = path.join(tmpSolutionDir, 'USBD', 'HID', 'HID.cproject.yml');
-
-        const solutionNode = new COutlineItem('file');
-        solutionNode.setAttribute('label', 'README.md');
-        solutionNode.setAttribute('tag', 'file');
-        solutionNode.setAttribute('resourcePath', path.join(tmpSolutionDir, 'USBD', 'HID', 'README.md'));
-        solutionNode.setAttribute('projectUri', projectPath);
-
-        jest.spyOn(vscode.workspace.fs, 'delete').mockImplementation(() => {
-            throw new Error('Simulated deletion failure');
-        });
-
-        await deleteCommand.delete(true, solutionNode, 'README.md', true);
-
-        const cprojectContent = fs.readFileSync(projectPath, 'utf8');
-        const root = await parseYamlToCTreeItem(cprojectContent);
-        const topChild = root?.getChild();
-        root!.rootFileName = projectPath;
-
-        const children = topChild?.getChildren();
-        const groups = children?.[2];
-        const groupItems = groups?.getChildren();
-
-        const got: string[] = [];
-        if (groupItems) {
-            for (const gi of groupItems) {
-                const children = gi.getChildren();
-                const fs = children[1];
-                const fs1 = fs.getGrandChildren();
-                for (const f of fs1) {
-                    const fileName = f.getText();
-                    got.push(fileName ?? '');
-                }
-            }
-        }
-
-        expect(got).toContain('README.md');
-    });
-
-    it('should prompt for deletion confirmation when removing a file', async () => {
-        const projectPath = path.join(tmpSolutionDir, 'USBD', 'HID', 'HID.cproject.yml');
-        const solutionNode = new COutlineItem('file');
-        solutionNode.setAttribute('label', 'USBD_User_HID_0.c');
-        solutionNode.setAttribute('tag', 'file');
-        solutionNode.setAttribute('resourcePath', projectPath);
-        solutionNode.setAttribute('projectUri', projectPath);
-
-        const deleteCommand = new DeleteCommand(commandsProvider, workspaceFsProviderFactory());
-        deleteCommand.confirmDeletion(solutionNode);
-
-        expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
-            'Choose Remove to remove \'USBD_User_HID_0.c\' from \'HID.cproject.yml\'\n\nChoose Delete to permanently delete \'USBD_User_HID_0.c\'',
-            { modal: true, detail: 'You can restore deleted file from the Recycle Bin.' },
-            'Remove', 'Delete'
-        );
-    });
-
-    it('removes a group from yaml and writes updated file', async () => {
-        const projectPath = path.join(tmpSolutionDir, 'USBD', 'HID', 'HID.cproject.yml');
-        const solutionNode = new COutlineItem('group');
-
-        solutionNode.setAttribute('label', 'USB');
-        solutionNode.setAttribute('type', 'group');
-        solutionNode.setAttribute('tag', 'group');
-        solutionNode.setAttribute('groupPath', 'USB');
-        solutionNode.setAttribute('projectUri', projectPath);
-
-        // Create a delete command with properly mocked file system provider
-        const mockWorkspaceFs = workspaceFsProviderFactory();
-        mockWorkspaceFs.readUtf8File.mockImplementation((filePath: string) => {
-            return Promise.resolve(fs.readFileSync(filePath, 'utf8'));
-        });
-        mockWorkspaceFs.writeUtf8File.mockImplementation((filePath: string, content: string) => {
-            fs.writeFileSync(filePath, content, 'utf8');
-            return Promise.resolve();
-        });
-
-        const testDeleteCommand = new DeleteCommand(commandsProvider, mockWorkspaceFs);
-        await testDeleteCommand.delete(false, solutionNode, 'USB', true);
-
-        const cprojectContent = fs.readFileSync(projectPath, 'utf8');
-        const root = await parseYamlToCTreeItem(cprojectContent);
-        const topChild = root?.getChild();
-        root!.rootFileName = projectPath;
-
-        const children = topChild?.getChildren();
-        const groups = children?.[2];
-        const groupItems = groups?.getChildren();
-
-        const want: string[] = ['Documentation', 'AccessSequencesTest'];
-        const got: string[] = [];
-        if (groupItems) {
-            for (const gi of groupItems) {
-                const children = gi.getChildren();
-                const gps = children[0];
-                const groupName = gps.getText();
-                got.push(groupName ?? '');
-            }
-        }
-        expect(got).toEqual(want);
-    });
-
-    it('fails to remove group and returns false if an error occurs', async () => {
-        const projectPath = path.join(tmpSolutionDir, 'USBD', 'HID', 'HID.cproject.yml');
-        const solutionNode = new COutlineItem('group');
-        solutionNode.setAttribute('label', 'Documentation');
-        solutionNode.setAttribute('type', 'group');
-        solutionNode.setAttribute('tag', 'group');
-        solutionNode.setAttribute('groupPath', 'Documentation');
-        solutionNode.setAttribute('projectUri', projectPath);
-
-        const dc = deleteCommand as DeleteCommand;
-
-        jest.spyOn(dc, 'deletePhysicalGroupFiles' as keyof DeleteCommand)
-            .mockImplementation(() => {
-                throw new Error('Simulated failure inside deletePhysicalGroupFiles');
-            });
-
-        await dc.delete(false, solutionNode, 'USB', true);
-
-        const cprojectContent = fs.readFileSync(projectPath, 'utf8');
-        const root = await parseYamlToCTreeItem(cprojectContent);
-        const topChild = root?.getChild();
-        root!.rootFileName = projectPath;
-
-        const children = topChild?.getChildren();
-        const groups = children?.[2];
-        const groupItems = groups?.getChildren();
-
-        const got: string[] = [];
-        if (groupItems) {
-            for (const gi of groupItems) {
-                const children = gi.getChildren();
-                const gps = children[0];
-                const groupName = gps.getText();
-                got.push(groupName ?? '');
-            }
-        }
-
-        expect(got).toContain('Documentation');
-    });
-
-    it('should prompt for confirmation when removing a group', async () => {
-        const projectPath = path.join(tmpSolutionDir, 'USBD', 'HID', 'HID.cproject.yml');
-
-        const solutionNode = new COutlineItem('group');
-        solutionNode.setAttribute('label', 'USB');
-        solutionNode.setAttribute('type', 'group');
-        solutionNode.setAttribute('tag', 'group');
-        solutionNode.setAttribute('groupPath', 'USB');
-        solutionNode.setAttribute('projectUri', projectPath);
-
-        const deleteCommand = new DeleteCommand(commandsProvider, workspaceFsProviderFactory());
-        deleteCommand.confirmDeletion(solutionNode);
-
-        expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
-            'Choose Remove to remove \'USB\' and all its content from \'HID.cproject.yml\'\n\nChoose Delete to permanently delete \'USB\' and all its content',
-            { modal: true, detail: 'You can restore deleted files from the Recycle Bin.' },
-            'Remove', 'Delete'
-        );
-    });
-
-    it('removes a nested group from YAML and updates the structure', async () => {
-        const projectPath = path.join(tmpSolutionDir, 'USBD', 'HID', 'HID.cproject.yml');
-
-        const solutionNode = new COutlineItem('group');
-        solutionNode.setAttribute('label', 'Documentation');
-        solutionNode.setAttribute('type', 'group');
-        solutionNode.setAttribute('tag', 'group');
-        solutionNode.setAttribute('groupPath', 'Documentation');
-        solutionNode.setAttribute('projectUri', projectPath);
-
-        const childGroup = solutionNode.createChild('group');
-        childGroup.setAttribute('label', 'subDoc');
-        childGroup.setAttribute('type', 'group');
-        childGroup.setAttribute('tag', 'group');
-        childGroup.setAttribute('groupPath', 'Documentation;subDoc');
-        childGroup.setAttribute('projectUri', projectPath);
-
-        await (deleteCommand).delete(false, solutionNode, 'subDoc', true);
-
-        const cprojectContent = fs.readFileSync(projectPath, 'utf8');
-        const root = await parseYamlToCTreeItem(cprojectContent);
-        const topChild = root?.getChild();
-        root!.rootFileName = projectPath;
-
-        const children = topChild?.getChildren();
-        const groups = children?.[2];
-        const groupItems = groups?.getChildren();
-
-        const want: string[] = [];
-        const got: string[] = [];
-        if (groupItems) {
-            for (const gi of groupItems) {
-                const children = gi.getChildren();
-                const gps = children[0];
-                const groupName = gps.getText();
-                if (groupName == 'Documentation') {
-                    const nestedGroup = gps.getChildByValue('subDoc');
-                    if (nestedGroup) {
-                        got.push(nestedGroup.getAttribute('label') ?? '');
-                    }
-                }
-            }
-        }
-        expect(got).toEqual(want);
-    });
-
-    it('should remove nested group with duplicate name without affecting top-level group', async () => {
-        const projectPath = path.join(tmpSolutionDir, 'USBD', 'HID', 'HID_test.cproject.yml');
-
-        const testYamlContent = `project:
+    it('removes only the targeted nested group with a duplicate name', async () => {
+        const fixture = yamlFileFixture(`project:
   groups:
     - group: foo
-      files:
-        - file: top-level-file.c
     - group: bar
       groups:
         - group: foo
-          files:
-            - file: nested-file.c
-      files:
-        - file: bar-file.c
-`;
+        - group: keep
+`);
+        const nestedFoo = groupNode('bar;foo');
 
-        // Write the test YAML structure to the project file
-        fs.writeFileSync(projectPath, testYamlContent, 'utf8');
+        await fixture.command.delete(false, nestedFoo, 'foo', false);
 
-        // Create a delete command with properly mocked file system provider
-        const mockWorkspaceFs = workspaceFsProviderFactory();
-        mockWorkspaceFs.readUtf8File.mockImplementation((filePath: string) => {
-            return Promise.resolve(fs.readFileSync(filePath, 'utf8'));
-        });
-        mockWorkspaceFs.writeUtf8File.mockImplementation((filePath: string, content: string) => {
-            fs.writeFileSync(filePath, content, 'utf8');
-            return Promise.resolve();
-        });
-
-        const testDeleteCommand = new DeleteCommand(commandsProvider, mockWorkspaceFs);
-
-        const solutionNode = new COutlineItem('group');
-        solutionNode.setAttribute('label', 'foo');
-        solutionNode.setAttribute('type', 'group');
-        solutionNode.setAttribute('tag', 'group');
-        solutionNode.setAttribute('groupPath', 'bar;foo');
-        solutionNode.setAttribute('projectUri', projectPath);
-
-        await testDeleteCommand.delete(false, solutionNode, 'foo', true);
-
-        const cprojectContent = fs.readFileSync(projectPath, 'utf8');
-
-        // Verify the top-level foo group still exists
-        expect(cprojectContent).toContain('- group: foo');
-        expect(cprojectContent).toContain('- file: top-level-file.c');
-
-        // Verify the bar group still exists
-        expect(cprojectContent).toContain('- group: bar');
-        expect(cprojectContent).toContain('- file: bar-file.c');
-
-        // Verify the nested foo group and its content have been removed
-        expect(cprojectContent).not.toContain('- file: nested-file.c');
-
+        expect(groupNames(fixture.yamlFile.topItem!)).toEqual(['foo', 'bar']);
+        expect(groupNames(fixture.yamlFile.topItem!, ['bar'])).toEqual(['keep']);
+        expect(fixture.save).toHaveBeenCalledTimes(1);
     });
 
-    it('deletes a group and all its files from file system and YAML', async () => {
-        const projectPath = path.join(tmpSolutionDir, 'USBD', 'HID', 'HID_group_delete.cproject.yml');
-
-        // Create test YAML with a group containing multiple files
-        const testYamlContent = `project:
-  packs:
-    - pack: Keil::MDK-Middleware@>=8.0.0-0
-
+    it('uses the loaded layer wrapper for a layer-owned group', async () => {
+        const layerPath = path.resolve('layers', 'test.clayer.yml');
+        const fixture = yamlFileFixture(`layer:
   groups:
-    - group: Documentation
-      files:
-        - file: README.md
+    - group: LayerGroup
+`, layerPath);
+        const layerGroup = groupNode('LayerGroup', layerPath);
+
+        await fixture.command.delete(false, layerGroup, 'LayerGroup', false);
+
+        expect(groupNames(fixture.yamlFile.topItem!)).toEqual([]);
+        expect(fixture.csolution.getClayerYamlFile).toHaveBeenCalledWith(layerPath);
+        expect(fixture.csolution.getCproject).not.toHaveBeenCalled();
+    });
+
+    it('deletes physical group files recursively before saving the model', async () => {
+        const fixture = yamlFileFixture(`project:
+  groups:
     - group: TestGroup
       files:
-        - file: test1.c
-        - file: test2.h
-        - file: test3.cpp
+        - file: first.c
       groups:
-        - group: SubGroup
+        - group: Nested
           files:
-            - file: sub1.c
-            - file: sub2.h
+            - file: second.c
+`);
+        const group = groupNode('TestGroup');
+            const firstPath = path.join(tempDir, 'first.c');
+            const secondPath = path.join(tempDir, 'second.c');
+            fs.writeFileSync(firstPath, '');
+            fs.writeFileSync(secondPath, '');
+        fileNode(group, 'first.c', firstPath);
+        const nested = group.createChild('group');
+        nested.setAttribute('groupPath', 'TestGroup;Nested');
+        fileNode(nested, 'second.c', secondPath);
 
-  components:
-    - component: ARM::CMSIS:OS Tick:SysTick
-`;
+        await fixture.command.delete(false, group, 'TestGroup', true);
 
-        // Write the test YAML structure to the project file
-        fs.writeFileSync(projectPath, testYamlContent, 'utf8');
+        expect(vscode.workspace.fs.delete).toHaveBeenCalledTimes(2);
+        expect(vscode.workspace.fs.delete).toHaveBeenCalledWith(expect.objectContaining({ fsPath: firstPath }), { useTrash: true });
+        expect(vscode.workspace.fs.delete).toHaveBeenCalledWith(expect.objectContaining({ fsPath: secondPath }), { useTrash: true });
+        expect(groupNames(fixture.yamlFile.topItem!)).toEqual([]);
+        expect(vscode.window.showInformationMessage).toHaveBeenCalledWith("'TestGroup' has been deleted.");
+    });
 
-        // Create corresponding physical files for testing file deletion
-        const testDir = path.join(tmpSolutionDir, 'USBD', 'HID');
-        const test1File = path.join(testDir, 'test1.c');
-        const test2File = path.join(testDir, 'test2.h');
-        const test3File = path.join(testDir, 'test3.cpp');
-        const sub1File = path.join(testDir, 'sub1.c');
-        const sub2File = path.join(testDir, 'sub2.h');
+    it('does not change the model when physical file deletion fails', async () => {
+        const fixture = yamlFileFixture(`project:
+  groups:
+    - group: Source
+      files:
+        - file: keep.c
+`);
+        const group = groupNode('Source');
+    const resourcePath = path.join(tempDir, 'keep.c');
+    fs.writeFileSync(resourcePath, '');
+    const file = fileNode(group, 'keep.c', resourcePath);
+        jest.mocked(vscode.workspace.fs.delete).mockRejectedValueOnce(new Error('delete failed'));
 
-        fs.writeFileSync(test1File, '// test1.c content', 'utf8');
-        fs.writeFileSync(test2File, '// test2.h content', 'utf8');
-        fs.writeFileSync(test3File, '// test3.cpp content', 'utf8');
-        fs.writeFileSync(sub1File, '// sub1.c content', 'utf8');
-        fs.writeFileSync(sub2File, '// sub2.h content', 'utf8');
+        await fixture.command.delete(true, file, 'keep.c', true);
 
-        // Verify files exist before deletion
-        expect(fs.existsSync(test1File)).toBe(true);
-        expect(fs.existsSync(test2File)).toBe(true);
-        expect(fs.existsSync(test3File)).toBe(true);
-        expect(fs.existsSync(sub1File)).toBe(true);
-        expect(fs.existsSync(sub2File)).toBe(true);
+        expect(fileNames(fixture.yamlFile.topItem!, ['Source'])).toEqual(['keep.c']);
+        expect(fixture.save).not.toHaveBeenCalled();
+        expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("Failed to delete the file 'keep.c'.");
+    });
 
-        // Create a delete command with properly mocked file system provider
-        const mockWorkspaceFs = workspaceFsProviderFactory();
-        mockWorkspaceFs.readUtf8File.mockImplementation((filePath: string) => {
-            return Promise.resolve(fs.readFileSync(filePath, 'utf8'));
-        });
-        mockWorkspaceFs.writeUtf8File.mockImplementation((filePath: string, content: string) => {
-            fs.writeFileSync(filePath, content, 'utf8');
-            return Promise.resolve();
-        });
+    it('reloads and reports an error when saving fails', async () => {
+        const fixture = yamlFileFixture(`project:
+  groups:
+    - group: Source
+      files:
+        - file: remove.c
+`, undefined, ETextFileResult.Error);
+        const group = groupNode('Source');
+        const file = fileNode(group, 'remove.c');
 
-        // Mock vscode.workspace.fs.delete to actually delete the files
-        const mockDelete = jest.spyOn(vscode.workspace.fs, 'delete').mockImplementation((uri) => {
-            if (fs.existsSync(uri.fsPath)) {
-                fs.unlinkSync(uri.fsPath);
-            }
-            return Promise.resolve();
-        });
+        await fixture.command.delete(true, file, 'remove.c', false);
 
-        const testDeleteCommand = new DeleteCommand(commandsProvider, mockWorkspaceFs);
+        expect(fixture.load).toHaveBeenCalledTimes(1);
+        expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("Failed to delete the file 'remove.c'.");
+        expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
+    });
 
-        // Create the group node with proper structure including child files and subgroups
-        const groupNode = new COutlineItem('group');
-        groupNode.setAttribute('label', 'TestGroup');
-        groupNode.setAttribute('type', 'group');
-        groupNode.setAttribute('tag', 'group');
-        groupNode.setAttribute('groupPath', 'TestGroup');
-        groupNode.setAttribute('projectUri', projectPath);
+    it('reports a missing YAML item as a failed removal without saving', async () => {
+        const fixture = yamlFileFixture('project: {}');
+        const group = groupNode('Missing');
 
-        // Add file children to the group node
-        const file1Node = groupNode.createChild('file');
-        file1Node.setAttribute('label', 'test1.c');
-        file1Node.setAttribute('tag', 'file');
-        file1Node.setAttribute('resourcePath', test1File);
+        await fixture.command.delete(false, group, 'Missing', false);
 
-        const file2Node = groupNode.createChild('file');
-        file2Node.setAttribute('label', 'test2.h');
-        file2Node.setAttribute('tag', 'file');
-        file2Node.setAttribute('resourcePath', test2File);
+        expect(fixture.save).not.toHaveBeenCalled();
+        expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("Failed to delete the group 'Missing'.");
+    });
 
-        const file3Node = groupNode.createChild('file');
-        file3Node.setAttribute('label', 'test3.cpp');
-        file3Node.setAttribute('tag', 'file');
-        file3Node.setAttribute('resourcePath', test3File);
+    it('prompts for file and group confirmation using the owning YAML file name', async () => {
+        const { command } = yamlFileFixture('project: {}');
+        const group = groupNode('Source');
+        const file = fileNode(group, 'source.c');
 
-        // Add subgroup with files
-        const subGroupNode = groupNode.createChild('group');
-        subGroupNode.setAttribute('label', 'SubGroup');
-        subGroupNode.setAttribute('tag', 'group');
-        subGroupNode.setAttribute('groupPath', 'TestGroup;SubGroup');
+        await command.confirmDeletion(file);
+        expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+            "Choose Remove to remove 'source.c' from 'test.cproject.yml'\n\nChoose Delete to permanently delete 'source.c'",
+            { modal: true, detail: 'You can restore deleted file from the Recycle Bin.' },
+            'Remove', 'Delete',
+        );
 
-        const subFile1Node = subGroupNode.createChild('file');
-        subFile1Node.setAttribute('label', 'sub1.c');
-        subFile1Node.setAttribute('tag', 'file');
-        subFile1Node.setAttribute('resourcePath', sub1File);
-
-        const subFile2Node = subGroupNode.createChild('file');
-        subFile2Node.setAttribute('label', 'sub2.h');
-        subFile2Node.setAttribute('tag', 'file');
-        subFile2Node.setAttribute('resourcePath', sub2File);
-
-        // Delete the entire group (isDelete = true)
-        await testDeleteCommand.delete(false, groupNode, 'TestGroup', true);
-
-        // Verify the YAML file has been updated - TestGroup should be removed
-        const cprojectContent = fs.readFileSync(projectPath, 'utf8');
-        expect(cprojectContent).toContain('- group: Documentation');
-        expect(cprojectContent).not.toContain('- group: TestGroup');
-        expect(cprojectContent).not.toContain('- file: test1.c');
-        expect(cprojectContent).not.toContain('- file: test2.h');
-        expect(cprojectContent).not.toContain('- file: test3.cpp');
-        expect(cprojectContent).not.toContain('- group: SubGroup');
-        expect(cprojectContent).not.toContain('- file: sub1.c');
-        expect(cprojectContent).not.toContain('- file: sub2.h');
-
-        // Verify all physical files have been deleted
-        expect(fs.existsSync(test1File)).toBe(false);
-        expect(fs.existsSync(test2File)).toBe(false);
-        expect(fs.existsSync(test3File)).toBe(false);
-        expect(fs.existsSync(sub1File)).toBe(false);
-        expect(fs.existsSync(sub2File)).toBe(false);
-
-        // Verify delete was called for each file
-        expect(mockDelete).toHaveBeenCalledTimes(5);
-        expect(mockDelete).toHaveBeenCalledWith(expect.objectContaining({ fsPath: test1File }), { useTrash: true });
-        expect(mockDelete).toHaveBeenCalledWith(expect.objectContaining({ fsPath: test2File }), { useTrash: true });
-        expect(mockDelete).toHaveBeenCalledWith(expect.objectContaining({ fsPath: test3File }), { useTrash: true });
-        expect(mockDelete).toHaveBeenCalledWith(expect.objectContaining({ fsPath: sub1File }), { useTrash: true });
-        expect(mockDelete).toHaveBeenCalledWith(expect.objectContaining({ fsPath: sub2File }), { useTrash: true });
-
-        mockDelete.mockRestore();
+        await command.confirmDeletion(group);
+        expect(vscode.window.showWarningMessage).toHaveBeenLastCalledWith(
+            "Choose Remove to remove 'Source' and all its content from 'test.cproject.yml'\n\nChoose Delete to permanently delete 'Source' and all its content",
+            { modal: true, detail: 'You can restore deleted files from the Recycle Bin.' },
+            'Remove', 'Delete',
+        );
     });
 });

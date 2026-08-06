@@ -111,6 +111,13 @@ describe('CSolution', () => {
         expect(csolution.cbuildYmlRoot.size).toEqual(2);
         expect(csolution.clayerYmlRoot.size).toEqual(2);
 
+        const layerPath = csolution.clayerYmlRoot.keys().next().value as string;
+        const layerFile = csolution.getClayerYamlFile(layerPath);
+        expect(layerFile).toBeDefined();
+        expect(layerFile?.fileName).toEqual(layerPath);
+        expect(csolution.getClayer(layerPath)).toBe(layerFile?.rootItem);
+        expect(csolution.getClayerYamlFile(path.relative(csolution.solutionDir, layerPath))).toBe(layerFile);
+
         const content = csolution.csolutionYml.text.trim(); // avoid whitespace noise
         expect(content).toContain('target-types');
 

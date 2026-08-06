@@ -15,126 +15,123 @@
  */
 
 import 'jest';
-import { FileOrGroup, addItemToExistingGroup, addItemToGroupNode, buildPathFromContentToGroup, constructFileOrGroupNode, deleteItemFromExistingGroup } from './manage-group-items';
-import { faker } from '@faker-js/faker';
-import { YAMLMap, Document as YamlDocument } from 'yaml';
-import { ListItemYamlPathSegment, listItem, mapKey } from './edit-yaml';
-import { fileDataFactory } from '../parsing/common-file-parsing.factories';
-import * as yaml from 'yaml';
-import { expectYamlEqual } from '../common-yaml/test-helpers';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
+import {
+    FileOrGroup,
+    GroupItemData,
+    addItemToExistingGroup,
+    deleteItemFromExistingGroup,
+    findGroup,
+} from './manage-group-items';
 
-describe('addItemToExistingGroup', () => {
-    describe('constructFileNode', () => {
-        it('builds a YAML map for a file without context restrictions', () => {
-            const fileData: FileOrGroup = { type: 'file', data: fileDataFactory() };
-            const result = constructFileOrGroupNode(fileData);
+const fileDataFactory = (options: Partial<GroupItemData> = {}): GroupItemData => ({
+    name: 'newFile.c',
+    forContext: [],
+    notForContext: [],
+    ...options,
+});
 
-            expect(result.toJSON()).toEqual({
-                file: fileData.data.name,
-            });
+const projectTopItem = (yaml: string): CTreeItem => {
+    const rootItem = parseYamlToCTreeItem(yaml);
+    const topItem = rootItem?.getChild('project');
+    if (!(topItem instanceof CTreeItem)) {
+        throw new Error('Project item was not parsed');
+    }
+    return topItem;
+};
+
+describe('manage group items', () => {
+    it('finds a nested group', () => {
+        const topItem = projectTopItem(`
+project:
+  groups:
+    - group: Parent
+      groups:
+        - group: Child
+`);
+
+        expect(findGroup(topItem, ['Parent', 'Child'])?.getValue('group')).toBe('Child');
+        expect(findGroup(topItem, ['Parent', 'Missing'])).toBeUndefined();
+    });
+
+    it('adds a file to a nested group', () => {
+        const topItem = projectTopItem(`
+project:
+  groups:
+    - group: Another Group
+    - group: Parent
+      groups:
+        - group: Child
+          files:
+            - file: aFile.c
+`);
+        const file: FileOrGroup = { type: 'file', data: fileDataFactory() };
+
+        expect(addItemToExistingGroup(topItem, ['Parent', 'Child'], file)).toBe('changed');
+        expect(topItem.toObject()).toEqual({
+            groups: [
+                { group: 'Another Group' },
+                {
+                    group: 'Parent',
+                    groups: [{
+                        group: 'Child',
+                        files: [{ file: 'aFile.c' }, { file: 'newFile.c' }],
+                    }],
+                },
+            ],
         });
+    });
 
-        it('builds a YAML map for a file with context restrictions', () => {
-
-            const fileData  : FileOrGroup = { type: 'file',  data: fileDataFactory({
+    it('adds context restrictions using scalar and sequence forms', () => {
+        const topItem = projectTopItem('project: {}');
+        const file: FileOrGroup = {
+            type: 'file',
+            data: fileDataFactory({
                 forContext: ['.Build', '.Release'],
                 notForContext: '+Target',
-            }) };
+            }),
+        };
 
-            const result = constructFileOrGroupNode(fileData);
-
-            expect(result.toJSON()).toEqual({
-                file: fileData.data.name,
-                'for-context': fileData.data.forContext,
-                'not-for-context': [fileData.data.notForContext],
-            });
+        expect(addItemToExistingGroup(topItem, [], file)).toBe('changed');
+        expect(topItem.toObject()).toEqual({
+            files: [{
+                file: 'newFile.c',
+                'for-context': ['.Build', '.Release'],
+                'not-for-context': '+Target',
+            }],
         });
     });
 
-    describe('addFileToGroupNode', () => {
-        it('adds the file to a group with an existing files list', () => {
-            const existingFilePath = faker.system.filePath();
-            const group = new YamlDocument({ files: [{ file: existingFilePath }] }).contents;
-
-            const fileData  : FileOrGroup = { type: 'file', data: fileDataFactory() };
-            addItemToGroupNode(group!, fileData);
-
-            expect(group!.toJSON()).toEqual({
-                files: [
-                    { file: existingFilePath },
-                    constructFileOrGroupNode(fileData).toJSON(),
-                ],
-            });
-        });
-
-        it('adds the file to a group without an existing files list', () => {
-            const group = new YAMLMap();
-            const fileData  : FileOrGroup = { type: 'file', data: fileDataFactory() };
-            addItemToGroupNode(group, fileData);
-
-            expect(group.toJSON()).toEqual({
-                files: [constructFileOrGroupNode(fileData).toJSON()],
-            });
-        });
-    });
-
-    describe('buildPathFromContentToGroup', () => {
-        it('returns the yaml path required to go from the content root to a given group', () => {
-            const result = buildPathFromContentToGroup(['group1', 'group2'], [mapKey('initialPathKey')]);
-
-            expect(result).toEqual<ReturnType<typeof buildPathFromContentToGroup>>([
-                mapKey('initialPathKey'),
-                mapKey('groups'),
-                listItem(expect.any(Function)),
-                mapKey('groups'),
-                listItem(expect.any(Function)),
-            ]);
-
-            const group1ListItemSegment = result[2] as ListItemYamlPathSegment;
-
-            const group1Map = new YAMLMap();
-            group1Map.set('group', 'group1');
-            expect(group1ListItemSegment.predicate(group1Map)).toBe(true);
-
-            const group2Map = new YAMLMap();
-            group2Map.set('group', 'group2');
-            expect(group1ListItemSegment.predicate(group2Map)).toBe(false);
-        });
-    });
-
-    it('modifies the group node in the given document to add the appropriate file', () => {
-        const yamlDocument = yaml.parseDocument(`
+    it('does not add a duplicate entry', () => {
+        const topItem = projectTopItem(`
 project:
-  groups:
-    - group: Another Group
-    - group: Parent
-      groups:
-        - group: Child
-          files:
-            - file: aFile.c
-`
-        );
-        const fileData: FileOrGroup = { type: 'file', data: fileDataFactory({ name: 'newFile.c' }) };
-        const groupPath = ['Parent', 'Child'];
-        addItemToExistingGroup(yamlDocument, 'project', groupPath, fileData);
+  files:
+    - file: existing.c
+`);
+        const file: FileOrGroup = {
+            type: 'file',
+            data: fileDataFactory({ name: 'existing.c' }),
+        };
 
-        const expectedYaml = `
-project:
-  groups:
-    - group: Another Group
-    - group: Parent
-      groups:
-        - group: Child
-          files:
-            - file: aFile.c
-            - file: newFile.c
-`;
-
-        expectYamlEqual(yamlDocument, expectedYaml);
+        expect(addItemToExistingGroup(topItem, [], file)).toBe('duplicate');
+        expect(topItem.getGrandChildren('files')).toHaveLength(1);
     });
 
-    it('should remove nested group with duplicate name without affecting top-level group', () => {
-        const yamlDocument = yaml.parseDocument(`
+    it('reports an invalid group path without modifying the tree', () => {
+        const topItem = projectTopItem('project: {}');
+        const before = topItem.toObject();
+
+        expect(addItemToExistingGroup(
+            topItem,
+            ['Missing'],
+            { type: 'group', data: fileDataFactory({ name: 'New Group' }) },
+        )).toBe('invalid-path');
+        expect(topItem.toObject()).toEqual(before);
+    });
+
+    it('removes only the matching nested group', () => {
+        const topItem = projectTopItem(`
 project:
   groups:
     - group: foo
@@ -149,152 +146,32 @@ project:
         - file: bar-file.c
 `);
 
-        const result = deleteItemFromExistingGroup(yamlDocument, 'project', ['bar'], 'group', 'foo');
-        expect(result).toBe(true);
-
-        const expectedYaml = `
-project:
-  groups:
-    - group: foo
-      files:
-        - file: top-level-file.c
-    - group: bar
-      files:
-        - file: bar-file.c
-`;
-
-        expectYamlEqual(yamlDocument, expectedYaml);
+        expect(deleteItemFromExistingGroup(topItem, ['bar'], 'group', 'foo')).toBe('changed');
+        expect(topItem.toObject()).toEqual({
+            groups: [
+                { group: 'foo', files: [{ file: 'top-level-file.c' }] },
+                { group: 'bar', files: [{ file: 'bar-file.c' }] },
+            ],
+        });
     });
 
-    it('should delete group with only files (Case 1)', () => {
-        const yamlDocument = yaml.parseDocument(`
+    it('removes an empty container after deleting its last item', () => {
+        const topItem = projectTopItem(`
 project:
   groups:
-    - group: g1
+    - group: Parent
       files:
-        - file: f1.c
-        - file: f2.c
-    - group: other
-      files:
-        - file: other.c
+        - file: only.c
 `);
 
-        const result = deleteItemFromExistingGroup(yamlDocument, 'project', [], 'group', 'g1');
-        expect(result).toBe(true);
-
-        const expectedYaml = `
-project:
-  groups:
-    - group: other
-      files:
-        - file: other.c
-`;
-
-        expectYamlEqual(yamlDocument, expectedYaml);
+        expect(deleteItemFromExistingGroup(topItem, ['Parent'], 'file', 'only.c')).toBe('changed');
+        expect(topItem.toObject()).toEqual({ groups: [{ group: 'Parent' }] });
     });
 
-    it('should delete group with only subgroups (Case 2)', () => {
-        const yamlDocument = yaml.parseDocument(`
-project:
-  groups:
-    - group: g1
-      groups:
-        - group: sg1
-        - group: sg2
-          groups:
-            - group: sg2sg1
-            - group: sg2sg2
-    - group: other
-      files:
-        - file: other.c
-`);
+    it('distinguishes missing entries from invalid paths', () => {
+        const topItem = projectTopItem('project: {}');
 
-        const result = deleteItemFromExistingGroup(yamlDocument, 'project', [], 'group', 'g1');
-        expect(result).toBe(true);
-
-        const expectedYaml = `
-project:
-  groups:
-    - group: other
-      files:
-        - file: other.c
-`;
-
-        expectYamlEqual(yamlDocument, expectedYaml);
+        expect(deleteItemFromExistingGroup(topItem, [], 'file', 'missing.c')).toBe('not-found');
+        expect(deleteItemFromExistingGroup(topItem, ['Missing'], 'file', 'missing.c')).toBe('invalid-path');
     });
-
-    it('should delete group with both files and subgroups (Case 3)', () => {
-        const yamlDocument = yaml.parseDocument(`
-project:
-  groups:
-    - group: g1
-      files:
-        - file: f1.c
-        - file: f2.c
-      groups:
-        - group: sg1
-          files:
-            - file: f1sg1.c
-            - file: f2sg1.c
-        - group: sg2
-          groups:
-            - group: sg2sg1
-            - group: sg2sg2
-              files:
-                - file: f1sg2.c
-                - file: f2sg2.c
-    - group: other
-      files:
-        - file: other.c
-`);
-
-        const result = deleteItemFromExistingGroup(yamlDocument, 'project', [], 'group', 'g1');
-        expect(result).toBe(true);
-
-        const expectedYaml = `
-project:
-  groups:
-    - group: other
-      files:
-        - file: other.c
-`;
-
-        expectYamlEqual(yamlDocument, expectedYaml);
-    });
-
-    it('should delete nested subgroup without affecting parent structure', () => {
-        const yamlDocument = yaml.parseDocument(`
-project:
-  groups:
-    - group: g1
-      files:
-        - file: f1.c
-      groups:
-        - group: sg1
-          files:
-            - file: f1sg1.c
-        - group: sg2
-          files:
-            - file: f1sg2.c
-`);
-
-        // Delete sg1 subgroup from within g1
-        const result = deleteItemFromExistingGroup(yamlDocument, 'project', ['g1'], 'group', 'sg1');
-        expect(result).toBe(true);
-
-        const expectedYaml = `
-project:
-  groups:
-    - group: g1
-      files:
-        - file: f1.c
-      groups:
-        - group: sg2
-          files:
-            - file: f1sg2.c
-`;
-
-        expectYamlEqual(yamlDocument, expectedYaml);
-    });
-
 });
