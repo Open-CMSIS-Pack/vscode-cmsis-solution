@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { Template } from '../../../../core-tools/client/packs_pb';
 import { TreeViewCategory } from '../../../common/components/tree-view';
 import { DeviceHardwareOption, NewProject, ProcessorInfo, Trustzone, validTrustZone } from '../../cmsis-solution-types';
 import { FieldAndInteraction, hadInteraction } from './field-and-interaction';
@@ -22,7 +21,6 @@ import { FieldAndInteraction, hadInteraction } from './field-and-interaction';
 export type CSolutionTemplate = {
     name: string;
     description: string;
-    origin?: Template.AsObject;
 }
 
 export const blankTemplate: CSolutionTemplate = { name: 'Blank solution', description: 'Start from scratch with a main.c and CMSIS device startup' };
@@ -48,18 +46,11 @@ function dataManagerHasTemplates(datamanagerApps?: Array<TreeViewCategory<string
     return false;
 }
 
-export const hardwareTemplateOptions = (deviceSelection?: DeviceHardwareOption, templates?: Template.AsObject[], datamanagerApps?: Array<TreeViewCategory<string>>): CSolutionTemplate[] => {
+export const hardwareTemplateOptions = (deviceSelection?: DeviceHardwareOption, datamanagerApps?: Array<TreeViewCategory<string>>): CSolutionTemplate[] => {
     if (dataManagerHasTemplates(datamanagerApps)) {
         return [];
     }
 
-    if (templates?.length) {
-        return templates.map<CSolutionTemplate>(o => ({
-            name: o.name,
-            description: o.description,
-            origin: o,
-        }));
-    }
     if (!deviceSelection) { return staticTemplates; }
     const processors = deviceSelection?.processors ?? [];
     const valid = processors.some(processor => validTrustZone(processor));

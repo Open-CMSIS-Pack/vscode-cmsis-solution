@@ -32,6 +32,12 @@ describe('CSolutionWrap', () => {
 
             expect(wrap.device).toBe('dev1');
             expect(wrap.board).toBe('board1');
+
+            wrap.device = 'dev2';
+            wrap.board = undefined;
+
+            expect(wrap.device).toBe('dev2');
+            expect(wrap.board).toBeUndefined();
             const targetSets = wrap.targetSets;
             expect(targetSets.length).toBe(1);
 

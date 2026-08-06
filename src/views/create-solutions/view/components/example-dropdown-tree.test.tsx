@@ -18,16 +18,27 @@ import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Simulate } from 'react-dom/test-utils';
 import { ExampleDropdownTree } from './example-dropdown-tree';
-import { ExampleProject } from '../../../../solar-search/solar-search-client';
-import { cSolutionExampleFactory, uvProjExampleFactory } from '../../../../solar-search/solar-search-client.factories';
+import { blankTemplate, trustZoneTemplate } from '../state/templates';
+import { TreeViewCategory } from '../../../common/components/tree-view';
 
 describe('ExampleDropdownTree', () => {
     let container: Element;
-    let dispatch: jest.Mock;
+    let onSelect: jest.Mock;
     let close: jest.Mock;
 
+    const templateEntries = (templates = [blankTemplate, trustZoneTemplate]): Array<TreeViewCategory<string>> => [{
+        header: 'Templates',
+        categories: [],
+        items: templates.map(template => ({
+            label: template.name,
+            value: `template::${template.name}`,
+            tooltip: template.description,
+            className: 'template',
+        })),
+    }];
+
     beforeEach(() => {
-        dispatch = jest.fn();
+        onSelect = jest.fn();
         close = jest.fn();
         container = document.createElement('div');
     });
@@ -36,18 +47,16 @@ describe('ExampleDropdownTree', () => {
         container.remove();
     });
 
-    it('renders the number of examples', () => {
-        const examples: ExampleProject[] = [cSolutionExampleFactory(), uvProjExampleFactory()];
-
+    it('renders the number of templates', () => {
         React.act(() => {
             createRoot(container).render(<ExampleDropdownTree
-                examples={examples}
-                dispatch={dispatch}
+                entries={templateEntries()}
                 label='Test'
                 onChange={close}
+                onSelect={onSelect}
                 searchText=''
+                selectedText='Select Project'
                 title='Test'
-                datamanagerApps={[]}
             />);
         });
 
@@ -57,21 +66,20 @@ describe('ExampleDropdownTree', () => {
         });
 
         const formatHeader = container.querySelector('.components-tree-view-category');
-        expect(formatHeader?.innerHTML).toContain('CMSIS SOLUTION EXAMPLES (1)');
+        expect(formatHeader?.innerHTML).toContain('Templates (2)');
     });
 
-    it('renders an example entry for each given example', () => {
-        const examples: ExampleProject[] = [cSolutionExampleFactory(), uvProjExampleFactory()];
-
+    it('renders an entry for each given template', () => {
+        const templates = [blankTemplate, trustZoneTemplate];
         React.act(() => {
             createRoot(container).render(<ExampleDropdownTree
-                examples={examples}
-                dispatch={dispatch}
+                entries={templateEntries(templates)}
                 label='Test'
                 onChange={close}
+                onSelect={onSelect}
                 searchText=''
+                selectedText='Select Project'
                 title='Test'
-                datamanagerApps={[]}
             />);
         });
 
@@ -82,24 +90,22 @@ describe('ExampleDropdownTree', () => {
 
         const exampleEntries = container.querySelectorAll('.components-tree-view-item');
         expect(exampleEntries).toHaveLength(2);
-        expect(exampleEntries[0].innerHTML).toContain(examples[0].name);
-        expect(exampleEntries[0].innerHTML).toContain(examples[0].description);
-        expect(exampleEntries[1].innerHTML).toContain(examples[1].name);
-        expect(exampleEntries[1].innerHTML).toContain(examples[1].description);
+        expect(exampleEntries[0].innerHTML).toContain(templates[0].name);
+        expect(exampleEntries[0].innerHTML).toContain(templates[0].description);
+        expect(exampleEntries[1].innerHTML).toContain(templates[1].name);
+        expect(exampleEntries[1].innerHTML).toContain(templates[1].description);
     });
 
-    it('clicking on the example entry dispatches the message', () => {
-        const examples: ExampleProject[] = [cSolutionExampleFactory(), uvProjExampleFactory()];
-
+    it('emits a selected template value', () => {
         React.act(() => {
             createRoot(container).render(<ExampleDropdownTree
-                examples={examples}
-                dispatch={dispatch}
+                entries={templateEntries([blankTemplate])}
                 label='Test'
                 onChange={jest.fn()}
+                onSelect={onSelect}
                 searchText=''
+                selectedText='Select Project'
                 title='Test'
-                datamanagerApps={[]}
             />);
         });
 
@@ -113,7 +119,37 @@ describe('ExampleDropdownTree', () => {
         React.act(() => {
             Simulate.click(triggerEl!);
         });
-        expect(dispatch).toHaveBeenCalledTimes(1);
-        expect(dispatch).toHaveBeenCalledWith({ type: 'SET_SELECTED_TEMPLATE', template : { type: 'example', value: examples[0] } });
+        expect(onSelect).toHaveBeenCalledWith(`template::${blankTemplate.name}`);
+    });
+
+    it('clicking a DataManager project dispatches its stable ID', () => {
+        const draftId = 'draft-project-id';
+        React.act(() => {
+            createRoot(container).render(<ExampleDropdownTree
+                entries={[{
+                    header: 'Examples',
+                    categories: [],
+                    items: [{ label: 'DataManager project', value: draftId }],
+                }]}
+                label='Test'
+                onChange={jest.fn()}
+                onSelect={onSelect}
+                searchText=''
+                selectedText='Select Project'
+                title='Test'
+            />);
+        });
+
+        const dropDown = container.querySelector('#create-solution-template') as HTMLButtonElement;
+        React.act(() => {
+            Simulate.click(dropDown);
+        });
+
+        const triggerEl = container.querySelector('.components-tree-view-item');
+        React.act(() => {
+            Simulate.click(triggerEl!);
+        });
+
+        expect(onSelect).toHaveBeenCalledWith(draftId);
     });
 });
