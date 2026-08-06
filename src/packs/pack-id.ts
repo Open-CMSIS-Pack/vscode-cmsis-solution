@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
-import { PackReference } from '../solutions/deserialising/solution-data';
-
 export type PackId = {
     vendor: string;
     name: string;
     version: string;
+}
+
+export type PackReference = {
+    vendor: string;
+    name?: string;
+    version?: string;
 }
 
 export const packIdsEqual = (packId1: PackId) => (packId2: PackId): boolean =>

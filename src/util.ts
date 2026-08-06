@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { PackScopePreset, PackScopePresetMap } from './core-tools/client/packs_pb';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { CONFIG_USE_WEBSERVICES, OUTPUT_DIRECTORY } from './manifest';
@@ -54,10 +53,6 @@ export const getOutputDirectory = (): string | undefined => {
 export const getActiveTargetSetName = () => {
     return solutionManager?.getCsolution()?.getActiveTargetSetName();
 };
-
-export function getPackScopePreset(): PackScopePresetMap[keyof PackScopePresetMap] {
-    return PackScopePreset.PACK_SCOPE_PRESET_LATEST;
-}
 
 export function areMapsEqual<K, V>(map1: Map<K, V>, map2: Map<K, V>): boolean {
     if (map1.size !== map2.size) {
