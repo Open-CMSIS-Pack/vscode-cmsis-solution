@@ -25,7 +25,7 @@ RUN curl -o- https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/inst
 RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash && \
     sed -i 's/plugins=(git)/plugins=(git nvm)/' $HOME/.zshrc && \
     echo "export NODE_OPTIONS=--max_old_space_size=4096" >> $HOME/.zshrc && \
-    . $HOME/.zshrc && \
+    . "$HOME/.zshrc" && \
     nvm install v20
 
 COPY .npmrc /root
