@@ -197,10 +197,10 @@ describe('DeleteCommand', () => {
             - file: second.c
 `);
         const group = groupNode('TestGroup');
-            const firstPath = path.join(tempDir, 'first.c');
-            const secondPath = path.join(tempDir, 'second.c');
-            fs.writeFileSync(firstPath, '');
-            fs.writeFileSync(secondPath, '');
+        const firstPath = path.join(tempDir, 'first.c');
+        const secondPath = path.join(tempDir, 'second.c');
+        fs.writeFileSync(firstPath, '');
+        fs.writeFileSync(secondPath, '');
         fileNode(group, 'first.c', firstPath);
         const nested = group.createChild('group');
         nested.setAttribute('groupPath', 'TestGroup;Nested');
@@ -223,9 +223,9 @@ describe('DeleteCommand', () => {
         - file: keep.c
 `);
         const group = groupNode('Source');
-    const resourcePath = path.join(tempDir, 'keep.c');
-    fs.writeFileSync(resourcePath, '');
-    const file = fileNode(group, 'keep.c', resourcePath);
+        const resourcePath = path.join(tempDir, 'keep.c');
+        fs.writeFileSync(resourcePath, '');
+        const file = fileNode(group, 'keep.c', resourcePath);
         jest.mocked(vscode.workspace.fs.delete).mockRejectedValueOnce(new Error('delete failed'));
 
         await fixture.command.delete(true, file, 'keep.c', true);
