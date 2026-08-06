@@ -373,6 +373,7 @@ export const runWf001RefAppFVPSolution = async (
                 await expect(runTaskButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
                 const taskSucceeded = runTaskButton.locator('.codicon-check');
                 const taskFailed = runTaskButton.locator('.codicon-error');
+                await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/After starting Load+Run task`);
                 await expect(taskSucceeded.or(taskFailed)).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
 
                 for (const expectedText of expectedOutput) {
@@ -395,6 +396,7 @@ export const runWf001RefAppFVPSolution = async (
                 await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/After FVP Load & Run`);
             });
         } finally {
+            await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/Finally`);
             log('debug', `CMSIS Run terminal output: ${JSON.stringify(loadAndRunOutput)}`);
             try {
                 await vsCodeDriver.page.getCommands()
