@@ -19,7 +19,8 @@ import { randomBytes } from 'crypto';
 import { URI } from 'vscode-uri';
 import { join } from 'path';
 import { CommandsProvider } from '../vscode-api/commands-provider';
-import { PACK_ASSET_HOST } from './webview-asset-retrieval';
+
+const PACK_ASSET_HOST = process.env.STUDIO_PACK_ASSET_HOST || 'https://pack-content.cmsis.io';
 
 export interface WebviewManagerOptions {
     /**

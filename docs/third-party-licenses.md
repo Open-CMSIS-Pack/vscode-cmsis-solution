@@ -17,7 +17,6 @@ Generated for release: 1.70.0
 |fetch-blob|4.0.0|https://github.com/node-fetch/fetch-blob|https://github.com/node-fetch/fetch-blob/blob/main/LICENSE|
 |formdata-polyfill|4.0.10|https://github.com/jimmywarting/FormData|https://github.com/jimmywarting/FormData/blob/master/LICENSE|
 |glob|13.0.6|https://github.com/isaacs/node-glob|https://github.com/isaacs/node-glob/blob/main/LICENSE.md|
-|google-protobuf|4.0.2|https://github.com/protocolbuffers/protobuf|https://github.com/protocolbuffers/protobuf/blob/main/LICENSE|
 |graphql-request|7.4.0|https://github.com/jasonkuhrt/graphql-request|https://github.com/jasonkuhrt/graphql-request/blob/main/LICENSE|
 |graphql-tag|2.12.6|https://github.com/apollographql/graphql-tag|https://github.com/apollographql/graphql-tag/blob/main/LICENSE|
 |jsonc-parser|3.3.1|https://github.com/microsoft/node-jsonc-parser|https://github.com/microsoft/node-jsonc-parser/blob/main/LICENSE.md|
