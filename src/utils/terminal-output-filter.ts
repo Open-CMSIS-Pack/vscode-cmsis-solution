@@ -15,13 +15,21 @@
  */
 
 enum FilterState {
+    /** Copy printable input to the output and detect control-sequence introducers. */
     Text,
+    /** Classify the byte following ESC to determine the sequence type. */
     Escape,
+    /** Consume an ESC sequence containing one or more intermediate bytes. */
     EscapeIntermediate,
+    /** Consume a Control Sequence Introducer sequence through its final byte. */
     Csi,
+    /** Consume an Operating System Command string through BEL or ST. */
     Osc,
+    /** Consume a DCS, SOS, PM, or APC control string through ST. */
     ControlString,
+    /** Determine whether ESC inside an OSC string begins an ST terminator. */
     OscEscape,
+    /** Determine whether ESC inside another control string begins an ST terminator. */
     ControlStringEscape,
 }
 
@@ -31,9 +39,22 @@ const CSI = 0x9B;
 const ST = 0x9C;
 const OSC = 0x9D;
 
+/**
+ * Removes ANSI/ECMA-48 control sequences and non-printable controls from a
+ * stream while preserving printable text, Unicode, tabs, and line endings.
+ * A separate instance must be used for each stream because incomplete control
+ * sequences are retained between writes.
+ */
 export class TerminalOutputFilter {
     private state = FilterState.Text;
 
+    /**
+     * Filters one output chunk and retains parser state for the next chunk.
+     *
+     * @param data The next chunk from the same output stream.
+     * @returns Plain text emitted by this chunk, or an empty string when the
+     * chunk contains only control data or an incomplete control sequence.
+     */
     public write(data: string): string {
         let output = '';
 
@@ -87,6 +108,7 @@ export class TerminalOutputFilter {
         return output;
     }
 
+    /** Filters a character in text mode or enters the corresponding control state. */
     private filterTextCharacter(character: string, codePoint: number): string {
         if (codePoint === ESC) {
             this.state = FilterState.Escape;
@@ -113,6 +135,7 @@ export class TerminalOutputFilter {
         return character;
     }
 
+    /** Selects the control state introduced by the character following ESC. */
     private handleEscape(codePoint: number): void {
         if (codePoint === 0x5B) {
             this.state = FilterState.Csi;
