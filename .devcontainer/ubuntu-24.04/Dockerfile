@@ -32,7 +32,9 @@ COPY .npmrc /root
 
 ENV VCPKG_ROOT=/root/.vcpkg
 
-RUN . <(curl https://aka.ms/vcpkg-init.sh -L) && \
+RUN curl https://aka.ms/vcpkg-init.sh -L -o /tmp/vcpkg-init.sh && \
+    . /tmp/vcpkg-init.sh && \
+    rm /tmp/vcpkg-init.sh && \
     echo ". ~/.vcpkg/vcpkg-init" >> "$HOME/.zshrc"
 
 CMD ["/bin/zsh"]
