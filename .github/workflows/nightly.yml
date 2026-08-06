@@ -205,8 +205,8 @@ jobs:
           archive: false
 
   test:
-    name: 'Test (windows-latest)'
-    runs-on: windows-latest
+    name: 'Test (ubuntu-latest)'
+    runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 25
     permissions:
