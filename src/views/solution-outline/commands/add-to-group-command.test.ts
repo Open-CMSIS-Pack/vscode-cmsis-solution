@@ -31,6 +31,9 @@ import { CSolution } from '../../../solutions/csolution';
 import { TestDataHandler } from '../../../__test__/test-data';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { waitTimeout } from '../../../__test__/test-waits';
+import { CProjectYamlFile } from '../../../solutions/files/cproject-yaml-file';
+import { appendSequenceMapEntry } from '../../../solutions/files/yaml-creation-helpers';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 
 const vscodeWindowFactory = (): jest.Mocked<Pick<typeof vscode.window,
     'showInputBox' |
@@ -51,7 +54,27 @@ const solutionNodeFactory = (): COutlineItem => projectGroupItemDataFactory();
 const solutionNodeProjectFactory = (): COutlineItem => projectItemDataFactory();
 const commandsProvider = commandsProviderFactory();
 const vscodeWindow = vscodeWindowFactory();
-const editYamlFile = jest.fn();
+
+const loadedProjectFixture = (node: COutlineItem) => {
+    const projectPath = node.getAttribute('projectUri') ?? node.getAttribute('resourcePath') ?? 'test.cproject.yml';
+    const yamlFile = new CProjectYamlFile(projectPath);
+    let targetItem = yamlFile.ensureTopItem();
+    for (const groupName of node.getAttribute('groupPath')?.split(';') ?? []) {
+        targetItem = appendSequenceMapEntry(targetItem, 'groups', 'group', groupName);
+    }
+    const save = jest.spyOn(yamlFile, 'save').mockResolvedValue(ETextFileResult.Unchanged);
+    const solutionManager = solutionManagerFactory();
+    solutionManager.getCsolution.mockReturnValue({
+        getCproject: jest.fn(() => yamlFile),
+    } as unknown as CSolution);
+    return { projectPath, save, solutionManager, targetItem, yamlFile };
+};
+
+const relativeProjectPath = (projectPath: string, filePath: string) =>
+    path_utils.backToForwardSlashes(path.relative(path.dirname(projectPath), filePath));
+
+const itemValues = (item: CTreeItem, container: 'files' | 'groups', property: 'file' | 'group') =>
+    item.getGrandChildren(container).map(child => child.getValue(property));
 
 describe('AddToGroupCommand command', () => {
     const testDataHandler = new TestDataHandler();
@@ -104,128 +127,145 @@ describe('AddToGroupCommand command', () => {
 
     it('shows a save dialog if the user chooses to add a new file, saving an empty new file and adding it to the group', async () => {
         const workspaceFsProvider = workspaceFsProviderFactory();
+        const solutionNode = solutionNodeFactory();
+        const fixture = loadedProjectFixture(solutionNode);
 
         await new AddToGroupCommand(
             workspaceFsProvider,
             commandsProvider,
-            solutionManagerFactory(),
-            vscodeWindow, editYamlFile,
+            fixture.solutionManager,
+            vscodeWindow,
         ).activate(extensionContextFactory());
 
         vscodeWindow.showQuickPick.mockResolvedValue(addNewFileOption);
         const newFileUri = URI.file(faker.system.filePath());
         vscodeWindow.showSaveDialog.mockResolvedValue(newFileUri);
 
-        const solutionNode = solutionNodeFactory();
         await commandsProvider.mockRunRegistered(AddToGroupCommand.addToGroupCommandId, solutionNode);
 
         expect(vscodeWindow.showSaveDialog).toHaveBeenCalled();
         expect(workspaceFsProvider.writeUtf8File).toHaveBeenCalledWith(newFileUri.fsPath, '');
-
-        const projectUriString = solutionNode.getAttribute('projectUri') ?? '';
-        const projectUri = URI.file(projectUriString);
-
-        expect(editYamlFile).toHaveBeenCalledWith(
-            workspaceFsProvider,
-            projectUri,
-            expect.any(Array),
-        );
+        expect(itemValues(fixture.targetItem, 'files', 'file')).toEqual([
+            relativeProjectPath(fixture.projectPath, newFileUri.fsPath),
+        ]);
+        expect(fixture.save).toHaveBeenCalledTimes(1);
     });
 
     it('shows an open dialog if the user chooses to add an existing file and adding it to the group', async () => {
         const workspaceFsProvider = workspaceFsProviderFactory();
+        const solutionNode = solutionNodeFactory();
+        const fixture = loadedProjectFixture(solutionNode);
 
         await new AddToGroupCommand(
             workspaceFsProvider,
             commandsProvider,
-            solutionManagerFactory(),
-            vscodeWindow, editYamlFile,
+            fixture.solutionManager,
+            vscodeWindow,
         ).activate(extensionContextFactory());
 
         vscodeWindow.showQuickPick.mockResolvedValue(addExistingFileOption);
         const existingFileUri = URI.file(faker.system.filePath());
         vscodeWindow.showOpenDialog.mockResolvedValue([existingFileUri]);
 
-        const solutionNode = solutionNodeFactory();
         await commandsProvider.mockRunRegistered(AddToGroupCommand.addToGroupCommandId, solutionNode);
 
         expect(vscodeWindow.showOpenDialog).toHaveBeenCalled();
-
-        const projectUriString = solutionNode.getAttribute('projectUri') ?? '';
-        const projectUri = URI.file(projectUriString);
-
-        expect(editYamlFile).toHaveBeenCalledWith(
-            workspaceFsProvider,
-            projectUri,
-            expect.any(Array),
-        );
+        expect(itemValues(fixture.targetItem, 'files', 'file')).toEqual([
+            relativeProjectPath(fixture.projectPath, existingFileUri.fsPath),
+        ]);
+        expect(fixture.save).toHaveBeenCalledTimes(1);
     });
 
     it('adds multiple files to the group when user selects several files in open dialog', async () => {
         const workspaceFsProvider = workspaceFsProviderFactory();
+        const solutionNode = solutionNodeFactory();
+        const fixture = loadedProjectFixture(solutionNode);
 
         await new AddToGroupCommand(
             workspaceFsProvider,
             commandsProvider,
-            solutionManagerFactory(),
-            vscodeWindow, editYamlFile,
+            fixture.solutionManager,
+            vscodeWindow,
         ).activate(extensionContextFactory());
 
         vscodeWindow.showQuickPick.mockResolvedValue(addExistingFileOption);
         const fileUris = [URI.file(faker.system.filePath()), URI.file(faker.system.filePath()), URI.file(faker.system.filePath())];
         vscodeWindow.showOpenDialog.mockResolvedValue(fileUris);
 
-        const solutionNode = solutionNodeFactory();
         await commandsProvider.mockRunRegistered(AddToGroupCommand.addToGroupCommandId, solutionNode);
 
         expect(vscodeWindow.showOpenDialog).toHaveBeenCalled();
-
-        const projectUriString = solutionNode.getAttribute('projectUri') ?? '';
-        const projectUri = URI.file(projectUriString);
-
-        expect(editYamlFile).toHaveBeenCalledWith(
-            workspaceFsProvider,
-            projectUri,
-            expect.any(Array),
+        expect(itemValues(fixture.targetItem, 'files', 'file')).toEqual(
+            fileUris.map(fileUri => relativeProjectPath(fixture.projectPath, fileUri.fsPath))
         );
+        expect(fixture.save).toHaveBeenCalledTimes(1);
     });
 
     it('shows an input box if the user chooses to add a group (subgroup) to project group or to layer group', async () => {
         const workspaceFsProvider = workspaceFsProviderFactory();
+        const solutionNode = solutionNodeFactory();
+        const fixture = loadedProjectFixture(solutionNode);
 
         await new AddToGroupCommand(
             workspaceFsProvider,
             commandsProvider,
-            solutionManagerFactory(),
-            vscodeWindow, editYamlFile,
+            fixture.solutionManager,
+            vscodeWindow,
         ).activate(extensionContextFactory());
 
         vscodeWindow.showQuickPick.mockResolvedValue(addNewGroupOption);
         vscodeWindow.showInputBox.mockResolvedValue('New subgroup');
 
-        const solutionNode = solutionNodeFactory();
         await commandsProvider.mockRunRegistered(AddToGroupCommand.addToGroupCommandId, solutionNode);
         expect(vscodeWindow.showInputBox).toHaveBeenCalled();
+        expect(itemValues(fixture.targetItem, 'groups', 'group')).toEqual(['New subgroup']);
+        expect(fixture.save).toHaveBeenCalledTimes(1);
 
     });
 
     it('shows an input box if the user chooses to add a group to project', async () => {
         const workspaceFsProvider = workspaceFsProviderFactory();
+        const solutionNode = solutionNodeProjectFactory();
+        const fixture = loadedProjectFixture(solutionNode);
 
         await new AddToGroupCommand(
             workspaceFsProvider,
             commandsProvider,
-            solutionManagerFactory(),
-            vscodeWindow, editYamlFile,
+            fixture.solutionManager,
+            vscodeWindow,
         ).activate(extensionContextFactory());
 
         vscodeWindow.showQuickPick.mockResolvedValue(addNewGroupOption);
         vscodeWindow.showInputBox.mockResolvedValue('New group');
 
-        const solutionNode = solutionNodeProjectFactory();
         await commandsProvider.mockRunRegistered(AddToGroupCommand.addToGroupCommandId, solutionNode);
         expect(vscodeWindow.showInputBox).toHaveBeenCalled();
+        expect(itemValues(fixture.targetItem, 'groups', 'group')).toEqual(['New group']);
+        expect(fixture.save).toHaveBeenCalledTimes(1);
 
+    });
+
+    it('rejects an unresolved group path without saving', async () => {
+        const workspaceFsProvider = workspaceFsProviderFactory();
+        const solutionNode = solutionNodeFactory();
+        const fixture = loadedProjectFixture(solutionNode);
+        solutionNode.setAttribute('groupPath', 'Missing');
+
+        await new AddToGroupCommand(
+            workspaceFsProvider,
+            commandsProvider,
+            fixture.solutionManager,
+            vscodeWindow,
+        ).activate(extensionContextFactory());
+
+        vscodeWindow.showQuickPick.mockResolvedValue(addNewGroupOption);
+        vscodeWindow.showInputBox.mockResolvedValue('New group');
+
+        await expect(commandsProvider.mockRunRegistered(
+            AddToGroupCommand.addToGroupCommandId,
+            solutionNode,
+        )).rejects.toThrow("Unable to find group path 'Missing'");
+        expect(fixture.save).not.toHaveBeenCalled();
     });
 
     it('shows a quick pick with available templates if the user chooses to use a user code template', async () => {
@@ -250,7 +290,7 @@ describe('AddToGroupCommand command', () => {
             workspaceFsProvider,
             commandsProvider,
             solutionManager,
-            vscodeWindow, editYamlFile,
+            vscodeWindow,
         ).activate(extensionContextFactory());
 
         vscodeWindow.showQuickPick.mockResolvedValue(addFromCodeTemplateOption);
@@ -314,6 +354,7 @@ describe('AddToGroupCommand command', () => {
 
     it('should avoid adding duplicate files and show error message', async () => {
         const workspaceFsProvider = workspaceFsProviderFactory();
+        const solutionManager = solutionManagerFactory();
         const mockShowErrorMessage = jest.spyOn(vscode.window, 'showErrorMessage').mockResolvedValue(undefined);
         const existingFilePath = path.join('src', 'existing', 'file.c');
 
@@ -334,16 +375,15 @@ describe('AddToGroupCommand command', () => {
         await new AddToGroupCommand(
             workspaceFsProvider,
             commandsProvider,
-            solutionManagerFactory(),
+            solutionManager,
             vscodeWindow,
-            editYamlFile,
         ).activate(extensionContextFactory());
 
         const mockTargetGroup = mockProject.createChild('targetGroup');
         mockTargetGroup.setTag('group');
         mockTargetGroup.setAttribute('label', 'Test Group');
         mockTargetGroup.setAttribute('type', 'group');
-        mockTargetGroup.setAttribute('projectUri', path.join('project', 'test.cproject.yml'));
+        mockTargetGroup.setAttribute('projectUri', path.resolve('project', 'test.cproject.yml'));
 
         vscodeWindow.showQuickPick.mockResolvedValue(addExistingFileOption);
 
@@ -359,7 +399,7 @@ describe('AddToGroupCommand command', () => {
             })
         );
 
-        expect(editYamlFile).not.toHaveBeenCalled();
+        expect(solutionManager.getCsolution).not.toHaveBeenCalled();
 
         mockShowErrorMessage.mockRestore();
     });
@@ -387,19 +427,20 @@ describe('AddToGroupCommand command', () => {
         mockExistingFileNode.setTag('file');
         mockExistingFileNode.setAttribute('resourcePath', existingFileUri.fsPath);
 
-        await new AddToGroupCommand(
-            workspaceFsProvider,
-            commandsProvider,
-            solutionManagerFactory(),
-            vscodeWindow,
-            editYamlFile,
-        ).activate(extensionContextFactory());
-
         const mockTargetGroup = mockProject.createChild('targetGroup');
         mockTargetGroup.setTag('group');
         mockTargetGroup.setAttribute('label', 'Test Group');
         mockTargetGroup.setAttribute('type', 'group');
-        mockTargetGroup.setAttribute('projectUri', path.join('project', 'test.cproject.yml'));
+        mockTargetGroup.setAttribute('projectUri', path.resolve('project', 'test.cproject.yml'));
+
+        const fixture = loadedProjectFixture(mockTargetGroup);
+
+        await new AddToGroupCommand(
+            workspaceFsProvider,
+            commandsProvider,
+            fixture.solutionManager,
+            vscodeWindow,
+        ).activate(extensionContextFactory());
 
         vscodeWindow.showQuickPick.mockResolvedValue(addExistingFileOption);
 
@@ -418,7 +459,10 @@ describe('AddToGroupCommand command', () => {
             })
         );
 
-        expect(editYamlFile).toHaveBeenCalledTimes(1);
+        expect(itemValues(fixture.targetItem, 'files', 'file')).toEqual([
+            relativeProjectPath(fixture.projectPath, newFileUri.fsPath),
+        ]);
+        expect(fixture.save).toHaveBeenCalledTimes(1);
 
         mockShowErrorMessage.mockRestore();
     });

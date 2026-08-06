@@ -231,7 +231,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const debugProvider = new DebugLaunchProvider(commandsProvider, solutionManager, configurationProvider);
 
     const addToGroupCommand = new AddToGroupCommand(workspaceFsProvider, commandsProvider, solutionManager);
-    const deleteCommand = new DeleteCommand(commandsProvider, workspaceFsProvider);
+    const deleteCommand = new DeleteCommand(commandsProvider, solutionManager);
     const editCommand = new EditCommand(commandsProvider);
     const copyHeaderCommand = new CopyHeaderCommand(commandsProvider);
     const openCommand = new OpenCommand(solutionManager, commandsProvider, externalFileOpener, undefined, fileOpenGroupOrchestrator);

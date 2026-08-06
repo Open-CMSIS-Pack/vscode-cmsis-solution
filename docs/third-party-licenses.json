@@ -1,12 +1,5 @@
 [
     {
-        "name": "google-protobuf",
-        "version": "4.0.2",
-        "spdx": "(BSD-3-Clause AND Apache-2.0)",
-        "url": "https://github.com/protocolbuffers/protobuf",
-        "license": "https://github.com/protocolbuffers/protobuf/blob/main/LICENSE"
-    },
-    {
         "name": "@eclipse-cdt-cloud/clangd-contexts",
         "version": "0.9.0-next.c7c35a6.0",
         "spdx": "EPL-2.0",
