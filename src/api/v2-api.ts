@@ -20,13 +20,9 @@ import { CsolutionApiV2 } from '../../api/csolution-api-v2';
 import { BoardData, BoardId } from '../data-manager/board-data';
 import { DataManager } from '../data-manager/data-manager';
 import { DeviceData, DeviceId } from '../data-manager/device-data';
-import { DraftProjectData } from '../data-manager/draft-project-data';
-import { PackReference } from '../solutions/parsing/common-file-parsing';
-import { TargetType } from '../solutions/parsing/solution-file';
-import { SolutionCreator } from '../solutions/solution-creator';
+import { CreateSolutionPackRequirement, CreateSolutionRequest, CreateSolutionTargetType, SolutionCreator } from '../solutions/solution-creator';
 import { BuildTaskDefinition } from '../tasks/build/build-task-definition';
 import { BuildTaskProvider, BuildTaskProviderImpl } from '../tasks/build/build-task-provider';
-import { NewSolutionMessage } from '../views/create-solutions/messages';
 
 function deviceFilterPredicate(filter: CsolutionApiV2.DeviceFilter) {
     return (device: DeviceId | DeviceData) => {
@@ -62,24 +58,27 @@ async function boardFilterMatches(filter: CsolutionApiV2.BoardFilter, board: Boa
     return result;
 }
 
-function createPackReference(pack: CsolutionApiV2.PackId) {
+function createPackReference(pack: CsolutionApiV2.PackId): CreateSolutionPackRequirement {
     return {
         pack: `${pack.vendor}::${pack.name}`,
-        forContext: '',
-        notForContext: ''
+        forContext: [],
+        notForContext: []
     };
 }
 
-async function pushPackReference(packs: PackReference[], pack: Promise<CsolutionApiV2.PackId | undefined> | undefined) {
+async function pushPackReference(packs: CreateSolutionPackRequirement[], pack: Promise<CsolutionApiV2.PackId | undefined> | undefined) {
     const resolvedPack = await pack;
     if (resolvedPack) {
         packs.push(createPackReference(resolvedPack));
     }
 }
 
-async function newSolutionToNewSolutionMessage(options: CsolutionApiV2.CreateNewSolutionOptions): Promise<NewSolutionMessage> {
-    const packs: PackReference[] = [];
-    const targetTypes: TargetType[] = [];
+async function newSolutionToCreateSolutionRequest(
+    dataManager: DataManager,
+    options: CsolutionApiV2.CreateNewSolutionOptions,
+): Promise<CreateSolutionRequest> {
+    const packs: CreateSolutionPackRequirement[] = [];
+    const targetTypes: CreateSolutionTargetType[] = [];
     const board = options.board?.id;
     const device = options.device?.id ?? await options.board?.devices.then(d => d[0]);
 
@@ -95,8 +94,13 @@ async function newSolutionToNewSolutionMessage(options: CsolutionApiV2.CreateNew
     await pushPackReference(packs, options.board?.pack);
     await pushPackReference(packs, options.device?.pack);
 
+    const draftProject = (await dataManager.getDraftProjects(options.board?.id, options.device?.id))
+        .get(options.draft.id.key);
+    if (!draftProject) {
+        throw new Error(`Draft project not found: ${options.draft.id.key}`);
+    }
+
     return {
-        type: 'NEW_SOLUTION',
         solutionName: '',
         solutionLocation: options.folder,
         solutionFolder: '',
@@ -104,17 +108,8 @@ async function newSolutionToNewSolutionMessage(options: CsolutionApiV2.CreateNew
         projects: [],
         gitInit: options.git ?? false,
         targetTypes: targetTypes,
-        packs: packs,
-        selectedTemplate: {
-            type: 'dataManagerApp',
-            value: {
-                name: options.draft.name,
-                description: options.draft.description,
-                objectId: options.draft.id.key,
-                draftType: options.draft.draftType,
-            },
-        },
-        dataManagerObject: options.draft as DraftProjectData,
+        packs,
+        draftProject,
     };
 }
 
@@ -163,7 +158,7 @@ export class CsolutionApiV2Impl implements CsolutionApiV2 {
     }
 
     public async createNewSolution(options: CsolutionApiV2.CreateNewSolutionOptions) {
-        const message = await newSolutionToNewSolutionMessage(options);
+        const message = await newSolutionToCreateSolutionRequest(this.dataManager, options);
         await this.solutionCreator.createSolution(message);
     }
 

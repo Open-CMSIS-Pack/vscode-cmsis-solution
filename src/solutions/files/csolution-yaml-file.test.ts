@@ -19,9 +19,65 @@ import { CSolutionYamlFile } from './csolution-yaml-file';
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { extractVersion, stripVersion } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { MIN_TOOLBOX_VERSION } from '../../manifest';
+import { TEMPLATES_FOLDER } from '../../manifest';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import * as path from 'path';
+import * as YAML from 'yaml';
 
 
 describe('CSolutionYamlFile', () => {
+    it('loads and mutates a creation template without synthesizing target sets', async () => {
+        const destination = path.join('destination', 'test.csolution.yml');
+        const file = new CSolutionYamlFile();
+
+        const result = await file.loadTemplate(path.join(TEMPLATES_FOLDER, 'template.csolution.yml'), destination);
+        file.appendProjectRef('Secure/Secure.cproject.yml');
+        file.appendProjectRef('Application/Application.cproject.yml');
+        file.appendTargetType('Board', undefined, 'Vendor::Board:1.0.0');
+        file.appendTargetType('Device', 'Vendor::Device', undefined);
+        file.addPack('Vendor::BoardPack@1.2.3', ['+Board'], ['.Release+Board', '.Debug+Device']);
+        file.addPack('Vendor::DevicePack@2.0.0');
+        file.addPack('Vendor::DevicePack@2.0.0', ['+Device']);
+        file.compiler = 'AC6';
+
+        const output = YAML.parse(file.stringify());
+
+        expect(result).toBe(ETextFileResult.Success);
+        expect(file.fileName).toBe(destination);
+        expect(file.rootItem?.rootFileName).toBe(destination);
+        expect(output.solution.projects).toEqual([
+            { project: 'Secure/Secure.cproject.yml' },
+            { project: 'Application/Application.cproject.yml' },
+        ]);
+        expect(output.solution['target-types']).toEqual([
+            { type: 'Board', board: 'Vendor::Board:1.0.0' },
+            { type: 'Device', device: 'Vendor::Device' },
+        ]);
+        expect(output.solution.packs).toEqual([
+            {
+                pack: 'Vendor::BoardPack@1.2.3',
+                'for-context': '+Board',
+                'not-for-context': ['.Release+Board', '.Debug+Device'],
+            },
+            { pack: 'Vendor::DevicePack@2.0.0', 'for-context': '+Device' },
+        ]);
+        expect(output.solution.compiler).toBe('AC6');
+        expect(output.solution['build-types']).toHaveLength(2);
+        expect(output.solution.misc).toHaveLength(1);
+        expect(file.targetTypes.every(targetType => targetType.targetSets.length === 0)).toBe(true);
+        expect(file.stringify()).toContain('# List of different build configurations.');
+    });
+
+    it('rejects unsupported compilers and omits an empty compiler', () => {
+        const file = new CSolutionYamlFile();
+
+        expect(() => { file.compiler = 'unsupported'; }).toThrow("Unsupported compiler 'unsupported'");
+        file.compiler = 'GCC';
+        file.compiler = undefined;
+
+        expect(file.compiler).toBeUndefined();
+    });
+
     it('should create a CSolutionWrap with a top item', () => {
         const file = new CSolutionYamlFile();
         const wrap = file.solutionWrap;

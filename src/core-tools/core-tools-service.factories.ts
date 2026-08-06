@@ -15,10 +15,8 @@
  */
 
 import {
-    BoardId,
     ComponentFile,
     ComponentId,
-    DeviceReference,
     PackId as ProtoPackId,
     PackFileReference,
     RefApp,
@@ -112,7 +110,6 @@ export type PackIdFactoryOptions = {
     version?: string;
 }
 
-// Used by: cmsis-solution-types.factories.ts
 export const packIdFactory = (options?: PackIdFactoryOptions): ProtoPackId => {
     const packId = new ProtoPackId();
     packId.setName(options?.name || faker.word.noun());
@@ -205,14 +202,6 @@ export const packDataFactory = (options?: PackDataFactoryOptions): PackData => {
     return packData;
 };
 
-// Used by: cmsis-solution-types.factories.ts
-export function deviceReferenceFactory(options?: Partial<DeviceReference.AsObject>): DeviceReference {
-    const deviceReference = new DeviceReference();
-    deviceReference.setName(options?.name || faker.word.noun());
-    deviceReference.setVendor(options?.vendor || faker.word.noun());
-    return deviceReference;
-}
-
 const componentIdFromReference = (reference: TrackedComponentReference): ComponentId => componentIdFactory({
     bundle: reference.getReference()?.getBundleName(),
     variant: reference.getReference()?.getVariant(),
@@ -255,21 +244,6 @@ export const selectedComponentInfoFactory = (options?: SelectedComponentInfoFact
     }
 
     return info;
-};
-
-export type BoardIdFactoryOptions = {
-    name: string;
-    vendor: string;
-    revision: string;
-}
-
-// Used by: cmsis-solution-types.factories.ts, cmsis-solution-types.test.ts
-export const boardIdFactory = (options?: Partial<BoardIdFactoryOptions>): BoardId => {
-    const boardId = new BoardId();
-    boardId.setName(options?.name ?? faker.word.noun());
-    boardId.setVendor(options?.vendor ?? faker.word.noun());
-    boardId.setRevision(options?.revision ?? faker.word.noun());
-    return boardId;
 };
 
 function packFileReferenceFactory(options?: Partial<PackFileReference.AsObject>): PackFileReference {

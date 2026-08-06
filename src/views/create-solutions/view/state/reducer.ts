@@ -14,53 +14,28 @@
  * limitations under the License.
  */
 
-import { Example as ApiExample, Template as ApiTemplate, RefApp } from '../../../../core-tools/client/packs_pb';
-import { DraftProjectType } from '../../../../data-manager/draft-project-data';
-import { ExampleProject } from '../../../../solar-search/solar-search-client';
 import { AsyncStatus } from '../../../async-status';
 import { TreeViewCategory } from '../../../common/components/tree-view';
 import { BoardHardwareOption, compareBoardId, compareDeviceId, DeviceHardwareOption, HardwareInfo, NewProject, Trustzone } from '../../cmsis-solution-types';
+import { DraftProjectDetails, DraftProjectSelection, HardwareLists } from '../../create-solution-dto';
 import * as Messages from '../../messages';
-import { HardwareLists } from '../../messages';
 import { FieldAndInteraction, hadInteraction } from './field-and-interaction';
 import { createProjectsForTemplateAndHardware, CSolutionTemplate, hardwareTemplateOptions } from './templates';
 
 export type CompilerDisplay = 'Arm Compiler 6' | 'GCC' | 'LLVM' | '';
 export type CreateProgress = 'idle' | 'checking' | 'creating';
 
-export type DataManagerApp = {
-    name: string;
-    description: string;
-    objectId: string;
-    draftType: DraftProjectType;
-}
-
-export type Example = {
-    type: 'example';
-    value: ExampleProject;
-}
-
 export type Template = {
     type: 'template';
     value: CSolutionTemplate;
 }
 
-export type RefApplication = {
-    type: 'refApp';
-    value: RefApp.AsObject;
-}
-
-export type LocalExample = {
-    type: 'localExample';
-    value: ApiExample.AsObject;
-}
-
 export type DataManagerExample = {
     type: 'dataManagerApp';
-    value: DataManagerApp;
+    value: DraftProjectDetails;
 }
 
-export type DraftProject = Template | Example | RefApplication | LocalExample | DataManagerExample;
+export type DraftProject = DraftProjectSelection;
 
 export const emptyHardwareLists = { boards: [], devices: [] };
 
@@ -75,10 +50,6 @@ export type CreateSolutionState = {
     hardwareLists: AsyncStatus<HardwareLists>;
     hardwareInfo: HardwareInfo | undefined;
     projects: FieldAndInteraction<NewProject>[];
-    examples: ExampleProject[];
-    refApps: RefApp.AsObject[];
-    localExamples: ApiExample.AsObject[];
-    templates: ApiTemplate.AsObject[] ;
     datamanagerApps: Array<TreeViewCategory<string>>;
     selectedTemplate: FieldAndInteraction<DraftProject | undefined>;
     boardSelection: FieldAndInteraction<BoardHardwareOption | undefined>;
@@ -110,10 +81,6 @@ export const initialState: CreateSolutionState = {
     solutionName: { value: '', hadInteraction: false },
     solutionFolder: { value: '', hadInteraction: false },
     projects: [],
-    examples: [],
-    refApps: [],
-    localExamples: [],
-    templates: [],
     datamanagerApps: [],
     selectedTemplate: { value: undefined, hadInteraction: false },
     solutionLocation: { value: '', hadInteraction: false },
@@ -169,11 +136,6 @@ export const incomingMessageReducer = (state: CreateSolutionState, message: Mess
                 hardwareLists: { type: 'loaded', result: { boards: message.data.boards, devices: message.data.devices } },
                 servicesErrors: message.errors,
             };
-        case 'BOARD_EXAMPLE_DATA':
-            return {
-                ...state,
-                examples: message.data,
-            };
         case 'HARDWARE_INFO':
             return {
                 ...state,
@@ -213,24 +175,6 @@ export const incomingMessageReducer = (state: CreateSolutionState, message: Mess
                 ...state,
                 platform: message.data.name
             };
-        case 'REF_APP_DATA': {
-            return {
-                ...state,
-                refApps: message.data,
-            };
-        }
-        case 'BOARD_EXAMPLE_DATA_LOCAL': {
-            return {
-                ...state,
-                localExamples: message.data,
-            };
-        }
-        case 'TEMPLATE_DATA': {
-            return {
-                ...state,
-                templates: message.data,
-            };
-        }
         case 'DATAMANAGER_APPS_DATA': {
             return {
                 ...state,
@@ -243,11 +187,11 @@ export const incomingMessageReducer = (state: CreateSolutionState, message: Mess
                 webServicesEnabled: message.enabled,
             };
         case 'DRAFTPROJECT_INFO': {
-            const validSolutionName = convertToValidSolutionName(message.data.value.name);
+            const validSolutionName = convertToValidSolutionName(message.data.name);
 
             return applyTemplateIfValid({
                 ...state,
-                selectedTemplate: hadInteraction(message.data),
+                selectedTemplate: hadInteraction({ type: 'dataManagerApp', value: message.data }),
                 solutionName: { hadInteraction: false, value: validSolutionName },
                 solutionFolder: { hadInteraction: false, value: validSolutionName },
             });
@@ -270,15 +214,15 @@ const updateProjectProperty = <T extends keyof NewProject>(projects: FieldAndInt
 };
 
 const updateProjectCore  = (projects: FieldAndInteraction<NewProject>[], deviceSelection: DeviceHardwareOption, requestIndex: number, requestedProcessorName: string): FieldAndInteraction<NewProject>[] => {
-    const newCoreHasTZ = deviceSelection?.processors?.find(({ name }) => name === requestedProcessorName)?.tz;
+    const newCoreHasTrustZone = deviceSelection.processors.find(({ name }) => name === requestedProcessorName)?.supportsTrustZone;
     const projectsWithUpdatedDeviceAndCore = updateProjectProperty(projects, requestIndex, 'processorName', requestedProcessorName);
-    return !newCoreHasTZ ? updateProjectProperty(projectsWithUpdatedDeviceAndCore, requestIndex, 'trustzone', 'off') : projectsWithUpdatedDeviceAndCore;
+    return !newCoreHasTrustZone ? updateProjectProperty(projectsWithUpdatedDeviceAndCore, requestIndex, 'trustzone', 'off') : projectsWithUpdatedDeviceAndCore;
 };
 
 export const modifyProjectReducer = (state: CreateSolutionState, request: ProjectRequest): CreateSolutionState => {
     switch (request.type) {
         case 'REMOVE_PROJECT':
-            return { ...state, projects:  state.projects.splice(request.index, 1) && state.projects };
+            return { ...state, projects: state.projects.filter((_, index) => index !== request.index) };
         case 'ADD_PROJECT': {
             if (state.deviceSelection) {
                 const device = state.deviceSelection.value;
@@ -306,24 +250,15 @@ export const modifyProjectReducer = (state: CreateSolutionState, request: Projec
 const applyTemplateIfValid = (state: CreateSolutionState): CreateSolutionState => {
     const deviceSelection = state.deviceSelection.value;
     const templateName = state.selectedTemplate.value?.type === 'template' ? state.selectedTemplate.value.value : undefined;
-    const examples = state.boardSelection.value ? state.examples : [];
-    const refApps = state.boardSelection.value ? state.refApps : [];
-    const localExamples = state.boardSelection.value ? state.localExamples : [];
 
     if (deviceSelection && templateName) {
         const projects = createProjectsForTemplateAndHardware(deviceSelection, templateName);
-        return { ...state, projects, examples };
-    } else if (state.selectedTemplate.value?.type === 'example') {
-        return { ...state, projects: [], selectedTemplate: state.selectedTemplate, examples };
-    } else if (state.selectedTemplate.value?.type === 'refApp') {
-        return { ...state, projects: [], selectedTemplate: state.selectedTemplate, refApps };
-    } else if (state.selectedTemplate.value?.type === 'localExample') {
-        return { ...state, projects: [], selectedTemplate: state.selectedTemplate, localExamples };
+        return { ...state, projects };
     } else if (state.selectedTemplate.value?.type === 'dataManagerApp') {
-        return { ...state, projects: [], selectedTemplate: state.selectedTemplate, localExamples };
+        return { ...state, projects: [], selectedTemplate: state.selectedTemplate };
     }
 
-    return { ...state, examples };
+    return state;
 };
 
 export const alignTemplate = (currentTemplate: DraftProject | undefined, deviceSelection: DeviceHardwareOption): FieldAndInteraction<Template | undefined> => {
@@ -350,7 +285,6 @@ const selectBoard = (state: CreateSolutionState, boardSelection: BoardHardwareOp
         selectedTemplate: { hadInteraction: false, value: undefined },
         selectedDraftProjectId: '',
         projects: [],
-        examples: [],
         datamanagerApps: [],
         solutionFolder: { hadInteraction: false, value: '' },
     };

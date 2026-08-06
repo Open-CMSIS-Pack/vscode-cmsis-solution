@@ -18,8 +18,6 @@ import '@open-cmsis-pack/cmsis-common/map';
 
 import { ExtensionContext } from 'vscode';
 import { CreateSolutionData } from './create-solution-data';
-import { WebviewManager } from '../webview-manager';
-import * as Messages from './messages';
 import { dataManagerFactory, generateDraftProjectData } from '../../data-manager/data-manager.factories';
 import path from 'path';
 
@@ -39,24 +37,22 @@ class CreateSolutionDataTestable extends CreateSolutionData {
 describe('CreateSolutionData', () => {
     const createTestee = () : [CreateSolutionDataTestable, {
             contextMock: jest.Mocked<ExtensionContext>,
-            webviewManagerMock: jest.Mocked<WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>>,
+            asWebviewUriMock: jest.MockedFunction<(uri: vscode.Uri) => string>,
             dataManagerMock: ReturnType<typeof dataManagerFactory>,
             readFileMock: jest.Spied<typeof vscode.workspace.fs.readFile>
         }] => {
         const contextMock = {
             extensionUri: EXTENSION_URI,
         } as jest.Mocked<ExtensionContext>;
-        const webviewManagerMock = {
-            asWebviewUri: jest.fn().mockImplementation((uri: vscode.Uri) => uri.with({ scheme: 'vscode-resource' }).toString()),
-        } as unknown as jest.Mocked<WebviewManager<Messages.IncomingMessage, Messages.OutgoingMessage>>;
+        const asWebviewUriMock = jest.fn((uri: vscode.Uri) => uri.with({ scheme: 'vscode-resource' }).toString());
         const dataManagerMock = dataManagerFactory();
         const testee = new CreateSolutionDataTestable(
             contextMock,
-            webviewManagerMock,
+            asWebviewUriMock,
             dataManagerMock,
         );
         const readFileMock = jest.spyOn(vscode.workspace.fs, 'readFile').mockResolvedValue(Buffer.from('test-image-data'));
-        return [testee, { contextMock, webviewManagerMock, dataManagerMock, readFileMock }];
+        return [testee, { contextMock, asWebviewUriMock, dataManagerMock, readFileMock }];
     };
 
     describe('getImage', () => {

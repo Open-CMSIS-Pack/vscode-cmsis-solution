@@ -18,20 +18,17 @@ import 'jest';
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import { simulateChangeEvent } from '../../../../__test__/dom-events';
-import { refAppFactory } from '../../../../core-tools/core-tools-service.factories';
-import { cSolutionExampleFactory } from '../../../../solar-search/solar-search-client.factories';
 import { MockMessageHandler } from '../../../__test__/mock-message-handler';
 import { boardHardwareOptionFactory, deviceHardwareOptionFactory } from '../../cmsis-solution-types.factories';
 import { IncomingMessage, OutgoingMessage } from '../../messages';
-import { CreationActions } from '../actions';
 import { CreateSolution } from './create-solution';
 import { act } from 'react';
-import { CreateSolutionState } from '../state/reducer';
+import { CreateSolutionViewModel } from '../create-solution-view-model';
 
 
 
-const targetDataWindowMessage: IncomingMessage = {
-    type: 'TARGET_DATA', data: {
+const targetDataWindowMessage: Extract<IncomingMessage, { type: 'TARGET_DATA' }> = {
+    type: 'TARGET_DATA', requestId: 'request-id', data: {
         devices: [
             {
                 header: 'Test Header',
@@ -59,7 +56,7 @@ describe('CreateSolution', () => {
     let container: Element;
     let listener: jest.Mock;
     let messageHandler: MockMessageHandler<IncomingMessage, OutgoingMessage>;
-    let creationActions: { [key in keyof CreationActions]: jest.Mock<ReturnType<CreationActions[key]>, Parameters<CreationActions[key]>> };
+    let viewModel: CreateSolutionViewModel;
 
     const getElements = () => ({
         createBtn: container.querySelector('button[title="Create Solution"]') as HTMLButtonElement,
@@ -91,11 +88,6 @@ describe('CreateSolution', () => {
         await act(async () => firstTemplate.click());
     };
 
-    const selectFirstExample = async () => {
-        const firstTemplate = container.querySelector('.example') as HTMLElement;
-        await act(async () => firstTemplate.click());
-    };
-
     const fillOutFormFields = async () => {
         const elements = getElements();
 
@@ -111,26 +103,30 @@ describe('CreateSolution', () => {
     };
 
     const renderCreateSolution = async (): Promise<void> => act(async () => createRoot(container).render(
-        <CreateSolution messageHandler={messageHandler} creationActions={creationActions}></CreateSolution>
+        <CreateSolution viewModel={viewModel} />
     ));
 
     beforeEach(async () => {
         container = document.createElement('div');
         listener = jest.fn();
         messageHandler = new MockMessageHandler(listener);
-        creationActions = { createSolution: jest.fn(), checkSolutionExists: jest.fn() };
+        viewModel = new CreateSolutionViewModel(messageHandler);
 
         listener.mockImplementation(async (message: OutgoingMessage) => {
+            if (message.type === 'WEBVIEW_CLOSE') {
+                return;
+            }
             switch (message.type) {
                 case 'DATA_GET_TARGETS':
-                    messageHandler.postWindowMessage(targetDataWindowMessage);
+                    messageHandler.postWindowMessage({ ...targetDataWindowMessage, requestId: message.requestId });
                     break;
                 case 'GET_PLATFORM':
-                    messageHandler.postWindowMessage({ type: 'PLATFORM', data: { name: 'vscode' } });
+                    messageHandler.postWindowMessage({ type: 'PLATFORM', requestId: message.requestId, data: { name: 'vscode' } });
                     break;
                 case 'DATA_GET_BOARD_INFO':
                     messageHandler.postWindowMessage({
                         type: 'HARDWARE_INFO',
+                        requestId: message.requestId,
                         data: {
                             memoryInfo: {},
                             image: '',
@@ -140,7 +136,7 @@ describe('CreateSolution', () => {
                     });
                     break;
             }
-            messageHandler.postWindowMessage({ type: 'REQUEST_SUCCESSFUL', requestType: message.type });
+            messageHandler.postWindowMessage({ type: 'REQUEST_SUCCESSFUL', requestType: message.type, requestId: message.requestId });
         });
     });
 
@@ -151,22 +147,25 @@ describe('CreateSolution', () => {
     it('requests target hardware data on startup', async () => {
         await renderCreateSolution();
 
-        const expectedMessage: OutgoingMessage = { type: 'DATA_GET_TARGETS' };
-        expect(listener).toHaveBeenCalledWith(expectedMessage);
+        expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'DATA_GET_TARGETS',
+            requestId: expect.any(String),
+        }));
     });
 
     it('requests directory path is NOT called on startup', async () => {
         await renderCreateSolution();
 
-        const expectedMessage: OutgoingMessage = { type: 'OPEN_FILE_PICKER' };
-        expect(listener).not.toHaveBeenCalledWith(expectedMessage);
+        expect(listener).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'OPEN_FILE_PICKER' }));
     });
 
     it('requests the default location directory on startup', async () => {
         await renderCreateSolution();
 
-        const expectedMessage: OutgoingMessage = { type: 'DATA_GET_DEFAULT_LOCATION' };
-        expect(listener).toHaveBeenCalledWith(expectedMessage);
+        expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'DATA_GET_DEFAULT_LOCATION',
+            requestId: expect.any(String),
+        }));
     });
 
     it('requests closure of the webview on the cancel button', async () => {
@@ -192,53 +191,32 @@ describe('CreateSolution', () => {
         expect(elements.gitCheckbox.disabled).toBeFalsy();
     });
 
-    it('hides the toolchain input on selection of an example', async () => {
-        await renderCreateSolution();
-        const example = cSolutionExampleFactory();
-        messageHandler.postWindowMessage({
-            type: 'BOARD_EXAMPLE_DATA',
-            data: [example],
-        });
-
-        await openDropdown(getElements().templateDropdown);
-        await selectFirstExample();
-    });
-
     it('checks if the solution exists when the name or location is changed', async () => {
         await renderCreateSolution();
 
         await fillOutFormFields();
-        creationActions.checkSolutionExists.mockClear();
+        listener.mockClear();
 
         simulateChangeEvent(getElements().fInput, 'The new value');
 
-        expect(creationActions.checkSolutionExists).toHaveBeenCalledWith(
-            messageHandler,
-            expect.any(Function),
-            'test-location',
-            'Blank_solution',
-            'The new value',
-        );
+        expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'CHECK_SOLUTION_DOES_NOT_EXIST',
+            solutionLocation: 'test-location',
+            solutionName: 'Blank_solution',
+            solutionFolder: 'The new value',
+        }));
     });
 
     describe('when the form is filled in and the create button is clicked', () => {
-        beforeEach(async () => {
-            creationActions.createSolution.mockImplementation(async (dispatch) => {
-                dispatch({ type: 'CREATION_CHECK_START' });
-            });
-        });
-
-        it('calls the createSolution creation action', async () => {
+        it('submits the solution', async () => {
             await renderCreateSolution();
             await fillOutFormFields();
             await act(async () => getElements().createBtn!.click());
 
-            const expectedSolutionNameState: CreateSolutionState['solutionFolder'] = { hadInteraction: true, value: 'test solution' };
-            expect(creationActions.createSolution).toHaveBeenCalledWith(
-                expect.any(Function),
-                expect.objectContaining({ solutionFolder: expectedSolutionNameState }),
-                messageHandler,
-            );
+            expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+                type: 'NEW_SOLUTION',
+                solutionFolder: 'test solution',
+            }));
         });
 
         it('disables interactive elements', async () => {
@@ -262,8 +240,11 @@ describe('CreateSolution', () => {
 
         await act(async () => browseBtn!.click());
 
-        const expectedMessage: OutgoingMessage = { type: 'OPEN_FILE_PICKER', solutionLocation: '' };
-        expect(listener).toHaveBeenLastCalledWith(expectedMessage);
+        expect(listener).toHaveBeenLastCalledWith(expect.objectContaining({
+            type: 'OPEN_FILE_PICKER',
+            requestId: expect.any(String),
+            solutionLocation: '',
+        }));
     });
 
     it('displays errors for invalid text inputs', async () => {
@@ -279,9 +260,15 @@ describe('CreateSolution', () => {
 
     it('displays an error if solution at given location already exists', async () => {
         await renderCreateSolution();
-        creationActions.checkSolutionExists.mockImplementation(async (_messageHandler, dispatch) => {
-            dispatch({ type: 'END_SOLUTION_EXISTS_CHECK', result: true });
-            return true;
+        listener.mockImplementation((message: OutgoingMessage) => {
+            if (message.type === 'CHECK_SOLUTION_DOES_NOT_EXIST') {
+                messageHandler.postWindowMessage({
+                    type: 'REQUEST_FAILED',
+                    requestType: message.type,
+                    requestId: message.requestId,
+                    errorMessage: 'already exists',
+                });
+            }
         });
 
         simulateChangeEvent(getElements().fInput, 'some solution');
@@ -297,12 +284,15 @@ describe('CreateSolution', () => {
     it('auto selects a board if it is connected', async () => {
         const connectedBoard = targetDataWindowMessage.data.boards[0].items[1].value;
         listener.mockImplementation(async (message: OutgoingMessage) => {
+            if (message.type === 'WEBVIEW_CLOSE') {
+                return;
+            }
             switch (message.type) {
                 case 'DATA_GET_TARGETS':
-                    messageHandler.postWindowMessage(targetDataWindowMessage);
+                    messageHandler.postWindowMessage({ ...targetDataWindowMessage, requestId: message.requestId });
                     break;
                 case 'DATA_GET_CONNECTED_DEVICE':
-                    messageHandler.postWindowMessage({ type: 'CONNECTED_BOARD', data: { name: connectedBoard.id.name } });
+                    messageHandler.postWindowMessage({ type: 'CONNECTED_BOARD', requestId: message.requestId, data: { name: connectedBoard.id.name } });
                     break;
             }
         });
@@ -311,38 +301,6 @@ describe('CreateSolution', () => {
 
         const boardSelection = getElements().boardDropdown.querySelector('.dropdown-select-input-text');
         expect(boardSelection?.innerHTML).toBe(`${connectedBoard.id.name} (${connectedBoard.id.revision})`);
-    });
-
-    it('lists examples when example data is available is selected', async () => {
-        await renderCreateSolution();
-        const example = cSolutionExampleFactory();
-
-        messageHandler.postWindowMessage({
-            type: 'BOARD_EXAMPLE_DATA',
-            data: [example],
-        });
-
-        const templateDropdown = getElements().templateDropdown;
-        await openDropdown(templateDropdown);
-
-        const exampleEl = container.querySelector('.example');
-        expect(exampleEl!.innerHTML).toContain(example.name);
-    });
-
-    it('lists reference apps', async () => {
-        await renderCreateSolution();
-        const refApps = [refAppFactory(), refAppFactory(), refAppFactory()];
-
-        messageHandler.postWindowMessage({
-            type: 'REF_APP_DATA',
-            data: refApps,
-        });
-
-        const templateDropdown = getElements().templateDropdown;
-        await openDropdown(templateDropdown);
-
-        const exampleEl = container.querySelector('.refapp');
-        expect(exampleEl!.innerHTML).toContain(refApps[0].name);
     });
 
 });

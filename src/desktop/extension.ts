@@ -206,19 +206,19 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const convertMdkToCsolution = new ConvertMdkToCsolutionCommand(commandsProvider, processManager, outputChannelProvider, workspaceFoldersProvider, messageProvider, workspaceFsProvider, globalStateProvider);
     const solutionInitialiserImp = new SolutionInitialiserImp(commandsProvider, workspaceFoldersProvider, configureVcpkgForSolution, messageProvider, globalStateProvider,);
     const createSolutionFromDataManager = getCreateSolutionFromDataManager(workspaceFsProvider, convertMdkToCsolution, workspace.findFiles);
-    const solutionCreator = new SolutionCreatorImp(createSolutionFromDataManager, solutionInitialiserImp, workspaceFsProvider);
+    const solutionCreator = new SolutionCreatorImp(createSolutionFromDataManager, solutionInitialiserImp);
     const dataManager = new DataManager(
         new SolarDataSource(solarSearch, () => configurationProvider.getConfigVariableOrDefault<boolean>(manifest.CONFIG_USE_WEBSERVICES, true)),
         new CsolutionDataSource(csolutionService),
     );
 
     const createSolution = new CreateSolutionWebviewMain(
-        solutionCreator,
         context,
+        solutionCreator,
+        dataManager,
         messageProvider,
         commandsProvider,
         workspaceFoldersProvider,
-        dataManager,
     );
     const manageLayers = new ManageLayersWebviewMain(
         context,

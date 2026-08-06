@@ -251,7 +251,9 @@ export class TargetSetWrap extends CTreeItemWrap {
 export class TargetTypeWrap extends TypedWrap {
 
     get device(): string | undefined { return this.getValue('device'); }
+    set device(device: string | undefined) { this.setValue('device', device); }
     get board(): string | undefined { return this.getValue('board'); }
+    set board(board: string | undefined) { this.setValue('board', board); }
 
     private readonly targetSetHelpers = this.wrapHelpers(TargetSetWrap, 'target-set', 'set');
     get targetSets(): ReadonlyArray<TargetSetWrap> { return this.targetSetHelpers.array(); };

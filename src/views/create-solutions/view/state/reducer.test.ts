@@ -15,16 +15,11 @@
  */
 
 import 'jest';
-import { faker } from '@faker-js/faker';
-import { Tz } from '../../../../core-tools/client/packs_pb';
-import { ExampleProject } from '../../../../solar-search/solar-search-client';
-import { cSolutionExampleFactory } from '../../../../solar-search/solar-search-client.factories';
 import { BoardHardwareOption, DeviceHardwareOption, NewProject, ProcessorInfo } from '../../cmsis-solution-types';
-import { boardHardwareOptionFactory, deviceHardwareOptionFactory } from '../../cmsis-solution-types.factories';
+import { boardHardwareOptionFactory, deviceHardwareOptionFactory, newProjectFactory } from '../../cmsis-solution-types.factories';
 import { createProjectsForTemplateAndHardware, blankTemplate, trustZoneTemplate } from './templates';
 import { FieldAndInteraction, hadInteraction } from './field-and-interaction';
-import { CreateSolutionState, Template, alignTemplate, convertToValidSolutionName, createSolutionReducer, emptyHardwareLists, initialState } from './reducer';
-import { refAppFactory } from '../../../../core-tools/core-tools-service.factories';
+import { CreateSolutionState, Template, alignTemplate, createSolutionReducer, emptyHardwareLists, initialState } from './reducer';
 
 // Checks that all properties of the outputState equal the inputState, apart from the given keys
 const checkValuesUnmodified = (
@@ -130,6 +125,26 @@ describe('createSolutionReducer', () => {
         });
     });
 
+    describe('MODIFY_PROJECT', () => {
+        it('removes a project without mutating the input state', () => {
+            const retainedProject = { value: newProjectFactory({ name: 'second' }), hadInteraction: false };
+            const projects = [
+                { value: newProjectFactory({ name: 'first' }), hadInteraction: false },
+                retainedProject,
+            ];
+            const input: CreateSolutionState = { ...initialState, projects };
+
+            const output = createSolutionReducer(input, {
+                type: 'MODIFY_PROJECT',
+                request: { type: 'REMOVE_PROJECT', index: 0 },
+            });
+
+            expect(input.projects).toEqual(projects);
+            expect(output.projects).toEqual([retainedProject]);
+            expect(output.projects).not.toBe(input.projects);
+        });
+    });
+
     describe('SET_SELECTED_TEMPLATE', () => {
         it('sets the template and updates the projects and solution name if there is a device selection', () => {
             const deviceSelection: DeviceHardwareOption = deviceHardwareOptionFactory();
@@ -147,21 +162,6 @@ describe('createSolutionReducer', () => {
             checkValuesUnmodified(['selectedTemplate', 'solutionName', 'solutionFolder', 'projects'], input, output);
         });
 
-        it('sets a valid solution name when an example is picked', () => {
-            const deviceSelection: DeviceHardwareOption = deviceHardwareOptionFactory();
-
-            const input: CreateSolutionState = {
-                ...initialState,
-                selectedTemplate: { hadInteraction: false, value: undefined },
-                deviceSelection: hadInteraction(deviceSelection),
-            };
-            const exampleProject: ExampleProject = cSolutionExampleFactory('[WLCSP65][MDK]demo_TFM_LV2');
-
-            const output = createSolutionReducer(input, { type: 'SET_SELECTED_TEMPLATE', template: { type: 'example', value: exampleProject } });
-            expect(output.solutionName).toEqual({ hadInteraction: false, value: 'WLCSP65-MDK-demo_TFM_LV2' });
-            checkValuesUnmodified(['selectedTemplate', 'solutionName', 'solutionFolder', 'projects'], input, output);
-        });
-
         it('sets the template and solution name and does not update the projects if there is no device selection', () => {
             const input: CreateSolutionState = {
                 ...initialState,
@@ -176,26 +176,6 @@ describe('createSolutionReducer', () => {
             checkValuesUnmodified(['selectedTemplate', 'solutionName', 'solutionFolder'], input, output);
         });
 
-        it('sets the given example project state for board', () => {
-            const deviceOption1Processor1: ProcessorInfo = { name: 'P1', core: 'Cortex-M3', tz: Tz.TZ };
-            const deviceOption1Processor2: ProcessorInfo = { name: 'P2', core: 'Cortex-M5', tz: Tz.TZ_UNSPECIFIED };
-            const deviceOption2Processor1: ProcessorInfo = { name: 'P1', core: 'Cortex-M4', tz: Tz.TZ_UNSPECIFIED };
-            const deviceOption1 = deviceHardwareOptionFactory({ processors: [deviceOption1Processor1, deviceOption1Processor2] });
-            const deviceOption2 = deviceHardwareOptionFactory({ processors: [deviceOption2Processor1] });
-            const boardOption = boardHardwareOptionFactory({ mountedDevices: [deviceOption1, deviceOption2] });
-            const boardSelection: FieldAndInteraction<BoardHardwareOption | undefined> = {
-                value: boardOption,
-                hadInteraction: true
-            };
-            const input: CreateSolutionState = { ...initialState, selectedTemplate: { value: { type: 'template', value: blankTemplate }, hadInteraction: true }, boardSelection };
-            const exampleProject = cSolutionExampleFactory('[invalid][solution  name]');
-
-            const output = createSolutionReducer(input, { type: 'SET_SELECTED_TEMPLATE', template: { type: 'example', value: exampleProject } });
-
-            expect(output.selectedTemplate.value?.value).toBe(exampleProject);
-            expect(output.solutionName).toEqual({ hadInteraction: false, value: convertToValidSolutionName(exampleProject.name) });
-            checkValuesUnmodified(['selectedTemplate', 'solutionName', 'solutionFolder'], input, output);
-        });
     });
 
     describe('INCOMING_MESSAGE', () => {
@@ -205,6 +185,7 @@ describe('createSolutionReducer', () => {
             const output = createSolutionReducer(input, {
                 type: 'INCOMING_MESSAGE', message: {
                     type: 'TARGET_DATA',
+                    requestId: 'request-id',
                     data: emptyHardwareLists,
                     errors: [],
                 }
@@ -220,27 +201,13 @@ describe('createSolutionReducer', () => {
             const output = createSolutionReducer(input, {
                 type: 'INCOMING_MESSAGE', message: {
                     type: 'SOLUTION_LOCATION',
+                    requestId: 'request-id',
                     data: { path: 'some path here' },
                 }
             });
 
             expect(output.solutionLocation).toEqual({ value: 'some path here', hadInteraction: true });
             checkValuesUnmodified(['solutionLocation'], input, output);
-        });
-
-        it('sets the ref app list when the message type is REF_APP_DATA', () => {
-            const want = [refAppFactory(), refAppFactory(), refAppFactory()];
-            const input: CreateSolutionState = { ...initialState, refApps: [refAppFactory()] };
-
-            const output = createSolutionReducer(input, {
-                type: 'INCOMING_MESSAGE', message: {
-                    type: 'REF_APP_DATA',
-                    data: want,
-                }
-            });
-
-            expect(output.refApps).toEqual(want);
-            checkValuesUnmodified(['refApps'], input, output);
         });
 
         it('does nothing otherwise', () => {
@@ -250,6 +217,7 @@ describe('createSolutionReducer', () => {
                 type: 'INCOMING_MESSAGE', message: {
                     type: 'REQUEST_SUCCESSFUL',
                     requestType: 'CHECK_SOLUTION_DOES_NOT_EXIST',
+                    requestId: 'request-id',
                 }
             });
 
@@ -284,26 +252,11 @@ describe('createSolutionReducer', () => {
                 value: boardOption1,
                 hadInteraction: true
             };
-            const input: CreateSolutionState = { ...initialState, selectedTemplate: { value: { type: 'example', value: cSolutionExampleFactory() }, hadInteraction: true }, boardSelection };
+            const input: CreateSolutionState = { ...initialState, selectedTemplate: { value: { type: 'template', value: blankTemplate }, hadInteraction: true }, boardSelection };
 
             const output = createSolutionReducer(input, { type: 'SET_BOARD_SELECTION', boardSelection: boardOption2 });
 
             expect(output.selectedTemplate).toStrictEqual({ value: undefined, hadInteraction: false });
-        });
-
-        it('sets the examples to an empty array when selecting a different board', () => {
-            const exampleProjects: ExampleProject[] = faker.helpers.multiple(() => cSolutionExampleFactory());
-            const boardOption1 = boardHardwareOptionFactory({ mountedDevices: [] });
-            const boardOption2 = boardHardwareOptionFactory({ mountedDevices: [] });
-            const boardSelection: FieldAndInteraction<BoardHardwareOption> = {
-                value: boardOption1,
-                hadInteraction: true
-            };
-            const input: CreateSolutionState = { ...initialState, boardSelection, examples: exampleProjects };
-
-            const output = createSolutionReducer(input, { type: 'SET_BOARD_SELECTION', boardSelection: boardOption2 });
-
-            expect(output.examples).toStrictEqual([]);
         });
 
         it('updates board selection and device selection values, and tracks the user interaction for single device boards', () => {
@@ -355,8 +308,8 @@ describe('createSolutionReducer', () => {
         });
 
         it('sets template to the blank template when selecting a new device that is not trustzone enabled, but trustzone template was previously selected', () => {
-            const deviceOption1 = deviceHardwareOptionFactory({ processors: [{ name: 'little pea', core: 'Cortex-M3', tz: Tz.TZ }] });
-            const deviceOption2 = deviceHardwareOptionFactory({ processors: [{ name: 'big pea', core: 'Cortex-M3', tz: Tz.TZ_NO }] });
+            const deviceOption1 = deviceHardwareOptionFactory({ processors: [{ name: 'little pea', core: 'Cortex-M3', supportsTrustZone: true }] });
+            const deviceOption2 = deviceHardwareOptionFactory({ processors: [{ name: 'big pea', core: 'Cortex-M3', supportsTrustZone: false }] });
             const deviceSelection: FieldAndInteraction<DeviceHardwareOption> = {
                 value: deviceOption1,
                 hadInteraction: true
@@ -365,7 +318,6 @@ describe('createSolutionReducer', () => {
 
             const output = createSolutionReducer(input, { type: 'SET_DEVICE_SELECTION', deviceSelection: deviceOption2 });
 
-            expect(output.examples).toStrictEqual([]);
             expect(output.selectedTemplate).toStrictEqual({ value: { type: 'template', value: blankTemplate }, hadInteraction: true });
         });
     });
@@ -378,7 +330,7 @@ describe('createSolutionReducer', () => {
                 ...initialState, hardwareInfo: {
                     image: 'image',
                     memoryInfo: { 'IROM1': { size: 32768, count: 2 } },
-                    debugInterfacesList: [{ adapter: 'JTAG', connector: '20 pin JTAG' }, { adapter: 'JTAG', connector: '30000 pin Micro USB' }],
+                    debugInterfacesList: [{ adapter: 'JTAG' }, { adapter: 'JTAG' }],
                 }
             };
             const output = createSolutionReducer(input, { type: 'SET_BOARD_PREVIEW', boardPreview: boardSelection });
@@ -392,7 +344,7 @@ describe('createSolutionReducer', () => {
             const hardwareInfo = {
                 image: 'image',
                 memoryInfo: { 'IROM1': { size: 32768, count: 2 } },
-                debugInterfacesList: [{ adapter: 'JTAG', connector: '20 pin JTAG' }, { adapter: 'JTAG', connector: '30000 pin Micro USB' }],
+                debugInterfacesList: [{ adapter: 'JTAG' }, { adapter: 'JTAG' }],
             };
             const input: CreateSolutionState = { ...initialState, boardPreview: boardSelection, hardwareInfo };
 
@@ -411,7 +363,7 @@ describe('createSolutionReducer', () => {
                 ...initialState, hardwareInfo: {
                     image: 'image',
                     memoryInfo: { 'IROM1': { size: 32768, count: 2 } },
-                    debugInterfacesList: [{ adapter: 'JTAG', connector: '20 pin JTAG' }, { adapter: 'JTAG', connector: '30000 pin Micro USB' }],
+                    debugInterfacesList: [{ adapter: 'JTAG' }, { adapter: 'JTAG' }],
                 }
             };
             const output = createSolutionReducer(input, { type: 'SET_DEVICE_PREVIEW', devicePreview: deviceSelection });
@@ -425,7 +377,7 @@ describe('createSolutionReducer', () => {
             const hardwareInfo = {
                 image: 'image',
                 memoryInfo: { 'IROM1': { size: 32768, count: 2 } },
-                debugInterfacesList: [{ adapter: 'JTAG', connector: '20 pin JTAG' }, { adapter: 'JTAG', connector: '30000 pin Micro USB' }],
+                debugInterfacesList: [{ adapter: 'JTAG' }, { adapter: 'JTAG' }],
             };
             const input: CreateSolutionState = { ...initialState, devicePreview: deviceSelection, hardwareInfo };
 
@@ -493,8 +445,8 @@ describe('createSolutionReducer', () => {
         });
 
         it('UPDATE_PROJECT_CORE', () => {
-            const processor1: ProcessorInfo = { name: 'P1', core: 'Cortex-M3', tz: Tz.TZ };
-            const processor2: ProcessorInfo = { name: 'P2', core: 'Cortex-M5', tz: Tz.TZ_UNSPECIFIED };
+            const processor1: ProcessorInfo = { name: 'P1', core: 'Cortex-M3', supportsTrustZone: true };
+            const processor2: ProcessorInfo = { name: 'P2', core: 'Cortex-M5', supportsTrustZone: false };
             const deviceSelection = deviceHardwareOptionFactory({ processors: [processor1, processor2] });
 
             const input: CreateSolutionState = {
@@ -600,7 +552,7 @@ describe('createSolutionReducer', () => {
         it('returns blank template option when hardware selected only has that option', () => {
             const deviceSelection = deviceHardwareOptionFactory({
                 processors:
-                    [{ name: '', core: 'Cortex-M1', tz: Tz.TZ_UNSPECIFIED }]
+                    [{ name: '', core: 'Cortex-M1', supportsTrustZone: false }]
             });
             const currentTemplate: Template = { type: 'template', value: trustZoneTemplate };
 
@@ -611,7 +563,7 @@ describe('createSolutionReducer', () => {
         });
 
         it('returns trustzone template option when hardware selected allows that option', () => {
-            const deviceSelection = deviceHardwareOptionFactory({ processors: [{ name: '', core: 'Cortex-M33', tz: Tz.TZ }] });
+            const deviceSelection = deviceHardwareOptionFactory({ processors: [{ name: '', core: 'Cortex-M33', supportsTrustZone: true }] });
             const currentTemplate: Template = { type: 'template', value: trustZoneTemplate };
             const result = alignTemplate(currentTemplate, deviceSelection);
 
@@ -632,7 +584,6 @@ describe('createSolutionReducer', () => {
                         },
                         key: '',
                         mountedDevices: [],
-                        unresolvedDevices: []
                     }, hadInteraction: true
                 },
                 boardPreview: {
@@ -643,7 +594,6 @@ describe('createSolutionReducer', () => {
                     },
                     key: '',
                     mountedDevices: [],
-                    unresolvedDevices: []
                 },
                 deviceSelection: {
                     value: {
@@ -665,15 +615,6 @@ describe('createSolutionReducer', () => {
                     }, hadInteraction: true
                 },
                 projects: [{ value: { name: 'proj', processorName: 'core', trustzone: 'off' }, hadInteraction: true }],
-                examples: [{
-                    name: 'ex',
-                    description: '',
-                    format: {
-                        type: 'csolution'
-                    },
-                    download_url: '',
-                    id: ''
-                }],
                 solutionFolder: { value: 'folder', hadInteraction: true },
             };
             const output = createSolutionReducer(input, { type: 'CLEAR_BOARD_SELECTION' });
@@ -683,7 +624,6 @@ describe('createSolutionReducer', () => {
             expect(output.targetType).toEqual({ value: '', hadInteraction: false });
             expect(output.selectedTemplate).toEqual({ value: undefined, hadInteraction: false });
             expect(output.projects).toEqual([]);
-            expect(output.examples).toEqual([]);
             expect(output.datamanagerApps).toEqual([]);
             expect(output.solutionFolder).toEqual({ value: '', hadInteraction: false });
         });
