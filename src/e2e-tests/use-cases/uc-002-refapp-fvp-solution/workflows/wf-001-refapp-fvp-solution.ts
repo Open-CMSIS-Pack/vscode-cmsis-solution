@@ -335,11 +335,12 @@ export const runWf001RefAppFVPSolution = async (
 
                 // The Run child starts only after the compound task's Load child succeeds.
                 await expect(runTaskButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+                // Select the task-specific output source once; polling must not change terminals.
+                await runTaskButton.click();
 
                 try {
                     for (const expectedText of expectedOutput) {
                         await expect.poll(async () => {
-                            await runTaskButton.click();
                             loadAndRunOutput = await copyTerminalText(vsCodeDriver);
                             return loadAndRunOutput;
                         }, {
