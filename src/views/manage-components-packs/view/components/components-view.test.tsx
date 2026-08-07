@@ -33,8 +33,7 @@ jest.mock('./table-renderers/render-name-cell', () => ({
 }));
 
 jest.mock('./table-renderers/render-warning-cell', () => ({
-    renderWarningCell: () => null,
-    hasValidation: () => false
+    renderWarningCell: () => null
 }));
 
 jest.mock('./table-renderers/render-description-cell', () => ({
@@ -142,30 +141,37 @@ describe('ComponentsView', () => {
         };
     };
 
+    const renderComponentsView = (
+        treeNodes: ComponentRowDataType[],
+        state: ReturnType<typeof manageComponentsStateFactory>,
+        props: ReturnType<typeof baseProps>,
+        resolvableValidationComponents: string[] = []
+    ) => render(
+        <ComponentsView
+            treeNodes={treeNodes}
+            state={state}
+            expandedRowKeys={[]}
+            setExpandedRowKeys={props.setExpandedRowKeys}
+            dropdownKey={1}
+            setDropdownKey={props.setDropdownKey}
+            componentRefs={props.componentRefs}
+            messageHandler={props.messageHandler}
+            resolvableValidationComponents={resolvableValidationComponents}
+            onChangeComponentValue={props.onChangeComponentValue}
+            onChangeComponentVariant={props.onChangeComponentVariant}
+            onChangeBundle={props.onChangeBundle}
+            openFile={props.openFile}
+            openDocFile={props.openDocFile}
+            onSearch={props.onSearch}
+        />
+    );
+
     it('applies updates from component properties dialog and triggers callbacks', () => {
         const row = makeComponent();
         const props = baseProps();
         const state = manageComponentsStateFactory({ errorMessages: [] });
 
-        render(
-            <ComponentsView
-                treeNodes={[row]}
-                state={state}
-                expandedRowKeys={[]}
-                setExpandedRowKeys={props.setExpandedRowKeys}
-                dropdownKey={1}
-                setDropdownKey={props.setDropdownKey}
-                componentRefs={props.componentRefs}
-                messageHandler={props.messageHandler}
-                resolvableValidationComponents={[]}
-                onChangeComponentValue={props.onChangeComponentValue}
-                onChangeComponentVariant={props.onChangeComponentVariant}
-                onChangeBundle={props.onChangeBundle}
-                openFile={props.openFile}
-                openDocFile={props.openDocFile}
-                onSearch={props.onSearch}
-            />
-        );
+        renderComponentsView([row], state, props);
 
         fireEvent.click(screen.getByRole('button', { name: 'edit-component' }));
         fireEvent.click(screen.getByRole('button', { name: 'confirm-component-properties' }));
@@ -187,25 +193,7 @@ describe('ComponentsView', () => {
             ]
         });
 
-        const { container } = render(
-            <ComponentsView
-                treeNodes={[]}
-                state={state}
-                expandedRowKeys={[]}
-                setExpandedRowKeys={props.setExpandedRowKeys}
-                dropdownKey={1}
-                setDropdownKey={props.setDropdownKey}
-                componentRefs={props.componentRefs}
-                messageHandler={props.messageHandler}
-                resolvableValidationComponents={[]}
-                onChangeComponentValue={props.onChangeComponentValue}
-                onChangeComponentVariant={props.onChangeComponentVariant}
-                onChangeBundle={props.onChangeBundle}
-                openFile={props.openFile}
-                openDocFile={props.openDocFile}
-                onSearch={props.onSearch}
-            />
-        );
+        const { container } = renderComponentsView([], state, props);
 
         expect(container.querySelector('.ant-table')).toBeNull();
         expect(screen.getByText('a-error')).toBeTruthy();
@@ -221,25 +209,7 @@ describe('ComponentsView', () => {
         const props = baseProps();
         const state = manageComponentsStateFactory({ errorMessages: [] });
 
-        const { container } = render(
-            <ComponentsView
-                treeNodes={[row]}
-                state={state}
-                expandedRowKeys={[]}
-                setExpandedRowKeys={props.setExpandedRowKeys}
-                dropdownKey={1}
-                setDropdownKey={props.setDropdownKey}
-                componentRefs={props.componentRefs}
-                messageHandler={props.messageHandler}
-                resolvableValidationComponents={[]}
-                onChangeComponentValue={props.onChangeComponentValue}
-                onChangeComponentVariant={props.onChangeComponentVariant}
-                onChangeBundle={props.onChangeBundle}
-                openFile={props.openFile}
-                openDocFile={props.openDocFile}
-                onSearch={props.onSearch}
-            />
-        );
+        const { container } = renderComponentsView([row], state, props);
 
         expect((screen.getByRole('button', { name: 'Resolve' }) as HTMLButtonElement).disabled).toBe(true);
         expect(container.querySelector('.resolve-packs-button .anticon, .resolve-packs-button .codicon')).toBeNull();
@@ -250,24 +220,11 @@ describe('ComponentsView', () => {
         const props = baseProps();
         const state = manageComponentsStateFactory({ errorMessages: [] });
 
-        const { container } = render(
-            <ComponentsView
-                treeNodes={[row]}
-                state={state}
-                expandedRowKeys={[]}
-                setExpandedRowKeys={props.setExpandedRowKeys}
-                dropdownKey={1}
-                setDropdownKey={props.setDropdownKey}
-                componentRefs={props.componentRefs}
-                messageHandler={props.messageHandler}
-                resolvableValidationComponents={['Vendor::Class:Group']}
-                onChangeComponentValue={props.onChangeComponentValue}
-                onChangeComponentVariant={props.onChangeComponentVariant}
-                onChangeBundle={props.onChangeBundle}
-                openFile={props.openFile}
-                openDocFile={props.openDocFile}
-                onSearch={props.onSearch}
-            />
+        const { container } = renderComponentsView(
+            [row],
+            state,
+            props,
+            ['Vendor::Class:Group']
         );
 
         const resolveButton = screen.getByRole('button', { name: 'Resolve' }) as HTMLButtonElement;

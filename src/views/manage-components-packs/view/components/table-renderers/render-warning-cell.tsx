@@ -58,12 +58,6 @@ export const validationIds = (record: ComponentRowDataType, state: ComponentStat
 };
 
 /**
- * Returns true if the record or any descendant has a validation issue.
- */
-export const hasValidation = (record: ComponentRowDataType): boolean =>
-    getRowValidationSeverity(record) !== undefined;
-
-/**
  * Renders a warning icon with a tooltip if the record or its descendants have validation issues.
  * @param record The component row data
  * @returns The rendered warning cell or null
