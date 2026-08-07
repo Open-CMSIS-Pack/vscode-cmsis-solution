@@ -40,7 +40,7 @@
   "csolution": {
     "uv2csolutionVersion": "1.6.0",
     "toolboxVersion": "nightly",
-    "rpcVersion": "0.0.11"
+    "rpcVersion": "0.0.12"
   },
   "scripts": {
     "preprepare": "npm run download:rpc-interface",

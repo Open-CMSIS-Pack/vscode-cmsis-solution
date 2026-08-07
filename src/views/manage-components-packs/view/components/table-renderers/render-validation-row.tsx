@@ -24,7 +24,7 @@ import { focusComponentInTree, getValidationMessage } from '../../helpers/compon
 import { Condition } from '../../../../../json-rpc/csolution-rpc-client';
 import { findComponentById } from '../../../data/component-tree';
 import { TargetSetData } from '../../../components-data';
-import { hasValidation } from './render-warning-cell';
+import { getValidationSeverity, selectDominantConditions } from '../../../data/validation-severity';
 
 /**
  * Renders the validation row for a component.
@@ -41,7 +41,7 @@ export const renderValidation = (
     setDropdownKey: React.Dispatch<React.SetStateAction<number>>,
     componentRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>
 ): React.ReactNode => {
-    if (!record.validation?.id || !hasValidation(record)) {
+    if (!record.validation?.id || !getValidationSeverity(record.validation.result)) {
         return null;
     }
 
@@ -95,7 +95,8 @@ export const renderValidation = (
 
     // Render validation conditions as rows
     const renderValidationConditions = (record: ComponentRowDataType): React.ReactNode =>
-        record.validation?.conditions?.flatMap((condition, cidx) => renderValidationRow(cidx, condition)) ?? null;
+        selectDominantConditions(record.validation?.conditions)
+            .flatMap((condition, cidx) => renderValidationRow(cidx, condition));
 
     // Render validation aggregates as rows
     const renderValidationAggregates = (record: ComponentRowDataType): React.ReactNode =>
