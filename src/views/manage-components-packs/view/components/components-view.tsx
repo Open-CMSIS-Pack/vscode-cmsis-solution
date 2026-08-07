@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { CloseCircleOutlined, LoadingOutlined } from '@ant-design/icons';
+import { LoadingOutlined } from '@ant-design/icons';
 import { Button, Col, Input, List, Row, Spin, Table, TableColumnsType, Tooltip } from 'antd';
 import { ExpandableConfig } from 'antd/es/table/interface';
 import * as React from 'react';
@@ -45,7 +45,7 @@ interface ComponentsViewProps {
     setDropdownKey: React.Dispatch<React.SetStateAction<number>>;
     componentRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
     messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>;
-    validationErrorComponents: string[];
+    resolvableValidationComponents: string[];
     onChangeComponentValue: (record: ComponentRowDataType) => void;
     onChangeComponentVariant: (record: ComponentRowDataType, variant: string) => void;
     onChangeBundle: (record: ComponentRowDataType, bundle: string) => void;
@@ -67,7 +67,7 @@ export const ComponentsView: React.FC<ComponentsViewProps> = ({
     setDropdownKey,
     componentRefs,
     messageHandler,
-    validationErrorComponents,
+    resolvableValidationComponents,
     onChangeComponentValue,
     onChangeComponentVariant,
     onChangeBundle,
@@ -159,11 +159,10 @@ export const ComponentsView: React.FC<ComponentsViewProps> = ({
         <>
             <Row className='components-view-filter'>
                 <Col>
-                    <Tooltip title={validationIssuesTooltip(validationErrorComponents, expandedRowKeys, setExpandedRowKeys, state.componentTree, 'resolve-button', componentRefs)}>
+                    <Tooltip title={validationIssuesTooltip(resolvableValidationComponents, expandedRowKeys, setExpandedRowKeys, state.componentTree, 'resolve-button', componentRefs)}>
                         <Button
                             onClick={onClickResolve}
-                            disabled={!validationErrorComponents.length}
-                            icon={<CloseCircleOutlined style={{ color: validationErrorComponents.length ? 'var(--vscode-editorError-foreground)' : 'unset' }} />}
+                            disabled={!resolvableValidationComponents.length}
                             className='resolve-packs-button'
                         >
                             Resolve

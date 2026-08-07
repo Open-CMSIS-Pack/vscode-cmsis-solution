@@ -157,7 +157,7 @@ describe('ComponentsView', () => {
                 setDropdownKey={props.setDropdownKey}
                 componentRefs={props.componentRefs}
                 messageHandler={props.messageHandler}
-                validationErrorComponents={[]}
+                resolvableValidationComponents={[]}
                 onChangeComponentValue={props.onChangeComponentValue}
                 onChangeComponentVariant={props.onChangeComponentVariant}
                 onChangeBundle={props.onChangeBundle}
@@ -197,7 +197,7 @@ describe('ComponentsView', () => {
                 setDropdownKey={props.setDropdownKey}
                 componentRefs={props.componentRefs}
                 messageHandler={props.messageHandler}
-                validationErrorComponents={[]}
+                resolvableValidationComponents={[]}
                 onChangeComponentValue={props.onChangeComponentValue}
                 onChangeComponentVariant={props.onChangeComponentVariant}
                 onChangeBundle={props.onChangeBundle}
@@ -216,12 +216,12 @@ describe('ComponentsView', () => {
         expect(content.indexOf('a-error')).toBeLessThan(content.indexOf('z-error'));
     });
 
-    it('dispatches resolve message when Resolve button is clicked', () => {
+    it('disables the text-only Resolve button when there are no resolvable warnings', () => {
         const row = makeComponent();
         const props = baseProps();
         const state = manageComponentsStateFactory({ errorMessages: [] });
 
-        render(
+        const { container } = render(
             <ComponentsView
                 treeNodes={[row]}
                 state={state}
@@ -231,7 +231,7 @@ describe('ComponentsView', () => {
                 setDropdownKey={props.setDropdownKey}
                 componentRefs={props.componentRefs}
                 messageHandler={props.messageHandler}
-                validationErrorComponents={['Vendor::Class:Group']}
+                resolvableValidationComponents={[]}
                 onChangeComponentValue={props.onChangeComponentValue}
                 onChangeComponentVariant={props.onChangeComponentVariant}
                 onChangeBundle={props.onChangeBundle}
@@ -241,7 +241,40 @@ describe('ComponentsView', () => {
             />
         );
 
-        fireEvent.click(screen.getByRole('button', { name: /Resolve/i }));
+        expect((screen.getByRole('button', { name: 'Resolve' }) as HTMLButtonElement).disabled).toBe(true);
+        expect(container.querySelector('.resolve-packs-button .anticon, .resolve-packs-button .codicon')).toBeNull();
+    });
+
+    it('enables the text-only Resolve button and dispatches for resolvable warnings', () => {
+        const row = makeComponent();
+        const props = baseProps();
+        const state = manageComponentsStateFactory({ errorMessages: [] });
+
+        const { container } = render(
+            <ComponentsView
+                treeNodes={[row]}
+                state={state}
+                expandedRowKeys={[]}
+                setExpandedRowKeys={props.setExpandedRowKeys}
+                dropdownKey={1}
+                setDropdownKey={props.setDropdownKey}
+                componentRefs={props.componentRefs}
+                messageHandler={props.messageHandler}
+                resolvableValidationComponents={['Vendor::Class:Group']}
+                onChangeComponentValue={props.onChangeComponentValue}
+                onChangeComponentVariant={props.onChangeComponentVariant}
+                onChangeBundle={props.onChangeBundle}
+                openFile={props.openFile}
+                openDocFile={props.openDocFile}
+                onSearch={props.onSearch}
+            />
+        );
+
+        const resolveButton = screen.getByRole('button', { name: 'Resolve' }) as HTMLButtonElement;
+        expect(resolveButton.disabled).toBe(false);
+        expect(container.querySelector('.resolve-packs-button .anticon, .resolve-packs-button .codicon')).toBeNull();
+
+        fireEvent.click(resolveButton);
 
         expect(props.listener).toHaveBeenCalledWith({ type: 'RESOLVE_COMPONENTS' });
     });
