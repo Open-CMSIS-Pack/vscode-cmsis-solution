@@ -128,6 +128,18 @@ export const runWf001RefAppFVPSolution = async (
     fixture: CreateSolutionFixture,
 ): Promise<void> => {
     const generatedSolutionsDirectory = path.join(vsCodeDriver.testWorkspaceDirectory, '.generated');
+    let failureScreenshotCaptured = false;
+    const captureFailureScreenshot = async (): Promise<void> => {
+        if (failureScreenshotCaptured) {
+            return;
+        }
+        failureScreenshotCaptured = true;
+        try {
+            await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/99-failure`);
+        } catch (error) {
+            log('warn', `Failed to capture UC-002 failure screenshot: ${String(error)}`);
+        }
+    };
 
     try {
         // Start from a clean notification state so error checks only include this workflow.
@@ -154,6 +166,7 @@ export const runWf001RefAppFVPSolution = async (
             createdSolution.solutionFilePath,
             createdSolution.solutionFileName,
         );
+        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/01-solution-created`);
 
         // Verify the generated application and finish the discovered board-layer
         // configuration before editing the solution file directly. Otherwise the
@@ -169,10 +182,12 @@ export const runWf001RefAppFVPSolution = async (
         await confirmDiscoveredSolutionConfiguration(vsCodeDriver);
         await addPackToCsolution(referenceApplicationSolutionFilePath, fixture.fvp.pack);
         await expectFileToContainAll(referenceApplicationSolutionFilePath, [fixture.fvp.pack]);
+        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/02-csolution-updated`);
 
         // Force all extension-side solution controllers to reload the external YAML
         // change before Manage Solution Settings updates and saves the same file.
         await vsCodeDriver.page.reloadWindow('CMSIS');
+        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/03-window-reloaded`);
 
         // Configure and save the FVP debug settings.
         await vsCodeDriver.page.logAndClearNotifications();
@@ -189,9 +204,6 @@ export const runWf001RefAppFVPSolution = async (
             fixture.fvp.config_file.replace(/^\.\//, ''),
         );
         await manageSolutionSettings.setMisc(manageSolutionFrame, fixture.fvp.misc);
-        await vsCodeDriver.page.screenshot(
-            `${SCREENSHOT_PREFIX}/Manage Solution Settings FVP configuration`,
-        );
         await manageSolutionSettings.save();
         await expectFileToContainAll(referenceApplicationSolutionFilePath, [
             fixture.fvp.pack,
@@ -200,6 +212,7 @@ export const runWf001RefAppFVPSolution = async (
             fixture.fvp.config_file.replace(/^\.\//, ''),
             `args: ${fixture.fvp.misc}`,
         ]);
+        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/04-fvp-configured`);
 
         // Configure the Arm Tools environment and save it.
         const armTools = new ArmToolsDriver(vsCodeDriver);
@@ -210,13 +223,13 @@ export const runWf001RefAppFVPSolution = async (
             fixture.arm_tools.environment,
             fixture.arm_tools.version,
         );
-        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/Arm Tools environment configuration`);
         await armTools.saveVcpkgConfiguration();
         await expectGeneratedFileExists(artifacts, './vcpkg-configuration.json');
 
         const vcpkg = new VcpkgDriver(vsCodeDriver);
         await vcpkg.waitForActivation();
         await vcpkg.waitForLoadedSolution(fixture.device ?? fixture.board);
+        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/05-tools-configured`);
 
         // Wait for cbuild conversion to finish before starting the build.
         const cbuildIndexFile = `./${createdSolution.solutionFileName.replace(
@@ -249,6 +262,7 @@ export const runWf001RefAppFVPSolution = async (
         await expect(buildButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
         await expect(buildButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
         await buildButton.click();
+        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/06-build-started`);
 
         await expect(buildTask).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
         await waitForBuild(buildTask);
@@ -289,7 +303,7 @@ export const runWf001RefAppFVPSolution = async (
                 );
             }
         }
-        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/After successful build`);
+        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/07-build-done`);
 
         const terminalTaskButtons = vsCodeDriver.page.getRoleByName('button', {
             name: /^Focus Terminal.*Split Terminal/,
@@ -318,6 +332,7 @@ export const runWf001RefAppFVPSolution = async (
                 await expect(terminalTaskButtons).toHaveCount(0, {
                     timeout: DEFAULT_TIMEOUT_MS,
                 });
+                await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/08-before-load-run`);
             });
 
             await test.step('Run the compound Load & Run task and verify its terminal output', async () => {
@@ -332,11 +347,13 @@ export const runWf001RefAppFVPSolution = async (
                 ).toBeGreaterThan(0);
                 await expect(loadAndRunButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
                 await loadAndRunButton.click();
+                await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/09-load-run-triggered`);
 
                 // The Run child starts only after the compound task's Load child succeeds.
                 await expect(runTaskButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
                 // Select the task-specific output source once; polling must not change terminals.
                 await runTaskButton.click();
+                await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/10-cmsis-run-started`);
 
                 try {
                     for (const expectedText of expectedOutput) {
@@ -358,8 +375,11 @@ export const runWf001RefAppFVPSolution = async (
                     );
                 }
 
-                await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/After FVP Load & Run`);
+                await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/11-blinky-output`);
             });
+        } catch (error) {
+            await captureFailureScreenshot();
+            throw error;
         } finally {
             try {
                 await vsCodeDriver.page.getCommands()
@@ -368,6 +388,9 @@ export const runWf001RefAppFVPSolution = async (
                 log('warn', `Failed to stop CMSIS Load+Run during cleanup: ${String(error)}`);
             }
         }
+    } catch (error) {
+        await captureFailureScreenshot();
+        throw error;
     } finally {
         try {
             await vsCodeDriver.restoreTestWorkspace();
