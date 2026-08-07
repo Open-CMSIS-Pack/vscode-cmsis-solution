@@ -23,18 +23,22 @@ import { ComponentRowDataType } from '../../../data/component-tools';
 import { IncomingMessage, OutgoingMessage } from '../../../messages';
 import { renderValidation } from './render-validation-row';
 import { MessageHandler } from '../../../../message-handler';
+import { Condition } from '../../../../../json-rpc/csolution-rpc-client';
 
 describe('renderValidation', () => {
-    const makeDependencyNode = (): ComponentRowDataType => ({
-        key: 'Vendor::Class:Group',
+    const makeDependencyNode = (
+        id = 'Vendor::Class:Group',
+        description = 'Dependency description'
+    ): ComponentRowDataType => ({
+        key: id,
         name: 'Dependency',
         data: {
-            id: 'Vendor::Class:Group@1.0.0',
-            description: 'Dependency description',
+            id: `${id}@1.0.0`,
+            description,
             pack: 'Vendor::Pack@1.0.0'
         } as any,
         aggregate: {
-            id: 'Vendor::Class:Group',
+            id,
             selectedCount: 0,
             activeVariant: undefined,
             options: {}
@@ -46,6 +50,108 @@ describe('renderValidation', () => {
             version: '1.0.0'
         },
         variants: ['Default']
+    });
+
+    const renderConditions = (conditions: Condition[], dependencies: ComponentRowDataType[]) => {
+        const record: ComponentRowDataType = {
+            ...makeDependencyNode(),
+            key: 'ValidationRoot',
+            name: 'ValidationRoot',
+            validation: {
+                id: 'ValidationRoot/V001',
+                result: 'ERROR',
+                conditions
+            }
+        };
+
+        const rendered = renderValidation(
+            record,
+            [],
+            jest.fn(),
+            {
+                componentTree: dependencies,
+                componentScope: 'solution',
+                selectedTargetType: undefined
+            },
+            new MockMessageHandler(jest.fn()),
+            1,
+            jest.fn(),
+            { current: {} }
+        );
+
+        render(<>{rendered}</>);
+    };
+
+    it('renders warning-only conditions', () => {
+        const warning = makeDependencyNode('Vendor::Class:Warning', 'Warning dependency');
+
+        renderConditions([{
+            result: 'SELECTABLE',
+            expression: 'requires Vendor::Class:Warning',
+            aggregates: [warning.aggregate.id]
+        }], [warning]);
+
+        expect(screen.getByText('Warning dependency')).toBeTruthy();
+    });
+
+    it('renders error-only conditions', () => {
+        const error = makeDependencyNode('Vendor::Class:Error', 'Error dependency');
+
+        renderConditions([{
+            result: 'MISSING',
+            expression: 'requires Vendor::Class:Error',
+            aggregates: [error.aggregate.id]
+        }], [error]);
+
+        expect(screen.getByText('Error dependency')).toBeTruthy();
+    });
+
+    it('suppresses warning conditions when an error condition is present', () => {
+        const warning = makeDependencyNode('Vendor::Class:Warning', 'Warning dependency');
+        const error = makeDependencyNode('Vendor::Class:Error', 'Error dependency');
+
+        renderConditions([
+            {
+                result: 'SELECTABLE',
+                expression: 'requires Vendor::Class:Warning',
+                aggregates: [warning.aggregate.id]
+            },
+            {
+                result: 'MISSING',
+                expression: 'requires Vendor::Class:Error',
+                aggregates: [error.aggregate.id]
+            }
+        ], [warning, error]);
+
+        expect(screen.queryByText('Warning dependency')).toBeNull();
+        expect(screen.getByText('Error dependency')).toBeTruthy();
+    });
+
+    it('preserves neutral conditions when warning conditions are suppressed', () => {
+        const warning = makeDependencyNode('Vendor::Class:Warning', 'Warning dependency');
+        const error = makeDependencyNode('Vendor::Class:Error', 'Error dependency');
+        const neutral = makeDependencyNode('Vendor::Class:Neutral', 'Neutral dependency');
+
+        renderConditions([
+            {
+                result: 'SELECTABLE',
+                expression: 'requires Vendor::Class:Warning',
+                aggregates: [warning.aggregate.id]
+            },
+            {
+                result: 'MISSING',
+                expression: 'requires Vendor::Class:Error',
+                aggregates: [error.aggregate.id]
+            },
+            {
+                expression: 'requires Vendor::Class:Neutral',
+                aggregates: [neutral.aggregate.id]
+            }
+        ], [warning, error, neutral]);
+
+        expect(screen.queryByText('Warning dependency')).toBeNull();
+        expect(screen.getByText('Error dependency')).toBeTruthy();
+        expect(screen.getByText('Neutral dependency')).toBeTruthy();
     });
 
     it('applies selected aggregate with clayer path and emits CHANGE_COMPONENT_VALUE', () => {

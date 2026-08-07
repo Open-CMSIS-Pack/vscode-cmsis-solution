@@ -20,6 +20,7 @@ import { ExpandableConfig } from 'antd/es/table/interface';
 import * as React from 'react';
 import { MessageHandler } from '../../../message-handler';
 import { ComponentRowDataType } from '../../data/component-tools';
+import { getValidationSeverity } from '../../data/validation-severity';
 import { IncomingMessage, OutgoingMessage } from '../../messages';
 import { rowClassName, validationIssuesTooltip, warningIcon } from '../helpers/components-packs-helpers';
 import { ComponentsState } from '../state/reducer';
@@ -32,7 +33,7 @@ import { renderNameCell } from './table-renderers/render-name-cell';
 import { rowSelection } from './table-renderers/render-row-selector';
 import { renderValidation } from './table-renderers/render-validation-row';
 import { renderVariantCell } from './table-renderers/render-variant-cell';
-import { hasValidation, renderWarningCell } from './table-renderers/render-warning-cell';
+import { renderWarningCell } from './table-renderers/render-warning-cell';
 const { Search } = Input;
 
 interface ComponentsViewProps {
@@ -93,7 +94,7 @@ export const ComponentsView: React.FC<ComponentsViewProps> = ({
             />
         ),
         expandedRowRender: (record: ComponentRowDataType) => (
-            record.validation?.result && hasValidation(record)
+            getValidationSeverity(record.validation?.result)
                 ? renderValidation(
                     record,
                     expandedRowKeys,
