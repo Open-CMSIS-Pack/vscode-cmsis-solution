@@ -462,7 +462,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                     value={(localValues[k] as string) ?? ''}
                                                                     onPressEnter={blurOnEnter}
                                                                     onChange={e => setLocalValues(prev => ({ ...prev, [k]: e.target.value }))}
-                                                                    onBlur={e => { sendDebugAdapterProperty(section['yml-node'], o['yml-node'], e.currentTarget.value); }}
+                                                                    onBlur={() => { sendDebugAdapterProperty(section['yml-node'], o['yml-node'], (localValues[k] as string) ?? ''); }}
                                                                     title={o.description}
                                                                 />
                                                             );
