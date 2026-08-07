@@ -238,6 +238,18 @@ describe('SolutionProblems', () => {
             expect(messages.errors).toEqual(['generated error']);
         });
 
+        it('parses messages when CSI ANSI sequences are split across PTY chunks', async () => {
+            const messages = { success: true, errors: [], warnings: [], info: [] };
+            const esc = String.fromCharCode(27);
+
+            await enrichLogMessagesFromToolOutput(messages, [
+                `${esc}[3`,
+                '1merror cbuild: generated error\r\n',
+            ]);
+
+            expect(messages.errors).toEqual(['generated error']);
+        });
+
         it('parses warning/error messages when preceded by OSC sequences terminated by BEL or ST', async () => {
             const messages = { success: true, errors: [], warnings: [], info: [] };
             const esc = String.fromCharCode(27);
@@ -780,6 +792,11 @@ describe('SolutionProblems', () => {
 
             it('prioritizes error over warning', () => {
                 expect(getToolsSeverity([warningLine, errorLine])).toBe('error');
+            });
+
+            it('normalizes prefixes split across PTY chunks', () => {
+                expect(getToolsSeverity(['warning cbui', 'ld: generated warning\r\n'])).toBe('warning');
+                expect(getToolsSeverity(['error csol', 'ution: generated error\r\n'])).toBe('error');
             });
         });
 

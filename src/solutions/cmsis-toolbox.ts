@@ -34,6 +34,11 @@ type RpcMethod = 'ConvertSolution' | 'ListMissingPacks' | 'DiscoverLayers' | 'Ge
 type ToolboxTool = 'csolution' | 'cbuild' | 'cpackget';
 type ToolboxCall = { tool: ToolboxTool | RpcMethod; args: string[]; }
 
+export interface CmsisToolRunOptions {
+    emitExecuteLine?: boolean;
+    usePty?: boolean;
+}
+
 const MIN_TOOL_VERSIONS : Record<ToolboxTool, Optional<SemVer>> = {
     csolution: new SemVer(MIN_TOOLBOX_VERSION),
     cbuild: new SemVer(MIN_TOOLBOX_VERSION),
@@ -63,7 +68,7 @@ export interface CmsisToolboxManager {
         cancellationToken?: CancellationToken,
         dimensions?: vscode.TerminalDimensions,
         useEmbeddedToolbox?: boolean,
-        emitExecuteLine?: boolean
+        options?: CmsisToolRunOptions,
     ): Promise<[number, string?]>
 
     /** Run csolution RPC method
@@ -145,7 +150,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
         cancellationToken?: CancellationToken,
         dimensions?: vscode.TerminalDimensions,
         useEmbeddedToolbox?: boolean,
-        emitExecuteLine: boolean = true
+        options: CmsisToolRunOptions = {},
     ): Promise<[number, string?]> {
         let msg: string;
         if (this.toolboxQueue.find((q) => _.isEqual(q.tool, tool) && _.isEqual(q.args, args))) {
@@ -187,7 +192,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
             }
         }
         // execute call
-        if (emitExecuteLine) {
+        if (options.emitExecuteLine !== false) {
             msg = `${tool} ${args.join(' ')}\r\n`;
             console.log(msg);
             onOutput(msg);
@@ -208,7 +213,8 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
             args,
             onOutput,
             cancellationToken,
-            dimensions
+            dimensions,
+            options.usePty,
         );
         // Print messages
         msg = `${returnCode === 0 ? '✅' : '🟥'} Completed: ${tool} ${cmdMsg}\r\n`;
@@ -225,6 +231,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
         onOutput: (line: string) => void,
         cancellationToken?: CancellationToken,
         dimensions?: vscode.TerminalDimensions,
+        usePty?: boolean,
     ) : Promise<[string, number]> {
         const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? './';
         let returnCode;
@@ -233,7 +240,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
             const result = await this.processManager.spawn(
                 toolCmd,
                 args,
-                { env: process.env, cwd: cwd },
+                { env: process.env, cwd: cwd, ...(usePty ? { usePty } : {}) },
                 onOutput,
                 cancellationToken,
                 dimensions

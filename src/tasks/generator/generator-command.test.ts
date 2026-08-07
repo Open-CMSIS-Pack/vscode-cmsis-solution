@@ -86,7 +86,8 @@ describe('GeneratorCommand', () => {
             expect.any(Function),
             undefined,
             undefined,
-            true
+            true,
+            { usePty: true }
         );
     });
 
@@ -104,7 +105,8 @@ describe('GeneratorCommand', () => {
             expect.any(Function),
             undefined,
             undefined,
-            true
+            true,
+            { usePty: true }
         );
     });
 
@@ -122,7 +124,8 @@ describe('GeneratorCommand', () => {
             expect.any(Function),
             undefined,
             undefined,
-            true
+            true,
+            { usePty: true }
         );
     });
 
@@ -140,7 +143,8 @@ describe('GeneratorCommand', () => {
             expect.any(Function),
             undefined,
             undefined,
-            true
+            true,
+            { usePty: true }
         );
     });
 
@@ -158,7 +162,8 @@ describe('GeneratorCommand', () => {
             expect.any(Function),
             undefined,
             undefined,
-            true
+            true,
+            { usePty: true }
         );
     });
 
@@ -193,6 +198,41 @@ describe('GeneratorCommand', () => {
         expect(channel?.mockAppendedStrings).toContain('Starting generator my-gen...');
     });
 
+    it('appends raw PTY output chunks without adding line endings', async () => {
+        solutionManager.getCsolution.mockReturnValue(createSolution());
+        cmsisToolboxManager.runCmsisTool.mockImplementation(async (_tool, _args, onOutput) => {
+            onOutput('first chunk');
+            onOutput('\r\nsecond chunk');
+            return [0, undefined];
+        });
+
+        await generatorCommand.handleRunGenerator('my-gen');
+
+        const channel = outputChannelProvider.mockGetCreatedChannelByName(CMSIS_SOLUTION_OUTPUT_CHANNEL);
+        expect(channel?.mockAppendedStrings).toEqual([
+            'Starting generator my-gen...',
+            'first chunk',
+            '\r\nsecond chunk',
+        ]);
+    });
+
+    it('classifies a diagnostic split across PTY chunks', async () => {
+        solutionManager.getCsolution.mockReturnValue(createSolution());
+        cmsisToolboxManager.runCmsisTool.mockImplementation(async (_tool, _args, onOutput) => {
+            onOutput('warning cbui');
+            onOutput('ld: generated warning');
+            return [0, undefined];
+        });
+        const eventSpy = jest.spyOn(eventHub, 'fireGeneratorRunCompleted');
+
+        await generatorCommand.handleRunGenerator('my-gen');
+
+        expect(eventSpy).toHaveBeenCalledWith(expect.objectContaining({
+            severity: 'warning',
+            toolsOutputMessages: ['warning cbui', 'ld: generated warning'],
+        }));
+    });
+
     describe('command dispatch', () => {
         beforeEach(async () => {
             await generatorCommand.activate(context as unknown as vscode.ExtensionContext);
@@ -212,7 +252,8 @@ describe('GeneratorCommand', () => {
                 expect.any(Function),
                 undefined,
                 undefined,
-                true
+                true,
+                { usePty: true }
             );
         });
 
@@ -241,7 +282,8 @@ describe('GeneratorCommand', () => {
                 expect.any(Function),
                 undefined,
                 undefined,
-                true
+                true,
+                { usePty: true }
             );
         });
 
@@ -257,7 +299,8 @@ describe('GeneratorCommand', () => {
                 expect.any(Function),
                 undefined,
                 undefined,
-                true
+                true,
+                { usePty: true }
             );
         });
 
@@ -273,7 +316,8 @@ describe('GeneratorCommand', () => {
                 expect.any(Function),
                 undefined,
                 undefined,
-                true
+                true,
+                { usePty: true }
             );
         });
 
@@ -290,7 +334,8 @@ describe('GeneratorCommand', () => {
                 expect.any(Function),
                 undefined,
                 undefined,
-                true
+                true,
+                { usePty: true }
             );
         });
 
