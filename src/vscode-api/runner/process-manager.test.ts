@@ -16,10 +16,9 @@
 
 import 'jest';
 import { EventEmitter } from 'events';
-import { type SpawnOptions } from 'child_process';
 import * as inspector from 'inspector';
 import * as pty from '@lydell/node-pty';
-import { ProcessManagerImpl } from './process-manager';
+import { ProcessManagerImpl, type ProcessSpawnOptions } from './process-manager';
 
 const spawnMock = jest.fn();
 const createInterfaceMock = jest.fn();
@@ -80,7 +79,7 @@ describe('process-manager.ts', () => {
 
             const processManager = new ProcessManagerImpl(environmentManager as never);
             const onOutput = jest.fn();
-            const spawnOptions: SpawnOptions = { cwd: '.', env: { ORIGINAL: '1' } };
+            const spawnOptions: ProcessSpawnOptions = { cwd: '.', env: { ORIGINAL: '1' }, filterOutput: true };
 
             const resultPromise = processManager.spawn('tool', ['--flag'], spawnOptions, onOutput);
 
@@ -89,7 +88,10 @@ describe('process-manager.ts', () => {
             childProcess.emit('close', 0);
 
             await expect(resultPromise).resolves.toEqual({ code: 0 });
-            expect(spawnMock).toHaveBeenCalledWith('tool', ['--flag'], { ...spawnOptions, env: { AUGMENTED: '1' } });
+            expect(spawnMock).toHaveBeenCalledWith('tool', ['--flag'], {
+                cwd: '.',
+                env: { AUGMENTED: '1' },
+            });
             expect(onOutput).toHaveBeenNthCalledWith(1, 'stdout line\r\n');
             expect(onOutput).toHaveBeenNthCalledWith(2, 'stderr line\r\n');
         });
@@ -132,7 +134,7 @@ describe('process-manager.ts', () => {
                 env: { AUGMENTED: '1' },
             });
             expect(spawnMock).not.toHaveBeenCalled();
-            expect(onOutput).toHaveBeenCalledWith('output chunk');
+            expect(onOutput).toHaveBeenCalledWith('\x1b[?9001h\x1b[?1004houtput chunk');
         });
 
         it('filters PTY control sequences split across output chunks', async () => {
@@ -152,7 +154,7 @@ describe('process-manager.ts', () => {
             const processManager = new ProcessManagerImpl(environmentManager as never);
             const onOutput = jest.fn();
 
-            const resultPromise = processManager.spawn('tool', [], { usePty: true }, onOutput);
+            const resultPromise = processManager.spawn('tool', [], { usePty: true, filterOutput: true }, onOutput);
 
             onData?.('\x1b[?90');
             onData?.('01hGenerator output\r\n');
