@@ -146,34 +146,60 @@ export const runWf001RefAppFVPSolution = async (
         await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Clear All Notifications');
         await vsCodeDriver.page.openCmsisPanel();
 
-        // Create the FVP reference application solution from the Create Solution wizard.
-        const createdSolution = await createSolutionFromWizard(vsCodeDriver, {
-            target: fixture.board,
-            targetKind: 'board',
-            template: fixture.reference_application,
-            templateKind: 'referenceApplication',
-            solutionNamePrefix: fixture.solution_name_prefix,
-            expectedFiles: fixture.expected_files,
-            expectedProblems: fixture.expected_problems,
-        });
+        const { createdSolution, artifacts } = await test.step(
+            'Create and load solution',
+            async () => {
+                const solution = await createSolutionFromWizard(vsCodeDriver, {
+                    target: fixture.board,
+                    targetKind: 'board',
+                    template: fixture.reference_application,
+                    templateKind: 'referenceApplication',
+                    solutionNamePrefix: fixture.solution_name_prefix,
+                    expectedFiles: fixture.expected_files,
+                    expectedProblems: fixture.expected_problems,
+                });
 
-        // The extension opens the generated solution folder by default.
-        await vsCodeDriver.page.waitForVsCodeToBeReady();
-        await vsCodeDriver.page.waitForActionItem('CMSIS');
+                // Creation opens the unique generated solution folder as the VS Code workspace.
+                // The title connects the UI state to this invocation rather than a solution left
+                // loaded by an earlier test.
+                await vsCodeDriver.page.waitForVsCodeToBeReady();
+                await vsCodeDriver.page.waitForActionItem('CMSIS');
+                await expect(vsCodeDriver.page.getPage()).toHaveTitle(
+                    new RegExp(escapeRegExp(solution.solutionFolder), 'i'),
+                    { timeout: DEFAULT_TIMEOUT_MS },
+                );
 
-        // Validate the .csolution.yml exists before trying to parse it.
-        const artifacts = await readAndValidateGeneratedSolutionArtifacts(
-            createdSolution.solutionFilePath,
-            createdSolution.solutionFileName,
+                // Validate the exact newly-created solution and its expected source artifacts.
+                const generatedArtifacts = await readAndValidateGeneratedSolutionArtifacts(
+                    solution.solutionFilePath,
+                    solution.solutionFileName,
+                );
+                const createdFiles = fixture.expected_files?.created ?? [];
+                await Promise.all(createdFiles.map(file =>
+                    expectGeneratedFileExists(generatedArtifacts, file),
+                ));
+
+                // This action is enabled only while the extension has an active solution.
+                await vsCodeDriver.page.openCmsisPanel();
+                const manageSolutionSettingsButton = vsCodeDriver.page.getRoleByName(
+                    'button',
+                    { name: 'Manage Solution Settings' },
+                );
+                await expect(manageSolutionSettingsButton).toBeVisible({
+                    timeout: DEFAULT_TIMEOUT_MS,
+                });
+                await expect(manageSolutionSettingsButton).toBeEnabled({
+                    timeout: DEFAULT_TIMEOUT_MS,
+                });
+
+                await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/01-solution-created`);
+                return { createdSolution: solution, artifacts: generatedArtifacts };
+            },
         );
-        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/01-solution-created`);
 
-        // Verify the generated application and finish the discovered board-layer
-        // configuration before editing the solution file directly. Otherwise the
-        // still-open Configure Solution editor can save its stale in-memory model
-        // over the external pack edit.
-        const createdFiles = fixture.expected_files?.created ?? [];
-        await Promise.all(createdFiles.map(file => expectGeneratedFileExists(artifacts, file)));
+        // Finish the discovered board-layer configuration before editing the solution file
+        // directly. Otherwise the still-open Configure Solution editor can save its stale
+        // in-memory model over the external pack edit.
 
         const referenceApplicationSolutionFilePath = await expectGeneratedFileExists(
             artifacts,
