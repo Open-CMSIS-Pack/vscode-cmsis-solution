@@ -91,11 +91,16 @@ const expectFileToContainAll = async (
     filePath: string,
     expectedParts: string[],
 ): Promise<void> => {
-    const normalizedFileText = (await fs.readFile(filePath, 'utf8')).replace(/\\/g, '/');
+    await expect(async () => {
+        const normalizedFileText = (await fs.readFile(filePath, 'utf8')).replace(/\\/g, '/');
 
-    for (const expectedPart of expectedParts) {
-        expect(normalizedFileText).toContain(expectedPart.replace(/\\/g, '/'));
-    }
+        for (const expectedPart of expectedParts) {
+            expect(normalizedFileText).toContain(expectedPart.replace(/\\/g, '/'));
+        }
+    }).toPass({
+        timeout: DEFAULT_TIMEOUT_MS,
+        intervals: [250, 500, 1000, 2000],
+    });
 };
 
 const expectGeneratedRunConfiguration = async (
@@ -197,48 +202,51 @@ export const runWf001RefAppFVPSolution = async (
             },
         );
 
-        // Finish the discovered board-layer configuration before editing the solution file
-        // directly. Otherwise the still-open Configure Solution editor can save its stale
-        // in-memory model over the external pack edit.
+        await test.step('Configure FVP', async () => {
+            // Finish the discovered board-layer configuration before editing the solution file
+            // directly. Otherwise the still-open Configure Solution editor can save its stale
+            // in-memory model over the external pack edit.
+            const referenceApplicationSolutionFilePath = await expectGeneratedFileExists(
+                artifacts,
+                `./${createdSolution.solutionFileName}`,
+            );
+            await confirmDiscoveredSolutionConfiguration(vsCodeDriver);
+            await addPackToCsolution(referenceApplicationSolutionFilePath, fixture.fvp.pack);
+            await expectFileToContainAll(referenceApplicationSolutionFilePath, [fixture.fvp.pack]);
+            await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/02-csolution-updated`);
 
-        const referenceApplicationSolutionFilePath = await expectGeneratedFileExists(
-            artifacts,
-            `./${createdSolution.solutionFileName}`,
-        );
-        await confirmDiscoveredSolutionConfiguration(vsCodeDriver);
-        await addPackToCsolution(referenceApplicationSolutionFilePath, fixture.fvp.pack);
-        await expectFileToContainAll(referenceApplicationSolutionFilePath, [fixture.fvp.pack]);
-        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/02-csolution-updated`);
+            // Force all extension-side solution controllers to reload the external YAML change
+            // before Manage Solution Settings updates and saves the same file.
+            await vsCodeDriver.page.reloadWindow('CMSIS');
+            await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/03-window-reloaded`);
 
-        // Force all extension-side solution controllers to reload the external YAML
-        // change before Manage Solution Settings updates and saves the same file.
-        await vsCodeDriver.page.reloadWindow('CMSIS');
-        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/03-window-reloaded`);
+            await vsCodeDriver.page.logAndClearNotifications();
+            const manageSolutionSettings = new ManageSolutionSettingsDriver(vsCodeDriver);
+            const manageSolutionFrame = await manageSolutionSettings.open();
 
-        // Configure and save the FVP debug settings.
-        await vsCodeDriver.page.logAndClearNotifications();
-        const manageSolutionSettings = new ManageSolutionSettingsDriver(vsCodeDriver);
-        const manageSolutionFrame = await manageSolutionSettings.open();
+            await manageSolutionSettings.selectDebugAdapter(
+                manageSolutionFrame,
+                fixture.fvp.debug_adapter,
+            );
+            await manageSolutionSettings.selectModel(manageSolutionFrame, fixture.fvp.model);
+            await manageSolutionSettings.setConfigFile(
+                manageSolutionFrame,
+                fixture.fvp.config_file.replace(/^\.\//, ''),
+            );
+            await manageSolutionSettings.setMisc(manageSolutionFrame, fixture.fvp.misc);
+            await manageSolutionSettings.save();
 
-        await manageSolutionSettings.selectDebugAdapter(
-            manageSolutionFrame,
-            fixture.fvp.debug_adapter,
-        );
-        await manageSolutionSettings.selectModel(manageSolutionFrame, fixture.fvp.model);
-        await manageSolutionSettings.setConfigFile(
-            manageSolutionFrame,
-            fixture.fvp.config_file.replace(/^\.\//, ''),
-        );
-        await manageSolutionSettings.setMisc(manageSolutionFrame, fixture.fvp.misc);
-        await manageSolutionSettings.save();
-        await expectFileToContainAll(referenceApplicationSolutionFilePath, [
-            fixture.fvp.pack,
-            `name: ${fixture.fvp.debug_adapter}`,
-            `model: ${fixture.fvp.model}`,
-            fixture.fvp.config_file.replace(/^\.\//, ''),
-            `args: ${fixture.fvp.misc}`,
-        ]);
-        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/04-fvp-configured`);
+            // Saving is asynchronous. Poll the exact solution file until every configured value
+            // is persisted instead of treating the Ctrl+S keypress as completion.
+            await expectFileToContainAll(referenceApplicationSolutionFilePath, [
+                fixture.fvp.pack,
+                `name: ${fixture.fvp.debug_adapter}`,
+                `model: ${fixture.fvp.model}`,
+                fixture.fvp.config_file.replace(/^\.\//, ''),
+                `args: ${fixture.fvp.misc}`,
+            ]);
+            await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/04-fvp-configured`);
+        });
 
         // Configure the Arm Tools environment and save it.
         const armTools = new ArmToolsDriver(vsCodeDriver);
