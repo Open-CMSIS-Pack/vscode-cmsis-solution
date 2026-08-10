@@ -276,7 +276,10 @@ jobs:
           path: ./coverage
 
       - name: Publish coverage report to QLTY
-        if: github.repository_owner == 'Open-CMSIS-Pack' && matrix.target == 'linux-x64'
+        if: >
+          github.repository_owner == 'Open-CMSIS-Pack' &&
+          matrix.target == 'linux-x64' &&
+          github.event.pull_request.user.login != 'dependabot[bot]'
         uses: qltysh/qlty-action/coverage@08a0a862c159eae9b9003081da6663d96efef637 # v2.3.0
         with:
           token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
