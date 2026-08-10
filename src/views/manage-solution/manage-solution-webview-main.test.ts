@@ -148,6 +148,23 @@ describe('ContextSelectionWebviewMain', () => {
         });
     });
 
+    it('adds the selected image through the controller', async () => {
+        const main = manageSolutionWebviewMainFactory({ webviewManager });
+        await main.activate(context as unknown as vscode.ExtensionContext);
+        const rootDir = path.resolve('root');
+        main.controller.csolutionYml.fileName = path.join(rootDir, 'solution.csolution.yml');
+        const addImageSpy = jest.spyOn(main.controller, 'addImage').mockResolvedValue(
+            main.controller.activeTargetSetWrap.addImage('images/application.axf')
+        );
+        jest.spyOn(vscode.window, 'showOpenDialog').mockResolvedValue([
+            URI.file(path.join(rootDir, 'images', 'application.axf')) as unknown as vscode.Uri
+        ]);
+
+        await fireAndWait('ADD_NEW_IMAGE');
+
+        expect(addImageSpy).toHaveBeenCalledWith('images/application.axf');
+    });
+
     it('sets debugger on SET_DEBUGGER', async () => {
         const main = manageSolutionWebviewMainFactory({
             webviewManager

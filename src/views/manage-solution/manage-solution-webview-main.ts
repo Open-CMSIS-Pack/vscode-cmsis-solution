@@ -484,7 +484,7 @@ export class ManageSolutionWebviewMain {
                 const fileUri = await vscode.window.showOpenDialog(options);
                 if (fileUri?.[0]) {
                     const filePath = backToForwardSlashes(path.relative(solutionDir, fileUri[0].fsPath));
-                    this.controller.activeTargetSetWrap.addImage(filePath);
+                    await this.controller.addImage(filePath);
                     await this.sendContextData();
                 }
             } finally {

@@ -227,6 +227,12 @@ export const ManageSolution = (props: ManageSolutionProps) => {
     }, [props.messageHandler]);
 
     const hasDebugger = !!state.debugger;
+    const configuredStartProcessor = selectedDebugAdapter['start-pname'] as string | undefined;
+    const startProcessor = hasDebugger
+        ? (configuredStartProcessor && state.solutionData.availableCoreNames.includes(configuredStartProcessor)
+            ? configuredStartProcessor
+            : state.solutionData.availableCoreNames.at(0))
+        : undefined;
 
     const selectFile = React.useCallback((context: SelectFileContext) => {
         const requestId = `manage-solution-file-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -333,6 +339,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                     projects={state.solutionData.projects}
                                     images={state.solutionData.images}
                                     availableCores={state.solutionData.availableCoreNames}
+                                    startProcessor={startProcessor}
                                     updateSolutionData={updateSolutionData}
                                     openFile={openFile}
                                     addProject={addProject}
@@ -371,7 +378,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                 <CompactDropdown
                                                     disabled={!hasDebugger}
                                                     available={state.solutionData.availableCoreNames}
-                                                    selected={selectedDebugAdapter['start-pname'] as string || state.solutionData.availableCoreNames.at(0) || ''}
+                                                    selected={startProcessor ?? ''}
                                                     className="start-processor-dropdown"
                                                     style={{ minWidth: '130px' }}
                                                     onChange={value => {
