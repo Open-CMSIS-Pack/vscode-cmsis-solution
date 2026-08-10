@@ -269,7 +269,9 @@ jobs:
 
       - name: Run Playwright tests
         id: tests
-        run: npm run e2e
+        # Run Chromium with a virtual X display because the Ubuntu runner is headless.
+        # Keep the display size aligned with the viewport used by the end-to-end tests.
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" npm run e2e
 
       - name: Publish Test Results
         if: always() && steps.tests.conclusion != 'skipped'
