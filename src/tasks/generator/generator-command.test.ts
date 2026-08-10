@@ -87,7 +87,7 @@ describe('GeneratorCommand', () => {
             undefined,
             undefined,
             true,
-            { usePty: true }
+            { usePty: true, filterOutput: true }
         );
     });
 
@@ -106,7 +106,7 @@ describe('GeneratorCommand', () => {
             undefined,
             undefined,
             true,
-            { usePty: true }
+            { usePty: true, filterOutput: true }
         );
     });
 
@@ -125,7 +125,7 @@ describe('GeneratorCommand', () => {
             undefined,
             undefined,
             true,
-            { usePty: true }
+            { usePty: true, filterOutput: true }
         );
     });
 
@@ -144,7 +144,7 @@ describe('GeneratorCommand', () => {
             undefined,
             undefined,
             true,
-            { usePty: true }
+            { usePty: true, filterOutput: true }
         );
     });
 
@@ -163,7 +163,7 @@ describe('GeneratorCommand', () => {
             undefined,
             undefined,
             true,
-            { usePty: true }
+            { usePty: true, filterOutput: true }
         );
     });
 
@@ -253,7 +253,7 @@ describe('GeneratorCommand', () => {
                 undefined,
                 undefined,
                 true,
-                { usePty: true }
+                { usePty: true, filterOutput: true }
             );
         });
 
@@ -283,7 +283,7 @@ describe('GeneratorCommand', () => {
                 undefined,
                 undefined,
                 true,
-                { usePty: true }
+                { usePty: true, filterOutput: true }
             );
         });
 
@@ -300,7 +300,7 @@ describe('GeneratorCommand', () => {
                 undefined,
                 undefined,
                 true,
-                { usePty: true }
+                { usePty: true, filterOutput: true }
             );
         });
 
@@ -317,7 +317,7 @@ describe('GeneratorCommand', () => {
                 undefined,
                 undefined,
                 true,
-                { usePty: true }
+                { usePty: true, filterOutput: true }
             );
         });
 
@@ -335,7 +335,7 @@ describe('GeneratorCommand', () => {
                 undefined,
                 undefined,
                 true,
-                { usePty: true }
+                { usePty: true, filterOutput: true }
             );
         });
 
