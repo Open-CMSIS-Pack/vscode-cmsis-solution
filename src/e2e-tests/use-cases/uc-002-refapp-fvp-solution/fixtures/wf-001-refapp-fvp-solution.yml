@@ -13,6 +13,7 @@ fvp:
 
 arm_tools:
   environment: Arm Virtual Hardware for Cortex®-M based on Fast Models
+  artifact: arm:models/arm/avh-fvp
   version: 11.31.28
 
 expected_run:

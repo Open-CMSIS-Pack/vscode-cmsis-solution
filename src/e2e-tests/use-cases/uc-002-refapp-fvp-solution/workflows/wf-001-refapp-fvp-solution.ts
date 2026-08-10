@@ -66,6 +66,7 @@ export type CreateSolutionFixture = {
     };
     arm_tools: {
         environment: string;
+        artifact: string;
         version: string;
     };
     expected_run: {
@@ -122,6 +123,27 @@ const expectGeneratedRunConfiguration = async (
             normalizedRunConfiguration.includes(commandPart),
         ), `Expected cbuild-run.yml to contain one of: ${equivalentCommandParts.join(', ')}`).toBe(true);
     }
+};
+
+type VcpkgConfiguration = {
+    requires?: Record<string, string>;
+};
+
+const expectToolsConfigurationApplied = async (
+    configurationFilePath: string,
+    artifact: string,
+    version: string,
+): Promise<void> => {
+    await expect(async () => {
+        const configuration = JSON.parse(
+            await fs.readFile(configurationFilePath, 'utf8'),
+        ) as VcpkgConfiguration;
+
+        expect(configuration.requires?.[artifact]).toBe(version);
+    }).toPass({
+        timeout: DEFAULT_TIMEOUT_MS,
+        intervals: [250, 500, 1000, 2000],
+    });
 };
 
 /**
@@ -248,22 +270,34 @@ export const runWf001RefAppFVPSolution = async (
             await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/04-fvp-configured`);
         });
 
-        // Configure the Arm Tools environment and save it.
-        const armTools = new ArmToolsDriver(vsCodeDriver);
-        const armToolsFrame = await armTools.openConfigureArmToolsEnvironment();
+        await test.step('Configure Arm Tools', async () => {
+            const armTools = new ArmToolsDriver(vsCodeDriver);
+            const armToolsFrame = await armTools.openConfigureArmToolsEnvironment();
 
-        await armTools.selectVersion(
-            armToolsFrame,
-            fixture.arm_tools.environment,
-            fixture.arm_tools.version,
-        );
-        await armTools.saveVcpkgConfiguration();
-        await expectGeneratedFileExists(artifacts, './vcpkg-configuration.json');
+            await armTools.selectVersion(
+                armToolsFrame,
+                fixture.arm_tools.environment,
+                fixture.arm_tools.version,
+            );
+            await armTools.saveVcpkgConfiguration();
 
-        const vcpkg = new VcpkgDriver(vsCodeDriver);
-        await vcpkg.waitForActivation();
-        await vcpkg.waitForLoadedSolution(fixture.device ?? fixture.board);
-        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/05-tools-configured`);
+            // Saving is asynchronous. Completion means the exact selected artifact and version
+            // are persisted in the generated configuration, not merely that the editor exists.
+            const configurationFilePath = await expectGeneratedFileExists(
+                artifacts,
+                './vcpkg-configuration.json',
+            );
+            await expectToolsConfigurationApplied(
+                configurationFilePath,
+                fixture.arm_tools.artifact,
+                fixture.arm_tools.version,
+            );
+
+            const vcpkg = new VcpkgDriver(vsCodeDriver);
+            await vcpkg.waitForActivation();
+            await vcpkg.waitForLoadedSolution(fixture.device ?? fixture.board);
+            await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/05-tools-configured`);
+        });
 
         // Wait for cbuild conversion to finish before starting the build.
         const cbuildIndexFile = `./${createdSolution.solutionFileName.replace(
