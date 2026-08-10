@@ -15,13 +15,17 @@
  */
 
 import { expect, FrameLocator, Locator } from '@playwright/test';
+import * as path from 'path';
 import { DEFAULT_TIMEOUT_MS } from '../constants';
 import { VsCodeDriver } from '../infrastructure/vscode-driver';
+
+const normalizePathForComparison = (value: string): string =>
+    path.normalize(value).replace(/\\/g, '/').toLowerCase();
 
 export class ManageSolutionSettingsDriver {
     constructor(private readonly vscode: VsCodeDriver) {}
 
-    async open(): Promise<FrameLocator> {
+    async open(expectedSolutionFilePath?: string): Promise<FrameLocator> {
         await this.vscode.page
             .getRoleByName('button', { name: 'Manage Solution Settings' })
             .click();
@@ -33,6 +37,23 @@ export class ManageSolutionSettingsDriver {
         await expect(
             frame.getByRole('heading', { name: /Manage Solution/i }),
         ).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+
+        // Wait until the webview is loaded with the expected solution.
+        await expect(frame.locator('.ant-spin-spinning')).toHaveCount(0, {
+            timeout: DEFAULT_TIMEOUT_MS,
+        });
+        if (expectedSolutionFilePath) {
+            const solutionFileLink = frame.locator('.open-csolution-yml');
+            const normalizedExpectedPath = normalizePathForComparison(expectedSolutionFilePath);
+
+            await expect.poll(async () => {
+                const actualPath = await solutionFileLink.getAttribute('title');
+                return actualPath ? normalizePathForComparison(actualPath) : undefined;
+            }, {
+                timeout: DEFAULT_TIMEOUT_MS,
+                message: `Expected webview to load solution "${expectedSolutionFilePath}"`,
+            }).toBe(normalizedExpectedPath);
+        }
 
         return frame;
     }

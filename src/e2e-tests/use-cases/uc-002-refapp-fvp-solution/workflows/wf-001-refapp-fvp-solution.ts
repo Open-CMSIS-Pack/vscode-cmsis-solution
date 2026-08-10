@@ -244,7 +244,9 @@ export const runWf001RefAppFVPSolution = async (
 
             await vsCodeDriver.page.logAndClearNotifications();
             const manageSolutionSettings = new ManageSolutionSettingsDriver(vsCodeDriver);
-            const manageSolutionFrame = await manageSolutionSettings.open();
+            const manageSolutionFrame = await manageSolutionSettings.open(
+                referenceApplicationSolutionFilePath,
+            );
 
             await manageSolutionSettings.selectDebugAdapter(
                 manageSolutionFrame,
@@ -299,79 +301,89 @@ export const runWf001RefAppFVPSolution = async (
             await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/05-tools-configured`);
         });
 
-        // Wait for cbuild conversion to finish before starting the build.
-        const cbuildIndexFile = `./${createdSolution.solutionFileName.replace(
-            /\.csolution\.ya?ml$/,
-            '.cbuild-idx.yml',
-        )}`;
-        await expectGeneratedFileExists(artifacts, cbuildIndexFile);
-
-        // Build the solution and verify all specified artifacts.
-        await vsCodeDriver.page.openCmsisPanel();
         const targetName = fixture.device ?? fixture.board;
-        const buildContextName = `${fixture.reference_application}.Debug+${targetName}`;
-        const buildContextPattern = new RegExp(
-            `${escapeRegExp(fixture.reference_application)}\\.Debug\\s*\\+\\s*${escapeRegExp(targetName)}`,
-            'i',
-        );
-        const buildContext = vsCodeDriver.page.getLocator('a').filter({
-            hasText: buildContextPattern,
-        }).first();
-        await expect(buildContext).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
-        await buildContext.click();
+        await test.step('Build solution', async () => {
+            // The generated index is the readiness postcondition for cbuild conversion.
+            const cbuildIndexFile = `./${createdSolution.solutionFileName.replace(
+                /\.csolution\.ya?ml$/,
+                '.cbuild-idx.yml',
+            )}`;
+            await expectGeneratedFileExists(artifacts, cbuildIndexFile);
 
-        const buildTask = vsCodeDriver.page.getRoleByName('button', {
-            name: /^Focus Terminal.*Split Terminal/,
-        });
-        await vsCodeDriver.page.getCommands().runCommandFromPalette('Terminal: Kill All Terminals');
-        await expect(buildTask).toHaveCount(0, { timeout: DEFAULT_TIMEOUT_MS });
-
-        const buildButton = vsCodeDriver.page.getRoleByName('button', { name: 'Build solution' });
-        await expect(buildButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
-        await expect(buildButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
-        await buildButton.click();
-        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/06-build-started`);
-
-        await expect(buildTask).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
-        await waitForBuild(buildTask);
-
-        let terminalOutput = '';
-        try {
-            await expect.poll(async () => {
-                terminalOutput = await copyTerminalText(vsCodeDriver);
-                return terminalOutput;
-            }, {
-                timeout: DEFAULT_TIMEOUT_MS,
-                intervals: [4000],
-                message: `Expected compilation output for ${buildContextName}`,
-            }).toMatch(/Program Size:\s*Code=\d+\s+RO-data=\d+\s+RW-data=\d+\s+ZI-data=\d+/i);
-        } catch (error) {
-            const cause = error instanceof Error ? error.message : String(error);
-            throw new Error(
-                `Build did not compile ${buildContextName}.\n`
-                + `Terminal output:\n${terminalOutput}\n`
-                + `Cause: ${cause}`,
+            await vsCodeDriver.page.openCmsisPanel();
+            const buildContextName = `${fixture.reference_application}.Debug+${targetName}`;
+            const buildContextPattern = new RegExp(
+                `${escapeRegExp(fixture.reference_application)}\\.Debug\\s*\\+\\s*${escapeRegExp(targetName)}`,
+                'i',
             );
-        }
+            const buildContext = vsCodeDriver.page.getLocator('a').filter({
+                hasText: buildContextPattern,
+            }).first();
+            await expect(buildContext).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+            await buildContext.click();
 
-        const builtFiles = fixture.expected_files?.built ?? [];
-        for (const file of builtFiles) {
+            // A clean terminal list ensures the new task and its output belong to this build.
+            const buildTask = vsCodeDriver.page.getRoleByName('button', {
+                name: /^Focus Terminal.*Split Terminal/,
+            });
+            await vsCodeDriver.page.getCommands()
+                .runCommandFromPalette('Terminal: Kill All Terminals');
+            await expect(buildTask).toHaveCount(0, { timeout: DEFAULT_TIMEOUT_MS });
+
+            const buildButton = vsCodeDriver.page.getRoleByName('button', {
+                name: 'Build solution',
+            });
+            await expect(buildButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+            await expect(buildButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
+            await buildButton.click();
+            await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/06-build-started`);
+
+            await expect(buildTask).toHaveCount(1, { timeout: DEFAULT_TIMEOUT_MS });
+            await expect(buildTask).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+            await waitForBuild(buildTask);
+
+            // Select the sole task explicitly before copying its output; do not depend on which
+            // terminal VS Code happens to leave active when the task finishes.
+            await buildTask.click();
+            let terminalOutput = '';
             try {
-                await expectGeneratedFileExists(artifacts, file);
+                await expect.poll(async () => {
+                    terminalOutput = await copyTerminalText(vsCodeDriver);
+                    return terminalOutput;
+                }, {
+                    timeout: DEFAULT_TIMEOUT_MS,
+                    intervals: [4000],
+                    message: `Expected compilation output for ${buildContextName}`,
+                }).toMatch(/Program Size:\s*Code=\d+\s+RO-data=\d+\s+RW-data=\d+\s+ZI-data=\d+/i);
             } catch (error) {
-                const outputDirectory = path.join(artifacts.solutionDirectory, 'out');
-                const generatedOutput = await fs.readdir(outputDirectory, { recursive: true })
-                    .catch(() => []);
                 const cause = error instanceof Error ? error.message : String(error);
-
                 throw new Error(
-                    `Expected build artifact was not generated: ${file}\n`
-                    + `Files found under out: ${JSON.stringify(generatedOutput)}\n`
+                    `Build did not compile ${buildContextName}.\n`
+                    + `Terminal output:\n${terminalOutput}\n`
                     + `Cause: ${cause}`,
                 );
             }
-        }
-        await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/07-build-done`);
+
+            // Completion requires every fixture-defined artifact from this fresh solution.
+            const builtFiles = fixture.expected_files?.built ?? [];
+            for (const file of builtFiles) {
+                try {
+                    await expectGeneratedFileExists(artifacts, file);
+                } catch (error) {
+                    const outputDirectory = path.join(artifacts.solutionDirectory, 'out');
+                    const generatedOutput = await fs.readdir(outputDirectory, { recursive: true })
+                        .catch(() => []);
+                    const cause = error instanceof Error ? error.message : String(error);
+
+                    throw new Error(
+                        `Expected build artifact was not generated: ${file}\n`
+                        + `Files found under out: ${JSON.stringify(generatedOutput)}\n`
+                        + `Cause: ${cause}`,
+                    );
+                }
+            }
+            await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/07-build-done`);
+        });
 
         const terminalTaskButtons = vsCodeDriver.page.getRoleByName('button', {
             name: /^Focus Terminal.*Split Terminal/,
