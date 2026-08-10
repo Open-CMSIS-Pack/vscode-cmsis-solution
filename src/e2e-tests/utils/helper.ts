@@ -45,9 +45,7 @@ export async function copyTerminalText(vscode: VsCodeDriver): Promise<string> {
     await page.context().grantPermissions(['clipboard-read']);
 
     await vscode.page.getCommands().runCommandFromPalette('Terminal: Select All');
-    await vscode.page.getCommands().runCommandFromPalette('Terminal: Copy Last Command and Output');
-
-    await page.click('.terminal', { button: 'right' });
+    await page.keyboard.press(`${process.platform === 'darwin' ? 'Meta' : 'Control'}+Shift+KeyC`);
     await page.waitForTimeout(UI_STABILITY_DELAY_MS);
 
     const copiedText = await page.evaluate(() =>
