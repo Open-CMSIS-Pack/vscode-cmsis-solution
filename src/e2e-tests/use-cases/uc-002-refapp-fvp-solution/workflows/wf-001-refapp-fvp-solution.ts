@@ -448,7 +448,8 @@ export const runWf001RefAppFVPSolution = async (
                 await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/08-before-load-run`);
             });
 
-            await test.step('Run the compound Load & Run task and verify its terminal output', async () => {
+            await test.step('Run Load & Run compound task', async () => {
+                // With no existing terminals, the task observed below must belong to this action.
                 await vsCodeDriver.page.getCommands()
                     .runCommandFromPalette('Terminal: Kill All Terminals');
                 await expect(terminalTaskButtons).toHaveCount(0, {
@@ -465,12 +466,15 @@ export const runWf001RefAppFVPSolution = async (
                     'Load & Run requires at least one functional success string',
                 ).toBeGreaterThan(0);
                 await expect(loadAndRunButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+                await expect(loadAndRunButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
                 await loadAndRunButton.click();
                 await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/09-load-run-triggered`);
 
-                // The Run child starts only after the compound task's Load child succeeds.
+                // The sequential compound task starts Run only after Load succeeds.
+                await expect(runTaskButton).toHaveCount(1, { timeout: DEFAULT_TIMEOUT_MS });
                 await expect(runTaskButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
-                // Select the task-specific output source once; polling must not change terminals.
+
+                // Read only this run's terminal; polling must not switch output sources.
                 await runTaskButton.click();
                 await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/10-cmsis-run-started`);
 
