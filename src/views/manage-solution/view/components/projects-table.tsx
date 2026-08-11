@@ -74,7 +74,6 @@ interface ProjectRowProps {
 interface ImageRowProps {
     image: ImageSelection;
     availableCores: string[];
-    startProcessor?: string;
     updateContextSelection: (action: SolutionUpdateAction) => void;
     openFile: (path: string) => void;
     unlinkImage: (name: string) => void;
@@ -122,16 +121,12 @@ export const ImageRow = (props: ImageRowProps) => {
         props.updateContextSelection({ type: 'SET_CORE_SELECTION', path: props.image.path, core: core });
     };
 
-    const coreDisplayText = (core: string) => core === props.startProcessor
-        ? `${core} <Start Processor>`
-        : core;
-
     return <tr className="image">
         <td className="select-column"><Button icon={<LinkOutlined />} className='add-button unlink-image-button' title='Remove Image File from Target Set' onClick={() => props.unlinkImage(props.image.path)} /></td>
         <td className="name" title={props.image.path}>{props.image.name}</td>
         <td className="build-type">
             {props.availableCores.length > 1 &&
-                <CompactDropdown available={props.availableCores} selected={props.image.device ?? props.startProcessor ?? ''} displayText={coreDisplayText} onChange={handleCoreSelection} />
+                <CompactDropdown available={props.availableCores} selected={props.image.device ?? ''} onChange={handleCoreSelection} />
             }
         </td>
         <td className="load-column">
@@ -145,7 +140,6 @@ export interface ProjectsTableProps {
     projects: ProjectSelection[];
     images?: ImageSelection[];
     availableCores: string[];
-    startProcessor?: string;
     updateSolutionData: (action: SolutionUpdateAction) => void;
     openFile: (path: string) => void;
     addProject: () => void;
@@ -209,7 +203,6 @@ export const ProjectsTable = (props: ProjectsTableProps) => {
                     key={i}
                     image={image}
                     availableCores={props.availableCores}
-                    startProcessor={props.startProcessor}
                     updateContextSelection={props.updateSolutionData}
                     openFile={props.openFile}
                     unlinkImage={props.unlinkImage}

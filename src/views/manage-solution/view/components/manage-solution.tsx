@@ -339,7 +339,6 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                     projects={state.solutionData.projects}
                                     images={state.solutionData.images}
                                     availableCores={state.solutionData.availableCoreNames}
-                                    startProcessor={startProcessor}
                                     updateSolutionData={updateSolutionData}
                                     openFile={openFile}
                                     addProject={addProject}
