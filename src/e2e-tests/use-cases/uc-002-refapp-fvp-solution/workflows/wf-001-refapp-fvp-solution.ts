@@ -25,6 +25,7 @@
 
 import { expect, test } from '@playwright/test';
 import { promises as fs } from 'fs';
+import { parse } from 'jsonc-parser';
 import * as path from 'path';
 import { VsCodeDriver } from '../../../infrastructure/vscode-driver';
 import { DEFAULT_TIMEOUT_MS } from '../../../constants';
@@ -129,6 +130,16 @@ type VcpkgConfiguration = {
     requires?: Record<string, string>;
 };
 
+type GeneratedTask = {
+    label?: string;
+    dependsOn?: string[];
+    dependsOrder?: string;
+};
+
+type GeneratedTasksJson = {
+    tasks?: GeneratedTask[];
+};
+
 const expectToolsConfigurationApplied = async (
     configurationFilePath: string,
     artifact: string,
@@ -140,6 +151,28 @@ const expectToolsConfigurationApplied = async (
         ) as VcpkgConfiguration;
 
         expect(configuration.requires?.[artifact]).toBe(version);
+    }).toPass({
+        timeout: DEFAULT_TIMEOUT_MS,
+        intervals: [250, 500, 1000, 2000],
+    });
+};
+
+const expectLoadAndRunConfigurationGenerated = async (
+    tasksJsonPath: string,
+): Promise<void> => {
+    await expect(async () => {
+        const tasksJson = parse(
+            await fs.readFile(tasksJsonPath, 'utf8'),
+        ) as GeneratedTasksJson;
+        const tasks = tasksJson.tasks ?? [];
+
+        expect(tasks.some(task => task.label === 'CMSIS Load')).toBe(true);
+        expect(tasks.some(task => task.label === 'CMSIS Run')).toBe(true);
+
+        const loadAndRunTask = tasks.find(task => task.label === 'CMSIS Load+Run');
+        expect(loadAndRunTask).toBeDefined();
+        expect(loadAndRunTask?.dependsOn).toEqual(['CMSIS Load', 'CMSIS Run']);
+        expect(loadAndRunTask?.dependsOrder).toBe('sequence');
     }).toPass({
         timeout: DEFAULT_TIMEOUT_MS,
         intervals: [250, 500, 1000, 2000],
@@ -391,7 +424,7 @@ export const runWf001RefAppFVPSolution = async (
         const runTaskButton = terminalTaskButtons.filter({ hasText: 'CMSIS Run' });
         let loadAndRunOutput = '';
         try {
-            await test.step('Prepare the Load & Run task', async () => {
+            await test.step('Generate Load & Run configuration', async () => {
                 const cbuildRunFilePath = await expectGeneratedFileExists(
                     artifacts,
                     `./out/${fixture.reference_application}+${targetName}.cbuild-run.yml`,
@@ -407,15 +440,21 @@ export const runWf001RefAppFVPSolution = async (
                 await vsCodeDriver.page.getCommands()
                     .runCommandFromPalette('Update Debug Tasks and Launch Configurations');
 
+                const tasksJsonPath = await expectGeneratedFileExists(
+                    artifacts,
+                    './.vscode/tasks.json',
+                );
+                await expectLoadAndRunConfigurationGenerated(tasksJsonPath);
+                await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/08-before-load-run`);
+            });
+
+            await test.step('Run the compound Load & Run task and verify its terminal output', async () => {
                 await vsCodeDriver.page.getCommands()
                     .runCommandFromPalette('Terminal: Kill All Terminals');
                 await expect(terminalTaskButtons).toHaveCount(0, {
                     timeout: DEFAULT_TIMEOUT_MS,
                 });
-                await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/08-before-load-run`);
-            });
 
-            await test.step('Run the compound Load & Run task and verify its terminal output', async () => {
                 await vsCodeDriver.page.openCmsisPanel();
                 const loadAndRunButton = vsCodeDriver.page.getRoleByName('button', {
                     name: 'Load & Run Application',
