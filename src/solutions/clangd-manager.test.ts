@@ -86,7 +86,7 @@ describe('ClangdManager', () => {
             if (context.projectPath) {
                 const cbuildFile = new CbuildFile(path.join(path.dirname(context.projectPath), `${context.displayName}.cbuild.yml`));
                 cbuildFile.ensureTopItem('build').createChild('output-dirs').setValue('outdir', 'out');
-                mockCSolution.cbuildIdxFile.cbuildFiles.set(context.projectName, cbuildFile);
+                mockCSolution.cbuildIdxFile.cbuildFiles.set(context.displayName, cbuildFile);
             }
         }
 
@@ -171,8 +171,8 @@ describe('ClangdManager', () => {
         expect(state![solutionPath]).toEqual(activeContexts[1].projectPath);
 
         const diagnosticsSuppress = 'Diagnostics:\n  Suppress: [\'*\']';
-        const expectedOutDir1 = mockSolutionManager.getCsolution()?.cbuildIdxFile?.cbuildFiles?.get(activeContexts[0].projectName)?.outDir;
-        const expectedOutDir2 = mockSolutionManager.getCsolution()?.cbuildIdxFile?.cbuildFiles?.get(activeContexts[1].projectName)?.outDir;
+        const expectedOutDir1 = mockSolutionManager.getCsolution()?.cbuildIdxFile?.cbuildFiles?.get(activeContexts[0].displayName)?.outDir;
+        const expectedOutDir2 = mockSolutionManager.getCsolution()?.cbuildIdxFile?.cbuildFiles?.get(activeContexts[1].displayName)?.outDir;
         expect(mockFs.writeUtf8File).toHaveBeenCalledWith(
             expect.lowercaseEquals(path.join(expectedOutDir1!, '.clangd')),
             diagnosticsSuppress,
@@ -297,7 +297,7 @@ describe('ClangdManager', () => {
         const csolution = mockSolutionManager.getCsolution();
         csolution!.getContextDescriptors = jest.fn().mockReturnValue([activeContexts[0]]);
         const cbuildFiles = csolution!.cbuildIdxFile!.cbuildFiles;
-        const cbuild = cbuildFiles.get(activeContexts[0].projectName)!;
+        const cbuild = cbuildFiles.get(activeContexts[0].displayName)!;
         cbuild.ensureTopItem('build').setValue('compiler', 'CLANG');
         mockFs.exists.mockResolvedValue(true);
 
@@ -313,7 +313,7 @@ describe('ClangdManager', () => {
     it('writes diagnostics suppress .clangd in outDir when missing', async () => {
         const csolution = mockSolutionManager.getCsolution();
         const context = activeContexts[0];
-        const outDir = csolution?.cbuildIdxFile?.cbuildFiles?.get(context.projectName)?.outDir;
+        const outDir = csolution?.cbuildIdxFile?.cbuildFiles?.get(context.displayName)?.outDir;
         const expectedClangdPath = path.join(outDir!, '.clangd');
 
         mockFs.exists.mockResolvedValue(false);

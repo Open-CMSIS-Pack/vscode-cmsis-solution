@@ -814,6 +814,13 @@
         "title": "Search"
       },
       {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.searchSolutionSources",
+        "title": "Search in Solution Sources",
+        "icon": "$(search)",
+        "enablement": "cmsis-csolution.activeSolutionState == active"
+      },
+      {
         "command": "cmsis-csolution.edit",
         "title": "Go to Definition"
       },
@@ -1039,6 +1046,11 @@
           "command": "cmsis-csolution.openSolutionFile",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
           "group": "navigation@4"
+        },
+        {
+          "command": "cmsis-csolution.searchSolutionSources",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "group": "navigation@5"
         },
         {
           "command": "cmsis-csolution.manageSolution",

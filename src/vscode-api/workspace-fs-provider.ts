@@ -39,6 +39,7 @@ export type WorkspaceFsProvider = {
     rename: (sourcePath: string, destinationPath: string, overwrite?: boolean) => Promise<void>;
     copy: (sourcePath: string, destinationPath: string, overwrite?: boolean) => Promise<void>;
     exists: (filePath: string) => Promise<boolean>;
+    isFile: (filePath: string) => Promise<boolean>;
 }
 
 export const workspaceFsProvider: WorkspaceFsProvider = {
@@ -46,6 +47,14 @@ export const workspaceFsProvider: WorkspaceFsProvider = {
         try {
             await workspace.fs.stat(Uri.file(filePath));
             return true;
+        } catch {
+            return false;
+        }
+    },
+    isFile: async (filePath: string) => {
+        try {
+            const stat = await workspace.fs.stat(Uri.file(filePath));
+            return (stat.type & FileTypeEnum.File) !== 0;
         } catch {
             return false;
         }
