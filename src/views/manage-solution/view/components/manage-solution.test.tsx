@@ -130,20 +130,22 @@ describe('ContextSelection', () => {
             },
         ];
 
+        const solutionData = {
+            solutionName: 'My-Super-Duper-CSolution',
+            solutionPath: '/some/path/to/My-Super-Duper-CSolution.csolution.yml',
+            targets,
+            selectedTarget: targets[0],
+            projects,
+            images: [
+                { name: 'image1', path: '/path/to/image1', selected: true, loadOffset: '0x1000', load: 'image+symbols' as LoadType },
+            ],
+            availableCoreNames: ['cm0', 'cm4_cpu', 'cm4_fpu']
+        };
+
         React.act(() => {
             messageHandler.postWindowMessage({
                 type: 'DATA_CONTEXT_SELECTION',
-                data: {
-                    solutionName: 'My-Super-Duper-CSolution',
-                    solutionPath: '/some/path/to/My-Super-Duper-CSolution.csolution.yml',
-                    targets,
-                    selectedTarget: targets[0],
-                    projects,
-                    images: [
-                        { name: 'image1', path: '/path/to/image1', selected: true, loadOffset: '0x1000', load: 'image+symbols' },
-                    ],
-                    availableCoreNames: ['cm0', 'cm4_cpu', 'cm4_fpu']
-                },
+                data: solutionData,
             });
 
             messageHandler.postWindowMessage({
@@ -174,6 +176,8 @@ describe('ContextSelection', () => {
                 data: 'TestAdapter'
             });
         });
+
+        return solutionData;
     };
 
     it('fires a click to documentation links', () => {
@@ -497,6 +501,54 @@ describe('ContextSelection', () => {
         expect(input.value).toBe('');
     });
     describe('sendDebugAdapterProperty', () => {
+        it('commits the current string input value when change and blur are batched', () => {
+            createContextSelectionComponent();
+            postGenericDataContext();
+            listener.mockClear();
+
+            const input = container.querySelector('.section-control input:not([data-yml-node])') as HTMLInputElement;
+
+            React.act(() => {
+                fireEvent.change(input, { target: { value: '--simlimit 25' } });
+                fireEvent.blur(input);
+            });
+
+            expect(listener).toHaveBeenCalledWith({
+                type: 'SET_DEBUG_ADAPTER_PROPERTY',
+                service: undefined,
+                key: 'telnet-prop_a',
+                value: '--simlimit 25',
+            });
+        });
+
+        it('preserves a pending string input after blur when stale controller state arrives', () => {
+            createContextSelectionComponent();
+            const solutionData = postGenericDataContext();
+            listener.mockClear();
+
+            const input = container.querySelector('.section-control input:not([data-yml-node])') as HTMLInputElement;
+            React.act(() => {
+                fireEvent.change(input, { target: { value: '--simlimit 25' } });
+                fireEvent.blur(input);
+            });
+            expect(input.value).toBe('--simlimit 25');
+            expect(listener).toHaveBeenCalledWith({
+                type: 'SET_DEBUG_ADAPTER_PROPERTY',
+                service: undefined,
+                key: 'telnet-prop_a',
+                value: '--simlimit 25',
+            });
+
+            React.act(() => {
+                messageHandler.postWindowMessage({
+                    type: 'DATA_CONTEXT_SELECTION',
+                    data: JSON.parse(JSON.stringify(solutionData)),
+                });
+            });
+
+            expect(input.value).toBe('--simlimit 25');
+        });
+
         it('calls messageHandler.push with correct parameters for number type property', () => {
             createContextSelectionComponent();
 
