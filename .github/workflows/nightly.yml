@@ -287,19 +287,6 @@ jobs:
           cpackget init https://www.keil.com/pack/index.pidx
           cpackget update-index
 
-      - name: Checkout AVH local pack
-        uses: actions/checkout@c2d88d3ecc89a9ef08eebf45d9637801dcee7eb5 # v4.3.1
-        with:
-          repository: ARM-software/AVH
-          path: AVH
-
-      - name: Add packs required by e2e test UC-002
-        working-directory: ./
-        run: |
-          cpackget add ARM::CMSIS-FreeRTOS@11.3.0 --agree-embedded-license
-          cpackget add ARM::V2M_MPS3_SSE_300_BSP@1.5.0 --agree-embedded-license
-          cpackget add "$GITHUB_WORKSPACE/AVH/ARM.AVH_FVP.pdsc"
-
       - name: Run Playwright tests
         id: tests
         run: npm run e2e

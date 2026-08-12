@@ -1,4 +1,15 @@
 workflow: WF-001
+
+required_packs:
+  - source: ARM::CMSIS-FreeRTOS@11.3.0
+    agree_embedded_license: true
+  - source: ARM::V2M_MPS3_SSE_300_BSP@1.5.0
+    agree_embedded_license: true
+  - source: ARM.AVH_FVP.pdsc
+    repository:
+      url: https://github.com/ARM-software/AVH.git
+      directory: AVH
+
 board: V2M-MPS3-SSE-300-FVP
 device: SSE-300-MPS3 
 reference_application: Blinky

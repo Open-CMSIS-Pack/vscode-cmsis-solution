@@ -47,6 +47,7 @@ import {
     waitForBuild,
 } from '../../../utils/helper';
 import { log } from '../../../utils/logger';
+import type { RequiredPack } from '../setup';
 
 export { loadYamlFixture } from '../../../utils/usecases';
 
@@ -54,6 +55,7 @@ const SCREENSHOT_PREFIX = 'uc-002-refapp-fvp-solution/wf-001';
 
 // Fixture type
 export type CreateSolutionFixture = {
+    required_packs: RequiredPack[];
     board: string;
     device?: string;
     reference_application: string;

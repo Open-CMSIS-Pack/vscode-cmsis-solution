@@ -17,9 +17,19 @@
 import * as path from 'path';
 import { test } from '../../fixtures';
 import { log } from '../../utils/logger';
+import { setupPacks } from './setup';
 import { loadYamlFixture, runWf001RefAppFVPSolution, CreateSolutionFixture } from './workflows/wf-001-refapp-fvp-solution';
 
 test.describe('Create CMSIS Solution from Reference Application with FVP', () => {
+    let fixture: CreateSolutionFixture;
+
+    test.beforeAll(async () => {
+        fixture = await loadYamlFixture<CreateSolutionFixture>(
+            path.resolve(__dirname, 'fixtures', 'wf-001-refapp-fvp-solution.yml'),
+        );
+        await setupPacks(fixture.required_packs);
+    });
+
     test.afterEach(async ({ vsCodeDriver }) => {
         await vsCodeDriver.cleanupTestState();
     });
@@ -27,9 +37,6 @@ test.describe('Create CMSIS Solution from Reference Application with FVP', () =>
     test('UC-002 WF-001 Create CMSIS Solution from Reference Application with FVP',
         async ({ vsCodeDriver }, testInfo) => {
             log('info', 'Executing Test:', testInfo.title);
-            const fixture = await loadYamlFixture<CreateSolutionFixture>(
-                path.resolve(__dirname, 'fixtures', 'wf-001-refapp-fvp-solution.yml'),
-            );
             await runWf001RefAppFVPSolution(vsCodeDriver, fixture);
         },
     );
