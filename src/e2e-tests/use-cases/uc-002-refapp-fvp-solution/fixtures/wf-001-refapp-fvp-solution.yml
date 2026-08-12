@@ -1,5 +1,9 @@
 workflow: WF-001
 
+required_python_packages:
+  - pyaudio
+  - opencv-python
+
 required_packs:
   - source: ARM::CMSIS-FreeRTOS@11.3.0
     agree_embedded_license: true

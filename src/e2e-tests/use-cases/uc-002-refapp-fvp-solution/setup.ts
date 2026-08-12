@@ -12,6 +12,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ // generated with AI
  */
 
 import { spawn } from 'child_process';
@@ -21,6 +22,8 @@ import simpleGit from 'simple-git';
 import { log } from '../../utils/logger';
 
 const E2E_DATA_DIRECTORY = path.resolve(__dirname, '..', '..', 'data');
+const REPOSITORY_ROOT = path.resolve(__dirname, '..', '..', '..', '..');
+const PACK_INDEX_URL = 'https://www.keil.com/pack/index.pidx';
 
 export type RequiredPack = {
     source: string;
@@ -31,29 +34,92 @@ export type RequiredPack = {
     };
 };
 
-const runCpackget = async (args: string[]): Promise<void> => {
-    log('info', `Running cpackget ${args.join(' ')}`);
+export const installPythonPackages = async (packages: string[]): Promise<void> => {
+    if (packages.length === 0) {
+        return;
+    }
+
+    log('info', `Installing required Python packages: ${packages.join(', ')}`);
 
     await new Promise<void>((resolve, reject) => {
-        const child = spawn('cpackget', args, {
+        const child = spawn('python', ['-m', 'pip', 'install', ...packages], {
             shell: false,
             stdio: 'inherit',
         });
 
         child.on('error', error => {
-            reject(new Error(`Unable to run cpackget: ${error.message}`));
+            reject(new Error(`Unable to install required Python packages: ${error.message}`));
         });
 
-        child.on('close', (exitCode, signal) => {
+        child.on('close', exitCode => {
             if (exitCode === 0) {
                 resolve();
                 return;
             }
 
-            const result = signal ? `signal ${signal}` : `exit code ${exitCode}`;
-            reject(new Error(`cpackget ${args.join(' ')} failed with ${result}`));
+            reject(new Error(
+                `Installing required Python packages failed with exit code ${exitCode}`,
+            ));
         });
     });
+};
+
+const resolveCpackgetExecutable = async (): Promise<string> => {
+    const executableName = process.platform === 'win32' ? 'cpackget.exe' : 'cpackget';
+    const bundledExecutable = path.join(
+        REPOSITORY_ROOT,
+        'tools',
+        'cmsis-toolbox',
+        'bin',
+        executableName,
+    );
+
+    return await fs.pathExists(bundledExecutable) ? bundledExecutable : executableName;
+};
+
+const executeCpackget = async (
+    executable: string,
+    args: string[],
+    quiet = false,
+): Promise<number | null> => {
+    if (!quiet) {
+        log('info', `Running cpackget ${args.join(' ')}`);
+    }
+
+    return new Promise<number | null>((resolve, reject) => {
+        const child = spawn(executable, args, {
+            shell: false,
+            stdio: quiet ? 'ignore' : 'inherit',
+        });
+
+        child.on('error', error => {
+            reject(new Error(
+                `Unable to run cpackget. Install CMSIS Toolbox or run npm run prepare: ${error.message}`,
+            ));
+        });
+
+        child.on('close', exitCode => {
+            resolve(exitCode);
+        });
+    });
+};
+
+const runCpackget = async (executable: string, args: string[]): Promise<void> => {
+    const exitCode = await executeCpackget(executable, args);
+
+    if (exitCode !== 0) {
+        throw new Error(`cpackget ${args.join(' ')} failed with exit code ${exitCode}`);
+    }
+};
+
+const initializePackRoot = async (cpackget: string): Promise<void> => {
+    const isInitialized = await executeCpackget(cpackget, ['list', '--quiet'], true) === 0;
+
+    if (!isInitialized) {
+        await runCpackget(cpackget, ['init', PACK_INDEX_URL]);
+    }
+
+    await runCpackget(cpackget, ['update-index']);
 };
 
 const resolvePackSource = async (pack: RequiredPack): Promise<string> => {
@@ -84,6 +150,9 @@ const resolvePackSource = async (pack: RequiredPack): Promise<string> => {
 };
 
 export const setupPacks = async (requiredPacks: RequiredPack[]): Promise<void> => {
+    const cpackget = await resolveCpackgetExecutable();
+    await initializePackRoot(cpackget);
+
     for (const pack of requiredPacks) {
         const source = await resolvePackSource(pack);
         const args = ['add', source];
@@ -92,6 +161,6 @@ export const setupPacks = async (requiredPacks: RequiredPack[]): Promise<void> =
             args.push('--agree-embedded-license');
         }
 
-        await runCpackget(args);
+        await runCpackget(cpackget, args);
     }
 };

@@ -17,7 +17,7 @@
 import * as path from 'path';
 import { test } from '../../fixtures';
 import { log } from '../../utils/logger';
-import { setupPacks } from './setup';
+import { installPythonPackages, setupPacks } from './setup';
 import { loadYamlFixture, runWf001RefAppFVPSolution, CreateSolutionFixture } from './workflows/wf-001-refapp-fvp-solution';
 
 test.describe('Create CMSIS Solution from Reference Application with FVP', () => {
@@ -27,6 +27,7 @@ test.describe('Create CMSIS Solution from Reference Application with FVP', () =>
         fixture = await loadYamlFixture<CreateSolutionFixture>(
             path.resolve(__dirname, 'fixtures', 'wf-001-refapp-fvp-solution.yml'),
         );
+        await installPythonPackages(fixture.required_python_packages);
         await setupPacks(fixture.required_packs);
     });
 

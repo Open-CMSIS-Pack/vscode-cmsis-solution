@@ -55,6 +55,7 @@ const SCREENSHOT_PREFIX = 'uc-002-refapp-fvp-solution/wf-001';
 
 // Fixture type
 export type CreateSolutionFixture = {
+    required_python_packages: string[];
     required_packs: RequiredPack[];
     board: string;
     device?: string;
