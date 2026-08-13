@@ -22,6 +22,7 @@ import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
 import { CProjectYamlFile } from './files/cproject-yaml-file';
+import { CbuildFile } from './files/cbuild-file';
 
 describe('CSolution', () => {
     const testDataHandler = new TestDataHandler();
@@ -459,6 +460,34 @@ describe('CSolution', () => {
 
                 expect(packs.size).toBe(1);
                 expect(packs.get('Pack1')).toBe('Path1');
+            });
+        });
+
+        describe('getSourceFiles', () => {
+            it('returns a deterministic union across all selected contexts', () => {
+                const csolution = new CSolution();
+                const firstContext = {
+                    getSourceFiles: jest.fn().mockReturnValue([
+                        path.normalize('/workspace/zeta.c'),
+                        path.normalize('/packs/shared.h'),
+                    ]),
+                } as unknown as CbuildFile;
+                const secondContext = {
+                    getSourceFiles: jest.fn().mockReturnValue([
+                        path.normalize('/workspace/alpha.c'),
+                        path.normalize('/packs/shared.h'),
+                    ]),
+                } as unknown as CbuildFile;
+                csolution.cbuildIdxFile.cbuildFiles.set('Project.Debug+Target', firstContext);
+                csolution.cbuildIdxFile.cbuildFiles.set('Project.Release+Target', secondContext);
+
+                expect(csolution.getSourceFiles()).toEqual([
+                    path.normalize('/packs/shared.h'),
+                    path.normalize('/workspace/alpha.c'),
+                    path.normalize('/workspace/zeta.c'),
+                ]);
+                expect(firstContext.getSourceFiles).toHaveBeenCalledTimes(1);
+                expect(secondContext.getSourceFiles).toHaveBeenCalledTimes(1);
             });
         });
 

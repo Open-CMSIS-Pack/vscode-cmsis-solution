@@ -87,6 +87,16 @@ export class CSolution {
         return ymlFiles;
     }
 
+    public getSourceFiles(): string[] {
+        const sourceFiles = new Set<string>();
+        for (const cbuild of this.cbuildIdxFile.cbuildFiles.values()) {
+            for (const fileName of cbuild.getSourceFiles()) {
+                sourceFiles.add(path.normalize(fileName));
+            }
+        }
+        return [...sourceFiles].sort((left, right) => left.localeCompare(right));
+    }
+
     public getUsedDbgconfFiles(): string[] {
         const dbgconfFiles: string[] = [];
         const seen = new Set<string>();
