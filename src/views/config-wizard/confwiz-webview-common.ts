@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { NotificationType } from 'vscode-messenger-common';
+import { NotificationType, RequestType } from 'vscode-messenger-common';
 import { EditRect } from './parser/cw-utils';
 
 export enum GuiTypes {
@@ -47,6 +47,16 @@ export interface GuiValue {
     bitWidth?: number;
 }
 
+export interface SourcePosition {
+    line: number;
+    character: number;
+}
+
+export interface SourceRange {
+    start: SourcePosition;
+    end: SourcePosition;
+}
+
 export interface ConfigWizardData {
     element: TreeNodeElement,
     documentPath: string;
@@ -62,6 +72,7 @@ export interface TreeNodeElement {
     newValue: GuiValue;
     infoItems?: string[];
     dropItems?: string[];
+    sourceRange?: SourceRange;
     children?: TreeNodeElement[];
     errors?: string[];
 }
@@ -69,6 +80,7 @@ export interface TreeNodeElement {
 // Host to Webview
 export const setWizardDataType: NotificationType<ConfigWizardData> = { method: 'setWizardData' };
 export const setPanelActiveType: NotificationType<{ active: boolean }> = { method: 'setPanelActive' };
+export const getSelectedSourceRangeType: RequestType<void, SourceRange | undefined> = { method: 'getSelectedSourceRange' };
 
 // Webview to Host
 export const readyType: NotificationType<void> = { method: 'ready' };

@@ -23,7 +23,9 @@ import { Messenger } from 'vscode-messenger-webview';
 import { ConfWizKeyboardNavigation } from './confwiz-webview-keyboard-navigation';
 import {
     ConfigWizardData,
+    getSelectedSourceRangeType,
     GuiTypes,
+    SourceRange,
     TreeNodeElement,
     markDocumentDirty,
     readyType,
@@ -74,6 +76,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
     private readonly keyboardNav = new ConfWizKeyboardNavigation((key) => this.setActiveKey(key));
     private pendingRefocus = false;
     private pendingRefocusKey?: string;
+    private selectedSourceRangeRequestDisposable?: { dispose(): void };
     private readonly handleWindowBlur = (): void => {
         this.setState(prevState => ({
             hasUserFocus: false,
@@ -147,6 +150,10 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                 }));
             }
         );
+        this.selectedSourceRangeRequestDisposable = this.messenger.onRequest(
+            getSelectedSourceRangeType,
+            () => this.getSelectedSourceRange()
+        );
         this.messenger.sendNotification(readyType, HOST_EXTENSION, undefined);
     }
 
@@ -186,6 +193,8 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         window.removeEventListener('blur', this.handleWindowBlur);
         // Cleanup to prevent memory leaks
         this.editedFieldId = undefined;
+        this.selectedSourceRangeRequestDisposable?.dispose();
+        this.selectedSourceRangeRequestDisposable = undefined;
         this.keyboardNav.reset();
     }
 
@@ -226,6 +235,30 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                 if (childPath) {
                     return childPath;
                 }
+            }
+        }
+
+        return undefined;
+    }
+
+    private getSelectedSourceRange(): SourceRange | undefined {
+        const selectedKey = this.state.lastTouchedKey ?? this.state.activeKey;
+        if (!selectedKey || !this.state.annotations) {
+            return undefined;
+        }
+
+        return this.findElementByKey(this.state.annotations, selectedKey)?.sourceRange;
+    }
+
+    private findElementByKey(node: TreeNodeElement, targetKey: string): TreeNodeElement | undefined {
+        if (this.getElementKey(node) === targetKey) {
+            return node;
+        }
+
+        for (const child of node.children ?? []) {
+            const match = this.findElementByKey(child, targetKey);
+            if (match) {
+                return match;
             }
         }
 

@@ -15,7 +15,7 @@
  */
 
 import { Parser } from './parser';
-import { TreeNodeElement, GuiTypes } from '../confwiz-webview-common';
+import { TreeNodeElement, GuiTypes, SourceRange } from '../confwiz-webview-common';
 import { CwItem } from './cw-item';
 import { LogErr, ClearErrors, GetErrors } from './error';
 
@@ -70,6 +70,22 @@ export class GuiTree {
         return guiItem;
     }
 
+    private getSourceRange(item: CwItem, guiItem: TreeNodeElement): SourceRange {
+        const editRect = guiItem.value.editRect;
+        if (editRect) {
+            return {
+                start: { line: editRect.line, character: editRect.col.start },
+                end: { line: editRect.line, character: editRect.col.end }
+            };
+        }
+
+        const annotationLine = Math.max(0, item.lineNo);
+        return {
+            start: { line: annotationLine, character: 0 },
+            end: { line: annotationLine, character: 0 }
+        };
+    }
+
     protected addToTree(item: CwItem, node: TreeNodeElement, lines: string[]): boolean {
         const currentIndex = ++this.index;
         const guiItem = this.createGuiItem(item);
@@ -91,6 +107,7 @@ export class GuiTree {
         }
 
         guiItem.value = item.getGuiValue(lines); // must be fetched here because of parameter 'lines'
+        guiItem.sourceRange = this.getSourceRange(item, guiItem);
         guiItem.guiId = currentIndex;
 
         this.addToItemMap(item, currentIndex);
@@ -121,6 +138,7 @@ export class GuiTree {
         rootItem.setGuiId(this.index);
         const guiItem = this.createGuiItem(rootItem);
         rootItem.getGuiItem(guiItem);
+        guiItem.sourceRange = this.getSourceRange(rootItem, guiItem);
         guiItem.type = GuiTypes.root;
 
         const rootNode = guiItem;

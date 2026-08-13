@@ -20,12 +20,14 @@ import { WebviewIdMessageParticipant } from 'vscode-messenger-common';
 import * as manifest from '../../manifest';
 import {
     ConfigWizardData,
+    getSelectedSourceRangeType,
     logMessageType,
     markDocumentDirty,
     readyType,
     saveElement,
     setPanelActiveType,
     setWizardDataType,
+    SourceRange,
     TreeNodeElement
 } from './confwiz-webview-common';
 import { GuiTree } from './parser/gui-tree';
@@ -144,9 +146,54 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
     }
 
     protected async source(): Promise<void> {
-        if (this.activeDocument) {
-            vscode.window.showTextDocument(this.activeDocument);
+        const document = this.activeDocument;
+        if (!document) {
+            return;
         }
+
+        const configWizDocument = this.documents.get(document.uri.fsPath);
+        let sourceRange: SourceRange | undefined;
+        if (configWizDocument) {
+            try {
+                sourceRange = await this.messenger.sendRequest(
+                    getSelectedSourceRangeType,
+                    configWizDocument.participant,
+                    undefined
+                );
+            } catch (error) {
+                console.warn('[ConfigWizard] Unable to obtain selected source location.', error);
+            }
+        }
+
+        if (!sourceRange || !this.isSourceRangeValid(sourceRange, document)) {
+            await vscode.window.showTextDocument(document);
+            return;
+        }
+
+        const position = document.validatePosition(
+            new vscode.Position(sourceRange.start.line, sourceRange.start.character)
+        );
+        await vscode.window.showTextDocument(document, {
+            selection: new vscode.Range(position, position)
+        });
+    }
+
+    private isSourceRangeValid(sourceRange: SourceRange, document: vscode.TextDocument): boolean {
+        const positions = [sourceRange.start, sourceRange.end];
+        const arePositionsValid = positions.every(position =>
+            Number.isInteger(position.line) &&
+            Number.isInteger(position.character) &&
+            position.line >= 0 &&
+            position.character >= 0 &&
+            position.line < document.lineCount
+        );
+
+        if (!arePositionsValid) {
+            return false;
+        }
+
+        return sourceRange.start.line < sourceRange.end.line ||
+            (sourceRange.start.line === sourceRange.end.line && sourceRange.start.character <= sourceRange.end.character);
     }
 
     protected _getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): string {
