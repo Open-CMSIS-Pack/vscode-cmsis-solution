@@ -25,6 +25,7 @@ import { stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { solutionManagerFactory } from '../../solutions/solution-manager.factories';
 import * as fsUtils from '../../utils/fs-utils';
 import * as vscodeUtils from '../../utils/vscode-utils';
+import { csolutionServiceFactory } from '../../json-rpc/csolution-rpc-client.factory';
 
 /**
  * Build generated (current) and reference JSON strings for a context selection state.
@@ -274,6 +275,78 @@ describe('manage-solution-controller', () => {
         await controller.getAvailableCoreNames();
         const coreNames = controller.availableCoreNames;
         expect(Array.isArray(coreNames)).toBe(true);
+    });
+
+    it.each([
+        { configuredStart: 'C1', expectedStart: 'C1' },
+        { configuredStart: undefined, expectedStart: 'C0' },
+        { configuredStart: 'stale-core', expectedStart: 'C0' },
+    ])('adds an image for the effective start processor $expectedStart', async ({ configuredStart, expectedStart }) => {
+        const controller = new ManageSolutionController();
+        const targetSet = controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
+        controller.activeTargetTypeName = 'test-target';
+        controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
+        targetSet.ensureDebugger('Test Debugger').startPname = configuredStart;
+        controller.csolutionService = csolutionServiceFactory({
+            getDeviceInfo: jest.fn().mockResolvedValue({
+                result: 'success',
+                device: {
+                    id: 'TestVendor::TestDevice',
+                    name: 'TestDevice',
+                    processors: [
+                        { name: 'C0', core: 'Cortex-M0' },
+                        { name: 'C1', core: 'Cortex-M1' },
+                    ],
+                },
+            }),
+        });
+
+        expect(await controller.getEffectiveStartProcessor()).toBe(expectedStart);
+        const image = await controller.addImage('images/application.axf');
+
+        expect(image.device).toBe(expectedStart);
+        expect(image.getValue('device')).toBe(`:${expectedStart}`);
+    });
+
+    it('adds an image without a processor when no debugger is configured', async () => {
+        const controller = new ManageSolutionController();
+        controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
+        controller.activeTargetTypeName = 'test-target';
+        controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
+        const csolutionService = csolutionServiceFactory();
+        controller.csolutionService = csolutionService;
+
+        const image = await controller.addImage('images/application.axf');
+
+        expect(image.device).toBeUndefined();
+        expect(csolutionService.getDeviceInfo).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        { processors: [{ name: 'C0', core: 'Cortex-M0' }], expectedStart: 'C0' },
+        { processors: [{ name: '', core: 'Cortex-M0' }], expectedStart: undefined },
+        { processors: [], expectedStart: undefined },
+    ])('resolves $expectedStart for processor metadata', async ({ processors, expectedStart }) => {
+        const controller = new ManageSolutionController();
+        const targetSet = controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
+        controller.activeTargetTypeName = 'test-target';
+        controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
+        targetSet.ensureDebugger('Test Debugger');
+        controller.csolutionService = csolutionServiceFactory({
+            getDeviceInfo: jest.fn().mockResolvedValue({
+                result: 'success',
+                device: {
+                    id: 'TestVendor::TestDevice',
+                    name: 'TestDevice',
+                    processors,
+                },
+            }),
+        });
+
+        const image = await controller.addImage('images/application.axf');
+
+        expect(image.device).toBe(expectedStart);
+        expect(controller.availableCoreNames).toEqual(expectedStart ? [expectedStart] : []);
     });
 
     it('should get debug adapters with customized defaults', async () => {
