@@ -51,8 +51,6 @@ import type { RequiredPack } from '../setup';
 
 export { loadYamlFixture } from '../../../utils/usecases';
 
-const SCREENSHOT_PREFIX = 'uc-002-refapp-fvp-solution/wf-001';
-
 // Fixture type
 export type CreateSolutionFixture = {
     required_python_packages: string[];
@@ -192,18 +190,6 @@ export const runWf001RefAppFVPSolution = async (
     fixture: CreateSolutionFixture,
 ): Promise<void> => {
     const generatedSolutionsDirectory = path.join(vsCodeDriver.testWorkspaceDirectory, '.generated');
-    let failureScreenshotCaptured = false;
-    const captureFailureScreenshot = async (): Promise<void> => {
-        if (failureScreenshotCaptured) {
-            return;
-        }
-        failureScreenshotCaptured = true;
-        try {
-            await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/99-failure`);
-        } catch (error) {
-            log('warn', `Failed to capture UC-002 failure screenshot: ${String(error)}`);
-        }
-    };
 
     try {
         // Start from a clean notification state so error checks only include this workflow.
@@ -256,7 +242,6 @@ export const runWf001RefAppFVPSolution = async (
                     timeout: DEFAULT_TIMEOUT_MS,
                 });
 
-                await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/01-solution-created`);
                 return { createdSolution: solution, artifacts: generatedArtifacts };
             },
         );
@@ -272,12 +257,9 @@ export const runWf001RefAppFVPSolution = async (
             await confirmDiscoveredSolutionConfiguration(vsCodeDriver);
             await addPackToCsolution(referenceApplicationSolutionFilePath, fixture.fvp.pack);
             await expectFileToContainAll(referenceApplicationSolutionFilePath, [fixture.fvp.pack]);
-            await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/02-csolution-updated`);
-
             // Force all extension-side solution controllers to reload the external YAML change
             // before Manage Solution Settings updates and saves the same file.
             await vsCodeDriver.page.reloadWindow('CMSIS');
-            await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/03-window-reloaded`);
 
             await vsCodeDriver.page.logAndClearNotifications();
             const manageSolutionSettings = new ManageSolutionSettingsDriver(vsCodeDriver);
@@ -306,7 +288,6 @@ export const runWf001RefAppFVPSolution = async (
                 fixture.fvp.config_file.replace(/^\.\//, ''),
                 `args: ${fixture.fvp.misc}`,
             ]);
-            await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/04-fvp-configured`);
         });
 
         await test.step('Configure Arm Tools', async () => {
@@ -335,7 +316,6 @@ export const runWf001RefAppFVPSolution = async (
             const vcpkg = new VcpkgDriver(vsCodeDriver);
             await vcpkg.waitForActivation();
             await vcpkg.waitForLoadedSolution(fixture.device ?? fixture.board);
-            await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/05-tools-configured`);
         });
 
         const targetName = fixture.device ?? fixture.board;
@@ -373,7 +353,6 @@ export const runWf001RefAppFVPSolution = async (
             await expect(buildButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
             await expect(buildButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
             await buildButton.click();
-            await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/06-build-started`);
 
             await expect(buildTask).toHaveCount(1, { timeout: DEFAULT_TIMEOUT_MS });
             await expect(buildTask).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
@@ -419,7 +398,6 @@ export const runWf001RefAppFVPSolution = async (
                     );
                 }
             }
-            await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/07-build-done`);
         });
 
         const terminalTaskButtons = vsCodeDriver.page.getRoleByName('button', {
@@ -449,7 +427,6 @@ export const runWf001RefAppFVPSolution = async (
                     './.vscode/tasks.json',
                 );
                 await expectLoadAndRunConfigurationGenerated(tasksJsonPath);
-                await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/08-before-load-run`);
             });
 
             await test.step('Run Load & Run compound task', async () => {
@@ -472,7 +449,6 @@ export const runWf001RefAppFVPSolution = async (
                 await expect(loadAndRunButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
                 await expect(loadAndRunButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
                 await loadAndRunButton.click();
-                await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/09-load-run-triggered`);
 
                 // The sequential compound task starts Run only after Load succeeds.
                 await expect(runTaskButton).toHaveCount(1, { timeout: DEFAULT_TIMEOUT_MS });
@@ -480,7 +456,6 @@ export const runWf001RefAppFVPSolution = async (
 
                 // Read only this run's terminal; polling must not switch output sources.
                 await runTaskButton.click();
-                await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/10-cmsis-run-started`);
 
                 try {
                     for (const expectedText of expectedOutput) {
@@ -501,12 +476,7 @@ export const runWf001RefAppFVPSolution = async (
                         + `Cause: ${cause}`,
                     );
                 }
-
-                await vsCodeDriver.page.screenshot(`${SCREENSHOT_PREFIX}/11-blinky-output`);
             });
-        } catch (error) {
-            await captureFailureScreenshot();
-            throw error;
         } finally {
             try {
                 await vsCodeDriver.page.getCommands()
@@ -515,9 +485,6 @@ export const runWf001RefAppFVPSolution = async (
                 log('warn', `Failed to stop CMSIS Load+Run during cleanup: ${String(error)}`);
             }
         }
-    } catch (error) {
-        await captureFailureScreenshot();
-        throw error;
     } finally {
         try {
             await vsCodeDriver.restoreTestWorkspace();

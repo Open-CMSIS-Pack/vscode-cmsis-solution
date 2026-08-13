@@ -20,6 +20,11 @@ import { log } from '../../utils/logger';
 import { installPythonPackages, setupPacks } from './setup';
 import { loadYamlFixture, runWf001RefAppFVPSolution, CreateSolutionFixture } from './workflows/wf-001-refapp-fvp-solution';
 
+test.use({
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+});
+
 test.describe('Create CMSIS Solution from Reference Application with FVP', () => {
     let fixture: CreateSolutionFixture;
 
