@@ -126,7 +126,7 @@ export const ImageRow = (props: ImageRowProps) => {
         <td className="name" title={props.image.path}>{props.image.name}</td>
         <td className="build-type">
             {props.availableCores.length > 1 &&
-                <CompactDropdown available={['Start Processor', ...props.availableCores]} selected={props.image.device ?? ''} onChange={handleCoreSelection} unselectedLabel='Start Processor' />
+                <CompactDropdown available={props.availableCores} selected={props.image.device ?? ''} onChange={handleCoreSelection} />
             }
         </td>
         <td className="load-column">
