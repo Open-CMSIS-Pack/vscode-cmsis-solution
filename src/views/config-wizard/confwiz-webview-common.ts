@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { NotificationType, RequestType } from 'vscode-messenger-common';
+import { NotificationType } from 'vscode-messenger-common';
 import { EditRect } from './parser/cw-utils';
 
 export enum GuiTypes {
@@ -57,6 +57,11 @@ export interface SourceRange {
     end: SourcePosition;
 }
 
+export interface AnnotationSelectionData {
+    documentPath: string;
+    annotationRange: SourceRange;
+}
+
 export interface ConfigWizardData {
     element: TreeNodeElement,
     documentPath: string;
@@ -72,7 +77,7 @@ export interface TreeNodeElement {
     newValue: GuiValue;
     infoItems?: string[];
     dropItems?: string[];
-    sourceRange?: SourceRange;
+    annotationRange?: SourceRange;
     children?: TreeNodeElement[];
     errors?: string[];
 }
@@ -80,10 +85,10 @@ export interface TreeNodeElement {
 // Host to Webview
 export const setWizardDataType: NotificationType<ConfigWizardData> = { method: 'setWizardData' };
 export const setPanelActiveType: NotificationType<{ active: boolean }> = { method: 'setPanelActive' };
-export const getSelectedSourceRangeType: RequestType<void, SourceRange | undefined> = { method: 'getSelectedSourceRange' };
 
 // Webview to Host
 export const readyType: NotificationType<void> = { method: 'ready' };
 export const logMessageType: NotificationType<string> = { method: 'logMessage' };
 export const saveElement: NotificationType<ConfigWizardData> = { method: 'saveElement' };
 export const markDocumentDirty: NotificationType<{ documentPath: string }> = { method: 'markDocumentDirty' };
+export const selectAnnotationType: NotificationType<AnnotationSelectionData> = { method: 'selectAnnotation' };

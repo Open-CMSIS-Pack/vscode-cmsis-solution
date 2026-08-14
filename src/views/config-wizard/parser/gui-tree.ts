@@ -70,19 +70,14 @@ export class GuiTree {
         return guiItem;
     }
 
-    private getSourceRange(item: CwItem, guiItem: TreeNodeElement): SourceRange {
-        const editRect = guiItem.value.editRect;
-        if (editRect) {
-            return {
-                start: { line: editRect.line, character: editRect.col.start },
-                end: { line: editRect.line, character: editRect.col.end }
-            };
-        }
-
-        const annotationLine = Math.max(0, item.lineNo);
+    private getAnnotationRange(item: CwItem, lines: string[]): SourceRange {
+        const annotationLine = Math.max(0, Math.min(item.lineNo, lines.length - 1));
+        const lineText = lines[annotationLine] ?? '';
+        const commentStart = lineText.indexOf(item.lineCommentPrefix);
+        const annotationStart = commentStart >= 0 ? commentStart : 0;
         return {
-            start: { line: annotationLine, character: 0 },
-            end: { line: annotationLine, character: 0 }
+            start: { line: annotationLine, character: annotationStart },
+            end: { line: annotationLine, character: lineText.length }
         };
     }
 
@@ -107,7 +102,7 @@ export class GuiTree {
         }
 
         guiItem.value = item.getGuiValue(lines); // must be fetched here because of parameter 'lines'
-        guiItem.sourceRange = this.getSourceRange(item, guiItem);
+        guiItem.annotationRange = this.getAnnotationRange(item, lines);
         guiItem.guiId = currentIndex;
 
         this.addToItemMap(item, currentIndex);
@@ -138,7 +133,7 @@ export class GuiTree {
         rootItem.setGuiId(this.index);
         const guiItem = this.createGuiItem(rootItem);
         rootItem.getGuiItem(guiItem);
-        guiItem.sourceRange = this.getSourceRange(rootItem, guiItem);
+        guiItem.annotationRange = this.getAnnotationRange(rootItem, lines);
         guiItem.type = GuiTypes.root;
 
         const rootNode = guiItem;

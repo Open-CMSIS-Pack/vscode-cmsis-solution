@@ -23,13 +23,12 @@ import { Messenger } from 'vscode-messenger-webview';
 import { ConfWizKeyboardNavigation } from './confwiz-webview-keyboard-navigation';
 import {
     ConfigWizardData,
-    getSelectedSourceRangeType,
     GuiTypes,
-    SourceRange,
     TreeNodeElement,
     markDocumentDirty,
     readyType,
     saveElement,
+    selectAnnotationType,
     setPanelActiveType,
     setWizardDataType
 } from './confwiz-webview-common';
@@ -76,7 +75,6 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
     private readonly keyboardNav = new ConfWizKeyboardNavigation((key) => this.setActiveKey(key));
     private pendingRefocus = false;
     private pendingRefocusKey?: string;
-    private selectedSourceRangeRequestDisposable?: { dispose(): void };
     private readonly handleWindowBlur = (): void => {
         this.setState(prevState => ({
             hasUserFocus: false,
@@ -137,6 +135,11 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     lastTouchedKey,
                     expandedKeys,
                     isIssuesVisible,
+                }, () => {
+                    const selectedKey = this.state.lastTouchedKey ?? this.state.activeKey;
+                    if (selectedKey) {
+                        this.reportAnnotationSelection(selectedKey);
+                    }
                 });
             }
         );
@@ -149,10 +152,6 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     lastTouchedKey: active ? prevState.lastTouchedKey : (prevState.lastTouchedKey ?? prevState.activeKey)
                 }));
             }
-        );
-        this.selectedSourceRangeRequestDisposable = this.messenger.onRequest(
-            getSelectedSourceRangeType,
-            () => this.getSelectedSourceRange()
         );
         this.messenger.sendNotification(readyType, HOST_EXTENSION, undefined);
     }
@@ -193,8 +192,6 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         window.removeEventListener('blur', this.handleWindowBlur);
         // Cleanup to prevent memory leaks
         this.editedFieldId = undefined;
-        this.selectedSourceRangeRequestDisposable?.dispose();
-        this.selectedSourceRangeRequestDisposable = undefined;
         this.keyboardNav.reset();
     }
 
@@ -241,15 +238,6 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         return undefined;
     }
 
-    private getSelectedSourceRange(): SourceRange | undefined {
-        const selectedKey = this.state.lastTouchedKey ?? this.state.activeKey;
-        if (!selectedKey || !this.state.annotations) {
-            return undefined;
-        }
-
-        return this.findElementByKey(this.state.annotations, selectedKey)?.sourceRange;
-    }
-
     private findElementByKey(node: TreeNodeElement, targetKey: string): TreeNodeElement | undefined {
         if (this.getElementKey(node) === targetKey) {
             return node;
@@ -265,6 +253,21 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         return undefined;
     }
 
+    private reportAnnotationSelection(key: string): void {
+        const documentPath = this.state.documentPath;
+        const annotationRange = this.state.annotations
+            ? this.findElementByKey(this.state.annotations, key)?.annotationRange
+            : undefined;
+        if (!documentPath || !annotationRange) {
+            return;
+        }
+
+        this.messenger.sendNotification(selectAnnotationType, HOST_EXTENSION, {
+            documentPath,
+            annotationRange
+        });
+    }
+
     private getNodeKey(node: DTreeNode): string {
         const key = node.key ?? node.id ?? (node.data as TreeNodeElement | undefined)?.guiId?.toString();
         return key ? key.toString() : '';
@@ -272,6 +275,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
 
 
     private readonly setActiveKey = (key: string): void => {
+        this.reportAnnotationSelection(key);
         if (this.state.activeKey !== key) {
             this.setState({
                 activeKey: key,
@@ -282,6 +286,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
     };
 
     private readonly handleUserFocus = (key: string): void => {
+        this.reportAnnotationSelection(key);
         this.setState({
             activeKey: key,
             lastTouchedKey: key,
@@ -432,6 +437,12 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                             this.pendingRefocus = true;
                             this.pendingRefocusKey = this.state.activeKey;
                             this.setState({ expandedKeys: event.value });
+                        }}
+                        onRowClick={(event) => {
+                            const key = this.getNodeKey(event.node as DTreeNode);
+                            if (key) {
+                                this.handleUserFocus(key);
+                            }
                         }}
                         // Apply dimming to the row itself; no extra wrappers in cells (keeps expanders aligned)
                         rowClassName={(node: DTreeNode) => {
