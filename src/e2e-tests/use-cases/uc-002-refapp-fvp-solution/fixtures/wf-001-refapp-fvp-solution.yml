@@ -1,0 +1,51 @@
+workflow: WF-001
+
+required_python_packages:
+  - pyaudio
+  - opencv-python
+
+required_packs:
+  - source: ARM::CMSIS-FreeRTOS@11.3.0
+    agree_embedded_license: true
+  - source: ARM::V2M_MPS3_SSE_300_BSP@1.5.0
+    agree_embedded_license: true
+  - source: ARM.AVH_FVP.pdsc
+    repository:
+      url: https://github.com/ARM-software/AVH.git
+      directory: AVH
+
+board: V2M-MPS3-SSE-300-FVP
+device: SSE-300-MPS3 
+reference_application: Blinky
+solution_name_prefix: e2e_refapp_fvp_solution
+
+fvp:
+  pack: ARM::AVH_FVP
+  debug_adapter: Arm-FVP
+  model: FVP_Corstone_SSE-300
+  config_file: ./board/Corstone-300/fvp_config.txt
+  misc: --simlimit 25
+
+arm_tools:
+  environment: Arm Virtual Hardware for Cortex®-M based on Fast Models
+  artifact: arm:models/arm/avh-fvp
+  version: 11.31.28
+
+expected_run:
+  command_contains:
+    - FVP_Corstone_SSE-300
+    - board/Corstone-300/fvp_config.txt
+    - --simlimit 25
+    - out/Blinky/SSE-300-MPS3/Debug/Blinky.hex
+  output_contains:
+    - Blinky example
+
+expected_files:
+  created:
+    - "./Blinky.csolution.yml"
+    - "./Blinky/Blinky.c"
+    - "./Blinky/Blinky.cproject.yml"
+  built:
+    - ./out/Blinky+SSE-300-MPS3.cbuild-run.yml
+    - ./out/Blinky/SSE-300-MPS3/Debug/Blinky.axf
+    - ./out/Blinky/SSE-300-MPS3/Debug/Blinky.hex

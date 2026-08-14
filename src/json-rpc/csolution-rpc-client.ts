@@ -213,23 +213,31 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     }
 
     private async launch(): Promise<boolean> {
-        // wait vcpkg activation to pick up environment variables
-        await VcpkgManager.instance.awaitActivation().catch(() => {
-            console.warn('VcpkgManager activation failed or timed out');
-        }).then(() => {
-            console.log('VcpkgManager activation completed');
-        });
-
         // Augment environment
-        const augmentedEnv = this.environmentManager.augmentEnv(new Environment(process.env)).vars;
+        let augmentedEnv = this.environmentManager
+            .augmentEnv(new Environment(process.env)).vars;
 
-        // Resolve the final path to the executable
-        this.csolutionBin = path.resolve(getCmsisToolboxRoot(augmentedEnv), 'bin', `csolution${process.platform === 'win32' ? '.exe' : ''}`);
+        const executable = `csolution${process.platform === 'win32' ? '.exe' : ''}`;
+        this.csolutionBin = path.resolve(
+            getCmsisToolboxRoot(augmentedEnv),
+            'bin',
+            executable,
+        );
 
         if (fs.existsSync(this.csolutionBin) && fs.statSync(this.csolutionBin).isFile()) {
             console.log('Running csolution rpc:', this.csolutionBin);
         } else {
             console.error('csolution rpc executable not found:', this.csolutionBin);
+
+            try {
+                await VcpkgManager.instance.awaitActivation();
+                console.log('VcpkgManager activation completed');
+            } catch {
+                console.warn('VcpkgManager activation failed or timed out');
+            }
+
+            augmentedEnv = this.environmentManager
+                .augmentEnv(new Environment(process.env)).vars;
             this.csolutionBin = 'csolution';
         }
 

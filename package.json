@@ -341,13 +341,8 @@
         {
           "id": "cmsis-csolution.outline",
           "name": "CMSIS",
-          "when": "!view.arm.cmsis-csolution.outline.hidden"
-        }
-      ],
-      "explorer": [
-        {
-          "id": "searchResults",
-          "name": "Search Results"
+          "when": "!view.arm.cmsis-csolution.outline.hidden",
+          "icon": "$(csolution-cmsis-logo)"
         }
       ]
     },
