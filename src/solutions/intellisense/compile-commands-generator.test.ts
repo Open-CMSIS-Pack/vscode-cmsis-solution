@@ -39,6 +39,7 @@ describe('CompileCommandsGenerator', () => {
     let outputChannelProvider: MockOutputChannelProvider;
     let commandsProvider: MockCommandsProvider;
     let cbuildSetupRequestedListener: (() => void) | undefined;
+    let awaitActivationMock: jest.SpyInstance<Promise<void>, []>;
 
     beforeEach(async () => {
         exitCode = 0;
@@ -97,6 +98,7 @@ describe('CompileCommandsGenerator', () => {
             outputChannelProvider,
             commandsProvider,
         );
+        awaitActivationMock = jest.spyOn(generator, 'awaitActivation').mockResolvedValue(undefined);
         generator.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
 
     });
@@ -126,10 +128,32 @@ describe('CompileCommandsGenerator', () => {
 
         const saveCommandCallOrder = commandsProvider.executeCommand.mock.invocationCallOrder[0];
         const createDefinitionCallOrder = buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode.mock.invocationCallOrder[0];
+        const awaitActivationCallOrder = awaitActivationMock.mock.invocationCallOrder[0];
 
+        expect(awaitActivationMock).toHaveBeenCalledTimes(1);
+        expect(awaitActivationCallOrder).toBeLessThan(createDefinitionCallOrder);
         expect(commandsProvider.executeCommand).toHaveBeenCalledWith('workbench.action.files.save');
         expect(saveCommandCallOrder).toBeLessThan(createDefinitionCallOrder);
         expect(vscode.tasks.executeTask).toHaveBeenCalledTimes(1);
+    });
+
+    it('continues cbuild setup when workspace tool activation fails', async () => {
+        awaitActivationMock.mockRejectedValueOnce(new Error('activation failed'));
+        jest.spyOn(console, 'warn').mockImplementation();
+        (mockBuildTaskProvider.getActiveTaskRunner as jest.Mock).mockReturnValue({
+            getOutputBuffer: () => ['completed with exit code 0']
+        });
+
+        cbuildSetupRequestedListener?.();
+        await waitTimeout();
+
+        expect(vscode.tasks.executeTask).toHaveBeenCalledTimes(1);
+        expect(mockEventHub.fireCbuildCompleted).toHaveBeenCalledWith({
+            success: true,
+            severity: 'success',
+            toolsOutputMessages: ['completed with exit code 0']
+        });
+        expect(console.warn).toHaveBeenCalledWith('VcpkgManager activation failed; continuing with available tools');
     });
 
     it('does not save files when active editor is not dirty', async () => {
