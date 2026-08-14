@@ -83,7 +83,8 @@ uv2csolution.log
 **/.vscode/settings.json
 .cmd.jlink
 
-# CMSIS Solution drop-ins are user managed source files, despite the directory suffix.
+# Exception for line 2: "*.d"
+# CMSIS Solution drop-ins are user managed source files, despite the directory suffix ".d" 
 !.vscode.d/
 
 # legacy intermediate project file
