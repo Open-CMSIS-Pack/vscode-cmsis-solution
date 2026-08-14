@@ -83,6 +83,9 @@ uv2csolution.log
 .vscode/settings.json
 .cmd.jlink
 
+# CMSIS Solution drop-ins are user managed source files, despite the directory suffix.
+!.vscode.d/
+
 # legacy intermediate project file
 *.cprj
 
