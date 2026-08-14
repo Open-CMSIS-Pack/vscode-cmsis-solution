@@ -23,6 +23,7 @@ import {
     TreeNodeElement,
     markDocumentDirty,
     saveElement,
+    selectAnnotationType,
     setPanelActiveType,
     setWizardDataType
 } from './confwiz-webview-common';
@@ -59,13 +60,13 @@ jest.mock('vscode-messenger-webview', () => ({
 }));
 
 jest.mock('primereact/treetable', () => ({
-    TreeTable: ({ value, header, children }: { value: unknown[]; header: React.ReactNode; children: React.ReactNode }) => {
+    TreeTable: ({ value, header, children, onRowClick }: { value: unknown[]; header: React.ReactNode; children: React.ReactNode; onRowClick?: (event: { originalEvent: React.SyntheticEvent; node: unknown }) => void }) => {
         const columns = React.Children.toArray(children) as React.ReactElement[];
         return (
             <>
                 {header}
                 {value?.map((node: unknown, index: number) => (
-                    <div key={index} data-testid={`row-${index}`}>
+                    <div key={index} data-testid={`row-${index}`} onClick={(event) => onRowClick?.({ originalEvent: event, node })}>
                         {columns.map((col, colIndex) => (
                             <div key={colIndex}>{col.props.body(node, {})}</div>
                         ))}
@@ -317,6 +318,32 @@ describe('ConfWiz functional component', () => {
         expect(firstRow.tabIndex).toBe(0);
         expect(secondRow.tabIndex).toBe(-1);
         expect(document.activeElement).toBe(firstRow);
+    });
+
+    it('reports the annotation range when a GUI row is selected', () => {
+        const notificationElement: TreeNodeElement = {
+            guiId: 21,
+            name: 'Memory configuration',
+            type: GuiTypes.none,
+            group: false,
+            value: { value: '', readOnly: true },
+            newValue: { value: '', readOnly: true },
+            annotationRange: {
+                start: { line: 7, character: 4 },
+                end: { line: 7, character: 38 }
+            }
+        };
+
+        const { getByText } = render(<ConfWiz />);
+        emitWizardData({ element: makeRoot([notificationElement]), documentPath: 'config.h', noAnnotationsFound: false });
+        sendNotificationMock.mockClear();
+
+        fireEvent.click(getByText('Memory configuration'));
+
+        expect(sendNotificationMock).toHaveBeenCalledWith(selectAnnotationType, expect.anything(), {
+            documentPath: 'config.h',
+            annotationRange: notificationElement.annotationRange
+        });
     });
 });
 
