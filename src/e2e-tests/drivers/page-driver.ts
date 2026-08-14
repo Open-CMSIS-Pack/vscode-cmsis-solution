@@ -29,8 +29,9 @@
  */
 
 import { FrameLocator, Locator, Page } from 'playwright';
+import { expect } from '@playwright/test';
 import { CommandDriver } from './command-driver';
-import { DEFAULT_TIMEOUT_MS, SCREENSHOT_TIMEOUT_MS } from '../constants';
+import { DEFAULT_TIMEOUT_MS, SCREENSHOT_TIMEOUT_MS, SHORT_TIMEOUT_MS } from '../constants';
 import { log } from '../utils/logger';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -40,6 +41,28 @@ export class PageDriver {
 
     async waitForVsCodeToBeReady(): Promise<void> {
         await this.page.waitForSelector('.monaco-workbench');
+        await this.dismissWelcomeOverlay();
+    }
+
+    // Dismiss VS Code's first-run welcome modal when present so it cannot block
+    // Playwright clicks in extension webviews during shared-instance E2E runs.
+    async dismissWelcomeOverlay(): Promise<void> {
+        const welcomeDialog = this.page.getByRole('dialog', { name: 'Welcome to Visual Studio Code' });
+
+        try {
+            await welcomeDialog.waitFor({ state: 'visible', timeout: SHORT_TIMEOUT_MS });
+        } catch {
+            return;
+        }
+
+        const closeButton = welcomeDialog.getByRole('button', { name: /close/i });
+        if (await closeButton.count() > 0) {
+            await closeButton.first().click();
+        } else {
+            await this.page.keyboard.press('Escape');
+        }
+
+        await welcomeDialog.waitFor({ state: 'hidden', timeout: SHORT_TIMEOUT_MS }).catch(() => undefined);
     }
 
     async waitForActionItem(name: string): Promise<void> {
@@ -101,12 +124,43 @@ export class PageDriver {
         await this.page.getByRole('button', { name: 'Toggle Do Not Disturb Mode' }).click();
     }
 
+    async logAndClearNotifications(): Promise<void> {
+        const visibleNotifications = this.page.locator('.notification-toast-container:visible');
+        const notificationTexts = (await visibleNotifications.allTextContents())
+            .map(text => text.replace(/\s+/g, ' ').trim())
+            .filter(text => text.length > 0);
+
+        if (notificationTexts.length > 0) {
+            log('debug', `Clearing visible VS Code notifications: ${JSON.stringify(notificationTexts)}`);
+        }
+
+        await this.getCommands().runCommandFromPalette('Notifications: Clear All Notifications');
+        await expect(visibleNotifications).toHaveCount(0, { timeout: SHORT_TIMEOUT_MS });
+    }
+
     async openCmsisPanel(): Promise<void> {
-        await this.page.getByRole('tab', { name: 'CMSIS' }).click();
+        const cmsisTab = this.page
+            .getByRole('tablist', { name: 'Active View Switcher' })
+            .getByRole('tab', { name: 'CMSIS' });
+
+        await expect(cmsisTab).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+
+        // Activity-bar tabs are toggles: clicking the active tab hides the sidebar.
+        if (await cmsisTab.getAttribute('aria-selected') !== 'true') {
+            await cmsisTab.click();
+        }
+
+        await expect(cmsisTab).toHaveAttribute('aria-selected', 'true', {
+            timeout: DEFAULT_TIMEOUT_MS,
+        });
     }
 
     getWebviewByTitle(title: string): FrameLocator {
         return this.page.frameLocator('.webview.ready').frameLocator(`[title="${title}"]`);
+    }
+
+    getActiveWebview(): FrameLocator {
+        return this.page.frameLocator('.webview.ready:visible').frameLocator('iframe');
     }
 
     getCommands(): CommandDriver {
@@ -130,9 +184,7 @@ export class PageDriver {
         return this.page.pause();
     }
 
-    /**
-     * Get the underlying Playwright Page object for advanced operations
-     */
+    // Get the underlying Playwright Page object for advanced operations
     getPage(): Page {
         return this.page;
     }

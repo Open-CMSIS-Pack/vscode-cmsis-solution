@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// generated with AI
 /**
  * WF-001: Create Solution from Blank Solution Template for a Device
  *
@@ -25,170 +24,26 @@
  */
 
 import { expect } from '@playwright/test';
-import { promises as fs } from 'fs';
-import * as path from 'path';
-import * as YAML from 'yaml';
 import { VsCodeDriver } from '../../../infrastructure/vscode-driver';
-import { CreateSolutionDriver } from '../../../drivers/create-solution-driver';
 import { DEFAULT_TIMEOUT_MS } from '../../../constants';
+import {
+    createSolutionFromWizard,
+    expectGeneratedSolutionFiles,
+    ExpectedFiles,
+    ExpectedProblems,
+    readAndValidateGeneratedSolutionArtifacts,
+} from '../../../utils/usecases';
 
-// ---------------------------------------------------------------------------
+export { loadYamlFixture } from '../../../utils/usecases';
+
 // Fixture type
-// ---------------------------------------------------------------------------
-
 export type CreateSolutionFixture = {
     device: string;
     template: string;
     solution_name_prefix?: string;
-    expected_files?: {
-        required?: string[];
-    };
-    expected_problems?: {
-        required?: { message: string }[];
-    };
+    expected_files?: ExpectedFiles;
+    expected_problems?: ExpectedProblems;
 };
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-type ParsedProjectEntry = string | { project?: string };
-
-type ParsedCsolution = {
-    solution?: {
-        projects?: ParsedProjectEntry[];
-    };
-};
-
-type GeneratedSolutionArtifacts = {
-    solutionDirectory: string;
-    solutionFilePath: string;
-    projectFilePaths: string[];
-    mainFilePaths: string[];
-};
-
-const createUniqueSolutionName = (prefix = 'e2e_device_template_solution'): string => {
-    const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '');
-    return `${prefix}_${timestamp}`;
-};
-
-const readGeneratedSolutionArtifacts = async (
-    solutionFilePath: string,
-): Promise<GeneratedSolutionArtifacts> => {
-    const solutionDirectory = path.dirname(solutionFilePath);
-    const fileText = await fs.readFile(solutionFilePath, 'utf8');
-    const parsed = YAML.parse(fileText) as ParsedCsolution;
-    const projects = parsed.solution?.projects ?? [];
-
-    const projectReferences = projects
-        .map(entry => typeof entry === 'string' ? entry : entry.project)
-        .filter((entry): entry is string => !!entry)
-        .map(entry => entry.replace(/^\.\//, ''));
-
-    const projectFilePaths = projectReferences
-        .map(reference => path.resolve(solutionDirectory, reference));
-
-    const mainFilePaths = projectFilePaths
-        .map(projectFilePath => path.join(path.dirname(projectFilePath), 'main.c'));
-
-    return { solutionDirectory, solutionFilePath, projectFilePaths, mainFilePaths };
-};
-
-const allPathsExist = async (pathsToCheck: string[]): Promise<boolean> => {
-    const checks = await Promise.all(pathsToCheck.map(async currentPath => {
-        try {
-            await fs.access(currentPath);
-            return true;
-        } catch {
-            return false;
-        }
-    }));
-    return checks.every(Boolean);
-};
-
-const globPatternToRegExp = (pattern: string): RegExp => {
-    const normalizedPattern = pattern.replace(/\\/g, '/');
-    let source = '^';
-
-    for (let index = 0; index < normalizedPattern.length;) {
-        const current = normalizedPattern[index];
-        const next = normalizedPattern[index + 1];
-        const afterNext = normalizedPattern[index + 2];
-
-        if (current === '*' && next === '*' && afterNext === '/') {
-            source += '(?:.*/)?';
-            index += 3;
-            continue;
-        }
-
-        if (current === '*' && next === '*') {
-            source += '.*';
-            index += 2;
-            continue;
-        }
-
-        if (current === '*') {
-            source += '[^/]*';
-            index += 1;
-            continue;
-        }
-
-        source += current.replace(/[\\^$+?.()|[\]{}]/g, '\\$&');
-        index += 1;
-    }
-
-    return new RegExp(`${source}$`);
-};
-
-const listRelativeFiles = async (
-    directory: string,
-    baseDirectory = directory,
-): Promise<string[]> => {
-    const entries = await fs.readdir(directory, { withFileTypes: true });
-    const files = await Promise.all(entries.map(async entry => {
-        const entryPath = path.join(directory, entry.name);
-
-        if (entry.isDirectory()) {
-            return listRelativeFiles(entryPath, baseDirectory);
-        }
-
-        if (entry.isFile()) {
-            return [path.relative(baseDirectory, entryPath).replace(/\\/g, '/')];
-        }
-
-        return [];
-    }));
-
-    return files.flat();
-};
-
-const allRequiredFilePatternsExist = async (
-    solutionDirectory: string,
-    requiredPatterns: string[],
-): Promise<boolean> => {
-    const relativeFiles = await listRelativeFiles(solutionDirectory);
-
-    return requiredPatterns.every(pattern => {
-        const matcher = globPatternToRegExp(pattern);
-        return relativeFiles.some(file => matcher.test(file));
-    });
-};
-
-// ---------------------------------------------------------------------------
-// Fixture loader
-// ---------------------------------------------------------------------------
-
-/**
- * Loads and parses a YAML fixture file from the provided path.
- */
-export const loadYamlFixture = async <T>(fixturePath: string): Promise<T> => {
-    const text = await fs.readFile(fixturePath, 'utf8');
-    return YAML.parse(text) as T;
-};
-
-// ---------------------------------------------------------------------------
-// Workflow entry point
-// ---------------------------------------------------------------------------
 
 /**
  * Runs WF-001: creates a solution from the Blank Solution template using the
@@ -199,28 +54,18 @@ export const runWf001DeviceBlankSolution = async (
     vsCodeDriver: VsCodeDriver,
     fixture: CreateSolutionFixture,
 ): Promise<void> => {
-    const solutionName = createUniqueSolutionName(fixture.solution_name_prefix);
-    const solutionFolder = `${solutionName}_folder`;
-    const solutionFileName = `${solutionName}.csolution.yml`;
-    const solutionBaseFolder = path.join(vsCodeDriver.testWorkspaceDirectory, '.generated-solutions');
-    const solutionFilePath = path.join(solutionBaseFolder, solutionFolder, solutionFileName);
-    const relativeSolutionFilePath = path.relative(vsCodeDriver.testWorkspaceDirectory, solutionFilePath);
-
-    expect(relativeSolutionFilePath.startsWith('..')).toBe(false);
-    expect(path.isAbsolute(relativeSolutionFilePath)).toBe(false);
-
     // Start from a clean notification state so error checks only include this workflow.
     await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Clear All Notifications');
     await vsCodeDriver.page.openCmsisPanel();
 
-    // 1) Open wizard and fill in device, template, and solution details.
-    const createSolution = new CreateSolutionDriver(vsCodeDriver);
-    const frame = await createSolution.open();
-    await createSolution.selectDevice(frame, fixture.device);
-    await createSolution.selectTemplate(frame, fixture.template);
-    await createSolution.fillDetails(frame, solutionName, solutionFolder, solutionBaseFolder);
-    await vsCodeDriver.page.screenshot('uc-001-create-solution-from-template/wf-001/Create Solution form before submit');
-    await createSolution.create(frame);
+    // 1) Create the 'Blank Solution' from the Create Solution wizard.
+    const createdSolution = await createSolutionFromWizard(vsCodeDriver, {
+        target: fixture.device,
+        template: fixture.template,
+        solutionNamePrefix: fixture.solution_name_prefix,
+        expectedFiles: fixture.expected_files,
+        expectedProblems: fixture.expected_problems,
+    });
 
     try {
         // The extension opens the generated solution folder by default.
@@ -228,43 +73,13 @@ export const runWf001DeviceBlankSolution = async (
         await vsCodeDriver.page.waitForActionItem('CMSIS');
 
         // 2) Validate the .csolution.yml exists before trying to parse it.
-        await expect.poll(async () => allPathsExist([solutionFilePath]), {
-            timeout: DEFAULT_TIMEOUT_MS,
-            intervals: [1000, 2000, 3000],
-        }).toBe(true);
-
-        let generatedArtifacts: GeneratedSolutionArtifacts | undefined;
-        await expect(async () => {
-            generatedArtifacts = await readGeneratedSolutionArtifacts(solutionFilePath);
-            expect(path.basename(generatedArtifacts.solutionFilePath)).toBe(solutionFileName);
-            expect(generatedArtifacts.projectFilePaths.length).toBeGreaterThan(0);
-        }).toPass({
-            timeout: DEFAULT_TIMEOUT_MS,
-            intervals: [250, 500, 1000, 2000, 3000],
-        });
-
-        if (!generatedArtifacts) {
-            throw new Error('Generated solution artifacts were not read.');
-        }
-        const artifacts = generatedArtifacts;
-
-        await expect.poll(async () => allPathsExist([
-            artifacts.solutionFilePath,
-            ...artifacts.projectFilePaths,
-            ...artifacts.mainFilePaths,
-        ]), {
-            timeout: DEFAULT_TIMEOUT_MS,
-            intervals: [1000, 2000, 3000],
-        }).toBe(true);
+        const artifacts = await readAndValidateGeneratedSolutionArtifacts(
+            createdSolution.solutionFilePath,
+            createdSolution.solutionFileName,
+        );
 
         const requiredFilePatterns = fixture.expected_files?.required ?? [];
-        await expect.poll(async () => allRequiredFilePatternsExist(
-            artifacts.solutionDirectory,
-            requiredFilePatterns,
-        ), {
-            timeout: DEFAULT_TIMEOUT_MS,
-            intervals: [1000, 2000, 3000],
-        }).toBe(true);
+        await expectGeneratedSolutionFiles(artifacts, requiredFilePatterns);
 
         // 3) Verify the generated solution is loaded in the CMSIS UI.
         await vsCodeDriver.page.openCmsisPanel();
