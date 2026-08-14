@@ -22,6 +22,7 @@ import {
     GuiTypes,
     TreeNodeElement,
     markDocumentDirty,
+    openIssueLocationType,
     saveElement,
     selectAnnotationType,
     setPanelActiveType,
@@ -281,6 +282,27 @@ describe('ConfWiz functional component', () => {
         emitWizardData({ element: makeRoot([]), documentPath: 'valid.h', noAnnotationsFound: false });
 
         expect(queryByText(/annotation issues?/)).toBeNull();
+    });
+
+    it('opens line-numbered issues while leaving unlocated issues as plain text', () => {
+        const locatedIssue = 'Line: 12: Unknown command "<x>" found.';
+        const unlocatedIssue = 'Configuration section marker is missing.';
+        const { getByRole, queryByRole } = render(<ConfWiz />);
+        emitWizardData({
+            element: makeRoot([], [locatedIssue, unlocatedIssue]),
+            documentPath: 'config.h',
+            noAnnotationsFound: false
+        });
+        fireEvent.click(getByRole('button', { name: '2 annotation issues Show' }));
+        sendNotificationMock.mockClear();
+
+        fireEvent.click(getByRole('button', { name: locatedIssue }));
+
+        expect(sendNotificationMock).toHaveBeenCalledWith(openIssueLocationType, expect.anything(), {
+            documentPath: 'config.h',
+            line: 11
+        });
+        expect(queryByRole('button', { name: unlocatedIssue })).toBeNull();
     });
 
     it('moves focus to clicked row after panel is deactivated and reactivated', () => {

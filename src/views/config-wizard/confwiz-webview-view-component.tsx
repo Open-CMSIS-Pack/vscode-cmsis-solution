@@ -26,6 +26,7 @@ import {
     GuiTypes,
     TreeNodeElement,
     markDocumentDirty,
+    openIssueLocationType,
     readyType,
     saveElement,
     selectAnnotationType,
@@ -417,6 +418,14 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                 issues={annotationIssues}
                 isVisible={this.state.isIssuesVisible}
                 onToggle={() => this.setState(prevState => ({ isIssuesVisible: !prevState.isIssuesVisible }))}
+                onNavigateToLine={(line) => {
+                    if (this.state.documentPath) {
+                        this.messenger.sendNotification(openIssueLocationType, HOST_EXTENSION, {
+                            documentPath: this.state.documentPath,
+                            line
+                        });
+                    }
+                }}
             />
         </div>;
 

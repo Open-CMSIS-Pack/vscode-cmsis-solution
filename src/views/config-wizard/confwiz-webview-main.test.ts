@@ -18,9 +18,9 @@ import * as vscode from 'vscode';
 import { WebviewIdMessageParticipant } from 'vscode-messenger-common';
 import { ConfWizWebview } from './confwiz-webview-main';
 import { GuiTree } from './parser/gui-tree';
-import { TreeNodeElement, GuiTypes, selectAnnotationType, setWizardDataType } from './confwiz-webview-common';
+import { TreeNodeElement, GuiTypes, openIssueLocationType, selectAnnotationType, setWizardDataType } from './confwiz-webview-common';
 
-const mockMessengerNotificationHandlers = new Map<string, (data: unknown) => void>();
+const mockMessengerNotificationHandlers = new Map<string, (data: unknown) => unknown>();
 
 // Mock vscode-messenger
 jest.mock('vscode-messenger', () => ({
@@ -1138,6 +1138,30 @@ describe('ConfWizWebview', () => {
                 end: annotationRange.end
             }));
             expect(editor.revealRange).toHaveBeenCalled();
+        });
+    });
+
+    describe('annotation issue navigation', () => {
+        it('opens the source editor with the issue line selected', async () => {
+            const issueRange = new vscode.Range(4, 0, 4, 32);
+            mockDocument.lineAt = jest.fn().mockReturnValue({ text: '// invalid annotation', range: issueRange });
+            const showTextDocumentSpy = jest.spyOn(vscode.window, 'showTextDocument').mockResolvedValue(undefined as unknown as vscode.TextEditor);
+            const webviewPanel = {
+                onDidDispose: jest.fn(),
+                onDidChangeViewState: jest.fn(),
+            } as unknown as vscode.WebviewPanel;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (confWizWebview as any)._setWebviewMessageListener(webviewPanel, {} as WebviewIdMessageParticipant, mockDocument);
+
+            await mockMessengerNotificationHandlers.get(openIssueLocationType.method)?.({
+                documentPath: mockDocument.uri.fsPath,
+                line: 4
+            });
+
+            expect(showTextDocumentSpy).toHaveBeenCalledWith(mockDocument, {
+                selection: issueRange,
+                preview: false
+            });
         });
     });
 

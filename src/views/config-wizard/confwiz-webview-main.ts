@@ -21,8 +21,10 @@ import * as manifest from '../../manifest';
 import {
     AnnotationSelectionData,
     ConfigWizardData,
+    IssueLocationData,
     logMessageType,
     markDocumentDirty,
+    openIssueLocationType,
     readyType,
     saveElement,
     selectAnnotationType,
@@ -237,6 +239,7 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
             this.messenger.onNotification(saveElement, this.saveElement.bind(this), { sender: participant }),
             this.messenger.onNotification(markDocumentDirty, this.markDocumentDirty.bind(this), { sender: participant }),
             this.messenger.onNotification(selectAnnotationType, data => this.selectAnnotation(data, document), { sender: participant }),
+            this.messenger.onNotification(openIssueLocationType, data => this.openIssueLocation(data, document), { sender: participant }),
             this.messenger.onNotification(logMessageType, message => console.info(message), { sender: participant }),
         ];
 
@@ -350,6 +353,21 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
 
         return sourceRange.start.line < sourceRange.end.line ||
             (sourceRange.start.line === sourceRange.end.line && sourceRange.start.character <= sourceRange.end.character);
+    }
+
+    private async openIssueLocation(data: IssueLocationData, document: vscode.TextDocument): Promise<void> {
+        if (data.documentPath !== document.uri.fsPath || !this.isIssueLineValid(data.line, document)) {
+            return;
+        }
+
+        await vscode.window.showTextDocument(document, {
+            selection: document.lineAt(data.line).range,
+            preview: false
+        });
+    }
+
+    private isIssueLineValid(line: number, document: vscode.TextDocument): boolean {
+        return Number.isInteger(line) && line >= 0 && line < document.lineCount;
     }
 
     private async saveElement(configWizardData: ConfigWizardData) {

@@ -62,6 +62,11 @@ export interface AnnotationSelectionData {
     annotationRange: SourceRange;
 }
 
+export interface IssueLocationData {
+    documentPath: string;
+    line: number;
+}
+
 export interface ConfigWizardData {
     element: TreeNodeElement,
     documentPath: string;
@@ -92,3 +97,4 @@ export const logMessageType: NotificationType<string> = { method: 'logMessage' }
 export const saveElement: NotificationType<ConfigWizardData> = { method: 'saveElement' };
 export const markDocumentDirty: NotificationType<{ documentPath: string }> = { method: 'markDocumentDirty' };
 export const selectAnnotationType: NotificationType<AnnotationSelectionData> = { method: 'selectAnnotation' };
+export const openIssueLocationType: NotificationType<IssueLocationData> = { method: 'openIssueLocation' };
