@@ -853,7 +853,7 @@ describe('csolution-rpc-client', () => {
             const expectedBin = path.resolve(cmsisToolboxBin, binaryName);
             expect(service.getCsolutionBin()).toBe(expectedBin);
 
-            expect(awaitActivationMock).not.toHaveBeenCalled();
+            expect(awaitActivationMock).toHaveBeenCalledTimes(1);
             expect(environmentManager.augmentEnv).toHaveBeenCalledTimes(1);
 
             expect(spawnMock).toHaveBeenCalledTimes(1);
@@ -906,17 +906,12 @@ describe('csolution-rpc-client', () => {
             expect(spawnMock.mock.calls[0][1]).toEqual(['rpc', '--content-length', 'x']);
         });
 
-        it('waits for activation and refreshes the environment before using csolution from PATH', async () => {
+        it('waits for activation before using csolution from PATH', async () => {
             environmentManager = {
-                augmentEnv: jest.fn()
-                    .mockReturnValueOnce(new Environment({
-                        PATH: '/before-activation',
-                        CSOLUTION_ARGS: 'before',
-                    }))
-                    .mockReturnValueOnce(new Environment({
-                        PATH: '/after-activation',
-                        CSOLUTION_ARGS: 'after',
-                    })),
+                augmentEnv: jest.fn().mockReturnValue(new Environment({
+                    PATH: '/after-activation',
+                    CSOLUTION_ARGS: 'after',
+                })),
             } as unknown as EnvironmentManager;
 
             const service = createService(environmentManager);
@@ -934,7 +929,9 @@ describe('csolution-rpc-client', () => {
 
             expect(service.getCsolutionBin()).toBe('csolution');
             expect(awaitActivationMock).toHaveBeenCalledTimes(1);
-            expect(environmentManager.augmentEnv).toHaveBeenCalledTimes(2);
+            expect(environmentManager.augmentEnv).toHaveBeenCalledTimes(1);
+            expect(awaitActivationMock.mock.invocationCallOrder[0])
+                .toBeLessThan((environmentManager.augmentEnv as jest.Mock).mock.invocationCallOrder[0]);
             expect(spawnMock).toHaveBeenCalledTimes(1);
             expect(spawnMock.mock.calls[0][0]).toBe('csolution');
             expect(spawnMock.mock.calls[0][1]).toEqual(['rpc', '--content-length', 'after']);

@@ -23,7 +23,6 @@ import { SolutionEventHub } from '../solution-event-hub';
 import { getToolsSeverity } from '../solution-problems';
 import { OutputChannelProvider } from '../../vscode-api/output-channel-provider';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
-import { VcpkgManager } from '../../vcpkg/vcpkg-manager';
 
 export class CompileCommandsGenerator {
     private runningSetupRequest: Promise<void> | undefined;
@@ -44,10 +43,6 @@ export class CompileCommandsGenerator {
                 void this.runCbuildSetupOnce();
             }),
         );
-    }
-
-    public awaitActivation(): Promise<void> {
-        return VcpkgManager.instance.awaitActivation();
     }
 
     private readonly outputRegex = /\b(?:completed|failed)\s+with\s+exit\s+code\s*([+-]?\d+)\b/i;
@@ -74,12 +69,6 @@ export class CompileCommandsGenerator {
     }
 
     private async runCbuildSetup(): Promise<void> {
-        try {
-            // Wait for the workspace tool environment to become active.
-            await this.awaitActivation();
-        } catch {
-            console.warn('VcpkgManager activation failed; continuing with available tools');
-        }
         const task = await this.prepareSetupTask();
         const definition = task.definition;
         const revealKind = definition.west ? vscode.TaskRevealKind?.Always : vscode.TaskRevealKind?.Silent;
