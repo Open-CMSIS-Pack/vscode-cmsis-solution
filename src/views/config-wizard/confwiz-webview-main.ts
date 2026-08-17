@@ -30,6 +30,7 @@ import {
     selectAnnotationType,
     setPanelActiveType,
     setWizardDataType,
+    SourcePosition,
     SourceRange,
     TreeNodeElement
 } from './confwiz-webview-common';
@@ -339,13 +340,7 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
 
     private isSourceRangeValid(sourceRange: SourceRange, document: vscode.TextDocument): boolean {
         const positions = [sourceRange.start, sourceRange.end];
-        const arePositionsValid = positions.every(position =>
-            Number.isInteger(position.line) &&
-            Number.isInteger(position.character) &&
-            position.line >= 0 &&
-            position.character >= 0 &&
-            position.line < document.lineCount
-        );
+        const arePositionsValid = positions.every(position => this.isSourcePositionValid(position, document));
 
         if (!arePositionsValid) {
             return false;
@@ -353,6 +348,18 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
 
         return sourceRange.start.line < sourceRange.end.line ||
             (sourceRange.start.line === sourceRange.end.line && sourceRange.start.character <= sourceRange.end.character);
+    }
+
+    private isSourcePositionValid(position: SourcePosition, document: vscode.TextDocument): boolean {
+        if (!Number.isInteger(position.line) || !Number.isInteger(position.character)) {
+            return false;
+        }
+
+        if (position.line < 0 || position.character < 0) {
+            return false;
+        }
+
+        return position.line < document.lineCount;
     }
 
     private async openIssueLocation(data: IssueLocationData, document: vscode.TextDocument): Promise<void> {
