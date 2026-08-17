@@ -367,6 +367,36 @@ describe('ConfWiz functional component', () => {
             annotationRange: notificationElement.annotationRange
         });
     });
+
+    it('reports a selected annotation only once for a mouse click', () => {
+        const notificationElement: TreeNodeElement = {
+            guiId: 21,
+            name: 'Memory configuration',
+            type: GuiTypes.none,
+            group: false,
+            value: { value: '', readOnly: true },
+            newValue: { value: '', readOnly: true },
+            annotationRange: {
+                start: { line: 7, character: 4 },
+                end: { line: 7, character: 38 }
+            }
+        };
+        const { getByText } = render(<ConfWiz />);
+        emitWizardData({ element: makeRoot([notificationElement]), documentPath: 'config.h', noAnnotationsFound: false });
+        sendNotificationMock.mockClear();
+        const rowName = getByText('Memory configuration');
+
+        fireEvent.mouseDown(rowName, { button: 0 });
+        fireEvent.focus(rowName);
+        fireEvent.click(rowName);
+
+        const selectionCalls = sendNotificationMock.mock.calls.filter(call => call[0] === selectAnnotationType);
+        expect(selectionCalls).toHaveLength(1);
+        expect(selectionCalls[0]).toEqual([selectAnnotationType, expect.anything(), {
+            documentPath: 'config.h',
+            annotationRange: notificationElement.annotationRange
+        }]);
+    });
 });
 
 describe('ConfWiz dropdown overflow tooltips', () => {

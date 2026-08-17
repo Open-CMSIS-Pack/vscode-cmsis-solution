@@ -76,6 +76,9 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
     private readonly keyboardNav = new ConfWizKeyboardNavigation((key) => this.setActiveKey(key));
     private pendingRefocus = false;
     private pendingRefocusKey?: string;
+    private isMouseSelectionInteraction = false;
+    private hasReportedMouseSelection = false;
+    private mouseSelectionInteractionId = 0;
     private readonly handleWindowBlur = (): void => {
         this.setState(prevState => ({
             hasUserFocus: false,
@@ -262,12 +265,34 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         if (!documentPath || !annotationRange) {
             return;
         }
+        if (this.isMouseSelectionInteraction && this.hasReportedMouseSelection) {
+            return;
+        }
 
         this.messenger.sendNotification(selectAnnotationType, HOST_EXTENSION, {
             documentPath,
             annotationRange
         });
+        if (this.isMouseSelectionInteraction) {
+            this.hasReportedMouseSelection = true;
+        }
     }
+
+    private readonly beginMouseSelectionInteraction = (): void => {
+        this.isMouseSelectionInteraction = true;
+        this.hasReportedMouseSelection = false;
+        const interactionId = ++this.mouseSelectionInteractionId;
+        setTimeout(() => {
+            if (this.mouseSelectionInteractionId === interactionId) {
+                this.endMouseSelectionInteraction();
+            }
+        }, 0);
+    };
+
+    private readonly endMouseSelectionInteraction = (): void => {
+        this.isMouseSelectionInteraction = false;
+        this.hasReportedMouseSelection = false;
+    };
 
     private getNodeKey(node: DTreeNode): string {
         const key = node.key ?? node.id ?? (node.data as TreeNodeElement | undefined)?.guiId?.toString();
@@ -437,7 +462,10 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                 theme={{
                     algorithm: isDarkTheme ? theme.darkAlgorithm : theme.defaultAlgorithm,
                 }}>
-                <div>
+                <div
+                    onMouseDownCapture={this.beginMouseSelectionInteraction}
+                    onClick={this.endMouseSelectionInteraction}
+                >
                     <TreeTable
                         value={filteredChildren}
                         header={header}
