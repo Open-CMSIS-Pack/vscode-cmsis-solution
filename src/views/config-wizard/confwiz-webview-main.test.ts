@@ -1139,6 +1139,34 @@ describe('ConfWizWebview', () => {
             }));
             expect(editor.revealRange).toHaveBeenCalled();
         });
+
+        it('does not highlight the last selected annotation after the webview is disposed', async () => {
+            await confWizWebview.activate();
+            let disposeCallback: (() => void) | undefined;
+            const webviewPanel = {
+                onDidDispose: jest.fn((callback) => {
+                    disposeCallback = callback;
+                    return { dispose: jest.fn() };
+                }),
+                onDidChangeViewState: jest.fn(),
+            } as unknown as vscode.WebviewPanel;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (confWizWebview as any)._setWebviewMessageListener(webviewPanel, {} as WebviewIdMessageParticipant, mockDocument);
+            mockMessengerNotificationHandlers.get(selectAnnotationType.method)?.({
+                documentPath: mockDocument.uri.fsPath,
+                annotationRange
+            });
+
+            expect(disposeCallback).toBeDefined();
+            disposeCallback!();
+
+            const editor = createEditor();
+            const activeEditorHandler = (vscode.window.onDidChangeActiveTextEditor as jest.Mock).mock.calls[0][0];
+            activeEditorHandler(editor);
+
+            expect(editor.selection).toBeUndefined();
+            expect(editor.revealRange).not.toHaveBeenCalled();
+        });
     });
 
     describe('annotation issue navigation', () => {

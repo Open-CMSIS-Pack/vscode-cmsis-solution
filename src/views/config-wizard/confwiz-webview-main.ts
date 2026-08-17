@@ -255,6 +255,7 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
             if (this.pendingOverflowByDocument.has(document.uri.fsPath)) {
                 this.pendingOverflowByDocument.delete(document.uri.fsPath);
             }
+            this.selectedAnnotationRanges.delete(document.uri.fsPath);
             disposables.forEach(disposible => disposible.dispose());
 
             // Clear pending refresh timeout to prevent memory leaks
