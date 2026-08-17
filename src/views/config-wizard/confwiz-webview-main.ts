@@ -368,9 +368,12 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
             return;
         }
 
+        this.selectedAnnotationRanges.delete(document.uri.fsPath);
+        const visibleEditor = vscode.window.visibleTextEditors.find(editor => editor.document.uri.fsPath === document.uri.fsPath);
         await vscode.window.showTextDocument(document, {
             selection: document.lineAt(data.line).range,
-            preview: false
+            preview: false,
+            ...(visibleEditor?.viewColumn !== undefined && { viewColumn: visibleEditor.viewColumn })
         });
     }
 
