@@ -19,10 +19,10 @@ import { ExampleProject } from '../solar-search/solar-search-client';
 import { PackId } from './pack-data';
 import { tmpdir } from 'os';
 
-import extractZip from 'extract-zip';
 import { downloadFile } from '../file-download';
 import { workspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { copyFolderRecursive, copyFilesOnly, copyFolderRecursiveDeferred } from '../utils/fs-utils';
+import { extractZip } from '../utils/extract-zip';
 
 import { ExampleProject as CsolutionExampleProject, ExampleEnvironment as CsolutionExampleEnvironment, SolutionTemplate as CsolutionTemplate } from '../json-rpc/csolution-rpc-client';
 import { splitPackId } from '../json-rpc/csolution-rpc-helper';
@@ -107,7 +107,7 @@ abstract class BaseDraftProjectData implements DraftProjectData {
     protected static async downloadAndExtract(url: string, dest: string) {
         const exampleZipPath = path.join(tmpdir(), 'example.zip');
         await downloadFile(url, exampleZipPath);
-        await extractZip(exampleZipPath, { dir: dest });
+        await extractZip(exampleZipPath, dest);
         await workspaceFsProvider.delete(exampleZipPath, true, false);
     }
 }
@@ -212,7 +212,7 @@ export class CsolutionExampleData extends BaseDraftProjectData {
 
     public async copyTo(dest: string) {
         if (this.data.archive) {
-            return extractZip(this.data.archive, { dir: dest });
+            return extractZip(this.data.archive, dest);
         } else if (this.selectedEnvironment) {
             return copyFolderRecursive(this.selectedEnvironment?.folder, dest);
         }

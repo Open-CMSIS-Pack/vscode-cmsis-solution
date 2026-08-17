@@ -161,6 +161,20 @@
         "license": "https://github.com/yargs/yargs-parser/blob/main/LICENSE.txt"
     },
     {
+        "name": "yauzl",
+        "version": "3.4.0",
+        "spdx": "MIT",
+        "url": "https://github.com/thejoshwolfe/yauzl",
+        "license": "https://github.com/thejoshwolfe/yauzl/blob/master/LICENSE"
+    },
+    {
+        "name": "pend",
+        "version": "1.2.0",
+        "spdx": "MIT",
+        "url": "https://github.com/andrewrk/node-pend",
+        "license": "https://github.com/andrewrk/node-pend/blob/master/LICENSE"
+    },
+    {
         "name": "@ant-design/icons",
         "version": "5.6.1",
         "spdx": "MIT",
