@@ -47,6 +47,26 @@ export interface GuiValue {
     bitWidth?: number;
 }
 
+export interface SourcePosition {
+    line: number;
+    character: number;
+}
+
+export interface SourceRange {
+    start: SourcePosition;
+    end: SourcePosition;
+}
+
+export interface AnnotationSelectionData {
+    documentPath: string;
+    annotationRange: SourceRange;
+}
+
+export interface IssueLocationData {
+    documentPath: string;
+    line: number;
+}
+
 export interface ConfigWizardData {
     element: TreeNodeElement,
     documentPath: string;
@@ -62,6 +82,7 @@ export interface TreeNodeElement {
     newValue: GuiValue;
     infoItems?: string[];
     dropItems?: string[];
+    annotationRange?: SourceRange;
     children?: TreeNodeElement[];
     errors?: string[];
 }
@@ -75,3 +96,5 @@ export const readyType: NotificationType<void> = { method: 'ready' };
 export const logMessageType: NotificationType<string> = { method: 'logMessage' };
 export const saveElement: NotificationType<ConfigWizardData> = { method: 'saveElement' };
 export const markDocumentDirty: NotificationType<{ documentPath: string }> = { method: 'markDocumentDirty' };
+export const selectAnnotationType: NotificationType<AnnotationSelectionData> = { method: 'selectAnnotation' };
+export const openIssueLocationType: NotificationType<IssueLocationData> = { method: 'openIssueLocation' };

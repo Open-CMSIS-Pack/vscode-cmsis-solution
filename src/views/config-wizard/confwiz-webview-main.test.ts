@@ -18,14 +18,19 @@ import * as vscode from 'vscode';
 import { WebviewIdMessageParticipant } from 'vscode-messenger-common';
 import { ConfWizWebview } from './confwiz-webview-main';
 import { GuiTree } from './parser/gui-tree';
-import { TreeNodeElement, GuiTypes, setWizardDataType } from './confwiz-webview-common';
+import { TreeNodeElement, GuiTypes, openIssueLocationType, selectAnnotationType, setWizardDataType } from './confwiz-webview-common';
+
+const mockMessengerNotificationHandlers = new Map<string, (data: unknown) => unknown>();
 
 // Mock vscode-messenger
 jest.mock('vscode-messenger', () => ({
     Messenger: jest.fn().mockImplementation(() => ({
         registerWebviewPanel: jest.fn(),
         sendNotification: jest.fn(),
-        onNotification: jest.fn(),
+        onNotification: jest.fn((type: { method: string }, handler: (data: unknown) => void) => {
+            mockMessengerNotificationHandlers.set(type.method, handler);
+            return { dispose: jest.fn() };
+        }),
     })),
 }));
 
@@ -38,6 +43,10 @@ describe('ConfWizWebview', () => {
     let mockDocument: vscode.TextDocument;
 
     beforeEach(() => {
+        mockMessengerNotificationHandlers.clear();
+        (vscode.window.visibleTextEditors as unknown as vscode.TextEditor[]) = [];
+        (vscode.window.onDidChangeActiveTextEditor as jest.Mock).mockClear();
+        (vscode.window.onDidChangeVisibleTextEditors as jest.Mock).mockClear();
         // Setup mock context
         mockContext = {
             subscriptions: [],
@@ -1063,6 +1072,191 @@ describe('ConfWizWebview', () => {
             await (confWizWebview as any).source();
 
             expect(showTextDocumentSpy).toHaveBeenCalledWith(mockDocument);
+        });
+    });
+
+    describe('annotation highlighting', () => {
+        const annotationRange = {
+            start: { line: 3, character: 2 },
+            end: { line: 3, character: 28 }
+        };
+
+        const createEditor = (): vscode.TextEditor => ({
+            document: mockDocument,
+            selection: undefined,
+            revealRange: jest.fn(),
+        } as unknown as vscode.TextEditor);
+
+        const connectWebview = (): void => {
+            const webviewPanel = {
+                onDidDispose: jest.fn(),
+                onDidChangeViewState: jest.fn(),
+            } as unknown as vscode.WebviewPanel;
+            const participant = {} as WebviewIdMessageParticipant;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (confWizWebview as any)._setWebviewMessageListener(webviewPanel, participant, mockDocument);
+        };
+
+        beforeEach(() => {
+            mockDocument.validateRange = jest.fn(range => range);
+        });
+
+        it('highlights a selected annotation in an already visible text editor', () => {
+            const editor = createEditor();
+            (vscode.window.visibleTextEditors as unknown as vscode.TextEditor[]) = [editor];
+            connectWebview();
+
+            mockMessengerNotificationHandlers.get(selectAnnotationType.method)?.({
+                documentPath: mockDocument.uri.fsPath,
+                annotationRange
+            });
+
+            expect(editor.selection).toEqual(expect.objectContaining({
+                start: annotationRange.start,
+                end: annotationRange.end
+            }));
+            expect(editor.revealRange).toHaveBeenCalledWith(
+                expect.objectContaining({ start: annotationRange.start, end: annotationRange.end }),
+                vscode.TextEditorRevealType.InCenterIfOutsideViewport
+            );
+        });
+
+        it('highlights the last selected annotation when its text editor becomes active', async () => {
+            await confWizWebview.activate();
+            connectWebview();
+            mockMessengerNotificationHandlers.get(selectAnnotationType.method)?.({
+                documentPath: mockDocument.uri.fsPath,
+                annotationRange
+            });
+
+            const editor = createEditor();
+            const activeEditorHandler = (vscode.window.onDidChangeActiveTextEditor as jest.Mock).mock.calls[0][0];
+            activeEditorHandler(editor);
+
+            expect(editor.selection).toEqual(expect.objectContaining({
+                start: annotationRange.start,
+                end: annotationRange.end
+            }));
+            expect(editor.revealRange).toHaveBeenCalled();
+        });
+
+        it('does not highlight the last selected annotation after the webview is disposed', async () => {
+            await confWizWebview.activate();
+            let disposeCallback: (() => void) | undefined;
+            const webviewPanel = {
+                onDidDispose: jest.fn((callback) => {
+                    disposeCallback = callback;
+                    return { dispose: jest.fn() };
+                }),
+                onDidChangeViewState: jest.fn(),
+            } as unknown as vscode.WebviewPanel;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (confWizWebview as any)._setWebviewMessageListener(webviewPanel, {} as WebviewIdMessageParticipant, mockDocument);
+            mockMessengerNotificationHandlers.get(selectAnnotationType.method)?.({
+                documentPath: mockDocument.uri.fsPath,
+                annotationRange
+            });
+
+            expect(disposeCallback).toBeDefined();
+            disposeCallback!();
+
+            const editor = createEditor();
+            const activeEditorHandler = (vscode.window.onDidChangeActiveTextEditor as jest.Mock).mock.calls[0][0];
+            activeEditorHandler(editor);
+
+            expect(editor.selection).toBeUndefined();
+            expect(editor.revealRange).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('annotation issue navigation', () => {
+        it('opens the source editor with the issue line selected', async () => {
+            const issueRange = new vscode.Range(4, 0, 4, 32);
+            mockDocument.lineAt = jest.fn().mockReturnValue({ text: '// invalid annotation', range: issueRange });
+            const showTextDocumentSpy = jest.spyOn(vscode.window, 'showTextDocument').mockResolvedValue(undefined as unknown as vscode.TextEditor);
+            const webviewPanel = {
+                onDidDispose: jest.fn(),
+                onDidChangeViewState: jest.fn(),
+            } as unknown as vscode.WebviewPanel;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (confWizWebview as any)._setWebviewMessageListener(webviewPanel, {} as WebviewIdMessageParticipant, mockDocument);
+
+            await mockMessengerNotificationHandlers.get(openIssueLocationType.method)?.({
+                documentPath: mockDocument.uri.fsPath,
+                line: 4
+            });
+
+            expect(showTextDocumentSpy).toHaveBeenCalledWith(mockDocument, {
+                selection: issueRange,
+                preview: false
+            });
+        });
+
+        it('opens an issue in the already visible source editor column', async () => {
+            const issueRange = new vscode.Range(4, 0, 4, 32);
+            mockDocument.lineAt = jest.fn().mockReturnValue({ text: '// invalid annotation', range: issueRange });
+            (vscode.window.visibleTextEditors as unknown as vscode.TextEditor[]) = [{
+                document: mockDocument,
+                viewColumn: vscode.ViewColumn.Two
+            } as vscode.TextEditor];
+            const showTextDocumentSpy = jest.spyOn(vscode.window, 'showTextDocument').mockResolvedValue(undefined as unknown as vscode.TextEditor);
+            const webviewPanel = {
+                onDidDispose: jest.fn(),
+                onDidChangeViewState: jest.fn(),
+            } as unknown as vscode.WebviewPanel;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (confWizWebview as any)._setWebviewMessageListener(webviewPanel, {} as WebviewIdMessageParticipant, mockDocument);
+
+            await mockMessengerNotificationHandlers.get(openIssueLocationType.method)?.({
+                documentPath: mockDocument.uri.fsPath,
+                line: 4
+            });
+
+            expect(showTextDocumentSpy).toHaveBeenCalledWith(mockDocument, {
+                selection: issueRange,
+                preview: false,
+                viewColumn: vscode.ViewColumn.Two
+            });
+        });
+
+        it('does not restore a previously selected annotation after opening an issue', async () => {
+            await confWizWebview.activate();
+            const annotationRange = {
+                start: { line: 3, character: 2 },
+                end: { line: 3, character: 28 }
+            };
+            const issueRange = new vscode.Range(4, 0, 4, 32);
+            mockDocument.lineAt = jest.fn().mockReturnValue({ text: '// invalid annotation', range: issueRange });
+            const webviewPanel = {
+                onDidDispose: jest.fn(),
+                onDidChangeViewState: jest.fn(),
+            } as unknown as vscode.WebviewPanel;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (confWizWebview as any)._setWebviewMessageListener(webviewPanel, {} as WebviewIdMessageParticipant, mockDocument);
+            mockMessengerNotificationHandlers.get(selectAnnotationType.method)?.({
+                documentPath: mockDocument.uri.fsPath,
+                annotationRange
+            });
+            jest.spyOn(vscode.window, 'showTextDocument').mockResolvedValue(undefined as unknown as vscode.TextEditor);
+
+            await mockMessengerNotificationHandlers.get(openIssueLocationType.method)?.({
+                documentPath: mockDocument.uri.fsPath,
+                line: 4
+            });
+
+            const editor = {
+                document: mockDocument,
+                selection: new vscode.Selection(issueRange.start, issueRange.end),
+                revealRange: jest.fn(),
+            } as unknown as vscode.TextEditor;
+            const activeEditorHandler = (vscode.window.onDidChangeActiveTextEditor as jest.Mock).mock.calls[0][0];
+            activeEditorHandler(editor);
+
+            expect(editor.selection).toEqual(expect.objectContaining({
+                start: issueRange.start,
+                end: issueRange.end
+            }));
+            expect(editor.revealRange).not.toHaveBeenCalled();
         });
     });
 

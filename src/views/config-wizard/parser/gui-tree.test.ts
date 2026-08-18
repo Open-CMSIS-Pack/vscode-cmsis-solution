@@ -351,6 +351,30 @@ function iterateTree(element: TreeNodeElement | undefined, text: string) {
 
 describe('GUI Tree tests', () => {
 
+    describe('annotation ranges', () => {
+        it('maps parent and child GUI nodes to their annotation comments', () => {
+            const annotatedFile = `// <<< Use Configuration Wizard in Context Menu >>>
+  // <h> Parent settings
+    // <o> Child setting
+    #define CHILD_SETTING 1
+  // </h>
+// <<< end of configuration section >>>`;
+
+            const root = new GuiTree().getAll(annotatedFile);
+            const parent = root?.children?.find(element => element.name === 'Parent settings');
+            const child = parent?.children?.find(element => element.name === 'Child setting');
+
+            expect(parent?.annotationRange).toEqual({
+                start: { line: 1, character: 2 },
+                end: { line: 1, character: 24 }
+            });
+            expect(child?.annotationRange).toEqual({
+                start: { line: 2, character: 4 },
+                end: { line: 2, character: 24 }
+            });
+        });
+    });
+
     describe('test gui tree and read values', () => {
         it('create GUI tree and read values', () => {
             ClearErrors();
