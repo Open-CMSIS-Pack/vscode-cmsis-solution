@@ -22,7 +22,9 @@ import {
     GuiTypes,
     TreeNodeElement,
     markDocumentDirty,
+    openIssueLocationType,
     saveElement,
+    selectAnnotationType,
     setPanelActiveType,
     setWizardDataType
 } from './confwiz-webview-common';
@@ -59,13 +61,13 @@ jest.mock('vscode-messenger-webview', () => ({
 }));
 
 jest.mock('primereact/treetable', () => ({
-    TreeTable: ({ value, header, children }: { value: unknown[]; header: React.ReactNode; children: React.ReactNode }) => {
+    TreeTable: ({ value, header, children, onRowClick }: { value: unknown[]; header: React.ReactNode; children: React.ReactNode; onRowClick?: (event: { originalEvent: React.SyntheticEvent; node: unknown }) => void }) => {
         const columns = React.Children.toArray(children) as React.ReactElement[];
         return (
             <>
                 {header}
                 {value?.map((node: unknown, index: number) => (
-                    <div key={index} data-testid={`row-${index}`}>
+                    <div key={index} data-testid={`row-${index}`} onClick={(event) => onRowClick?.({ originalEvent: event, node })}>
                         {columns.map((col, colIndex) => (
                             <div key={colIndex}>{col.props.body(node, {})}</div>
                         ))}
@@ -282,6 +284,27 @@ describe('ConfWiz functional component', () => {
         expect(queryByText(/annotation issues?/)).toBeNull();
     });
 
+    it('opens line-numbered issues while leaving unlocated issues as plain text', () => {
+        const locatedIssue = 'Line: 12: Unknown command "<x>" found.';
+        const unlocatedIssue = 'Configuration section marker is missing.';
+        const { getByRole, queryByRole } = render(<ConfWiz />);
+        emitWizardData({
+            element: makeRoot([], [locatedIssue, unlocatedIssue]),
+            documentPath: 'config.h',
+            noAnnotationsFound: false
+        });
+        fireEvent.click(getByRole('button', { name: '2 annotation issues Show' }));
+        sendNotificationMock.mockClear();
+
+        fireEvent.click(getByRole('button', { name: locatedIssue }));
+
+        expect(sendNotificationMock).toHaveBeenCalledWith(openIssueLocationType, expect.anything(), {
+            documentPath: 'config.h',
+            line: 11
+        });
+        expect(queryByRole('button', { name: unlocatedIssue })).toBeNull();
+    });
+
     it('moves focus to clicked row after panel is deactivated and reactivated', () => {
         const firstElement: TreeNodeElement = {
             guiId: 11,
@@ -317,6 +340,62 @@ describe('ConfWiz functional component', () => {
         expect(firstRow.tabIndex).toBe(0);
         expect(secondRow.tabIndex).toBe(-1);
         expect(document.activeElement).toBe(firstRow);
+    });
+
+    it('reports the annotation range when a GUI row is selected', () => {
+        const notificationElement: TreeNodeElement = {
+            guiId: 21,
+            name: 'Memory configuration',
+            type: GuiTypes.none,
+            group: false,
+            value: { value: '', readOnly: true },
+            newValue: { value: '', readOnly: true },
+            annotationRange: {
+                start: { line: 7, character: 4 },
+                end: { line: 7, character: 38 }
+            }
+        };
+
+        const { getByText } = render(<ConfWiz />);
+        emitWizardData({ element: makeRoot([notificationElement]), documentPath: 'config.h', noAnnotationsFound: false });
+        sendNotificationMock.mockClear();
+
+        fireEvent.click(getByText('Memory configuration'));
+
+        expect(sendNotificationMock).toHaveBeenCalledWith(selectAnnotationType, expect.anything(), {
+            documentPath: 'config.h',
+            annotationRange: notificationElement.annotationRange
+        });
+    });
+
+    it('reports a selected annotation only once for a mouse click', () => {
+        const notificationElement: TreeNodeElement = {
+            guiId: 21,
+            name: 'Memory configuration',
+            type: GuiTypes.none,
+            group: false,
+            value: { value: '', readOnly: true },
+            newValue: { value: '', readOnly: true },
+            annotationRange: {
+                start: { line: 7, character: 4 },
+                end: { line: 7, character: 38 }
+            }
+        };
+        const { getByText } = render(<ConfWiz />);
+        emitWizardData({ element: makeRoot([notificationElement]), documentPath: 'config.h', noAnnotationsFound: false });
+        sendNotificationMock.mockClear();
+        const rowName = getByText('Memory configuration');
+
+        fireEvent.mouseDown(rowName, { button: 0 });
+        fireEvent.focus(rowName);
+        fireEvent.click(rowName);
+
+        const selectionCalls = sendNotificationMock.mock.calls.filter(call => call[0] === selectAnnotationType);
+        expect(selectionCalls).toHaveLength(1);
+        expect(selectionCalls[0]).toEqual([selectAnnotationType, expect.anything(), {
+            documentPath: 'config.h',
+            annotationRange: notificationElement.annotationRange
+        }]);
     });
 });
 
