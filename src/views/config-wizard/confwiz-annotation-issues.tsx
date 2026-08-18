@@ -20,11 +20,23 @@ interface AnnotationIssuesProps {
     issues: readonly string[];
     isVisible: boolean;
     onToggle: () => void;
+    onNavigateToLine: (line: number) => void;
 }
 
 const ISSUES_PANEL_ID = 'configuration-wizard-annotation-issues';
+const ISSUE_LINE_PATTERN = /^Line:\s*(\d+):/;
 
-export function AnnotationIssues({ issues, isVisible, onToggle }: AnnotationIssuesProps): React.JSX.Element | null {
+const getIssueLine = (issue: string): number | undefined => {
+    const match = issue.match(ISSUE_LINE_PATTERN);
+    if (!match) {
+        return undefined;
+    }
+
+    const displayLine = Number(match[1]);
+    return Number.isInteger(displayLine) && displayLine > 0 ? displayLine - 1 : undefined;
+};
+
+export function AnnotationIssues({ issues, isVisible, onToggle, onNavigateToLine }: AnnotationIssuesProps): React.JSX.Element | null {
     if (!issues.length) {
         return null;
     }
@@ -52,7 +64,21 @@ export function AnnotationIssues({ issues, isVisible, onToggle }: AnnotationIssu
             >
                 <h3>Issues</h3>
                 <div className='annotation-issues-list'>
-                    {issues.map((issue, index) => <div key={`${index}-${issue}`}>{issue}</div>)}
+                    {issues.map((issue, index) => {
+                        const line = getIssueLine(issue);
+                        return <div key={`${index}-${issue}`}>
+                            {line === undefined
+                                ? issue
+                                : <button
+                                    type='button'
+                                    className='annotation-issue-link'
+                                    onClick={() => onNavigateToLine(line)}
+                                >
+                                    {issue}
+                                </button>
+                            }
+                        </div>;
+                    })}
                 </div>
             </section>
         }
