@@ -149,6 +149,7 @@ export async function extractZip(zipPath: string, destination: string): Promise<
         zipFile.on('end', () => {
             if (!settled) {
                 settled = true;
+                zipFile.close();
                 resolve();
             }
         });
