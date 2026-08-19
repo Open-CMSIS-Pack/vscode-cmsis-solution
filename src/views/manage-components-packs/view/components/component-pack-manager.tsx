@@ -28,8 +28,20 @@ import { PacksView } from './packs-view';
 import { useVSCodeTheme } from '../../../hooks/use-vscode-theme';
 import { PackTitleLink } from './pack-title-link';
 import { useDisableContextMenu } from '../../../hooks/use-disable-context-menu';
+import { getValidationSeverity, selectDominantValidations } from '../../data/validation-severity';
+import { Result } from '../../../../json-rpc/csolution-rpc-client';
 
 // Import the necessary components and types from Ant Design
+
+export const getResolvableValidationComponents = (componentTree: ComponentRowDataType[]): string[] => {
+    const validations = flatTree(componentTree)
+        .flatMap(node => node.validation ? [node.validation] : []);
+    return Array.from(new Set(
+        selectDominantValidations(validations)
+            .filter(validation => getValidationSeverity(validation.result) === 'warning')
+            .map((validation: Result) => validation.id)
+    ));
+};
 
 /**
  * Main react component for the Manage Software Components webview.
@@ -56,11 +68,10 @@ export const ComponentPackManager = (props: ComponentProps) => {
         return filterTree(state.componentTree, search);
     }, [state.componentTree, search]);
 
-    const validationErrorComponents = React.useMemo(() => {
-        return flatTree(state.componentTree)
-            .filter((node) => node.validation && node.validation.id !== undefined)
-            .map((node) => node.validation!.id);
-    }, [state.componentTree]);
+    const resolvableValidationComponents = React.useMemo(
+        () => getResolvableValidationComponents(state.componentTree),
+        [state.componentTree]
+    );
 
     React.useEffect(() => {
         messageHandler.push({ type: 'REQUEST_INITIAL_DATA' });
@@ -170,7 +181,7 @@ export const ComponentPackManager = (props: ComponentProps) => {
                                 setDropdownKey={setDropdownKey}
                                 componentRefs={componentRefs}
                                 messageHandler={messageHandler}
-                                validationErrorComponents={validationErrorComponents}
+                                resolvableValidationComponents={resolvableValidationComponents}
                                 onChangeComponentValue={onChangeComponentValue}
                                 onChangeComponentVariant={onChangeComponentVariant}
                                 onChangeBundle={onChangeBundle}

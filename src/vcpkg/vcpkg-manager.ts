@@ -33,6 +33,9 @@ export interface VcpkgManager {
 class VcpkgManagerImpl implements VcpkgManager {
 
     static _instance: VcpkgManager | null = null;
+    private activationComplete = false;
+    private activationPromise: Promise<void> | undefined;
+
     static get instance(): VcpkgManager {
         if (VcpkgManagerImpl._instance === null) {
             return new VcpkgManagerImpl();
@@ -76,7 +79,21 @@ class VcpkgManagerImpl implements VcpkgManager {
         return configFiles.at(0);
     }
 
-    public async awaitActivation(): Promise<void> {
+    public awaitActivation(): Promise<void> {
+        if (this.activationComplete) {
+            return Promise.resolve();
+        }
+        this.activationPromise ??= this.waitForActivation()
+            .then(() => {
+                this.activationComplete = true;
+            })
+            .finally(() => {
+                this.activationPromise = undefined;
+            });
+        return this.activationPromise;
+    }
+
+    private async waitForActivation(): Promise<void> {
         if (!this.doesActivateWorkspace()) {
             return Promise.reject('Activation on workspace open is disabled');
         }
@@ -84,20 +101,17 @@ class VcpkgManagerImpl implements VcpkgManager {
         if (configFile === undefined) {
             return Promise.reject('Workspace does not contain an environment configuration');
         }
-        const awaitOnDidActivate = (api: VcpkgManagerExtension) => {
-            return new Promise<void>((resolve) => {
-                if (api.getActiveTools().length === 0) {
-                    const handler = () => {
-                        event.dispose();
-                        resolve();
-                    };
-                    const event = api.onDidActivate(handler);
-                } else {
-                    resolve();
-                }
-            });
-        };
-        return this.getApi().then(awaitOnDidActivate);
+        const api = await this.getApi();
+        if (api.getActiveTools().length > 0) {
+            return;
+        }
+        await new Promise<void>((resolve) => {
+            const handler = () => {
+                event.dispose();
+                resolve();
+            };
+            const event = api.onDidActivate(handler);
+        });
     }
 }
 

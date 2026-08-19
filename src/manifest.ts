@@ -50,6 +50,7 @@ export const OPEN_ENV_VAR_SETTINGS_COMMAND_ID = `${PACKAGE_NAME}.openEnvironment
 export const OPEN_ARM_EXAMPLES_COMMAND_ID = `${PACKAGE_NAME}.openArmExamples`;
 export const REFRESH_COMMAND_ID = `${PACKAGE_NAME}.refresh`;
 export const RUN_GENERATOR_COMMAND_ID = `${PACKAGE_NAME}.runGenerator`;
+export const SEARCH_SOLUTION_SOURCES_COMMAND_ID = `${PACKAGE_NAME}.searchSolutionSources`;
 export const ARM_EXAMPLES_URL = 'https://github.com/arm-examples';
 
 export const MIN_TOOLBOX_VERSION = '2.12.0';

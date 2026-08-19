@@ -138,7 +138,7 @@ describe('CmsisToolbox', () => {
         expect(outputSpy).not.toHaveBeenCalledWith('cbuild arg1 arg2\r\n');
     });
 
-    it('uses PTY only for the requested tool execution', async () => {
+    it('uses PTY output filtering only for the requested tool execution', async () => {
         mockProcessManager.mockOutputLines(['csolution 99.0.0']);
         mockCsolutionService.getCsolutionBin.mockReturnValue(path.join('path', 'to', 'csolution'));
 
@@ -149,14 +149,14 @@ describe('CmsisToolbox', () => {
             undefined,
             undefined,
             true,
-            { usePty: true },
+            { usePty: true, filterOutput: true },
         );
 
         expect(mockProcessManager.spawn).toHaveBeenNthCalledWith(
             1,
             expect.anything(),
             ['--version'],
-            expect.not.objectContaining({ usePty: true }),
+            expect.not.objectContaining({ usePty: true, filterOutput: true }),
             expect.any(Function),
             undefined,
             undefined,
@@ -165,7 +165,7 @@ describe('CmsisToolbox', () => {
             2,
             expect.anything(),
             ['run', 'solution.csolution.yml', '-g', 'generator'],
-            expect.objectContaining({ usePty: true }),
+            expect.objectContaining({ usePty: true, filterOutput: true }),
             expect.any(Function),
             undefined,
             undefined,

@@ -40,7 +40,7 @@
   "csolution": {
     "uv2csolutionVersion": "1.6.0",
     "toolboxVersion": "nightly",
-    "rpcVersion": "0.0.11"
+    "rpcVersion": "0.0.12"
   },
   "scripts": {
     "preprepare": "npm run download:rpc-interface",
@@ -341,13 +341,8 @@
         {
           "id": "cmsis-csolution.outline",
           "name": "CMSIS",
-          "when": "!view.arm.cmsis-csolution.outline.hidden"
-        }
-      ],
-      "explorer": [
-        {
-          "id": "searchResults",
-          "name": "Search Results"
+          "when": "!view.arm.cmsis-csolution.outline.hidden",
+          "icon": "$(csolution-cmsis-logo)"
         }
       ]
     },
@@ -814,6 +809,13 @@
         "title": "Search"
       },
       {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.searchSolutionSources",
+        "title": "Search in Solution Sources",
+        "icon": "$(search)",
+        "enablement": "cmsis-csolution.activeSolutionState == active"
+      },
+      {
         "command": "cmsis-csolution.edit",
         "title": "Go to Definition"
       },
@@ -1039,6 +1041,11 @@
           "command": "cmsis-csolution.openSolutionFile",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
           "group": "navigation@4"
+        },
+        {
+          "command": "cmsis-csolution.searchSolutionSources",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "group": "navigation@5"
         },
         {
           "command": "cmsis-csolution.manageSolution",

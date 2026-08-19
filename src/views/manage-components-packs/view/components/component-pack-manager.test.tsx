@@ -18,10 +18,11 @@ import 'jest';
 import * as React from 'react';
 import { MockMessageHandler } from '../../../__test__/mock-message-handler';
 import { IncomingMessage, OutgoingMessage } from '../../messages';
-import { ComponentPackManager } from './component-pack-manager';
+import { ComponentPackManager, getResolvableValidationComponents } from './component-pack-manager';
 import { createRoot } from 'react-dom/client';
 import { ComponentsState } from '../state/reducer';
-import { ComponentScope } from '../../data/component-tools';
+import { ComponentRowDataType, ComponentScope, mapTree } from '../../data/component-tools';
+import { CtRoot, Result } from '../../../../json-rpc/csolution-rpc-client';
 
 describe('ManageComponents', () => {
     let container: Element;
@@ -44,6 +45,51 @@ describe('ManageComponents', () => {
         container.remove();
     });
 
+    const componentTreeFixture = (...groups: string[]): CtRoot => ({
+        success: true,
+        classes: [{
+            name: 'Class',
+            activeBundle: '',
+            bundles: [{
+                name: '',
+                aggregates: groups.map(group => ({
+                    id: `Vendor::Class:${group}`,
+                    name: group,
+                    activeVersion: '1.0.0',
+                    selectedCount: 0,
+                    variants: [{
+                        name: '',
+                        components: [{
+                            id: `Vendor::Class:${group}@1.0.0`,
+                            pack: 'Vendor::Pack@1.0.0',
+                        }],
+                    }],
+                })),
+                cgroups: [],
+                bundle: { id: '', description: '', doc: '' },
+            }],
+        }],
+    });
+
+    const validationFixture = (group: string, result: string): Result => ({
+        id: `Vendor::Class:${group}`,
+        result,
+    });
+
+    const setComponentTree = (validations: Result[]) => {
+        React.act(() => {
+            messageHandler.postWindowMessage({
+                type: 'SET_COMPONENT_TREE',
+                tree: componentTreeFixture(...validations.map(validation => validation.id.split(':').at(-1)!)),
+                validations,
+                scope: ComponentScope.All,
+            });
+        });
+    };
+
+    const resolveButton = (): HTMLButtonElement =>
+        container.querySelector('.resolve-packs-button') as HTMLButtonElement;
+
     it('renders all grid children', () => {
         expect(container.querySelectorAll('.components-view-root')).toHaveLength(1);
         expect(container.querySelectorAll('.ant-table')).toHaveLength(1);
@@ -63,6 +109,38 @@ describe('ManageComponents', () => {
         });
 
         expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('enables Resolve for warning-only validation results', () => {
+        setComponentTree([validationFixture('Warning', 'SELECTABLE')]);
+
+        expect(resolveButton().disabled).toBe(false);
+    });
+
+    it('disables Resolve for error-only validation results', () => {
+        setComponentTree([validationFixture('Error', 'MISSING')]);
+
+        expect(resolveButton().disabled).toBe(true);
+    });
+
+    it('disables Resolve when error and warning validation results coexist', () => {
+        setComponentTree([
+            validationFixture('Warning', 'SELECTABLE'),
+            validationFixture('Error', 'MISSING'),
+        ]);
+
+        expect(resolveButton().disabled).toBe(true);
+    });
+
+    it('deduplicates resolvable validation IDs', () => {
+        const warning = validationFixture('Warning', 'SELECTABLE');
+        const warningRow = mapTree(componentTreeFixture('Warning'), [warning])[0].children![0];
+        const duplicateRows: ComponentRowDataType[] = [
+            warningRow,
+            { ...warningRow, key: `${warningRow.key}-duplicate` },
+        ];
+
+        expect(getResolvableValidationComponents(duplicateRows)).toEqual([warning.id]);
     });
 
     it('switches to Software packs when loaded solution includes a focused pack id', () => {

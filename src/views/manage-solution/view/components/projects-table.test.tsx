@@ -201,6 +201,37 @@ describe('ProjectsTable', () => {
         });
     });
 
+    it('displays and dispatches the assigned processor pname', () => {
+        const images: ImageSelection[] = [{
+            name: 'some-image',
+            path: '/path/to/some-image.cimage.yml',
+            loadOffset: '0x0',
+            load: 'none',
+            selected: true,
+            device: 'C0',
+        }];
+        const updateContextSelection = jest.fn();
+
+        React.act(() => {
+            root.render(
+                <ProjectsTable projects={[]} images={images} availableCores={['C0', 'C1']} updateSolutionData={updateContextSelection} openFile={jest.fn()} addProject={jest.fn()} addImage={jest.fn()} unlinkImage={jest.fn()} />
+            );
+        });
+
+        const coreDropdownCell = container.querySelector('.image .build-type');
+        expect(coreDropdownCell?.querySelector('.compact-dropdown-value')?.textContent).toBe('C0');
+        openCompactDropdown(coreDropdownCell!);
+        expect(coreDropdownCell?.querySelector('[data-value="Start Processor"]')).toBeNull();
+        expect(coreDropdownCell?.querySelector('[data-value="C0"]')?.textContent.trim()).toBe('C0');
+        selectCompactDropdownOption(coreDropdownCell!, 'C0');
+
+        expect(updateContextSelection).toHaveBeenCalledWith({
+            type: 'SET_CORE_SELECTION',
+            path: images[0].path,
+            core: 'C0',
+        });
+    });
+
     it('doesn\'t dispatch the SET_PROJECT_SELECTION message when only one project exists', () => {
         const projects: ProjectSelection[] = [{
             name: 'some-project',

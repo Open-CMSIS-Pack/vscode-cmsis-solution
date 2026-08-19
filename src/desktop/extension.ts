@@ -60,6 +60,7 @@ import { OpenCommand } from '../views/solution-outline/commands/open-command';
 import { FindCommand } from '../views/solution-outline/commands/find-command';
 import { MergeCommand } from '../views/solution-outline/commands/merge-command';
 import { MergeSessionCoordinatorImpl } from '../views/solution-outline/commands/merge-session-coordinator';
+import { SearchSolutionSourcesCommand } from '../views/solution-outline/commands/search-solution-sources-command';
 import { SolutionOutlineView } from '../views/solution-outline/solution-outline';
 import { TreeViewFileDecorationProvider } from '../views/solution-outline/treeview-decoration-provider';
 import { TreeViewProviderImpl } from '../views/solution-outline/treeview-provider';
@@ -236,6 +237,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const copyHeaderCommand = new CopyHeaderCommand(commandsProvider);
     const openCommand = new OpenCommand(solutionManager, commandsProvider, externalFileOpener, undefined, fileOpenGroupOrchestrator);
     const findCommand = new FindCommand(commandsProvider);
+    const searchSolutionSourcesCommand = new SearchSolutionSourcesCommand(solutionManager, commandsProvider, workspaceFsProvider, messageProvider);
     const fileDecorationProviderManager = new FileDecorationProviderManagerImpl();
     const treeViewProviderImpl = new TreeViewProviderImpl(SolutionOutlineView.treeViewId);
     const treeViewFileDecorationProvider = new TreeViewFileDecorationProvider(fileDecorationProviderManager, themeProvider);
@@ -304,6 +306,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         copyHeaderCommand.activate(context),
         openCommand.activate(context),
         findCommand.activate(context),
+        searchSolutionSourcesCommand.activate(context),
         mergeCommand.activate(context),
         cmsisCommands.activate(context),
         configurationWizardView.activate(),

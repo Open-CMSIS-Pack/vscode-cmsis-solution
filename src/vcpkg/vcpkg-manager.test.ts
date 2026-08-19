@@ -165,6 +165,49 @@ describe('VcpkgManager', () => {
 
             expect(apiMock.onDidActivate).not.toHaveBeenCalled();
         });
+
+        it('returns without checking again after activation completed', async () => {
+            const configFileMock = jest.fn();
+            findFilesMock.mockResolvedValue([configFileMock]);
+
+            const apiMock = vcpkgApiFactory();
+            apiMock.getActiveTools.mockReturnValue([{} as ActiveTool]);
+            const vcpkgManager = new VcpkgManager(apiMock);
+
+            await vcpkgManager.awaitActivation();
+            await vcpkgManager.awaitActivation();
+
+            expect(findFilesMock).toHaveBeenCalledTimes(1);
+            expect(apiMock.getActiveTools).toHaveBeenCalledTimes(1);
+        });
+
+        it('shares an activation wait between concurrent calls', async () => {
+            const configFileMock = jest.fn();
+            findFilesMock.mockResolvedValue([configFileMock]);
+
+            const apiMock = vcpkgApiFactory();
+            apiMock.getActiveTools.mockReturnValue([]);
+            let activateListener: (() => void) | undefined;
+            let listenerRegistered: () => void;
+            const listenerRegistration = new Promise<void>((resolve) => {
+                listenerRegistered = resolve;
+            });
+            apiMock.onDidActivate.mockImplementation((listener) => {
+                activateListener = () => listener({} as VcpkgResults);
+                listenerRegistered();
+                return { dispose: jest.fn() };
+            });
+            const vcpkgManager = new VcpkgManager(apiMock);
+
+            const firstActivation = vcpkgManager.awaitActivation();
+            const secondActivation = vcpkgManager.awaitActivation();
+            await listenerRegistration;
+            activateListener?.();
+
+            await expect(Promise.all([firstActivation, secondActivation])).resolves.toBeDefined();
+            expect(firstActivation).toBe(secondActivation);
+            expect(apiMock.onDidActivate).toHaveBeenCalledTimes(1);
+        });
     });
 
 });

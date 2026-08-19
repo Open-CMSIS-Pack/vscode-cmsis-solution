@@ -37,23 +37,23 @@ export const getValidationMessage = (record: ComponentRowDataType, state: { comp
 
 /**
  * Generates the tooltip text for the resolve button.
- * @param validationErrorComponents List of validation error components.
+ * @param resolvableValidationComponents List of components with resolvable validation warnings.
  * @returns JSX for the tooltip.
  */
 export const validationIssuesTooltip = (
-    validationErrorComponents: string[],
+    resolvableValidationComponents: string[],
     expandedRowKeys: string[],
     setExpandedRowKeys: React.Dispatch<React.SetStateAction<string[]>>,
     componentTree: ComponentRowDataType[],
     keyContext: string,
     componentRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>
 ): React.ReactNode => {
-    if (!validationErrorComponents.length) {
-        return <>No components with validation errors</>;
+    if (!resolvableValidationComponents.length) {
+        return <>No resolvable validation warnings</>;
     }
-    const plural = validationErrorComponents.length !== 1 ? 's' : '';
+    const plural = resolvableValidationComponents.length !== 1 ? 's' : '';
     // Use a map for fast lookup and avoid O(n^2) search
-    const validatedComponents = validationErrorComponents.map(c => {
+    const validatedComponents = resolvableValidationComponents.map(c => {
         const id = c;
         const name = c.indexOf('/') > 0 ? c.split('/')[1] : c;
         return { title: componentNiceName(name), id };
@@ -72,7 +72,7 @@ export const validationIssuesTooltip = (
         });
     return (
         <Space direction='vertical'>
-            <div>{validatedMap.size} Component{plural} with validation issues</div>
+            <div>{validatedMap.size} Component{plural} with resolvable validation warnings</div>
             <SimpleList
                 items={Array.from(validatedMap.values())}
                 keyContext={keyContext}

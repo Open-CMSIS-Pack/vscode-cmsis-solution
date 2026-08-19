@@ -87,14 +87,14 @@ class CbuildIdxFileImpl extends CTreeItemYamlFile implements CbuildIdxFile {
 
     private async loadCbuildFiles() : Promise<ETextFileResult> {
         const cbuilds = this.topItem?.getGrandChildren('cbuilds') ?? [];
-        const newProjectNames = new Set<string>();
+        const newContextNames = new Set<string>();
 
         let result = ETextFileResult.Unchanged;
         // Load/update cbuild files
         for (const child of cbuilds) {
             const cbuildFileName = child.getValueAsString('cbuild');
             const context = contextDescriptorFromString(getFileNameNoExt(cbuildFileName));
-            newProjectNames.add(context.projectName);
+            newContextNames.add(context.displayName);
             const res = await this.loadCbuild(child);
             if (result < res) {
                 result = res;
@@ -102,9 +102,9 @@ class CbuildIdxFileImpl extends CTreeItemYamlFile implements CbuildIdxFile {
         }
 
         // Remove cbuild files that are no longer in the index
-        for (const projectName of this._cbuildFiles.keys()) {
-            if (!newProjectNames.has(projectName)) {
-                this._cbuildFiles.delete(projectName);
+        for (const contextName of this._cbuildFiles.keys()) {
+            if (!newContextNames.has(contextName)) {
+                this._cbuildFiles.delete(contextName);
                 if (result === ETextFileResult.Unchanged) {
                     result = ETextFileResult.Success;
                 }
@@ -119,10 +119,10 @@ class CbuildIdxFileImpl extends CTreeItemYamlFile implements CbuildIdxFile {
 
         const resolvedPath = this.resolvePath(cbuildFileName);
         // Reuse existing CbuildFile if available, otherwise create new
-        let cbuildFile = this._cbuildFiles.get(context.projectName);
+        let cbuildFile = this._cbuildFiles.get(context.displayName);
         if (!cbuildFile) {
             cbuildFile = new CbuildFile(resolvedPath);
-            this._cbuildFiles.set(context.projectName, cbuildFile);
+            this._cbuildFiles.set(context.displayName, cbuildFile);
         }
 
         // Do not attempt to load cbuild file if it does not exist
