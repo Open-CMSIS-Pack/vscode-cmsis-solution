@@ -127,7 +127,7 @@ jobs:
         working-directory: .github/workflows
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: rm -rf ../../tools && ./download-tools.sh win32-x64
+        run: ./download-tools.sh win32-x64
 
       - name: Package win32-x64
         run: npm run package -- --target win32-x64
@@ -136,7 +136,7 @@ jobs:
         working-directory: .github/workflows
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: rm -rf ../../tools && ./download-tools.sh win32-arm64
+        run: ./download-tools.sh win32-arm64
 
       - name: Package win32-arm64
         run: npm run package -- --target win32-arm64
@@ -145,7 +145,7 @@ jobs:
         working-directory: .github/workflows
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: rm -rf ../../tools && ./download-tools.sh linux-x64
+        run: ./download-tools.sh linux-x64
 
       - name: Package linux-x64
         run: npm run package -- --target linux-x64
@@ -154,7 +154,7 @@ jobs:
         working-directory: .github/workflows
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: rm -rf ../../tools && ./download-tools.sh linux-arm64
+        run: ./download-tools.sh linux-arm64
 
       - name: Package linux-arm64
         run: npm run package -- --target linux-arm64
@@ -163,7 +163,7 @@ jobs:
         working-directory: .github/workflows
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: rm -rf ../../tools && ./download-tools.sh darwin-arm64
+        run: ./download-tools.sh darwin-arm64
 
       - name: Package darwin-arm64
         run: npm run package -- --target darwin-arm64
