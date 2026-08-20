@@ -97,7 +97,10 @@ describe('CbuildIdxFile', () => {
         try {
             const idxFile = new CbuildIdxFile();
             expect(await idxFile.load(path.join(solutionDir, 'USB_Device.cbuild-idx.yml'))).toBe(ETextFileResult.Success);
-            expect(idxFile.activeContexts[0].projectPath).toBe(path.join(solutionDir, 'app.v2', 'appID.cproject-cmake.yml'));
+            const projectPath = path.join(solutionDir, 'app.v2', 'appID.cproject-cmake.yml');
+            expect(idxFile.activeContexts[0].projectName).toBe('appID');
+            expect(idxFile.activeContexts[0].projectPath).toBe(projectPath);
+            expect(idxFile.getContext(projectPath)).toBe(idxFile.activeContexts[0]);
         } finally {
             fsUtils.writeTextFile(cbuildFileName, originalCbuild);
         }

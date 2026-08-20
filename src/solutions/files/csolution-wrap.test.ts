@@ -295,6 +295,17 @@ describe('CSolutionWrap', () => {
             expect(cmake.getValue('project-id')).toBe('renamed');
             expect(wrap.projectName).toBe('renamed');
         });
+
+        it('should use an explicit CMake project id with the default solution directory', () => {
+            const item = new CTreeItem('-');
+            item.rootFileName = 'foo/app.v2/solution.csolution.yml';
+            item.createChild('cmake', true).setValue('project-id', 'appID');
+            const wrap = new ProjectRefWrap(item);
+
+            expect(wrap.project).toBe('appID' + PROJECT_CMAKE_SUFFIX);
+            expect(wrap.projectName).toBe('appID');
+            expect(wrap.projectPath).toBe(path.resolve('foo/app.v2', 'appID' + PROJECT_CMAKE_SUFFIX));
+        });
     });
 
     describe('DebuggerWrap', () => {

@@ -268,6 +268,7 @@ describe('OpenCommand', () => {
         const mockTerminal = { show: jest.fn() } as unknown as vscode.Terminal;
         const createTerminalSpy = jest.spyOn(vscode.window, 'createTerminal').mockReturnValue(mockTerminal);
         const mockCbuildMap = new Map<string, CTreeItem>([
+            [path.join('other-build', 'other.Debug+Native.cbuild.yml'), new COutlineItem('file')],
             [path.join('build', 'firmware.Debug+Native.cbuild.yml'), new COutlineItem('file')],
         ]);
         const mockSolutionManager = solutionManagerFactory();

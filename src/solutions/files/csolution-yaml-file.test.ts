@@ -116,6 +116,24 @@ describe('CSolutionYamlFile', () => {
         });
     });
 
+    it('loads and preserves an empty CMake project entry', async () => {
+        const fileName = testDataHandler.tmpFileName('empty-cmake/solution.csolution.yml');
+        writeTextFile(fileName, YAML.stringify({
+            solution: {
+                projects: [{ cmake: {} }],
+            },
+        }));
+        const file = new CSolutionYamlFile();
+
+        expect(await file.load(fileName)).toBe(ETextFileResult.Success);
+
+        const project = file.getProject('empty-cmake');
+        expect(project?.readOnly).toBeTruthy();
+        expect(project?.projectType).toBe('CMake');
+        expect(project?.fileName).toBe(path.join(path.dirname(fileName), 'empty-cmake.cproject-cmake.yml'));
+        expect(YAML.parse(file.stringify()).solution.projects[0].cmake).toEqual({});
+    });
+
     it('waits for project loading before load resolves', async () => {
         let resolveStarted!: () => void;
         let resolveProjects!: () => void;

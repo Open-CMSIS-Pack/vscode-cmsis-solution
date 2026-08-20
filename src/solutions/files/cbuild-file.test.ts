@@ -82,6 +82,16 @@ describe('CbuildFile', () => {
             expect(cbuildFile.projectPath).toBe(path.join(tmpSolutionDir, path.basename(tmpSolutionDir) + '.cproject-cmake.yml'));
         });
 
+        it('uses an explicit virtual CMake project id with the default solution directory', async () => {
+            const cbuildFile = new CbuildFile(`${tmpSolutionDir}/HID/HID.Debug+B-U585I-IOT02A.cbuild.yml`);
+            expect(await cbuildFile.load()).toBe(ETextFileResult.Success);
+
+            cbuildFile.topItem?.removeChildrenWithTags(['project']);
+            cbuildFile.topItem?.createChild('cmake').setValue('project-id', 'appID');
+
+            expect(cbuildFile.projectPath).toBe(path.join(tmpSolutionDir, 'appID.cproject-cmake.yml'));
+        });
+
     });
 
     describe('getSourceFiles', () => {
