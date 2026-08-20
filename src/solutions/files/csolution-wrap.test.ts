@@ -17,7 +17,7 @@
 import { TargetTypeWrap, TargetSetWrap, TypedWrap, ProjectRefWrap, ImageWrap, LoadImageType, DebuggerWrap } from './csolution-wrap';
 import { CTreeItem, ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import path from 'path';
-import { PROJECT_WEST_SUFFIX } from '../constants';
+import { PROJECT_CMAKE_SUFFIX, PROJECT_WEST_SUFFIX } from '../constants';
 
 describe('CSolutionWrap', () => {
     describe('TargetTypeWrap', () => {
@@ -262,6 +262,38 @@ describe('CSolutionWrap', () => {
             expect(wrap.name).toBe('apps/appA/appID' + PROJECT_WEST_SUFFIX);
             expect(wrap.projectName).toBe('appID');
             expect(wrap.deviceProcessor).toBeUndefined();
+        });
+
+        it('should expose a CMake project with explicit source and project id', () => {
+            const item = new CTreeItem('-');
+            item.rootFileName = 'foo/solution.csolution.yml';
+            const cmake = item.createChild('cmake', true);
+            cmake.setValue('source', 'apps/app.v2');
+            cmake.setValue('project-id', 'appID');
+            cmake.setValue('device', 'Vendor::Device:core1');
+            const wrap = new ProjectRefWrap(item);
+
+            expect(wrap.cmake).toBe(cmake);
+            expect(wrap.projectType).toBe('CMake');
+            expect(wrap.project).toBe('apps/app.v2/appID' + PROJECT_CMAKE_SUFFIX);
+            expect(wrap.projectName).toBe('appID');
+            expect(wrap.projectPath).toBe(path.resolve('foo', 'apps/app.v2', 'appID' + PROJECT_CMAKE_SUFFIX));
+            expect(wrap.deviceProcessor).toBe('core1');
+        });
+
+        it('should default CMake source and project id to the solution directory', () => {
+            const item = new CTreeItem('-');
+            item.rootFileName = 'foo/app.v2/solution.csolution.yml';
+            const cmake = item.createChild('cmake', true);
+            const wrap = new ProjectRefWrap(item);
+
+            expect(wrap.project).toBe('app.v2' + PROJECT_CMAKE_SUFFIX);
+            expect(wrap.projectName).toBe('app.v2');
+            expect(wrap.projectPath).toBe(path.resolve('foo/app.v2', 'app.v2' + PROJECT_CMAKE_SUFFIX));
+
+            wrap.name = 'renamed';
+            expect(cmake.getValue('project-id')).toBe('renamed');
+            expect(wrap.projectName).toBe('renamed');
         });
     });
 

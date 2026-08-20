@@ -84,6 +84,25 @@ describe('CbuildIdxFile', () => {
         expect(idxFile.activeContexts[1].displayName).toEqual('MassStorage.Debug+B-U585I-IOT02A');
     });
 
+    it('propagates a virtual CMake project path from a generated cbuild', async () => {
+        const solutionDir = path.join(tmpSolutionDir, 'USBD');
+        const cbuildFileName = path.join(solutionDir, 'HID', 'HID.Release+B-U585I-IOT02A.cbuild.yml');
+        const originalCbuild = fsUtils.readTextFile(cbuildFileName);
+        const cmakeCbuild = originalCbuild.replace(
+            '  project: HID.cproject.yml',
+            '  cmake:\n    source: ../app.v2\n    project-id: appID'
+        );
+        fsUtils.writeTextFile(cbuildFileName, cmakeCbuild);
+
+        try {
+            const idxFile = new CbuildIdxFile();
+            expect(await idxFile.load(path.join(solutionDir, 'USB_Device.cbuild-idx.yml'))).toBe(ETextFileResult.Success);
+            expect(idxFile.activeContexts[0].projectPath).toBe(path.join(solutionDir, 'app.v2', 'appID.cproject-cmake.yml'));
+        } finally {
+            fsUtils.writeTextFile(cbuildFileName, originalCbuild);
+        }
+    });
+
     it('test load modified cbuild file', async () => {
         const solutionDir =  path.join(tmpSolutionDir, 'USBD');
         const fileName = path.join(solutionDir, 'USB_Device.cbuild-idx.yml');

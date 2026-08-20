@@ -23,9 +23,17 @@ import { TEMPLATES_FOLDER } from '../../manifest';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import * as path from 'path';
 import * as YAML from 'yaml';
+import { TestDataHandler } from '../../__test__/test-data';
+import { writeTextFile } from '../../utils/fs-utils';
 
 
 describe('CSolutionYamlFile', () => {
+    const testDataHandler = new TestDataHandler();
+
+    afterAll(() => {
+        testDataHandler.dispose();
+    });
+
     it('loads and mutates a creation template without synthesizing target sets', async () => {
         const destination = path.join('destination', 'test.csolution.yml');
         const file = new CSolutionYamlFile();
@@ -76,6 +84,60 @@ describe('CSolutionYamlFile', () => {
         file.compiler = undefined;
 
         expect(file.compiler).toBeUndefined();
+    });
+
+    it('loads a virtual CMake project and preserves its settings', async () => {
+        const fileName = testDataHandler.tmpFileName('app.v2/solution.csolution.yml');
+        writeTextFile(fileName, YAML.stringify({
+            solution: {
+                projects: [{
+                    cmake: {
+                        generator: 'Ninja',
+                        configure: 'Debug',
+                        target: 'firmware',
+                        output: 'build',
+                    },
+                }],
+            },
+        }));
+        const file = new CSolutionYamlFile();
+
+        expect(await file.load(fileName)).toBe(ETextFileResult.Success);
+
+        const project = file.getProject('app.v2');
+        expect(project?.readOnly).toBeTruthy();
+        expect(project?.projectType).toBe('CMake');
+        expect(project?.fileName).toBe(path.join(path.dirname(fileName), 'app.v2.cproject-cmake.yml'));
+        expect(YAML.parse(file.stringify()).solution.projects[0].cmake).toEqual({
+            generator: 'Ninja',
+            configure: 'Debug',
+            target: 'firmware',
+            output: 'build',
+        });
+    });
+
+    it('waits for project loading before load resolves', async () => {
+        let resolveStarted!: () => void;
+        let resolveProjects!: () => void;
+        const started = new Promise<void>(resolve => { resolveStarted = resolve; });
+        const projectsLoaded = new Promise<void>(resolve => { resolveProjects = resolve; });
+        const prototype = CSolutionYamlFile.prototype as unknown as { loadProjects: () => Promise<void> };
+        const loadProjects = jest.spyOn(prototype, 'loadProjects').mockImplementation(() => {
+            resolveStarted();
+            return projectsLoaded;
+        });
+        const file = new CSolutionYamlFile();
+        const loadPromise = file.load(path.join(TEMPLATES_FOLDER, 'template.csolution.yml'));
+
+        await started;
+        let settled = false;
+        void loadPromise.then(() => { settled = true; });
+        await Promise.resolve();
+        expect(settled).toBe(false);
+
+        resolveProjects();
+        await expect(loadPromise).resolves.toBe(ETextFileResult.Success);
+        loadProjects.mockRestore();
     });
 
     it('should create a CSolutionWrap with a top item', () => {
