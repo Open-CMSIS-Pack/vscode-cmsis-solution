@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Open-CMSIS-Pack/devtools/main/tools/projmgr/schemas/csolution.schema.json
+solution:
+  compiler: GCC
+
+  target-types:
+    - type: Native
+      device: ARM::Cortex-M0:CM0
+      target-set:
+        - set:
+          images:
+            - project-context: firmware.Debug
+
+  build-types:
+    - type: Debug
+
+  projects:
+    - cmake:
+        source: ./app.v2
+        project-id: firmware
+        device: :CM0
+        generator: Ninja
+        configure: Debug
+        target: firmware
+        output: build

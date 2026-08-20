@@ -1,0 +1,23 @@
+build:
+  generated-by: csolution version 0.0.0
+  solution: ../solution.csolution.yml
+  context: firmware.Debug+Native
+  compiler: GCC
+  device: ARM::Cortex-M0:CM0
+  output-dirs:
+    outdir: .
+  cmake:
+    source: ../app.v2
+    project-id: firmware
+    device: :CM0
+    generator: Ninja
+    configure: Debug
+    target: firmware
+    output: build
+  groups:
+    - group: Application
+      files:
+        - file: ../app.v2/main.c
+    - group: Generated Sources
+      files:
+        - file: generated/startup.c

@@ -26,6 +26,7 @@ import { solutionManagerFactory } from '../../solutions/solution-manager.factori
 import * as fsUtils from '../../utils/fs-utils';
 import * as vscodeUtils from '../../utils/vscode-utils';
 import { csolutionServiceFactory } from '../../json-rpc/csolution-rpc-client.factory';
+import YAML from 'yaml';
 
 /**
  * Build generated (current) and reference JSON strings for a context selection state.
@@ -106,6 +107,55 @@ describe('manage-solution-controller', () => {
     it('creates solution data for West solution', async () => {
         const { generated, reference } = await getSolutionDataStrings(tmpSolutionDir, 'WestSupport/solution.csolution.yml');
         expect(generated).toEqual(reference);
+    });
+
+    it('creates solution data for a CMake project', async () => {
+        const { generated, reference } = await getSolutionDataStrings(tmpSolutionDir, 'CMakeSupport/solution.csolution.yml');
+        expect(JSON.parse(generated)).toEqual(JSON.parse(reference));
+    });
+
+    it('preserves CMake settings when selected contexts are reapplied', async () => {
+        const controller = new ManageSolutionController();
+        const solutionPath = path.join(tmpSolutionDir, 'CMakeSupport', 'solution.csolution.yml');
+        expect(await controller.loadSolution(solutionPath)).toBe(ETextFileResult.Success);
+
+        const solutionData = controller.solutionData;
+        expect(solutionData.projects).toEqual([expect.objectContaining({
+            name: 'firmware',
+            selected: true,
+            selectedBuildType: 'Debug',
+            device: 'CM0',
+            projectType: 'CMake',
+            readOnly: true,
+        })]);
+
+        controller.solutionData = solutionData;
+
+        const roundTripPath = path.join(tmpSolutionDir, 'CMakeSupport', 'round-trip.csolution.yml');
+        expect(await controller.csolutionYml.save(roundTripPath)).toBe(ETextFileResult.Success);
+
+        const reloadedController = new ManageSolutionController();
+        expect(await reloadedController.loadSolution(roundTripPath)).toBe(ETextFileResult.Success);
+        const output = YAML.parse(reloadedController.csolutionYml.stringify());
+        expect(output.solution.projects[0].cmake).toEqual({
+            source: './app.v2',
+            'project-id': 'firmware',
+            device: ':CM0',
+            generator: 'Ninja',
+            configure: 'Debug',
+            target: 'firmware',
+            output: 'build',
+        });
+        expect(output.solution['target-types'][0]['target-set'][0].images).toEqual([
+            { 'project-context': 'firmware.Debug' },
+        ]);
+        expect(reloadedController.solutionData.projects[0]).toEqual(expect.objectContaining({
+            name: 'firmware',
+            selected: true,
+            selectedBuildType: 'Debug',
+            projectType: 'CMake',
+            readOnly: true,
+        }));
     });
 
     it('Returns customized debug adapters', async () => {

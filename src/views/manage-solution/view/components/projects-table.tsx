@@ -108,7 +108,7 @@ export const ProjectRow = (props: ProjectRowProps) => {
                 : <CompactDropdown available={['none', 'dummy']} selected={'none'} onChange={() => { }} unselectedLabel='none' disabled={true} />
             }
         </td>
-        <td>{props.project.projectType !== 'West' && <a onClick={() => props.openFile(props.project.path)} title={props.project.path}>Edit cproject.yml</a>}</td>
+        <td>{!props.project.readOnly && <a onClick={() => props.openFile(props.project.path)} title={props.project.path}>Edit cproject.yml</a>}</td>
     </tr>;
 };
 
