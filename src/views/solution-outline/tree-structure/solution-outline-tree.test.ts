@@ -402,6 +402,31 @@ describe('CSolution', () => {
         }
     });
 
+    it('creates a CMake project node with its source file and generated groups', async () => {
+        const fileName = path.join(tmpSolutionDir, 'CMakeSupport', 'solution.csolution.yml');
+        const csolution = new CSolution();
+
+        const loadResult = await csolution.load(fileName);
+        expect(loadResult).toEqual(ETextFileResult.Success);
+
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const tree = solutionOutlineTree.createTree();
+        const cmakeProject = (tree.getChildren() as COutlineItem[]).find(
+            node => node.getAttribute('description') === '(CMake)'
+        );
+
+        expect(cmakeProject).toBeDefined();
+        expect(cmakeProject?.getAttribute('resourcePath')).toBe(
+            path.join(tmpSolutionDir, 'CMakeSupport', 'app.v2', 'firmware.cproject-cmake.yml')
+        );
+        expect(cmakeProject?.getAttribute('prjCmakePath')).toBe(
+            path.join(tmpSolutionDir, 'CMakeSupport', 'app.v2', 'CMakeLists.txt')
+        );
+        expect(cmakeProject?.getAttribute('prjConfPath')).toBeUndefined();
+        expect(findNodeByLabel(cmakeProject!, 'group', 'Application')).toBeDefined();
+        expect(findNodeByLabel(cmakeProject!, 'group', 'Generated Sources')).toBeDefined();
+    });
+
     it('test tree content for Image Only multicore solution', async () => {
         const fileName = path.join(tmpSolutionDir, 'ImageOnly', 'image-only-multicore.csolution.yml');
         const csolution = new CSolution();

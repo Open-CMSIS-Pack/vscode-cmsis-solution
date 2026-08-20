@@ -34,12 +34,14 @@ export class OpenCommand {
     public static readonly openSolutionCommandId = `${PACKAGE_NAME}.openSolutionFile`;
     public static readonly openProjectCommandId = `${PACKAGE_NAME}.openProjectFile`;
     public static readonly openPrjConfCommandId = `${PACKAGE_NAME}.openPrjConfFile`;
+    public static readonly openPrjCmakeCommandId = `${PACKAGE_NAME}.openPrjCmakeFile`;
     public static readonly openLayerCommandId = `${PACKAGE_NAME}.openLayerFile`;
     public static readonly openLinkerCommandId = `${PACKAGE_NAME}.openLinkerMapFile`;
     public static readonly openDocCommandId = `${PACKAGE_NAME}.openDocFile`;
     public static readonly openSourceSmartCommandId = openSourceSmartCommandId;
     public static readonly openHelpCommandId = `${PACKAGE_NAME}.openHelp`;
     public static readonly openZephyrTerminalCommandId = `${PACKAGE_NAME}.openZephyrTerminal`;
+    public static readonly openCMakeTerminalCommandId = `${PACKAGE_NAME}.openCMakeTerminal`;
     private static readonly configWizardViewType = `${PACKAGE_NAME}.configWizard`;
     private static readonly configWizardCandidateExtensions = new Set(['.h', '.c', '.cpp', '.dbgconf', '.s', '.sct']);
 
@@ -65,6 +67,8 @@ export class OpenCommand {
                 this.commandHandler(OpenCommand.openProjectCommandId, node), this),
             this.commandsProvider.registerCommand(OpenCommand.openPrjConfCommandId, (node: COutlineItem) =>
                 this.commandHandler(OpenCommand.openPrjConfCommandId, node), this),
+            this.commandsProvider.registerCommand(OpenCommand.openPrjCmakeCommandId, (node: COutlineItem) =>
+                this.commandHandler(OpenCommand.openPrjCmakeCommandId, node), this),
             this.commandsProvider.registerCommand(OpenCommand.openLayerCommandId, (node: COutlineItem) =>
                 this.commandHandler(OpenCommand.openLayerCommandId, node), this),
             this.commandsProvider.registerCommand(OpenCommand.openLinkerCommandId, (node: COutlineItem) =>
@@ -74,7 +78,10 @@ export class OpenCommand {
             this.commandsProvider.registerCommand(OpenCommand.openSourceSmartCommandId, (uri: vscode.Uri) =>
                 this.openSourceFile(uri), this),
             this.commandsProvider.registerCommand(OpenCommand.openZephyrTerminalCommandId, (node: COutlineItem) => {
-                this.openTerminal(node);
+                this.openTerminal(node, 'Zephyr');
+            }, this),
+            this.commandsProvider.registerCommand(OpenCommand.openCMakeTerminalCommandId, (node: COutlineItem) => {
+                this.openTerminal(node, 'CMake');
             }, this),
             this.commandsProvider.registerCommand(OpenCommand.openHelpCommandId, (section: string = 'index.html') => {
                 const nonSiblingPath = path.isAbsolute(section) || (path.normalize(section).startsWith('..'));
@@ -110,6 +117,8 @@ export class OpenCommand {
             return node.getAttribute('docPath');
         } else if (command === OpenCommand.openPrjConfCommandId) {
             return node.getAttribute('prjConfPath');
+        } else if (command === OpenCommand.openPrjCmakeCommandId) {
+            return node.getAttribute('prjCmakePath');
         }
         return node.getAttribute('resourcePath');
     }
@@ -154,7 +163,7 @@ export class OpenCommand {
         }
     }
 
-    private openTerminal(node: COutlineItem): void {
+    private openTerminal(node: COutlineItem, terminalType: 'Zephyr' | 'CMake'): void {
         const context = node.getAttribute('label');
         if (context) {
             const cbuildMap = this.solutionManager.getCsolution()?.cbuildYmlRoot;
@@ -162,10 +171,10 @@ export class OpenCommand {
                 const cbuild = [...cbuildMap.keys()].find(
                     key => path.basename(key, '.cbuild.yml') === context) ?? undefined;
                 if (cbuild) {
-                    const zephyrBuildDir = path.dirname(cbuild);
+                    const buildDir = path.dirname(cbuild);
                     const terminal = vscode.window.createTerminal({
-                        name: `Zephyr ${contextDescriptorFromString(context).projectName}`,
-                        cwd: zephyrBuildDir,
+                        name: `${terminalType} ${contextDescriptorFromString(context).projectName}`,
+                        cwd: buildDir,
                     });
                     terminal.show();
                 }
