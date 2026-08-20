@@ -41,7 +41,7 @@ export function getVirtualProjectDescriptor(item: ITreeItem<CTreeItem> | undefin
     const sourceKey = west ? 'app-path' : 'source';
     const source = virtualItem.getValueAsString(sourceKey) || (cmake ? defaultCmakeSource : '');
     const resolvedSource = item?.resolvePath(source) ?? source;
-    const projectId = virtualItem.getValueAsString('project-id') || (cmake ? path.basename(resolvedSource) : '');
+    const projectId = virtualItem.getValueAsString('project-id') || ((source || cmake) ? path.basename(resolvedSource) : '');
     const suffix = west ? PROJECT_WEST_SUFFIX : PROJECT_CMAKE_SUFFIX;
     const project = source ? source + '/' + projectId + suffix : projectId + suffix;
 
