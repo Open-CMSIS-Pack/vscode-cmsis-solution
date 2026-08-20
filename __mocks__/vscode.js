@@ -137,6 +137,7 @@ const CodeAction = jest.fn();
 const ShellQuoting = { Escape: 'Escape' };
 const StatusBarAlignment = { Left: 'Left' };
 const TaskScope = { Workspace: 'Workspace' };
+const TaskRevealKind = { Always: 'Always', Silent: 'Silent' };
 const ViewColumn = {
     Active: -1,
     Beside: -2
@@ -288,6 +289,7 @@ module.exports = {
     ShellQuoting,
     StatusBarAlignment,
     TaskScope,
+    TaskRevealKind,
     ViewColumn,
     ProgressLocation,
     TextEditorRevealType,

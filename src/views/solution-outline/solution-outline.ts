@@ -59,7 +59,7 @@ export class SolutionOutlineView {
 
     private async handleUpdatedCompileCommands() {
         const csolution = this.solutionManager.getCsolution();
-        if (!csolution?.hasWestProject()) {
+        if (!csolution?.hasVirtualProject()) {
             return;
         }
 

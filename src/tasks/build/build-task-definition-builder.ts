@@ -66,7 +66,7 @@ export class BuildTaskDefinitionBuilderImpl implements BuildTaskDefinitionBuilde
             buildOutputVerbosity: this.getBuildOutputVerbosity(),
             downloadPacks: this.isDownloadPacksEnabled(),
             cmakeTarget: action === 'setup' ? 'database' : 'all',
-            west: this.solutionManager.getCsolution()?.getCproject()?.projectType === 'West'
+            virtualProject: this.solutionManager.getCsolution()?.hasVirtualProject() ?? false
         };
     }
 }
