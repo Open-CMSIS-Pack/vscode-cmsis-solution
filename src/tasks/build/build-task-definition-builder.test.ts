@@ -42,7 +42,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
                 downloadPacks: true,
                 active: undefined,
                 cmakeTarget: 'all',
-                west: false,
+                virtualProject: false,
             });
         });
 
@@ -69,7 +69,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
                 downloadPacks: false,
                 active: undefined,
                 cmakeTarget: 'all',
-                west: false,
+                virtualProject: false,
             });
         });
 
@@ -95,7 +95,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
                 downloadPacks: true,
                 active: undefined,
                 cmakeTarget: 'all',
-                west: false,
+                virtualProject: false,
             });
         });
 
@@ -120,7 +120,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
                 downloadPacks: true,
                 active: undefined,
                 cmakeTarget: 'all',
-                west: false,
+                virtualProject: false,
             });
         });
 
@@ -145,8 +145,24 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
                 downloadPacks: true,
                 active: undefined,
                 cmakeTarget: 'database',
-                west: false,
+                virtualProject: false,
             });
+        });
+
+        it('marks the definition when the solution contains a virtual project', async () => {
+            const solutionManager = solutionManagerFactory();
+            const csolution = solutionManager.getCsolution()!;
+            const hasVirtualProjectSpy = jest.spyOn(csolution, 'hasVirtualProject').mockReturnValue(true);
+            const configProvider = configurationProviderFactory();
+            const buildTaskDefinitionBuilder = new BuildTaskDefinitionBuilderImpl(
+                solutionManager,
+                configProvider,
+            );
+
+            const taskDefinition = await buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode('setup');
+
+            expect(hasVirtualProjectSpy).toHaveBeenCalled();
+            expect(taskDefinition.virtualProject).toBe(true);
         });
 
         it('throws an error if there is no active solution', () => {

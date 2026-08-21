@@ -135,6 +135,9 @@ class CbuildIdxFileImpl extends CTreeItemYamlFile implements CbuildIdxFile {
         const result = await cbuildFile.load(resolvedPath);
         if (result <= ETextFileResult.Success) {
             context.projectPath = cbuildFile.projectPath;
+            if (context.projectPath) {
+                context.projectName = getFileNameNoExt(context.projectPath);
+            }
             context.layers = this.collectLayers(cbuild);
         }
         this._activeContexts.push(context);

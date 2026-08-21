@@ -132,6 +132,28 @@ describe('CompileCommandsGenerator', () => {
         expect(vscode.tasks.executeTask).toHaveBeenCalledTimes(1);
     });
 
+    it.each([
+        { virtualProject: true, reveal: vscode.TaskRevealKind.Always },
+        { virtualProject: false, reveal: vscode.TaskRevealKind.Silent },
+        { virtualProject: undefined, reveal: vscode.TaskRevealKind.Silent },
+    ])('sets setup task reveal to $reveal when virtualProject is $virtualProject', async ({ virtualProject, reveal }) => {
+        buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode.mockResolvedValue({
+            type: BuildTaskProviderImpl.taskType,
+            solution: 'some-solution-path',
+            schemaCheck: false,
+            virtualProject,
+        });
+        (mockBuildTaskProvider.getActiveTaskRunner as jest.Mock).mockReturnValue({
+            getOutputBuffer: () => ['completed with exit code 0']
+        });
+
+        cbuildSetupRequestedListener?.();
+        await waitTimeout();
+
+        const task = (vscode.tasks.executeTask as jest.Mock).mock.calls[0][0] as vscode.Task;
+        expect(task.presentationOptions?.reveal).toBe(reveal);
+    });
+
     it('does not save files when active editor is not dirty', async () => {
         (vscode.window as unknown as {
             activeTextEditor: { document: { isDirty: boolean } } | undefined;

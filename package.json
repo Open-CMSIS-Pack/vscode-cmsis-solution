@@ -640,8 +640,20 @@
       },
       {
         "category": "CMSIS",
+        "command": "cmsis-csolution.openPrjCmakeFile",
+        "title": "Open CMakeLists.txt File",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "category": "CMSIS",
         "command": "cmsis-csolution.openZephyrTerminal",
         "title": "Open Zephyr Terminal",
+        "icon": "$(terminal)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.openCMakeTerminal",
+        "title": "Open CMake Terminal",
         "icon": "$(terminal)"
       },
       {
@@ -910,7 +922,15 @@
           "when": "false"
         },
         {
+          "command": "cmsis-csolution.openPrjCmakeFile",
+          "when": "false"
+        },
+        {
           "command": "cmsis-csolution.openZephyrTerminal",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.openCMakeTerminal",
           "when": "false"
         },
         {
@@ -1137,6 +1157,16 @@
         {
           "command": "cmsis-csolution.openZephyrTerminal",
           "when": "view == cmsis-csolution.outline && viewItem =~ /\\.cproject-west\\.yml/ && cmsis-csolution.executionState == idle",
+          "group": "inline@3"
+        },
+        {
+          "command": "cmsis-csolution.openPrjCmakeFile",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /\\.cproject-cmake\\.yml/",
+          "group": "inline@3"
+        },
+        {
+          "command": "cmsis-csolution.openCMakeTerminal",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /\\.cproject-cmake\\.yml/ && cmsis-csolution.executionState == idle",
           "group": "inline@3"
         },
         {

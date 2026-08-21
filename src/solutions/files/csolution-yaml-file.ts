@@ -139,6 +139,10 @@ class CSolutionYamlFileImpl extends CTreeItemYamlFile implements CSolutionYamlFi
             // get first one
             return this.projects.values().next().value;
         }
+        const exactProject = this._cprojects.get(pathOrName);
+        if (exactProject) {
+            return exactProject;
+        }
         const name = getFileNameNoExt(pathOrName);
         return name ? this._cprojects.get(name) : undefined;
     }
@@ -227,7 +231,7 @@ class CSolutionYamlFileImpl extends CTreeItemYamlFile implements CSolutionYamlFi
         if (result !== ETextFileResult.Unchanged) {
             this._solutionWrap = undefined;
         }
-        this.loadProjects();
+        await this.loadProjects();
         this.ensureTargetSets();
         return result;
     }

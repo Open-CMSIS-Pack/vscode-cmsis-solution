@@ -47,7 +47,7 @@ jobs:
         run: |
           VERSION=$(node -p "require('./packages/cmsis-common/package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-      
+
       - name: Verify release tag
         run: |
           PACKAGE_VERSION=${{ steps.get_version.outputs.version }}
