@@ -11,7 +11,8 @@ build:
     project-id: firmware
     device: :CM0
     generator: Ninja
-    configure: Debug
+    configure:
+      - -DCMAKE_BUILD_TYPE=Debug
     target: firmware
     output: build
   groups:

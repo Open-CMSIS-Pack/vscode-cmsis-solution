@@ -19,6 +19,9 @@ solution:
         project-id: firmware
         device: :CM0
         generator: Ninja
-        configure: Debug
+        configure:
+          - -DCMAKE_BUILD_TYPE=Debug
         target: firmware
-        output: build
+        images:
+          - image: build/core0.axf
+            type: elf
