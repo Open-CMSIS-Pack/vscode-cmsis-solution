@@ -54,7 +54,7 @@ export interface CProjectYamlFile extends ITreeItemFile {
     get projectType(): string | undefined;
 
     /**
-     * Set project type, e.g. 'West', 'cmake', 'cmsis' (default)
+     * Set project type, e.g. 'West', 'CMake', 'cmsis' (default)
      */
     set projectType(type: string | undefined);
 
