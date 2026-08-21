@@ -14,7 +14,9 @@ build:
     configure:
       - -DCMAKE_BUILD_TYPE=Debug
     target: firmware
-    output: build
+    images:
+      - image: build/core0.axf
+        type: elf
   groups:
     - group: Application
       files:

@@ -142,9 +142,12 @@ describe('manage-solution-controller', () => {
             'project-id': 'firmware',
             device: ':CM0',
             generator: 'Ninja',
-            configure: 'Debug',
+            configure: ['-DCMAKE_BUILD_TYPE=Debug'],
             target: 'firmware',
-            output: 'build',
+            images: [{
+                image: 'build/core0.axf',
+                type: 'elf',
+            }],
         });
         expect(output.solution['target-types'][0]['target-set'][0].images).toEqual([
             { 'project-context': 'firmware.Debug' },

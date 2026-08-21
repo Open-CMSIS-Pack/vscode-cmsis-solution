@@ -88,16 +88,20 @@ describe('CSolutionYamlFile', () => {
 
     it('loads a virtual CMake project and preserves its settings', async () => {
         const fileName = testDataHandler.tmpFileName('app.v2/solution.csolution.yml');
+        const cmakeSettings = {
+            generator: 'Ninja',
+            configure: ['-DCMAKE_BUILD_TYPE=Debug'],
+            target: 'firmware',
+            images: [
+                { image: 'build/firmware.axf', type: 'elf' },
+                { image: 'build/firmware.hex', type: 'hex' },
+                { image: 'build/firmware.bin', type: 'bin' },
+                { image: 'build/firmware.lib', type: 'lib' },
+            ],
+        };
         writeTextFile(fileName, YAML.stringify({
             solution: {
-                projects: [{
-                    cmake: {
-                        generator: 'Ninja',
-                        configure: 'Debug',
-                        target: 'firmware',
-                        output: 'build',
-                    },
-                }],
+                projects: [{ cmake: cmakeSettings }],
             },
         }));
         const file = new CSolutionYamlFile();
@@ -108,12 +112,7 @@ describe('CSolutionYamlFile', () => {
         expect(project?.readOnly).toBeTruthy();
         expect(project?.projectType).toBe('CMake');
         expect(project?.fileName).toBe(path.join(path.dirname(fileName), 'app.v2.cproject-cmake.yml'));
-        expect(YAML.parse(file.stringify()).solution.projects[0].cmake).toEqual({
-            generator: 'Ninja',
-            configure: 'Debug',
-            target: 'firmware',
-            output: 'build',
-        });
+        expect(YAML.parse(file.stringify()).solution.projects[0].cmake).toEqual(cmakeSettings);
     });
 
     it('loads and preserves an empty CMake project entry', async () => {
