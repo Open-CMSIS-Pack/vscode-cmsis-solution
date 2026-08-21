@@ -106,7 +106,7 @@ describe('manage-solution-controller', () => {
 
     it('creates solution data for West solution', async () => {
         const { generated, reference } = await getSolutionDataStrings(tmpSolutionDir, 'WestSupport/solution.csolution.yml');
-        expect(generated).toEqual(reference);
+        expect(JSON.parse(generated)).toEqual(JSON.parse(reference));
     });
 
     it('creates solution data for a CMake project', async () => {
