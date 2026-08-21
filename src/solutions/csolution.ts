@@ -563,7 +563,7 @@ export class CSolution {
 
     public hasVirtualProject(): boolean {
         for (const project of this.projects.values()) {
-            if (project?.readOnly) {
+            if (project?.readOnly && (project.projectType === 'West' || project.projectType === 'CMake')) {
                 return true;
             }
         }
