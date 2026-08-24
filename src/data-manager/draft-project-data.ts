@@ -22,7 +22,7 @@ import { tmpdir } from 'os';
 import { downloadFile } from '../file-download';
 import { workspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { copyFolderRecursive, copyFilesOnly, copyFolderRecursiveDeferred } from '../utils/fs-utils';
-import { extractZip } from '../utils/extract-zip';
+import { extractZip } from '@open-cmsis-pack/cmsis-common/extract-zip';
 
 import { ExampleProject as CsolutionExampleProject, ExampleEnvironment as CsolutionExampleEnvironment, SolutionTemplate as CsolutionTemplate } from '../json-rpc/csolution-rpc-client';
 import { splitPackId } from '../json-rpc/csolution-rpc-helper';
