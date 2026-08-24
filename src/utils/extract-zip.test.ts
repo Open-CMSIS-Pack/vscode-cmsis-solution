@@ -171,4 +171,42 @@ describe('extractZip', () => {
         await expect(extractZip(zipPath, destination)).rejects.toThrow('symbolic links are not allowed');
         await expect(fs.stat(path.join(testRoot, 'outside.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
     });
+
+    it('rejects archives that exceed the entry count limit', async () => {
+        const zipPath = path.join(testRoot, 'archive.zip');
+        const destination = path.join(testRoot, 'destination');
+        await writeZip(zipPath, [
+            { name: 'first.txt', contents: 'first' },
+            { name: 'second.txt', contents: 'second' },
+        ]);
+
+        await expect(extractZip(zipPath, destination, { maxEntries: 1 })).rejects.toThrow('entry count limit');
+        await expect(fs.stat(path.join(destination, 'second.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
+    });
+
+    it('rejects an entry that exceeds the streamed byte limit', async () => {
+        const zipPath = path.join(testRoot, 'archive.zip');
+        const destination = path.join(testRoot, 'destination');
+        await writeZip(zipPath, [{ name: 'large.txt', contents: 'too large' }]);
+
+        await expect(extractZip(zipPath, destination, { maxEntryBytes: 4 })).rejects.toThrow(
+            'entry exceeds the uncompressed size limit',
+        );
+        await expect(fs.readdir(destination)).resolves.toEqual([]);
+    });
+
+    it('rejects an archive that exceeds the aggregate streamed byte limit', async () => {
+        const zipPath = path.join(testRoot, 'archive.zip');
+        const destination = path.join(testRoot, 'destination');
+        await writeZip(zipPath, [
+            { name: 'first.txt', contents: '1234' },
+            { name: 'second.txt', contents: '5678' },
+        ]);
+
+        await expect(extractZip(zipPath, destination, { maxTotalBytes: 6 })).rejects.toThrow(
+            'total uncompressed size limit',
+        );
+        await expect(fs.readFile(path.join(destination, 'first.txt'), 'utf8')).resolves.toBe('1234');
+        await expect(fs.stat(path.join(destination, 'second.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
+    });
 });

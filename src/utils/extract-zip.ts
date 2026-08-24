@@ -17,12 +17,68 @@
 import { createWriteStream, promises as fs } from 'fs';
 import { randomUUID } from 'crypto';
 import path from 'path';
+import { Readable, Transform, TransformCallback } from 'stream';
 import { pipeline } from 'stream/promises';
 import { Entry, open, ZipFile } from 'yauzl';
 
 const fileTypeMask = 0o170000;
 const directoryType = 0o040000;
 const symbolicLinkType = 0o120000;
+
+export interface ExtractZipLimits {
+    maxEntries: number;
+    maxEntryBytes: number;
+    maxTotalBytes: number;
+}
+
+const defaultLimits: ExtractZipLimits = {
+    maxEntries: 10_000,
+    maxEntryBytes: 512 * 1024 * 1024,
+    maxTotalBytes: 2 * 1024 * 1024 * 1024,
+};
+
+interface ExtractionProgress {
+    totalBytes: number;
+}
+
+class LimitBytesTransform extends Transform {
+    private entryBytes = 0;
+    public limitError: Error | undefined;
+
+    constructor(
+        private readonly entryName: string,
+        private readonly progress: ExtractionProgress,
+        private readonly limits: ExtractZipLimits,
+        private readonly source: Readable,
+    ) {
+        super();
+    }
+
+    private rejectChunk(error: Error, callback: TransformCallback): void {
+        this.limitError = error;
+        this.source.unpipe(this);
+        this.source.destroy();
+        callback(error);
+    }
+
+    override _transform(chunk: Buffer, _encoding: BufferEncoding, callback: TransformCallback): void {
+        const entryBytes = this.entryBytes + chunk.length;
+        if (entryBytes > this.limits.maxEntryBytes) {
+            this.rejectChunk(new Error(`ZIP entry exceeds the uncompressed size limit: ${this.entryName}`), callback);
+            return;
+        }
+
+        const totalBytes = this.progress.totalBytes + chunk.length;
+        if (totalBytes > this.limits.maxTotalBytes) {
+            this.rejectChunk(new Error('ZIP archive exceeds the total uncompressed size limit'), callback);
+            return;
+        }
+
+        this.entryBytes = entryBytes;
+        this.progress.totalBytes = totalBytes;
+        callback(undefined, chunk);
+    }
+}
 
 function openZip(zipPath: string): Promise<ZipFile> {
     return new Promise((resolve, reject) => {
@@ -36,7 +92,7 @@ function openZip(zipPath: string): Promise<ZipFile> {
     });
 }
 
-function openReadStream(zipFile: ZipFile, entry: Entry): Promise<NodeJS.ReadableStream> {
+function openReadStream(zipFile: ZipFile, entry: Entry): Promise<Readable> {
     return new Promise((resolve, reject) => {
         zipFile.openReadStream(entry, (error, readStream) => {
             if (error) {
@@ -94,7 +150,13 @@ async function replaceRegularFile(temporary: string, destination: string): Promi
     await fs.rename(temporary, destination);
 }
 
-async function extractEntry(zipFile: ZipFile, entry: Entry, root: string): Promise<void> {
+async function extractEntry(
+    zipFile: ZipFile,
+    entry: Entry,
+    root: string,
+    progress: ExtractionProgress,
+    limits: ExtractZipLimits,
+): Promise<void> {
     const mode = entryMode(entry);
     if ((mode & fileTypeMask) === symbolicLinkType) {
         throw new Error(`ZIP symbolic links are not allowed: ${entry.fileName}`);
@@ -119,14 +181,24 @@ async function extractEntry(zipFile: ZipFile, entry: Entry, root: string): Promi
             flags: 'wx',
             mode: mode & 0o777 || 0o644,
         });
-        await pipeline(readStream, writeStream);
+        const limitBytes = new LimitBytesTransform(entry.fileName, progress, limits, readStream);
+        try {
+            await pipeline(readStream, limitBytes, writeStream);
+        } catch (error) {
+            throw limitBytes.limitError ?? error;
+        }
         await replaceRegularFile(temporary, destination);
     } finally {
         await fs.rm(temporary, { force: true });
     }
 }
 
-export async function extractZip(zipPath: string, destination: string): Promise<void> {
+export async function extractZip(
+    zipPath: string,
+    destination: string,
+    limitOverrides: Partial<ExtractZipLimits> = {},
+): Promise<void> {
+    const limits = { ...defaultLimits, ...limitOverrides };
     const root = path.resolve(destination);
     await fs.mkdir(root, { recursive: true });
     const rootStats = await fs.lstat(root);
@@ -137,6 +209,8 @@ export async function extractZip(zipPath: string, destination: string): Promise<
     const zipFile = await openZip(zipPath);
     return new Promise((resolve, reject) => {
         let settled = false;
+        let entryCount = 0;
+        const progress: ExtractionProgress = { totalBytes: 0 };
         const fail = (error: unknown) => {
             if (!settled) {
                 settled = true;
@@ -154,7 +228,13 @@ export async function extractZip(zipPath: string, destination: string): Promise<
             }
         });
         zipFile.on('entry', entry => {
-            void extractEntry(zipFile, entry, root)
+            entryCount += 1;
+            if (entryCount > limits.maxEntries) {
+                fail(new Error('ZIP archive exceeds the entry count limit'));
+                return;
+            }
+
+            void extractEntry(zipFile, entry, root, progress, limits)
                 .then(() => zipFile.readEntry())
                 .catch(fail);
         });
