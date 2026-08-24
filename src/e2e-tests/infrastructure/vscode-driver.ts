@@ -37,6 +37,7 @@ import { PageDriver } from '../drivers/page-driver';
 import { initializeExtensionCache } from '../utils/install-extensions';
 import { log } from '../utils/logger';
 import { DEFAULT_TIMEOUT_MS } from '../constants';
+import { getTestEnvironment } from './test-environment';
 
 type RunningApp = {
     pageDriver: PageDriver;
@@ -97,7 +98,12 @@ export class VsCodeDriver {
 
             initializeExtensionCache(vsCodeExecutablePath, testDirectories);
 
-            const electronApp = await launchVsCode({ testDirectories, vsCodeExecutablePath, defaultTimeoutMillis: DEFAULT_TIMEOUT_MS });
+            // Resolve ${env:AVH_FVP_PLUGINS}
+            const env = await getTestEnvironment();
+            const electronApp = await launchVsCode({
+                testDirectories, vsCodeExecutablePath, defaultTimeoutMillis: DEFAULT_TIMEOUT_MS,
+                env,
+            });
             try {
                 const page = await this.setupPage(electronApp);
                 const pageDriver = new PageDriver(page);

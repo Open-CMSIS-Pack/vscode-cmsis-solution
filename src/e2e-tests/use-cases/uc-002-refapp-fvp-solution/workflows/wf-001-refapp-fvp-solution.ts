@@ -485,6 +485,22 @@ export const runWf001RefAppFVPSolution = async (
                 log('warn', `Failed to stop CMSIS Load+Run during cleanup: ${String(error)}`);
             }
         }
+
+        await test.step('Start debugger', async () => {           
+
+            await vsCodeDriver.page.openCmsisPanel();
+            const loadAndDebugButton = vsCodeDriver.page.getRoleByName('button', {
+                name: 'Load & Debug Application',
+            });
+            await expect(loadAndDebugButton).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+            await expect(loadAndDebugButton).toBeEnabled({ timeout: DEFAULT_TIMEOUT_MS });
+            await loadAndDebugButton.click();
+
+            const debugToolbar = vsCodeDriver.page.getRoleByName('toolbar', {
+                name: 'Debug Toolbar',
+            });
+            await expect(debugToolbar).toBeVisible({ timeout: DEFAULT_TIMEOUT_MS });
+        });
     } finally {
         try {
             await vsCodeDriver.restoreTestWorkspace();
