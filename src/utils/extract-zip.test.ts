@@ -102,6 +102,22 @@ describe('extractZip', () => {
         await expect(fs.readFile(path.join(destination, 'folder', 'file.txt'), 'utf8')).resolves.toBe('contents');
     });
 
+    it('extracts explicit directory entries', async () => {
+        const zipPath = path.join(testRoot, 'archive.zip');
+        const destination = path.join(testRoot, 'destination');
+        await writeZip(zipPath, [
+            { name: 'folder/', contents: '' },
+            { name: 'folder/file.txt', contents: 'contents' },
+        ]);
+
+        await extractZip(zipPath, destination);
+
+        await expect(fs.stat(path.join(destination, 'folder'))).resolves.toMatchObject({
+            isDirectory: expect.any(Function),
+        });
+        await expect(fs.readFile(path.join(destination, 'folder', 'file.txt'), 'utf8')).resolves.toBe('contents');
+    });
+
     it.each(['..config', '.../file.txt'])('extracts a safe entry named %s', async entryName => {
         const zipPath = path.join(testRoot, 'archive.zip');
         const destination = path.join(testRoot, 'destination');
@@ -151,6 +167,19 @@ describe('extractZip', () => {
         await expect(fs.readdir(destination)).resolves.toEqual(['file.txt']);
     });
 
+    it('rejects an existing unsafe parent path', async () => {
+        const zipPath = path.join(testRoot, 'archive.zip');
+        const destination = path.join(testRoot, 'destination');
+        const parentPath = path.join(destination, 'folder');
+        await fs.mkdir(parentPath, { recursive: true });
+        await fs.rm(parentPath, { recursive: true });
+        await fs.writeFile(parentPath, 'not a directory');
+        await writeZip(zipPath, [{ name: 'folder/file.txt', contents: 'contents' }]);
+
+        await expect(extractZip(zipPath, destination)).rejects.toThrow('unsafe parent path');
+        await expect(fs.readFile(parentPath, 'utf8')).resolves.toBe('not a directory');
+    });
+
     it('rejects entries that escape the extraction directory', async () => {
         const zipPath = path.join(testRoot, 'archive.zip');
         const destination = path.join(testRoot, 'destination');
@@ -184,6 +213,16 @@ describe('extractZip', () => {
         await expect(fs.stat(path.join(destination, 'second.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
     });
 
+    it('allows an archive at the entry count limit', async () => {
+        const zipPath = path.join(testRoot, 'archive.zip');
+        const destination = path.join(testRoot, 'destination');
+        await writeZip(zipPath, [{ name: 'file.txt', contents: 'contents' }]);
+
+        await extractZip(zipPath, destination, { maxEntries: 1 });
+
+        await expect(fs.readFile(path.join(destination, 'file.txt'), 'utf8')).resolves.toBe('contents');
+    });
+
     it('rejects an entry that exceeds the streamed byte limit', async () => {
         const zipPath = path.join(testRoot, 'archive.zip');
         const destination = path.join(testRoot, 'destination');
@@ -193,6 +232,16 @@ describe('extractZip', () => {
             'entry exceeds the uncompressed size limit',
         );
         await expect(fs.readdir(destination)).resolves.toEqual([]);
+    });
+
+    it('allows an entry at the uncompressed size limit', async () => {
+        const zipPath = path.join(testRoot, 'archive.zip');
+        const destination = path.join(testRoot, 'destination');
+        await writeZip(zipPath, [{ name: 'file.txt', contents: 'contents' }]);
+
+        await extractZip(zipPath, destination, { maxEntryBytes: 8 });
+
+        await expect(fs.readFile(path.join(destination, 'file.txt'), 'utf8')).resolves.toBe('contents');
     });
 
     it('rejects an archive that exceeds the aggregate streamed byte limit', async () => {
