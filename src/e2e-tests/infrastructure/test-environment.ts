@@ -14,29 +14,75 @@
  * limitations under the License.
  */
 
-import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { parse } from 'yaml';
+
+type FvpFixture = {
+    arm_tools: {
+        artifact: string;
+        version: string;
+    };
+};
 
 export const getTestEnvironment = async (): Promise<Record<string, string>> => {
-    const fvpPluginsPath = await getFvpPluginsPath();
+    const fixture = getFvpFixture();
+
+    const fvpPluginsPath = await getFvpPluginsPath(fixture);
 
     return {
         AVH_FVP_PLUGINS: fvpPluginsPath,
     };
 };
 
-const getFvpPluginsPath = async (): Promise<string> => {
-    // Resolve installed AVH FVP artifact here
+const getFvpFixture = (): FvpFixture => {
+    const fixturePath = path.resolve(
+        __dirname,
+        '../use-cases/uc-002-refapp-fvp-solution/fixtures/wf-001-refapp-fvp-solution.yml',
+    );
 
-    const pluginsPath = 'test';
+    return parse(
+        fs.readFileSync(fixturePath, 'utf8'),
+    ) as FvpFixture;
+};
 
-    const gdbServerPath = path.join(pluginsPath, 'GDBServer.dll');
+const getFvpPluginsPath = async (
+    fixture: FvpFixture,
+): Promise<string> => {
+    const { artifact, version } = fixture.arm_tools;
 
-    if (!fs.existsSync(gdbServerPath)) {
-        throw new Error(
-            `GDBServer plugin not found: ${gdbServerPath}`,
-        );
+    const artifactsRoot = path.join(
+        os.homedir(),
+        '.vcpkg',
+        'artifacts',
+    );
+
+    const artifactName = artifact.split(':')[1];
+
+    if (!artifactName) {
+        throw new Error(`Invalid FVP artifact name: ${artifact}`);
     }
 
-    return pluginsPath;
+    const artifactDirectoryName = artifactName.replace(/[/-]/g, '.');
+
+    const artifactDirectories = fs.readdirSync(artifactsRoot);
+
+    for (const artifactHash of artifactDirectories) {
+        const pluginsPath = path.join(
+            artifactsRoot,
+            artifactHash,
+            artifactDirectoryName,
+            version,
+            'plugins',
+        );
+
+        if (fs.existsSync(pluginsPath)) {
+            return pluginsPath;
+        }
+    }
+
+    throw new Error(
+        `FVP plugins directory not found for ${artifact}@${version}`,
+    );
 };
