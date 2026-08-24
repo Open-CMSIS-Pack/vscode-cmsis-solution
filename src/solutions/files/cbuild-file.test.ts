@@ -60,6 +60,38 @@ describe('CbuildFile', () => {
             expect(cbuildFile.projectPath).toContain('zephyr.cproject-west.yml');
         });
 
+        it('returns virtual CMake project with explicit source and project id', async () => {
+            const cbuildFile = new CbuildFile(`${tmpSolutionDir}/HID/HID.Debug+B-U585I-IOT02A.cbuild.yml`);
+            expect(await cbuildFile.load()).toBe(ETextFileResult.Success);
+
+            cbuildFile.topItem?.removeChildrenWithTags(['project']);
+            const cmake = cbuildFile.topItem?.createChild('cmake');
+            cmake?.setValue('source', '../app.v2');
+            cmake?.setValue('project-id', 'appID');
+
+            expect(cbuildFile.projectPath).toBe(path.join(tmpSolutionDir, 'app.v2', 'appID.cproject-cmake.yml'));
+        });
+
+        it('defaults virtual CMake source and project id to the solution directory', async () => {
+            const cbuildFile = new CbuildFile(`${tmpSolutionDir}/HID/HID.Debug+B-U585I-IOT02A.cbuild.yml`);
+            expect(await cbuildFile.load()).toBe(ETextFileResult.Success);
+
+            cbuildFile.topItem?.removeChildrenWithTags(['project']);
+            cbuildFile.topItem?.createChild('cmake');
+
+            expect(cbuildFile.projectPath).toBe(path.join(tmpSolutionDir, path.basename(tmpSolutionDir) + '.cproject-cmake.yml'));
+        });
+
+        it('uses an explicit virtual CMake project id with the default solution directory', async () => {
+            const cbuildFile = new CbuildFile(`${tmpSolutionDir}/HID/HID.Debug+B-U585I-IOT02A.cbuild.yml`);
+            expect(await cbuildFile.load()).toBe(ETextFileResult.Success);
+
+            cbuildFile.topItem?.removeChildrenWithTags(['project']);
+            cbuildFile.topItem?.createChild('cmake').setValue('project-id', 'appID');
+
+            expect(cbuildFile.projectPath).toBe(path.join(tmpSolutionDir, 'appID.cproject-cmake.yml'));
+        });
+
     });
 
     describe('getSourceFiles', () => {

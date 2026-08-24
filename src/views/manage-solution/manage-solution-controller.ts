@@ -663,6 +663,7 @@ export class ManageSolutionController {
             buildTypes: buildTypes,
             device: cproject?.deviceProcessor || pr.deviceProcessor,
             projectType: cproject?.projectType || pr.projectType,
+            ...(cproject?.readOnly || pr.projectType ? { readOnly: true } : {}),
         };
     }
 

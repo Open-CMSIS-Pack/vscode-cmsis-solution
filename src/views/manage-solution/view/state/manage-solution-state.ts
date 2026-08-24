@@ -52,6 +52,7 @@ export type ProjectSelection = ImageSelection & {
     buildTypes: string[];
     selectedBuildType: string;
     projectType?: string; // optional project type
+    readOnly?: boolean;
 }
 
 export type GenericPropertyList = {

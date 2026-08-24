@@ -18,8 +18,8 @@ import { CTreeItem, ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-ite
 import { CTreeItemWrap } from '@open-cmsis-pack/cmsis-common/tree-item-wrapper';
 import { matchesContext } from '../../utils/context-utils';
 import { getFileNameNoExt } from '../../utils/path-utils';
-import { extractPname, stripSuffix } from '@open-cmsis-pack/cmsis-common/string-utils';
-import { PROJECT_WEST_SUFFIX } from '../constants';
+import { stripSuffix } from '@open-cmsis-pack/cmsis-common/string-utils';
+import { getVirtualProjectDescriptor } from './virtual-project';
 
 // Allowed load modes for an Image entry
 export type LoadImageType = 'image+symbols' | 'symbols' | 'image' | 'none';
@@ -42,23 +42,14 @@ export class ProjectRefWrap extends CTreeItemWrap {
     }
 
     get projectType(): string | undefined {
-        return this.west ? 'West' : undefined;
+        return this.virtualProject?.type;
     }
 
     override get nameKey(): string {
         return 'project';
     }
     override get name(): string {
-        const west = this.west;
-        if (west) {
-            const projPath = west.getValueAsString('app-path');
-            let projId = this.west.getValue('project-id');
-            if (!projId) {
-                projId = getFileNameNoExt(projPath);
-            }
-            return projPath + '/' + projId + PROJECT_WEST_SUFFIX;
-        }
-        return super.name;
+        return this.virtualProject?.project ?? super.name;
     }
 
     get projectPath(): string {
@@ -72,6 +63,14 @@ export class ProjectRefWrap extends CTreeItemWrap {
         return this.item?.getChild('west') as CTreeItem;
     }
 
+    get cmake(): CTreeItem | undefined {
+        return this.item?.getChild('cmake') as CTreeItem;
+    }
+
+    private get virtualProject() {
+        return getVirtualProjectDescriptor(this.item);
+    }
+
     get projectName(): string {
         if (this.item) {
             return getFileNameNoExt(this.name);
@@ -83,16 +82,16 @@ export class ProjectRefWrap extends CTreeItemWrap {
         if (!name) {
             return;
         }
-        const west = this.west;
-        if (west) {
-            west.setValue('project-id', name);
+        const virtualProject = this.virtualProject;
+        if (virtualProject) {
+            virtualProject.item.setValue('project-id', name);
         } else {
             super.name = name;
         }
     }
 
     get deviceProcessor() {
-        return extractPname(this.west?.getValueAsString('device'));
+        return this.virtualProject?.deviceProcessor;
     }
 }
 

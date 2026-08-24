@@ -149,6 +149,11 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
             if (prjConfPath) {
                 cprojectItem.setAttribute('prjConfPath', prjConfPath);
             }
+        } else if (projectType === 'CMake') {
+            const prjCmakePath = this.findProjectFilePath(absolutePath, 'CMakeLists.txt');
+            if (prjCmakePath) {
+                cprojectItem.setAttribute('prjCmakePath', prjCmakePath);
+            }
         }
 
         if (projectType) {
@@ -161,11 +166,15 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
     }
 
     private findPrjConfPath(projectPath: string): string | undefined {
-        const appPath = path.dirname(projectPath);
-        const prjConfPath = path.join(appPath, 'prj.conf');
+        return this.findProjectFilePath(projectPath, 'prj.conf');
+    }
 
-        if (fsUtils.fileExists(prjConfPath)) {
-            return prjConfPath;
+    private findProjectFilePath(projectPath: string, fileName: string): string | undefined {
+        const appPath = path.dirname(projectPath);
+        const projectFilePath = path.join(appPath, fileName);
+
+        if (fsUtils.fileExists(projectFilePath)) {
+            return projectFilePath;
         }
         return undefined;
     }
