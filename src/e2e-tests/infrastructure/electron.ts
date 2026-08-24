@@ -33,8 +33,6 @@ import * as playwright from 'playwright';
 import { log } from '../utils/logger';
 
 export const launchElectron = async (executablePath: string, args: string[], defaultTimeoutMillis: number, env: { [key: string]: string } = {}): Promise<playwright.ElectronApplication> => {
-    log('debug', 'Launching E2E VS Code with AVH_FVP_PLUGINS:', env.AVH_FVP_PLUGINS ?? process.env.AVH_FVP_PLUGINS);
-
     const electronApp = await playwright._electron.launch({ executablePath, args, timeout: defaultTimeoutMillis, env: { ...process.env, ...env } as { [key: string]: string } });
     electronApp.context().setDefaultTimeout(defaultTimeoutMillis);
 

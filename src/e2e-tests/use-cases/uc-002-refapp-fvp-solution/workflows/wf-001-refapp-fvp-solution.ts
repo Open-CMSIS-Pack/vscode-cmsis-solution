@@ -501,8 +501,7 @@ export const runWf001RefAppFVPSolution = async (
             }
         }
 
-        await test.step('Start debugger', async () => {           
-
+        await test.step('Start debugger', async () => {
             await vsCodeDriver.page.openCmsisPanel();
             const loadAndDebugButton = vsCodeDriver.page.getRoleByName('button', {
                 name: 'Load & Debug Application',
