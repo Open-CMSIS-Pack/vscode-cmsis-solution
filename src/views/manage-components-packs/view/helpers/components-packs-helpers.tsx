@@ -95,10 +95,16 @@ export const getActiveLayer = (state: { selectedTargetType: TargetSetData | unde
 export const isInActiveLayer = (record: ComponentRowDataType, state: { activeLayer?: string, selectedTargetType: TargetSetData | undefined }): boolean => {
     const rawActiveLayer = getActiveLayer(state);
     const activeLayer = rawActiveLayer ? rawActiveLayer.toLocaleLowerCase().replaceAll('\\', '/') : '';
+    const rawActiveTarget = state.selectedTargetType?.path;
+    const activeTarget = rawActiveTarget ? rawActiveTarget.toLowerCase().replaceAll('\\', '/') : '';
     const rawRecordLayer = record.aggregate.options?.layer;
     const recordLayer = rawRecordLayer ? rawRecordLayer.toLowerCase().replaceAll('\\', '/') : '';
 
-    if (recordLayer === activeLayer && recordLayer.length > 0 && record.aggregate.selectedCount) {
+    const isActivePartition = recordLayer.length > 0
+        ? recordLayer === activeLayer || recordLayer === activeTarget
+        : state.selectedTargetType?.type === 'project';
+
+    if (isActivePartition && record.aggregate.selectedCount) {
         return true;
     }
 
