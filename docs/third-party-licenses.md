@@ -23,6 +23,7 @@ Generated for release: 1.70.0
 |lodash|4.18.1|https://github.com/lodash/lodash|https://github.com/lodash/lodash/blob/master/LICENSE|
 |lodash.debounce|4.0.8|https://github.com/lodash/lodash|https://github.com/lodash/lodash/blob/master/LICENSE|
 |node-fetch|3.3.2|https://github.com/node-fetch/node-fetch|https://github.com/node-fetch/node-fetch/blob/master/LICENSE.md|
+|pend|1.2.0|https://github.com/andrewrk/node-pend|https://github.com/andrewrk/node-pend/blob/master/LICENSE|
 |primereact|10.9.7|https://github.com/primefaces/primereact|https://github.com/primefaces/primereact/blob/master/LICENSE.md|
 |react|18.3.1|https://github.com/facebook/react|https://github.com/facebook/react/blob/main/LICENSE|
 |react-dom|18.3.1|https://github.com/facebook/react|https://github.com/facebook/react/blob/main/LICENSE|
@@ -38,3 +39,4 @@ Generated for release: 1.70.0
 |which|6.0.1|https://github.com/npm/node-which|https://github.com/npm/node-which/blob/main/LICENSE|
 |yaml|2.9.0|https://github.com/eemeli/yaml|https://github.com/eemeli/yaml/blob/main/LICENSE|
 |yargs-parser|21.1.1|https://github.com/yargs/yargs-parser|https://github.com/yargs/yargs-parser/blob/main/LICENSE.txt|
+|yauzl|3.4.0|https://github.com/thejoshwolfe/yauzl|https://github.com/thejoshwolfe/yauzl/blob/master/LICENSE|

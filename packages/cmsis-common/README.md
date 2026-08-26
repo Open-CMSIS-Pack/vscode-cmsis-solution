@@ -46,8 +46,12 @@ Focused APIs are also available through the documented subpaths in `package.json
 
 ```ts
 import { TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
+import { extractZip } from '@open-cmsis-pack/cmsis-common/extract-zip';
 import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
 ```
+
+`extractZip` rejects entries that escape the destination, symbolic links, unsafe existing paths,
+and archives exceeding configurable entry or uncompressed-size limits.
 
 Array and map prototype extensions are opt-in side effects. Import only the extension required by
 the application:
