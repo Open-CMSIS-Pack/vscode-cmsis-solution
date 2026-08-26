@@ -165,7 +165,6 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "7.0.1",
     "eslint-plugin-unused-imports": "^4.4.1",
-    "extract-zip": "^2.0.1",
     "fs-extra": "^11.3.3",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
@@ -1627,6 +1626,7 @@
     ],
     "testPathIgnorePatterns": [
       "/node_modules/",
+      "/packages/cmsis-common/",
       "/src/e2e-tests/"
     ],
     "testMatch": [
