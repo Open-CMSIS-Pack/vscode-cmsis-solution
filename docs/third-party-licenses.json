@@ -84,6 +84,13 @@
         "license": "https://github.com/node-fetch/node-fetch/blob/master/LICENSE.md"
     },
     {
+        "name": "pend",
+        "version": "1.2.0",
+        "spdx": "MIT",
+        "url": "https://github.com/andrewrk/node-pend",
+        "license": "https://github.com/andrewrk/node-pend/blob/master/LICENSE"
+    },
+    {
         "name": "primereact",
         "version": "10.9.7",
         "spdx": "MIT",
@@ -166,13 +173,6 @@
         "spdx": "MIT",
         "url": "https://github.com/thejoshwolfe/yauzl",
         "license": "https://github.com/thejoshwolfe/yauzl/blob/master/LICENSE"
-    },
-    {
-        "name": "pend",
-        "version": "1.2.0",
-        "spdx": "MIT",
-        "url": "https://github.com/andrewrk/node-pend",
-        "license": "https://github.com/andrewrk/node-pend/blob/master/LICENSE"
     },
     {
         "name": "@ant-design/icons",

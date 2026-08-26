@@ -130,7 +130,17 @@ async function ensureSafeDirectory(root: string, directory: string): Promise<voi
             if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
                 throw error;
             }
-            await fs.mkdir(currentDirectory);
+            try {
+                await fs.mkdir(currentDirectory);
+            } catch (mkdirError) {
+                if ((mkdirError as NodeJS.ErrnoException).code !== 'EEXIST') {
+                    throw mkdirError;
+                }
+                const stats = await fs.lstat(currentDirectory);
+                if (!stats.isDirectory() || stats.isSymbolicLink()) {
+                    throw new Error(`ZIP entry has an unsafe parent path: ${relativeDirectory}`);
+                }
+            }
         }
     }
 }

@@ -1626,6 +1626,7 @@
     ],
     "testPathIgnorePatterns": [
       "/node_modules/",
+      "/packages/cmsis-common/",
       "/src/e2e-tests/"
     ],
     "testMatch": [

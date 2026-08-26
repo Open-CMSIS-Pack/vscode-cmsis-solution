@@ -17,11 +17,8 @@
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
-import { setImmediate } from 'timers';
 import { crc32 } from 'zlib';
 import { extractZip } from './extract-zip';
-
-globalThis.setImmediate = setImmediate;
 
 async function writeZip(
     zipPath: string,
@@ -89,6 +86,7 @@ describe('extractZip', () => {
     });
 
     afterEach(async () => {
+        jest.restoreAllMocks();
         await fs.rm(testRoot, { recursive: true, force: true });
     });
 
@@ -174,6 +172,48 @@ describe('extractZip', () => {
         await fs.mkdir(parentPath, { recursive: true });
         await fs.rm(parentPath, { recursive: true });
         await fs.writeFile(parentPath, 'not a directory');
+        await writeZip(zipPath, [{ name: 'folder/file.txt', contents: 'contents' }]);
+
+        await expect(extractZip(zipPath, destination)).rejects.toThrow('unsafe parent path');
+        await expect(fs.readFile(parentPath, 'utf8')).resolves.toBe('not a directory');
+    });
+
+    it('accepts a safe directory created concurrently', async () => {
+        const zipPath = path.join(testRoot, 'archive.zip');
+        const destination = path.join(testRoot, 'destination');
+        const parentPath = path.join(destination, 'folder');
+        const mkdir = fs.mkdir.bind(fs);
+        const mkdirSpy = jest.spyOn(fs, 'mkdir').mockImplementation(async (directory, options) => {
+            if (directory === parentPath) {
+                await mkdir(parentPath);
+                const error = new Error('directory already exists') as NodeJS.ErrnoException;
+                error.code = 'EEXIST';
+                throw error;
+            }
+            return mkdir(directory, options);
+        });
+        await writeZip(zipPath, [{ name: 'folder/file.txt', contents: 'contents' }]);
+
+        await extractZip(zipPath, destination);
+
+        await expect(fs.readFile(path.join(parentPath, 'file.txt'), 'utf8')).resolves.toBe('contents');
+        expect(mkdirSpy).toHaveBeenCalledWith(parentPath);
+    });
+
+    it('rejects an unsafe path created concurrently', async () => {
+        const zipPath = path.join(testRoot, 'archive.zip');
+        const destination = path.join(testRoot, 'destination');
+        const parentPath = path.join(destination, 'folder');
+        const mkdir = fs.mkdir.bind(fs);
+        jest.spyOn(fs, 'mkdir').mockImplementation(async (directory, options) => {
+            if (directory === parentPath) {
+                await fs.writeFile(parentPath, 'not a directory');
+                const error = new Error('path already exists') as NodeJS.ErrnoException;
+                error.code = 'EEXIST';
+                throw error;
+            }
+            return mkdir(directory, options);
+        });
         await writeZip(zipPath, [{ name: 'folder/file.txt', contents: 'contents' }]);
 
         await expect(extractZip(zipPath, destination)).rejects.toThrow('unsafe parent path');
