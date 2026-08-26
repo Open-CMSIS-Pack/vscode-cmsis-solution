@@ -17,43 +17,60 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { parse } from 'yaml';
 
-type FvpFixture = {
-    arm_tools: {
-        artifact: string;
-        version: string;
-    };
+const FVP_ARTIFACT = 'arm:models/arm/avh-fvp';
+
+type VcpkgConfiguration = {
+    requires?: Record<string, string>;
 };
 
-export const getTestEnvironment = async (): Promise<Record<string, string>> => {
-    const fixture = getFvpFixture();
-    const fvpPluginsPath = await getFvpPluginsPath(fixture);
+const getFvpRequirement = (): {
+    artifact: string;
+    version: string;
+} => {
+    const configurationPath = path.resolve(
+        __dirname,
+        '../vcpkg-configuration.json',
+    );
 
-    if (!fvpPluginsPath) {
-        return {};
+    const configuration = JSON.parse(
+        fs.readFileSync(configurationPath, 'utf8'),
+    ) as VcpkgConfiguration;
+
+    const version = configuration.requires?.[FVP_ARTIFACT];
+
+    if (!version) {
+        throw new Error(
+            `${FVP_ARTIFACT} is missing from E2E vcpkg-configuration.json`,
+        );
     }
 
     return {
-        AVH_FVP_PLUGINS: fvpPluginsPath,
+        artifact: FVP_ARTIFACT,
+        version,
     };
 };
 
-const getFvpFixture = (): FvpFixture => {
-    const fixturePath = path.resolve(
-        __dirname,
-        '../use-cases/uc-002-refapp-fvp-solution/fixtures/wf-001-refapp-fvp-solution.yml',
-    );
+export const getTestEnvironment =
+    async (): Promise<Record<string, string>> => {
+        const { artifact, version } = getFvpRequirement();
+        const fvpPluginsPath = getFvpPluginsPath(artifact, version);
 
-    return parse(
-        fs.readFileSync(fixturePath, 'utf8'),
-    ) as FvpFixture;
-};
+        if (!fvpPluginsPath) {
+            throw new Error(
+                `Could not resolve plugins for ${artifact}@${version}`,
+            );
+        }
+
+        return {
+            AVH_FVP_PLUGINS: fvpPluginsPath,
+        };
+    };
 
 const getFvpPluginsPath = (
-    fixture: FvpFixture,
+    artifact: string,
+    version: string,
 ): string | undefined => {
-    const { artifact, version } = fixture.arm_tools;
 
     const artifactsRoot = path.join(
         os.homedir(),
