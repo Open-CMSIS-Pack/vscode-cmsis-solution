@@ -94,7 +94,7 @@ export const getActiveLayer = (state: { selectedTargetType: TargetSetData | unde
  */
 export const isInActiveLayer = (record: ComponentRowDataType, state: { activeLayer?: string, selectedTargetType: TargetSetData | undefined }): boolean => {
     const rawActiveLayer = getActiveLayer(state);
-    const activeLayer = rawActiveLayer ? rawActiveLayer.toLocaleLowerCase().replaceAll('\\', '/') : '';
+    const activeLayer = rawActiveLayer ? rawActiveLayer.toLowerCase().replaceAll('\\', '/') : '';
     const rawActiveTarget = state.selectedTargetType?.path;
     const activeTarget = rawActiveTarget ? rawActiveTarget.toLowerCase().replaceAll('\\', '/') : '';
     const rawRecordLayer = record.aggregate.options?.layer;
