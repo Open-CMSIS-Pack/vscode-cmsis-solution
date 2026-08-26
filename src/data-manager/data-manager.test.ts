@@ -225,6 +225,56 @@ describe('DataManager', () => {
             expect(devices.size).toEqual(deviceData.length);
         });
 
+        it('ignores disabled data sources', async () => {
+            const enabledSource = dataSourceFactory();
+            const disabledSource = { ...dataSourceFactory(), enabled: false };
+            const deviceData = [deviceDataFactory()];
+            enabledSource.getAllDevices.mockResolvedValue(deviceData);
+            disabledSource.getAllDevices.mockResolvedValue([deviceDataFactory()]);
+            const dataManager = new DataManager(enabledSource, disabledSource);
+
+            const devices = await dataManager.getAllDevices();
+
+            expect(devices.size).toBe(1);
+            expect(enabledSource.getAllDevices).toHaveBeenCalledTimes(1);
+            expect(disabledSource.getAllDevices).not.toHaveBeenCalled();
+        });
+
+        it('records an Error rejection message', async () => {
+            const dataSource = dataSourceFactory();
+            const dataManager = new DataManager(dataSource);
+            dataSource.getAllDevices.mockRejectedValue(new Error('Data source failed'));
+
+            await dataManager.getAllDevices();
+
+            expect(dataManager.errors).toEqual(['Data source failed']);
+        });
+
+        it('records a non-Error rejection value', async () => {
+            const dataSource = dataSourceFactory();
+            const dataManager = new DataManager(dataSource);
+            dataSource.getAllDevices.mockRejectedValue(42);
+
+            const devices = await dataManager.getAllDevices();
+
+            expect(devices.size).toBe(0);
+            expect(dataManager.errors).toEqual(['42']);
+        });
+
+        it('clears errors after a successful request', async () => {
+            const dataSource = dataSourceFactory();
+            const dataManager = new DataManager(dataSource);
+            dataSource.getAllDevices.mockRejectedValueOnce(new Error('temporary failure'));
+            dataSource.getAllDevices.mockResolvedValueOnce([]);
+
+            await dataManager.getAllDevices();
+            expect(dataManager.errors).toEqual(['temporary failure']);
+
+            await dataManager.getAllDevices();
+
+            expect(dataManager.errors).toEqual([]);
+        });
+
         it('returns devices from solar client', async () => {
             const sDeviceIds = [
                 deviceIdFactory(),
@@ -286,6 +336,16 @@ describe('DataManager', () => {
 
             const boards = await dataManager.getAllBoards();
             expect(boards.size).toEqual(boardData.length);
+        });
+
+        it('forwards the details option to enabled data sources', async () => {
+            const dataSource = dataSourceFactory();
+            const dataManager = new DataManager(dataSource);
+            dataSource.getAllBoards.mockResolvedValue([]);
+
+            await dataManager.getAllBoards(true);
+
+            expect(dataSource.getAllBoards).toHaveBeenCalledWith(true);
         });
 
         it('returns boards from solar client', async () => {

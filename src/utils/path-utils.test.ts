@@ -66,6 +66,11 @@ describe('path-utils', () => {
             expect(pathsEqual('/path/to/name.cproject.yml', undefined)).toBeFalsy();
             expect(pathsEqual(undefined, '/path/to/name.cproject.yml')).toBeFalsy();
         });
+
+        it('returns false when either path is empty', () => {
+            expect(pathsEqual('', '/path/to/name.cproject.yml')).toBe(false);
+            expect(pathsEqual('/path/to/name.cproject.yml', '')).toBe(false);
+        });
     });
 
     describe('pathIsAncestor', () => {
@@ -99,6 +104,11 @@ describe('path-utils', () => {
             const output = pathIsAncestor(path.join(__dirname, 'input'), __dirname);
             expect(output).toBe(false);
         });
+
+        it('returns false when a sibling path only shares a prefix', () => {
+            const output = pathIsAncestor(path.join(__dirname, 'input'), path.join(__dirname, 'input-other'));
+            expect(output).toBe(false);
+        });
     });
 
     describe('getCmsisPackRoot', () => {
@@ -112,6 +122,12 @@ describe('path-utils', () => {
         it('falls back to the OS default location otherwise', () => {
             const output = getCmsisPackRoot({});
             expect(output.includes(`arm${path.sep}packs`)).toBeTruthy();
+        });
+
+        it('uses LOCALAPPDATA for the Windows default when available', () => {
+            const localAppData = path.join(__dirname, 'localAppData');
+            const output = getCmsisPackRoot({ LOCALAPPDATA: localAppData });
+            expect(output).toBe(path.join(localAppData, 'arm', 'packs'));
         });
     });
 
@@ -139,6 +155,11 @@ describe('path-utils', () => {
             const toolboxPath = path.join(__dirname, 'toolboxRoot');
             const output = getCmsisCompilerRoot({ CMSIS_SOLUTION_TOOLBOX: toolboxPath });
             expect(output).toBe(path.join(toolboxPath, 'etc'));
+        });
+
+        it('falls back to the default toolbox root when no environment value is set', () => {
+            const output = getCmsisCompilerRoot({});
+            expect(output).toBe(path.join(CMSIS_TOOLBOX_FOLDER, 'etc'));
         });
     });
 
@@ -178,6 +199,11 @@ describe('path-utils', () => {
         it('gets filename from path', () => {
             expect(getFileNameFromPath('/path/to/name.cproject.yml')).toBe('name.cproject.yml');
             expect(getFileNameFromPath('/path/to/name.yaml')).toBe('name.yaml');
+        });
+
+        it('returns an empty filename for an undefined path', () => {
+            expect(getFileNameFromPath()).toBe('');
+            expect(getFileNameNoExt()).toBe('');
         });
     });
 });

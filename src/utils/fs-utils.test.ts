@@ -46,6 +46,18 @@ describe('removeReadOnly', () => {
         const permissions = await checkPermissions(tempDir);
         expect(permissions).toBe('666');
     });
+
+    it('leaves an already writable target unchanged', async () => {
+        fsUtils.removeReadOnly(tempDir);
+
+        expect(await checkPermissions(tempDir)).toBe('666');
+    });
+
+    it('throws when the target does not exist', () => {
+        expect(() => fsUtils.removeReadOnly(path.join(tempDir, 'missing'))).toThrow(
+            `Could not find file for RO removal ${path.join(tempDir, 'missing')}`
+        );
+    });
 });
 
 describe('copyFolderRecursive', () => {
@@ -78,6 +90,20 @@ describe('copyFolderRecursive', () => {
         const destSubDirExists = await fs.stat(path.join(destDir, 'subDir'));
         expect(destSubDirExists.isDirectory()).toBe(true);
     });
+
+    it('throws when the source does not exist', () => {
+        expect(() => fsUtils.copyFolderRecursive(path.join(tempDir, 'missing'), destDir)).toThrow();
+    });
+
+    it('copies a single file when the source is not a directory', async () => {
+        const sourceFile = path.join(tempDir, 'single.txt');
+        const destinationFile = path.join(tempDir, 'single-copy.txt');
+        await fs.writeFile(sourceFile, 'single file');
+
+        fsUtils.copyFolderRecursive(sourceFile, destinationFile);
+
+        expect(fsUtils.readTextFile(destinationFile)).toBe('single file');
+    });
 });
 
 describe('copyFilesOnly', () => {
@@ -107,6 +133,14 @@ describe('copyFilesOnly', () => {
 
     it('does nothing when src does not exist', () => {
         expect(() => fsUtils.copyFilesOnly(path.join(tempDir, 'nonexistent'), destDir)).not.toThrow();
+    });
+
+    it('does nothing when src is a file', async () => {
+        const filePath = path.join(tempDir, 'source.txt');
+        const fileDestination = path.join(tempDir, 'fileDestination');
+        await fs.writeFile(filePath, 'source');
+        fsUtils.copyFilesOnly(filePath, fileDestination);
+        expect(fsUtils.fileExists(fileDestination)).toBe(false);
     });
 });
 
@@ -150,6 +184,13 @@ describe('fsUtils', () => {
         expect(fsUtils.fileExists()).toBe(false);
         const readContent = fsUtils.readTextFile();
         expect(readContent).toBe('');
+        expect(() => fsUtils.writeTextFile()).not.toThrow();
+    });
+
+    it('should report matching and missing line locations', () => {
+        expect(fsUtils.lineOf('first\nsecond\nthird', 'second')).toBe(1);
+        expect(fsUtils.lineOf('first\nsecond\nthird', 'missing')).toBe(0);
+        expect(fsUtils.lineOf('first\r\nsecond\r\nthird', 'third')).toBe(2);
     });
 
     it('should write and read text file using fsUtils', () => {
@@ -196,5 +237,22 @@ describe('fsUtils', () => {
         // For non-existing file
         const modTime0 = fsUtils.getFileModificationTime(filePath);
         expect(modTime0).toEqual(0);
+    });
+
+    it('should copy, rename, list, and delete files', () => {
+        const testDataHandler = new TestDataHandler();
+        const source = path.join(testDataHandler.tmpDir, 'source.txt');
+        const copied = path.join(testDataHandler.tmpDir, 'copied.txt');
+        const renamed = path.join(testDataHandler.tmpDir, 'renamed.txt');
+
+        fsUtils.writeTextFile(source, 'content');
+        fsUtils.copyFile(source, copied);
+        expect(fsUtils.readTextFile(copied)).toBe('content');
+        fsUtils.renameFile(copied, renamed);
+        expect(fsUtils.readDirectory(testDataHandler.tmpDir)).toContain('renamed.txt');
+        fsUtils.deleteFileIfExists(renamed);
+        expect(fsUtils.fileExists(renamed)).toBe(false);
+        expect(() => fsUtils.deleteFileIfExists()).not.toThrow();
+        testDataHandler.dispose();
     });
 });

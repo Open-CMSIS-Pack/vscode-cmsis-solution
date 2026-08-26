@@ -38,6 +38,21 @@ describe('downloadFile', () => {
         expect(data).toBe(fileContents);
     });
 
+    it('sends a bearer token when one is provided', async () => {
+        const fileName = faker.system.fileName();
+        const downloadLocation = join(tmpDirectory, fileName);
+        const token = 'test-token';
+        nock('https://some-cool-url.arm.com', {
+            reqheaders: { authorization: `Bearer ${token}` },
+        })
+            .get(`/${fileName}`)
+            .reply(200, 'authenticated content');
+
+        await downloadFile(`https://some-cool-url.arm.com/${fileName}`, downloadLocation, token);
+
+        expect(fs.readFileSync(downloadLocation, 'utf8')).toBe('authenticated content');
+    });
+
     it('follows redirects to the file to download', async () => {
         const fileName = faker.system.fileName();
         const downloadLocation = join(tmpDirectory, fileName);
@@ -63,5 +78,34 @@ describe('downloadFile', () => {
         const downloadPromise = downloadFile('https://some-cool-url.arm.com/some-thing', 'some-directory');
 
         await expect(downloadPromise).rejects.toThrow('Status Code: 404');
+    });
+
+    it('rejects with response details for a non-redirect status', async () => {
+        nock('https://some-cool-url.arm.com')
+            .get('/server-error')
+            .reply(500, undefined, { 'x-error': 'backend-failed' });
+
+        await expect(downloadFile('https://some-cool-url.arm.com/server-error', 'some-directory'))
+            .rejects.toThrow('Status Code: 500');
+    });
+
+    it('rejects when the request emits an error', async () => {
+        nock('https://some-cool-url.arm.com')
+            .get('/network-error')
+            .replyWithError('network unavailable');
+
+        await expect(downloadFile('https://some-cool-url.arm.com/network-error', 'some-directory'))
+            .rejects.toThrow('network unavailable');
+    });
+
+    it('rejects when the output stream cannot be opened', async () => {
+        nock('https://some-cool-url.arm.com')
+            .get('/stream-error')
+            .reply(200, 'content');
+
+        await expect(downloadFile(
+            'https://some-cool-url.arm.com/stream-error',
+            join(tmpDirectory, 'missing-directory', 'output.txt'),
+        )).rejects.toThrow();
     });
 });
