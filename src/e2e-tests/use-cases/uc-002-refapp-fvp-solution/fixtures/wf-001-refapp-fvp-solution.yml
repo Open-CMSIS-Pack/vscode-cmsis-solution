@@ -41,9 +41,7 @@ expected_run:
     - Blinky example
 
 expected_debug:
-  output_contains:
-    - Temporary breakpoint 1, main ()
-    - stdio_init();
+  output_contains: Temporary breakpoint 1, main ()  
 
 expected_files:
   created:

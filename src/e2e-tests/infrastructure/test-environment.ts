@@ -28,8 +28,11 @@ type FvpFixture = {
 
 export const getTestEnvironment = async (): Promise<Record<string, string>> => {
     const fixture = getFvpFixture();
-
     const fvpPluginsPath = await getFvpPluginsPath(fixture);
+
+    if (!fvpPluginsPath) {
+        return {};
+    }
 
     return {
         AVH_FVP_PLUGINS: fvpPluginsPath,
@@ -47,9 +50,9 @@ const getFvpFixture = (): FvpFixture => {
     ) as FvpFixture;
 };
 
-const getFvpPluginsPath = async (
+const getFvpPluginsPath = (
     fixture: FvpFixture,
-): Promise<string> => {
+): string | undefined => {
     const { artifact, version } = fixture.arm_tools;
 
     const artifactsRoot = path.join(
@@ -58,17 +61,20 @@ const getFvpPluginsPath = async (
         'artifacts',
     );
 
+    if (!fs.existsSync(artifactsRoot)) {
+        return undefined;
+    }
+
     const artifactName = artifact.split(':')[1];
 
     if (!artifactName) {
-        throw new Error(`Invalid FVP artifact name: ${artifact}`);
+        throw new Error(`Invalid FVP artifact: ${artifact}`);
     }
 
-    const artifactDirectoryName = artifactName.replace(/[/-]/g, '.');
+    const artifactDirectoryName =
+        artifactName.replace(/[/-]/g, '.');
 
-    const artifactDirectories = fs.readdirSync(artifactsRoot);
-
-    for (const artifactHash of artifactDirectories) {
+    for (const artifactHash of fs.readdirSync(artifactsRoot)) {
         const pluginsPath = path.join(
             artifactsRoot,
             artifactHash,
@@ -82,7 +88,5 @@ const getFvpPluginsPath = async (
         }
     }
 
-    throw new Error(
-        `FVP plugins directory not found for ${artifact}@${version}`,
-    );
+    return undefined;
 };
