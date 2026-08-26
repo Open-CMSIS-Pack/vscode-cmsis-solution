@@ -85,8 +85,10 @@ describe('downloadFile', () => {
             .get('/server-error')
             .reply(500, undefined, { 'x-error': 'backend-failed' });
 
-        await expect(downloadFile('https://some-cool-url.arm.com/server-error', 'some-directory'))
-            .rejects.toThrow('Status Code: 500');
+        await expect(downloadFile(
+            'https://some-cool-url.arm.com/server-error',
+            join(tmpDirectory, 'server-error-output.txt'),
+        )).rejects.toThrow('Status Code: 500');
     });
 
     it('rejects when the request emits an error', async () => {
@@ -94,8 +96,10 @@ describe('downloadFile', () => {
             .get('/network-error')
             .replyWithError('network unavailable');
 
-        await expect(downloadFile('https://some-cool-url.arm.com/network-error', 'some-directory'))
-            .rejects.toThrow('network unavailable');
+        await expect(downloadFile(
+            'https://some-cool-url.arm.com/network-error',
+            join(tmpDirectory, 'network-error-output.txt'),
+        )).rejects.toThrow('network unavailable');
     });
 
     it('rejects when the output stream cannot be opened', async () => {
