@@ -167,7 +167,7 @@ export class PageDriver {
         return new CommandDriver(this.page);
     }
 
-    getRoleByName(name: 'code' | 'button' | 'link' | 'dialog' | 'treeitem' | 'tree' | 'toolbar', options?: { name?: string| RegExp }): Locator {
+    getRoleByName(name: 'code' | 'button' | 'link' | 'dialog' | 'treeitem' | 'tree' | 'toolbar' | 'tab', options?: { name?: string| RegExp }): Locator {
         return this.page.getByRole(name, options);
     }
 

@@ -46,11 +46,13 @@ export type LaunchOptions = {
     vsCodeExecutablePath: string;
     testDirectories: TestDirectories;
     defaultTimeoutMillis: number;
+    env?: Record<string, string>;
 }
 
-export const launchVsCode = async ({ vsCodeExecutablePath, testDirectories, defaultTimeoutMillis }: LaunchOptions): Promise<playwright.ElectronApplication> => {
+export const launchVsCode = async ({ vsCodeExecutablePath, testDirectories, defaultTimeoutMillis, env }: LaunchOptions): Promise<playwright.ElectronApplication> => {
     // Disable authentication providers in test environment to avoid timeout errors
     const testEnv = {
+        ...env,
         VSCODE_SKIP_GETTING_STARTED: 'true',
     };
 
