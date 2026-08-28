@@ -18,6 +18,7 @@ import * as path from 'path';
 import { test } from '../../fixtures';
 import { log } from '../../utils/logger';
 import { loadYamlFixture, runWf001RefAppFVPSolution, CreateSolutionFixture } from './workflows/wf-001-refapp-fvp-solution';
+import * as fs from 'fs-extra';
 
 test.use({
     trace: 'retain-on-failure',
@@ -35,6 +36,9 @@ test.describe('Create CMSIS Solution from Reference Application with FVP', () =>
 
     test.afterEach(async ({ vsCodeDriver }) => {
         await vsCodeDriver.cleanupTestState();
+        await fs.remove(
+            path.join(vsCodeDriver.testWorkspaceDirectory, '.e2e-setup'),
+        );
     });
 
     test('UC-002 WF-001 Create CMSIS Solution from Reference Application with FVP',

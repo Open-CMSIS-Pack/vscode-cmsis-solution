@@ -23,7 +23,6 @@ import type {
     RequiredPack,
 } from './wf-001-refapp-fvp-solution';
 
-const E2E_DATA_DIRECTORY = path.resolve(__dirname, '..', '..', 'data');
 const PACK_INDEX_URL = 'https://www.keil.com/pack/index.pidx';
 
 export const prepareCmsisEnvironment = async (
@@ -32,7 +31,12 @@ export const prepareCmsisEnvironment = async (
 ): Promise<void> => {
     const terminalDriver = new TerminalDriver(vsCodeDriver);
 
-    // Install require Python packages
+    const setupDirectory = path.join(
+        vsCodeDriver.testWorkspaceDirectory,
+        '.e2e-setup',
+    );
+
+    // Install required Python packages
     if (fixture.required_python_packages.length > 0) {
         await terminalDriver.runCommand(
             `python -m pip install ${fixture.required_python_packages.join(' ')}`,
@@ -41,11 +45,11 @@ export const prepareCmsisEnvironment = async (
 
     await preparePackRoot(terminalDriver);
 
-    // Install required packs
     for (const pack of fixture.required_packs) {
         const source = await resolvePackSource(
             terminalDriver,
             pack,
+            setupDirectory,
         );
 
         await installPack(
@@ -54,6 +58,7 @@ export const prepareCmsisEnvironment = async (
             source,
         );
     }
+
     await vsCodeDriver.page
         .getCommands()
         .runCommandFromPalette('View: Kill All Terminals');
@@ -97,13 +102,14 @@ const installPack = async (
 const resolvePackSource = async (
     terminalDriver: TerminalDriver,
     pack: RequiredPack,
+    setupDirectory: string,
 ): Promise<string> => {
     if (!pack.repository) {
         return pack.source;
     }
 
     const checkoutDirectory = path.join(
-        E2E_DATA_DIRECTORY,
+        setupDirectory,
         pack.repository.directory,
     );
 
@@ -119,7 +125,7 @@ const resolvePackSource = async (
             );
         }
 
-        await fs.ensureDir(E2E_DATA_DIRECTORY);
+        await fs.ensureDir(setupDirectory);
 
         await terminalDriver.runCommand(
             `git clone --depth 1 "${pack.repository.url}" "${checkoutDirectory}"`,
