@@ -15,7 +15,7 @@
     },
     {
         "name": "@vscode/codicons",
-        "version": "0.0.44",
+        "version": "0.0.45",
         "spdx": "CC-BY-4.0",
         "url": "https://github.com/microsoft/vscode-codicons",
         "license": "https://github.com/microsoft/vscode-codicons/blob/main/LICENSE"

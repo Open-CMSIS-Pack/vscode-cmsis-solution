@@ -10,7 +10,7 @@ Generated for release: 1.70.0
 |@fortawesome/fontawesome-free|7.2.0|https://github.com/FortAwesome/Font-Awesome|https://github.com/FortAwesome/Font-Awesome/blob/6.x/LICENSE.txt|
 |@lydell/node-pty|1.1.0|https://github.com/lydell/node-pty|https://github.com/lydell/node-pty/blob/split-package/LICENSE|
 |@microsoft/vscode-serial-monitor-api|0.1.7|https://github.com/microsoft/vscode-serial-monitor|https://raw.githubusercontent.com/microsoft/vscode-serial-monitor/refs/heads/main/LICENSE|
-|@vscode/codicons|0.0.44|https://github.com/microsoft/vscode-codicons|https://github.com/microsoft/vscode-codicons/blob/main/LICENSE|
+|@vscode/codicons|0.0.45|https://github.com/microsoft/vscode-codicons|https://github.com/microsoft/vscode-codicons/blob/main/LICENSE|
 |antd|5.29.3|https://ant.design|https://github.com/ant-design/ant-design/blob/master/LICENSE|
 |async-mutex|0.5.0|https://github.com/DirtyHairy/async-mutex|https://github.com/DirtyHairy/async-mutex/blob/master/LICENSE|
 |eta|4.5.1|https://github.com/eta-dev/eta|https://github.com/eta-dev/eta/blob/main/LICENSE|
