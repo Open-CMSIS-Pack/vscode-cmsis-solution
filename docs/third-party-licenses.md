@@ -29,7 +29,7 @@ Generated for release: 1.70.0
 |react-dom|18.3.1|https://github.com/facebook/react|https://github.com/facebook/react/blob/main/LICENSE|
 |react-window|1.8.11|https://github.com/bvaughn/react-window|https://github.com/bvaughn/react-window/blob/master/LICENSE.md|
 |sax-ts|1.2.13|https://github.com/Maxim-Mazurok/sax-ts|https://github.com/Maxim-Mazurok/sax-ts/blob/master/LICENSE.md|
-|semver|7.7.4|https://github.com/npm/node-semver|https://github.com/npm/node-semver/blob/main/LICENSE|
+|semver|7.8.5|https://github.com/npm/node-semver|https://github.com/npm/node-semver/blob/main/LICENSE|
 |tcp-port-used|1.0.2|https://github.com/stdarg/tcp-port-used|https://raw.githubusercontent.com/stdarg/tcp-port-used/refs/heads/master/LICENSE|
 |tmp|0.2.7|https://github.com/raszi/node-tmp|https://github.com/raszi/node-tmp/blob/master/LICENSE|
 |vscode-jsonrpc|8.2.1|https://github.com/Microsoft/vscode-languageserver-node|https://github.com/Microsoft/vscode-languageserver-node/blob/main/License.txt|
