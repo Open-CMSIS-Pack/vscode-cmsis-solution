@@ -156,6 +156,8 @@
     "@typescript-eslint/parser": "^8.56.1",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.9.2",
+    "ajv": "^8.18.0",
+    "ajv-formats": "^3.0.1",
     "concurrently": "^9.1.2",
     "copy-webpack-plugin": "^13.0.1",
     "cross-env": "^10.1.0",

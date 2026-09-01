@@ -17,6 +17,7 @@
 import 'jest';
 import * as vscode from 'vscode';
 import * as path from 'path';
+import yaml from 'yaml';
 import { SolutionLoadState, SolutionManagerImpl } from './solution-manager';
 import * as manifest from '../manifest';
 import { EventEmitter, Event, ExtensionContext, ConfigurationChangeEvent, } from 'vscode';
@@ -33,6 +34,8 @@ import { SolutionRpcData } from './solution-rpc-data';
 import { configurationProviderFactory, MockConfigurationProvider } from '../vscode-api/configuration-provider.factories';
 import { EnvironmentManager } from '../desktop/env-manager';
 import { CONFIG_ENVIRONMENT_VARIABLES } from '../manifest';
+import { workspaceFsProviderFactory, MockWorkspaceFsProvider } from '../vscode-api/workspace-fs-provider.factories';
+import { ToolsEnvironment } from './tools-environment';
 
 
 const convertResultData: ConvertResultData = {
@@ -58,7 +61,8 @@ describe('SolutionManager', () => {
     let configurationProviderMock: MockConfigurationProvider;
     let changeSolutionFilesEmitter: EventEmitter<string>;
     let vcpkgActivateEmitter: EventEmitter<VcpkgResults>;
-    let environmentManagerApi: Pick<EnvironmentManagerApiV1, 'onDidActivate' | 'getActiveTools'>;
+    let environmentManagerApi: Pick<EnvironmentManagerApiV1,
+        'onDidActivate' | 'onDidFailActivation' | 'getActiveTools' | 'isActivating'>;
     let environmentManager: EnvironmentManager;
     let eventHub: SolutionEventHub;
     let convertMock: jest.Mock;
@@ -68,6 +72,7 @@ describe('SolutionManager', () => {
     let csolutionService: jest.Mocked<ReturnType<typeof csolutionServiceFactory>>;
     let rpcData: SolutionRpcData;
     let cbuildSetupRequestedListener: jest.Mock;
+    let workspaceFsProvider: MockWorkspaceFsProvider;
 
     const testDataHandler = new TestDataHandler();
 
@@ -112,7 +117,9 @@ describe('SolutionManager', () => {
         vcpkgActivateEmitter = new EventEmitter<VcpkgResults>();
         environmentManagerApi = {
             onDidActivate: vcpkgActivateEmitter.event,
+            onDidFailActivation: new EventEmitter<vscode.Uri>().event,
             getActiveTools: jest.fn(),
+            isActivating: jest.fn(() => false),
         };
 
         commandsProvider = commandsProviderFactory();
@@ -128,6 +135,12 @@ describe('SolutionManager', () => {
         csolutionService.getVariables.mockResolvedValue({ success: true, variables: {} });
         rpcData = new SolutionRpcData(csolutionService);
         environmentManager = new EnvironmentManager(configurationProviderMock);
+        workspaceFsProvider = workspaceFsProviderFactory();
+        jest.spyOn(environmentManager, 'getEnvironmentVariables').mockReturnValue({
+            PATH: ['/tools/pyocd', '/tools/toolbox'].join(path.delimiter),
+            CMSIS_PACK_ROOT: '/packs',
+        });
+        jest.spyOn(environmentManager, 'getConfiguredEnvironmentVariables').mockReturnValue({});
 
         solutionManager = new SolutionManagerImpl(
             mockActiveSolutionTracker as unknown as ActiveSolutionTracker,
@@ -137,6 +150,11 @@ describe('SolutionManager', () => {
             extensionApiProviderFactory(environmentManagerApi),
             environmentManager,
             activeSolutionFilesDebounceMillis,
+            new ToolsEnvironment(
+                environmentManager,
+                extensionApiProviderFactory(environmentManagerApi),
+                workspaceFsProvider,
+            ),
         );
         loadStateChangeListener = jest.fn();
         solutionManager.onDidChangeLoadState(loadStateChangeListener);
@@ -524,6 +542,92 @@ describe('SolutionManager', () => {
         expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(1);
     });
 
+    it('writes the tools environment when conversion fails', async () => {
+        convertMock.mockImplementationOnce(() => {
+            setTimeout(() => {
+                eventHub.fireConvertCompleted({
+                    success: false,
+                    severity: 'error',
+                    detection: false,
+                    logMessages: { success: false, errors: ['conversion failed'], warnings: [], info: [] },
+                });
+            }, 1);
+        });
+
+        mockActiveSolutionTracker.activeSolution = testSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(200);
+
+        expect(workspaceFsProvider.writeUtf8File).toHaveBeenCalledWith(
+            path.join(path.dirname(testSolutionPath), '.cmsis', 'tools-environment.yml'),
+            expect.any(String),
+        );
+    });
+
+    it('continues conversion completion when writing the tools environment fails', async () => {
+        const writeError = new Error('write failed');
+        workspaceFsProvider.writeUtf8File.mockRejectedValueOnce(writeError);
+        const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        await activateTestSolution();
+
+        expect(loadBuildFilesListener).toHaveBeenCalledWith(['success', false]);
+        expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(1);
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+            `Failed to write tools environment for '${testSolutionPath}'`,
+            writeError,
+        );
+        consoleErrorSpy.mockRestore();
+    });
+
+    it('starts conversion while waiting to capture Environment Manager activation variables', async () => {
+        const armclangRoot = path.join('/home/user', '.vcpkg', 'artifacts', 'registry', 'compilers.arm.armclang', '6.24.0');
+        const armclangBin = path.join(armclangRoot, 'bin');
+        const builtInToolboxBin = path.join(manifest.CMSIS_TOOLBOX_FOLDER, 'bin');
+        let isActivating = true;
+        environmentManagerApi.isActivating = jest.fn(() => isActivating);
+
+        await activateTestSolution();
+
+        expect(convertMock).toHaveBeenCalledTimes(1);
+        expect(workspaceFsProvider.writeUtf8File).not.toHaveBeenCalled();
+
+        isActivating = false;
+        vcpkgActivateEmitter.fire({
+            version: 1,
+            variables: {
+                AC6_TOOLCHAIN_6_24_0: armclangBin,
+            },
+            paths: {
+                PATH: [armclangBin],
+            },
+            tools: {
+                AC6_TOOLCHAIN_6_24_0: armclangBin,
+            },
+        });
+        await waitTimeout(10);
+
+        const content = workspaceFsProvider.writeUtf8File.mock.calls[0][1];
+        expect(yaml.parse(content)).toMatchObject({
+            'cmsis-tools-environment': {
+                environment: {
+                    path: [builtInToolboxBin, armclangBin],
+                    variables: {
+                        CMSIS_PACK_ROOT: '/packs',
+                        AC6_TOOLCHAIN_6_24_0: armclangBin,
+                    },
+                },
+                tools: expect.arrayContaining([
+                    expect.objectContaining({
+                        name: 'compilers.arm.armclang',
+                        version: '6.24.0',
+                        directory: armclangRoot,
+                    }),
+                ]),
+            },
+        });
+    });
+
     it('does not request cbuild setup when conversion completes with detection=true', async () => {
         convertMock.mockImplementationOnce(() => {
             setTimeout(() => {
@@ -541,5 +645,9 @@ describe('SolutionManager', () => {
         await waitTimeout(200);
 
         expect(cbuildSetupRequestedListener).not.toHaveBeenCalled();
+        expect(workspaceFsProvider.writeUtf8File).toHaveBeenCalledWith(
+            path.join(path.dirname(testSolutionPath), '.cmsis', 'tools-environment.yml'),
+            expect.any(String),
+        );
     });
 });

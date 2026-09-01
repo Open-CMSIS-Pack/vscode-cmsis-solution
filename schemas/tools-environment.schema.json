@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/Open-CMSIS-Pack/vscode-cmsis-solution/main/schemas/tools-environment.schema.json",
+  "title": "CMSIS tools environment",
+  "description": "Arm and vcpkg tools environment exported by the CMSIS Solution extension.",
+  "type": "object",
+  "properties": {
+    "cmsis-tools-environment": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": "1.0.0",
+          "description": "Version of the tools environment document format."
+        },
+        "solution": {
+          "type": "string",
+          "description": "Name of the active solution file."
+        },
+        "environment": {
+          "type": "object",
+          "description": "Environment entries contributed or used by Arm extensions and vcpkg.",
+          "properties": {
+            "path": {
+              "type": "array",
+              "description": "Arm extension and vcpkg PATH entries in resolved precedence order.",
+              "items": { "type": "string" }
+            },
+            "variables": {
+              "type": "object",
+              "description": "CMSIS variables and variables contributed by Arm extension configuration or vcpkg, excluding PATH.",
+              "additionalProperties": { "type": "string" }
+            }
+          },
+          "required": [ "path", "variables" ],
+          "additionalProperties": false
+        },
+        "tools": {
+          "type": "array",
+          "description": "Tools made available by Arm extensions or installed environments.",
+          "items": { "$ref": "#/definitions/tool" }
+        }
+      },
+      "required": [ "version", "environment", "tools" ],
+      "additionalProperties": false
+    }
+  },
+  "required": [ "cmsis-tools-environment" ],
+  "additionalProperties": false,
+  "definitions": {
+    "provider": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": [ "vscode-extension", "vcpkg" ] },
+        "id": { "type": "string" }
+      },
+      "required": [ "type", "id" ],
+      "additionalProperties": false
+    },
+    "tool": {
+      "oneOf": [
+        { "$ref": "#/definitions/built-in-tool" },
+        { "$ref": "#/definitions/installed-tool" }
+      ]
+    },
+    "built-in-tool": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "origin": { "const": "built-in" },
+        "provider": { "$ref": "#/definitions/provider" },
+        "directory": { "type": "string" },
+        "manual": { "type": "string", "format": "uri" }
+      },
+      "required": [ "name", "origin", "provider", "directory" ],
+      "additionalProperties": false
+    },
+    "installed-tool": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "origin": { "const": "installed" },
+        "provider": { "$ref": "#/definitions/provider" },
+        "directory": { "type": "string" }
+      },
+      "required": [ "name", "origin", "provider", "directory" ],
+      "additionalProperties": false
+    }
+  }
+}
