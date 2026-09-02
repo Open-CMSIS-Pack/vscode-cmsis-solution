@@ -44,5 +44,8 @@ tools
 guide
 schemas
 src/json-rpc/interface/*
+
+# AI files and directories
 .cmsis-dev
 .plans/
+.codex
