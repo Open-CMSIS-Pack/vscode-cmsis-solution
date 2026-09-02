@@ -30,7 +30,10 @@ export type ProcessResult = {
 }
 
 export type ProcessSpawnOptions = SpawnOptions & {
+    /** Execute the process in a pseudoterminal. */
     usePty?: boolean;
+    /** Remove terminal control sequences from PTY output when true. */
+    filterOutput?: boolean;
 }
 
 export const isProcessResult = (r: unknown): r is ProcessResult => typeof (r as ProcessResult).code === 'number';
@@ -68,14 +71,14 @@ export class ProcessManagerImpl implements ProcessManager {
                 return;
             }
 
-            const { usePty = false, ...spawnOptions } = options;
+            const { usePty = false, filterOutput, ...spawnOptions } = options;
 
             // Augment environment
             const augmentedEnv = this.environmentManager.augmentEnv(new Environment(spawnOptions.env)).vars;
 
             if (usePty || (dimensions && !this.debuggingOnWindows)) {
                 const ptyDimensions = dimensions ?? DEFAULT_PTY_DIMENSIONS;
-                const outputFilter = new TerminalOutputFilter();
+                const outputFilter = filterOutput ? new TerminalOutputFilter() : undefined;
                 const ptyProcess = pty.spawn(command, args, {
                     name: 'xterm-256color',
                     cols: ptyDimensions.columns,
@@ -84,7 +87,7 @@ export class ProcessManagerImpl implements ProcessManager {
                     env: augmentedEnv
                 });
                 ptyProcess.onData((data) => {
-                    const output = outputFilter.write(data);
+                    const output = outputFilter?.write(data) ?? data;
                     if (output.length > 0) {
                         onOutput(output);
                     }

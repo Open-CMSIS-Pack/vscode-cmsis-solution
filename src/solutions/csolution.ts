@@ -87,6 +87,16 @@ export class CSolution {
         return ymlFiles;
     }
 
+    public getSourceFiles(): string[] {
+        const sourceFiles = new Set<string>();
+        for (const cbuild of this.cbuildIdxFile.cbuildFiles.values()) {
+            for (const fileName of cbuild.getSourceFiles()) {
+                sourceFiles.add(path.normalize(fileName));
+            }
+        }
+        return [...sourceFiles].sort((left, right) => left.localeCompare(right));
+    }
+
     public getUsedDbgconfFiles(): string[] {
         const dbgconfFiles: string[] = [];
         const seen = new Set<string>();
@@ -544,6 +554,16 @@ export class CSolution {
     public hasWestProject(): boolean {
         for (const project of this.projects.values()) {
             if (project?.projectType === 'West') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public hasVirtualProject(): boolean {
+        for (const project of this.projects.values()) {
+            if (project?.readOnly && (project.projectType === 'West' || project.projectType === 'CMake')) {
                 return true;
             }
         }

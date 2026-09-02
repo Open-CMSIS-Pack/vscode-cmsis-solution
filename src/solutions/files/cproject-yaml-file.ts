@@ -54,7 +54,7 @@ export interface CProjectYamlFile extends ITreeItemFile {
     get projectType(): string | undefined;
 
     /**
-     * Set project type, e.g. 'West'
+     * Set project type, e.g. 'West', 'CMake', 'cmsis' (default)
      */
     set projectType(type: string | undefined);
 
@@ -128,14 +128,14 @@ export const CProjectYamlFile = constructor<typeof CProjectYamlFileImpl, CProjec
 
 export function constructProjectYamlFile(projectRef?: ProjectRefWrap): CProjectYamlFile {
 
-    if (projectRef && projectRef.west) {
+    if (projectRef?.projectType) {
         // create a dummy read-only project
-        const zephyrProject = new CVirtualProjectYamlFileImpl(projectRef.projectPath);
-        zephyrProject.readOnly = true;
-        zephyrProject.ensureRootItem().rootFileName = projectRef.projectPath;
-        zephyrProject.deviceProcessor = projectRef.deviceProcessor;
-        zephyrProject.projectType = projectRef.projectType;
-        return zephyrProject;
+        const virtualProject = new CVirtualProjectYamlFileImpl(projectRef.projectPath);
+        virtualProject.readOnly = true;
+        virtualProject.ensureRootItem().rootFileName = projectRef.projectPath;
+        virtualProject.deviceProcessor = projectRef.deviceProcessor;
+        virtualProject.projectType = projectRef.projectType;
+        return virtualProject;
     }
     return new CProjectYamlFile(projectRef?.projectPath);
 }

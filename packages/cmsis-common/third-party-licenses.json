@@ -26,5 +26,12 @@
         "spdx": "ISC",
         "url": "https://github.com/eemeli/yaml",
         "license": "https://github.com/eemeli/yaml/blob/main/LICENSE"
+    },
+    {
+        "name": "yauzl",
+        "version": "3.4.0",
+        "spdx": "MIT",
+        "url": "https://github.com/thejoshwolfe/yauzl",
+        "license": "https://github.com/thejoshwolfe/yauzl/blob/master/LICENSE"
     }
 ]

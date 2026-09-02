@@ -18,7 +18,7 @@ import * as path from 'path';
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { constructProjectYamlFile, CProjectYamlFile } from './cproject-yaml-file';
 import { ProjectRefWrap } from './csolution-wrap';
-import { PROJECT_WEST_SUFFIX } from '../constants';
+import { PROJECT_CMAKE_SUFFIX, PROJECT_WEST_SUFFIX } from '../constants';
 import { TEMPLATES_FOLDER } from '../../manifest';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import * as YAML from 'yaml';
@@ -123,6 +123,24 @@ describe('CProjectYamlFile', () => {
             const expected = path.join(myPath, 'appId' + PROJECT_WEST_SUFFIX);
             expect(file.fileName).toBe(expected);
             expect(file.deviceProcessor).toEqual(ref.deviceProcessor);
+        });
+
+        it('constructs virtual CProjectYamlFile for a CMake reference', () => {
+            const item = new CTreeItem('-');
+            item.rootFileName = path.join(process.cwd(), 'solution.csolution.yml');
+            const cmake = item.createChild('cmake');
+            cmake.setValue('source', 'path/to/app.v2');
+            cmake.setValue('device', ':core1');
+            const ref = new ProjectRefWrap(item);
+
+            const file = constructProjectYamlFile(ref);
+
+            expect(file).toBeInstanceOf(CProjectYamlFile);
+            expect(file.readOnly).toBeTruthy();
+            expect(file.fileName).toBe(path.join(process.cwd(), 'path/to/app.v2', 'app.v2' + PROJECT_CMAKE_SUFFIX));
+            expect(file.rootItem?.rootFileName).toBe(file.fileName);
+            expect(file.deviceProcessor).toBe('core1');
+            expect(file.projectType).toBe('CMake');
         });
     });
 

@@ -37,6 +37,7 @@ type ToolboxCall = { tool: ToolboxTool | RpcMethod; args: string[]; }
 export interface CmsisToolRunOptions {
     emitExecuteLine?: boolean;
     usePty?: boolean;
+    filterOutput?: boolean;
 }
 
 const MIN_TOOL_VERSIONS : Record<ToolboxTool, Optional<SemVer>> = {
@@ -215,6 +216,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
             cancellationToken,
             dimensions,
             options.usePty,
+            options.filterOutput,
         );
         // Print messages
         msg = `${returnCode === 0 ? '✅' : '🟥'} Completed: ${tool} ${cmdMsg}\r\n`;
@@ -232,6 +234,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
         cancellationToken?: CancellationToken,
         dimensions?: vscode.TerminalDimensions,
         usePty?: boolean,
+        filterOutput?: boolean,
     ) : Promise<[string, number]> {
         const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? './';
         let returnCode;
@@ -240,7 +243,12 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
             const result = await this.processManager.spawn(
                 toolCmd,
                 args,
-                { env: process.env, cwd: cwd, ...(usePty ? { usePty } : {}) },
+                {
+                    env: process.env,
+                    cwd: cwd,
+                    ...(usePty !== undefined ? { usePty } : {}),
+                    ...(filterOutput !== undefined ? { filterOutput } : {}),
+                },
                 onOutput,
                 cancellationToken,
                 dimensions

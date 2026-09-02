@@ -22,6 +22,7 @@ import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
 import { CProjectYamlFile } from './files/cproject-yaml-file';
+import { CbuildFile } from './files/cbuild-file';
 
 describe('CSolution', () => {
     const testDataHandler = new TestDataHandler();
@@ -462,6 +463,34 @@ describe('CSolution', () => {
             });
         });
 
+        describe('getSourceFiles', () => {
+            it('returns a deterministic union across all selected contexts', () => {
+                const csolution = new CSolution();
+                const firstContext = {
+                    getSourceFiles: jest.fn().mockReturnValue([
+                        path.normalize('/workspace/zeta.c'),
+                        path.normalize('/packs/shared.h'),
+                    ]),
+                } as unknown as CbuildFile;
+                const secondContext = {
+                    getSourceFiles: jest.fn().mockReturnValue([
+                        path.normalize('/workspace/alpha.c'),
+                        path.normalize('/packs/shared.h'),
+                    ]),
+                } as unknown as CbuildFile;
+                csolution.cbuildIdxFile.cbuildFiles.set('Project.Debug+Target', firstContext);
+                csolution.cbuildIdxFile.cbuildFiles.set('Project.Release+Target', secondContext);
+
+                expect(csolution.getSourceFiles()).toEqual([
+                    path.normalize('/packs/shared.h'),
+                    path.normalize('/workspace/alpha.c'),
+                    path.normalize('/workspace/zeta.c'),
+                ]);
+                expect(firstContext.getSourceFiles).toHaveBeenCalledTimes(1);
+                expect(secondContext.getSourceFiles).toHaveBeenCalledTimes(1);
+            });
+        });
+
         describe('getContextDescriptors', () => {
             let csolution: CSolution;
 
@@ -658,6 +687,39 @@ describe('CSolution', () => {
 
         it('returns false when there are no projects', () => {
             expect(csolution.hasWestProject()).toBe(false);
+        });
+    });
+
+    describe('hasVirtualProject', () => {
+        let csolution: CSolution;
+
+        beforeEach(() => {
+            csolution = new CSolution();
+            csolution.projects.clear();
+        });
+
+        it.each(['West', 'CMake'] as const)('returns true for a read-only %s project', projectType => {
+            csolution.projects.set('virtual', { projectType, readOnly: true } as CProjectYamlFile);
+
+            expect(csolution.hasVirtualProject()).toBe(true);
+        });
+
+        it('returns true when a virtual project follows a physical project', () => {
+            csolution.projects.set('physical', { projectType: 'executable', readOnly: false } as CProjectYamlFile);
+            csolution.projects.set('virtual', { projectType: 'CMake', readOnly: true } as CProjectYamlFile);
+
+            expect(csolution.hasVirtualProject()).toBe(true);
+        });
+
+        it('returns false for writable projects regardless of project type', () => {
+            csolution.projects.set('cmake', { projectType: 'CMake', readOnly: false } as CProjectYamlFile);
+            csolution.projects.set('physical', { projectType: 'library', readOnly: false } as CProjectYamlFile);
+
+            expect(csolution.hasVirtualProject()).toBe(false);
+        });
+
+        it('returns false when there are no projects', () => {
+            expect(csolution.hasVirtualProject()).toBe(false);
         });
     });
 

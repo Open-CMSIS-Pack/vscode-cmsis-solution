@@ -16,8 +16,10 @@
 
 import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
-import { getFileNameNoExt } from '../../utils/path-utils';
-import { PROJECT_WEST_SUFFIX } from '../constants';
+import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import path from 'node:path';
+import { expandRootVars } from '../../utils/path-utils';
+import { getVirtualProjectDescriptor } from './virtual-project';
 
 /**
  * Access a <context>.cbuild.yml file
@@ -38,6 +40,11 @@ export interface CbuildFile extends ITreeItemFile {
      * Returns absolute path to associated project or undefined
      */
     get projectPath(): string | undefined;
+
+    /**
+     * Returns code-related files used by this build as normalized absolute paths.
+     */
+    getSourceFiles(): string[];
 }
 
 class CbuildFileImpl extends CTreeItemYamlFile implements CbuildFile {
@@ -59,20 +66,64 @@ class CbuildFileImpl extends CTreeItemYamlFile implements CbuildFile {
         const project = this.topItem?.getValue('project');
         if (project) {
             return this.resolvePath(project);
-        } else {
-            const west = this.topItem?.getChild('west');
-            if (west) {
-                const projPath = west.getChild('app-path')?.getValueAsString();
-                if (projPath) {
-                    let projId = west.getChild('project-id')?.getValueAsString();
-                    if (!projId) {
-                        projId = getFileNameNoExt(projPath);
-                    }
-                    return this.resolvePath(projPath + '/' + projId + PROJECT_WEST_SUFFIX);
-                }
+        }
+
+        const solution = this.topItem?.getValueAsString('solution');
+        const defaultCmakeSource = solution ? path.dirname(solution) : '';
+        const virtualProject = getVirtualProjectDescriptor(this.topItem, defaultCmakeSource);
+        return virtualProject ? this.resolvePath(virtualProject.project) : undefined;
+    }
+
+    public getSourceFiles(): string[] {
+        const sourceFiles: string[] = [];
+        const build = this.topItem;
+        if (!build) {
+            return sourceFiles;
+        }
+
+        this.collectGroupFiles(build, sourceFiles);
+        this.collectContainerFiles(build, 'components', sourceFiles);
+        this.collectContainerFiles(build, 'apis', sourceFiles);
+
+        const linker = build.getChild('linker');
+        for (const key of ['script', 'regions']) {
+            const fileName = linker?.getValueAsString(key);
+            if (fileName) {
+                sourceFiles.push(this.resolveSourcePath(fileName));
             }
         }
-        return undefined;
+
+        return sourceFiles;
+    }
+
+    private collectGroupFiles(parent: ITreeItem<CTreeItem>, sourceFiles: string[]): void {
+        for (const group of parent.getGrandChildren('groups')) {
+            this.collectFiles(group, sourceFiles);
+            this.collectGroupFiles(group, sourceFiles);
+        }
+    }
+
+    private collectContainerFiles(parent: ITreeItem<CTreeItem>, container: string, sourceFiles: string[]): void {
+        for (const item of parent.getGrandChildren(container)) {
+            this.collectFiles(item, sourceFiles);
+        }
+    }
+
+    private collectFiles(parent: ITreeItem<CTreeItem>, sourceFiles: string[]): void {
+        for (const file of parent.getGrandChildren('files')) {
+            const category = file.getValue('category');
+            if (file.getValue('attr') === 'template' || category === 'include' || category === 'doc' || category === 'other') {
+                continue;
+            }
+            const fileName = file.getValue('file');
+            if (fileName) {
+                sourceFiles.push(this.resolveSourcePath(fileName));
+            }
+        }
+    }
+
+    private resolveSourcePath(fileName: string): string {
+        return this.resolvePath(expandRootVars(fileName));
     }
 }
 

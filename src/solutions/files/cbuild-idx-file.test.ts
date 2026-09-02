@@ -84,6 +84,28 @@ describe('CbuildIdxFile', () => {
         expect(idxFile.activeContexts[1].displayName).toEqual('MassStorage.Debug+B-U585I-IOT02A');
     });
 
+    it('propagates a virtual CMake project path from a generated cbuild', async () => {
+        const solutionDir = path.join(tmpSolutionDir, 'USBD');
+        const cbuildFileName = path.join(solutionDir, 'HID', 'HID.Release+B-U585I-IOT02A.cbuild.yml');
+        const originalCbuild = fsUtils.readTextFile(cbuildFileName);
+        const cmakeCbuild = originalCbuild.replace(
+            '  project: HID.cproject.yml',
+            '  cmake:\n    source: ../app.v2\n    project-id: appID'
+        );
+        fsUtils.writeTextFile(cbuildFileName, cmakeCbuild);
+
+        try {
+            const idxFile = new CbuildIdxFile();
+            expect(await idxFile.load(path.join(solutionDir, 'USB_Device.cbuild-idx.yml'))).toBe(ETextFileResult.Success);
+            const projectPath = path.join(solutionDir, 'app.v2', 'appID.cproject-cmake.yml');
+            expect(idxFile.activeContexts[0].projectName).toBe('appID');
+            expect(idxFile.activeContexts[0].projectPath).toBe(projectPath);
+            expect(idxFile.getContext(projectPath)).toBe(idxFile.activeContexts[0]);
+        } finally {
+            fsUtils.writeTextFile(cbuildFileName, originalCbuild);
+        }
+    });
+
     it('test load modified cbuild file', async () => {
         const solutionDir =  path.join(tmpSolutionDir, 'USBD');
         const fileName = path.join(solutionDir, 'USB_Device.cbuild-idx.yml');
@@ -94,7 +116,7 @@ describe('CbuildIdxFile', () => {
         expect(idxFile.cbuildLoadResult).toEqual(ETextFileResult.Success);
         expect(idxFile.activeContexts.length).toEqual(2);
         expect(idxFile.cbuildFiles.size).toEqual(2);
-        const cbuild = idxFile.cbuildFiles.get('HID');
+        const cbuild = idxFile.cbuildFiles.get('HID.Release+B-U585I-IOT02A');
         expect(cbuild).toBeDefined();
         cbuild?.clear();
 
@@ -115,7 +137,7 @@ describe('CbuildIdxFile', () => {
         expect(idxFile.cbuildLoadResult).toEqual(ETextFileResult.Success);
         expect(idxFile.activeContexts.length).toEqual(2);
         expect(idxFile.cbuildFiles.size).toEqual(2);
-        let cbuild = idxFile.cbuildFiles.get('HID');
+        let cbuild = idxFile.cbuildFiles.get('HID.Release+B-U585I-IOT02A');
         expect(cbuild).toBeDefined();
 
         let baseName = getFileNameNoExt(cbuild?.fileName);
@@ -138,10 +160,39 @@ describe('CbuildIdxFile', () => {
         expect(idxFile.cbuildLoadResult).toEqual(ETextFileResult.Success);
         expect(idxFile.activeContexts.length).toEqual(2);
 
-        cbuild = idxFile.cbuildFiles.get('HID');
+        cbuild = idxFile.cbuildFiles.get('HID.Debug+B-U585I-IOT02A');
         expect(cbuild).toBeDefined();
         baseName = getFileNameNoExt(cbuild?.fileName);
         expect(baseName).toEqual('HID.Debug+B-U585I-IOT02A');
+    });
+
+    it('retains multiple contexts for the same project', async () => {
+        const solutionDir = path.join(tmpSolutionDir, 'USBD');
+        let fileName = path.join(solutionDir, 'USB_Device.cbuild-idx.yml');
+        const idxFile = new CbuildIdxFile();
+
+        expect(await idxFile.load(fileName)).toEqual(ETextFileResult.Success);
+        const massStorage = idxFile.topItem?.getChild('cbuilds')?.getChildByValue(
+            'cbuild',
+            'MassStorage/MassStorage.Debug+B-U585I-IOT02A.cbuild.yml'
+        );
+        expect(massStorage).toBeDefined();
+        massStorage?.setValue('cbuild', 'HID/HID.Debug+B-U585I-IOT02A.cbuild.yml');
+        massStorage?.setValue('configuration', 'HID.Debug+B-U585I-IOT02A');
+
+        fileName = fileName.replace('USB_Device.cbuild-idx.yml', 'USB_Device-contexts.cbuild-idx.yml');
+        expect(await idxFile.save(fileName)).toEqual(ETextFileResult.Success);
+        expect(await idxFile.load()).toEqual(ETextFileResult.Success);
+
+        expect(idxFile.activeContexts.map(context => context.displayName)).toEqual([
+            'HID.Release+B-U585I-IOT02A',
+            'HID.Debug+B-U585I-IOT02A'
+        ]);
+        expect(idxFile.cbuildFiles.size).toEqual(2);
+        expect(idxFile.cbuildFiles.get('HID.Release+B-U585I-IOT02A')).not.toBe(
+            idxFile.cbuildFiles.get('HID.Debug+B-U585I-IOT02A')
+        );
+        expect(getFileNameNoExt(idxFile.cbuildFiles.get('HID.Debug+B-U585I-IOT02A')?.fileName)).toEqual('HID.Debug+B-U585I-IOT02A');
     });
 
 

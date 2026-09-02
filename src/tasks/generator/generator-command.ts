@@ -112,7 +112,7 @@ export class GeneratorCommand {
         const [result] = await this.cmsisToolboxManager.runCmsisTool('csolution', executableArgs, chunk => {
             outputChannel.append(chunk);
             outputChunks.push(chunk);
-        }, undefined, undefined, true, { usePty: true });
+        }, undefined, undefined, true, { usePty: true, filterOutput: true });
 
         // Fire event with generator run result for diagnostics
         const severity = getToolsSeverity([outputChunks.join('')]);

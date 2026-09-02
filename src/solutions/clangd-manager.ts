@@ -133,7 +133,7 @@ export class ClangdManager {
         }
 
         const context = csolution.getContextDescriptor(globalContextProjectPath);
-        const outDir = context ? csolution.cbuildIdxFile?.cbuildFiles?.get(context.projectName)?.outDir : undefined;
+        const outDir = context ? csolution.cbuildIdxFile?.cbuildFiles?.get(context.displayName)?.outDir : undefined;
 
         return outDir ?? '';
     }
@@ -212,7 +212,7 @@ export class ClangdManager {
         const csolution = this.solutionManager.getCsolution();
         const updatePromises: Promise<unknown>[] = [];
 
-        const cbuild = csolution?.cbuildIdxFile?.cbuildFiles?.get(context.projectName);
+        const cbuild = csolution?.cbuildIdxFile?.cbuildFiles?.get(context.displayName);
         const compilerInContext = cbuild?.compiler;
         const clangdFilePath = context.projectPath ? `${path.dirname(context.projectPath)}/.clangd` : undefined;
 
@@ -383,7 +383,7 @@ export class ClangdManager {
      */
     private async setClangdConfigDiagnosticsSuppress(context: ContextDescriptor) {
         const csolution = this.solutionManager.getCsolution();
-        const outDir = csolution?.cbuildIdxFile?.cbuildFiles?.get(context.projectName)?.outDir;
+        const outDir = csolution?.cbuildIdxFile?.cbuildFiles?.get(context.displayName)?.outDir;
         const clangdFilePath = outDir ? path.join(outDir, '.clangd') : undefined;
         if (clangdFilePath) {
             const exists = await this.workspaceFsProvider.exists(clangdFilePath);

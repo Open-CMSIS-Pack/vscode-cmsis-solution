@@ -108,7 +108,7 @@ export const ProjectRow = (props: ProjectRowProps) => {
                 : <CompactDropdown available={['none', 'dummy']} selected={'none'} onChange={() => { }} unselectedLabel='none' disabled={true} />
             }
         </td>
-        <td>{props.project.projectType !== 'West' && <a onClick={() => props.openFile(props.project.path)} title={props.project.path}>Edit cproject.yml</a>}</td>
+        <td>{!props.project.readOnly && <a onClick={() => props.openFile(props.project.path)} title={props.project.path}>Edit cproject.yml</a>}</td>
     </tr>;
 };
 
@@ -126,7 +126,7 @@ export const ImageRow = (props: ImageRowProps) => {
         <td className="name" title={props.image.path}>{props.image.name}</td>
         <td className="build-type">
             {props.availableCores.length > 1 &&
-                <CompactDropdown available={['Start Processor', ...props.availableCores]} selected={props.image.device ?? ''} onChange={handleCoreSelection} unselectedLabel='Start Processor' />
+                <CompactDropdown available={props.availableCores} selected={props.image.device ?? ''} onChange={handleCoreSelection} />
             }
         </td>
         <td className="load-column">

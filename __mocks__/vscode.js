@@ -98,6 +98,15 @@ class Range {
     }
 }
 
+class Selection {
+    constructor(anchor, active) {
+        this.anchor = anchor;
+        this.active = active;
+        this.start = anchor;
+        this.end = active;
+    }
+}
+
 class Diagnostic {
     constructor(range, message, severity) {
         this.range = range;
@@ -128,11 +137,13 @@ const CodeAction = jest.fn();
 const ShellQuoting = { Escape: 'Escape' };
 const StatusBarAlignment = { Left: 'Left' };
 const TaskScope = { Workspace: 'Workspace' };
+const TaskRevealKind = { Always: 'Always', Silent: 'Silent' };
 const ViewColumn = {
     Active: -1,
     Beside: -2
 }
 const ProgressLocation = { Notification: 1 };
+const TextEditorRevealType = { InCenterIfOutsideViewport: 2 };
 const TreeItemCollapsibleState = {
     None: 0,
     Collapsed: 1,
@@ -181,6 +192,9 @@ const window = {
     registerWebviewPanelSerializer: jest.fn(),
     registerWebviewViewProvider: jest.fn(),
     registerCustomEditorProvider: jest.fn(() => ({ dispose: jest.fn() })),
+    visibleTextEditors: [],
+    onDidChangeActiveTextEditor: jest.fn(() => ({ dispose: jest.fn() })),
+    onDidChangeVisibleTextEditors: jest.fn(() => ({ dispose: jest.fn() })),
     showTextDocument: jest.fn(),
     showOpenDialog: jest.fn(),
     showQuickPick: jest.fn(),
@@ -260,6 +274,7 @@ module.exports = {
     Position,
     QuickPickItemKind,
     Range,
+    Selection,
     Diagnostic,
     TreeItem,
     ThemeIcon,
@@ -274,8 +289,10 @@ module.exports = {
     ShellQuoting,
     StatusBarAlignment,
     TaskScope,
+    TaskRevealKind,
     ViewColumn,
     ProgressLocation,
+    TextEditorRevealType,
     commands,
     debug,
     languages,

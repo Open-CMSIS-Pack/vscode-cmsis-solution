@@ -410,7 +410,7 @@ export class ManageSolutionController {
      */
     public async getAvailableCoreNames(): Promise<string[]> {
         const availableCores = this.activeTargetTypeWrap?.device
-            ? (await this.csolutionService.getDeviceInfo({ id: this.activeTargetTypeWrap?.device || '' })).device?.processors?.map((p: { name?: string; core: string }) => p.name || '') || []
+            ? (await this.csolutionService.getDeviceInfo({ id: this.activeTargetTypeWrap?.device || '' })).device?.processors?.flatMap((processor: { name?: string; core: string }) => processor.name ? [processor.name] : []) || []
             : [];
         this.availableCoreNamesCache = availableCores;
         return availableCores;
@@ -421,6 +421,32 @@ export class ManageSolutionController {
      */
     public get availableCoreNames(): string[] {
         return this.availableCoreNamesCache;
+    }
+
+    /**
+     * Resolves the processor used to start debugging for the active target set.
+     */
+    public async getEffectiveStartProcessor(): Promise<string | undefined> {
+        const debuggerWrap = this.activeDebugger;
+        if (!debuggerWrap) {
+            return undefined;
+        }
+
+        const availableCores = await this.getAvailableCoreNames();
+        const configuredStartProcessor = debuggerWrap.startPname;
+        return configuredStartProcessor && availableCores.includes(configuredStartProcessor)
+            ? configuredStartProcessor
+            : availableCores.at(0);
+    }
+
+    /**
+     * Adds an image and assigns the effective start processor when available.
+     */
+    public async addImage(name: string): Promise<ImageWrap> {
+        const startProcessor = await this.getEffectiveStartProcessor();
+        const image = this.activeTargetSetWrap.addImage(name);
+        image.device = startProcessor;
+        return image;
     }
 
     /**
@@ -637,6 +663,7 @@ export class ManageSolutionController {
             buildTypes: buildTypes,
             device: cproject?.deviceProcessor || pr.deviceProcessor,
             projectType: cproject?.projectType || pr.projectType,
+            ...(cproject?.readOnly || pr.projectType ? { readOnly: true } : {}),
         };
     }
 

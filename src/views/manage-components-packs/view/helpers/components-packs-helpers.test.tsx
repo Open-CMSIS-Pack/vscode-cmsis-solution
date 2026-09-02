@@ -59,6 +59,31 @@ describe('rowClassName', () => {
         expect(rowClassName(makeComponent('active.clayer.yml'), state)).toBe('leaf-node current-layer-row');
     });
 
+    it('highlights a newly selected row before its absolute layer path is normalized', () => {
+        const optimisticState = {
+            selectedTargetType: {
+                ...state.selectedTargetType,
+                path: 'C:\\solution\\active.clayer.yml',
+            },
+        };
+
+        expect(rowClassName(makeComponent('C:\\solution\\active.clayer.yml'), optimisticState)).toBe('leaf-node current-layer-row');
+    });
+
+    it('highlights a newly selected row in the project partition', () => {
+        const projectState = {
+            selectedTargetType: {
+                label: 'Project: Active',
+                key: 'active.cproject.yml',
+                path: 'C:\\solution\\active.cproject.yml',
+                relativePath: 'active.cproject.yml',
+                type: 'project' as const,
+            },
+        };
+
+        expect(rowClassName(makeComponent(''), projectState)).toBe('leaf-node current-layer-row');
+    });
+
     it('leaves rows outside the active layer without a highlight class', () => {
         expect(rowClassName(makeComponent('other.clayer.yml'), state)).toBe('leaf-node');
     });
