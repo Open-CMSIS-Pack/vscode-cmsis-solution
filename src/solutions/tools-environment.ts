@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import fs from 'fs';
 import path from 'path';
 import * as vscode from 'vscode';
 import yaml from 'yaml';
@@ -35,6 +36,7 @@ type EnvironmentManagerToolsApi = Pick<EnvironmentManagerApiV1, 'getActiveTools'
 
 interface BuiltInTool {
     tool: string;
+    version: string;
     command: string;
     path: string;
     extension: string;
@@ -121,11 +123,18 @@ export class ToolsEnvironment {
             'cmsis-tools-environment': {
                 // Document metadata identifies the format and the converted solution.
                 version: DOCUMENT_VERSION,
-                solution: path.basename(solutionPath),
+                'generated-by': `${CMSIS_SOLUTION_EXTENSION_ID} version ${this.getExtensionVersion()}`,
+                solution: this.toPortablePath(path.relative(
+                    path.join(path.dirname(solutionPath), '.cmsis'),
+                    solutionPath,
+                )),
                 environment: {
-                    path: pathEntries,
+                    path: pathEntries.map(entry => this.toPortablePath(entry)),
                     variables: Object.fromEntries(
-                        Object.entries(variables).filter(([key]) => key.toLowerCase() !== 'path'),
+                        Object.entries(variables)
+                            .filter(([key]) => key.toLowerCase() !== 'path')
+                            .filter((entry): entry is [string, string] => entry[1] !== undefined)
+                            .map(([key, value]) => [key, this.toPortablePath(value)]),
                     ),
                 },
                 tools: this.selectTools(
@@ -199,6 +208,7 @@ export class ToolsEnvironment {
         if (getCmsisToolboxRoot(environment) === CMSIS_TOOLBOX_FOLDER) {
             tools.push({
                 tool: 'CMSIS-Toolbox',
+                version: this.getCmsisToolboxVersion(),
                 command: 'csolution',
                 path: path.join(CMSIS_TOOLBOX_FOLDER, 'bin'),
                 extension: CMSIS_SOLUTION_EXTENSION_ID,
@@ -210,6 +220,7 @@ export class ToolsEnvironment {
         if (debuggerExtension?.extensionPath) {
             tools.push({
                 tool: 'pyOCD',
+                version: this.readVersionFile(path.join(debuggerExtension.extensionPath, 'tools', 'pyocd', 'version.txt')),
                 command: 'pyocd',
                 path: path.join(debuggerExtension.extensionPath, 'tools', 'pyocd'),
                 extension: CMSIS_DEBUGGER_EXTENSION_ID,
@@ -217,6 +228,7 @@ export class ToolsEnvironment {
             });
             tools.push({
                 tool: 'Arm GNU GDB',
+                version: this.readVersionFile(path.join(debuggerExtension.extensionPath, 'tools', 'gdb', 'version.txt')),
                 command: 'arm-none-eabi-gdb',
                 path: path.join(debuggerExtension.extensionPath, 'tools', 'gdb', 'bin'),
                 extension: CMSIS_DEBUGGER_EXTENSION_ID,
@@ -271,12 +283,13 @@ export class ToolsEnvironment {
         // Built-in metadata names the Arm extension that ships the PATH directory.
         return {
             name: tool.tool,
+            version: tool.version,
             origin: 'built-in',
             provider: {
                 type: 'vscode-extension',
                 id: tool.extension,
             },
-            directory: tool.path,
+            directory: this.toPortablePath(tool.path),
             manual: tool.manual,
         };
     }
@@ -290,7 +303,7 @@ export class ToolsEnvironment {
                 type: 'vcpkg',
                 id: ENVIRONMENT_MANAGER_EXTENSION_ID,
             },
-            directory: path.dirname(tool.fullPath),
+            directory: this.toPortablePath(path.dirname(tool.fullPath)),
         };
     }
 
@@ -304,8 +317,31 @@ export class ToolsEnvironment {
                 type: 'vcpkg',
                 id: ENVIRONMENT_MANAGER_EXTENSION_ID,
             },
-            directory: vcpkgPackage.root,
+            directory: this.toPortablePath(vcpkgPackage.root),
         };
+    }
+
+    private getExtensionVersion(): string {
+        return vscode.extensions.getExtension(CMSIS_SOLUTION_EXTENSION_ID)?.packageJSON.version ?? 'unknown';
+    }
+
+    private getCmsisToolboxVersion(): string {
+        const manifest = fs.readdirSync(CMSIS_TOOLBOX_FOLDER)
+            .find(file => /^manifest_(.+)\.ya?ml$/i.test(file));
+        const match = manifest?.match(/^manifest_(.+)\.ya?ml$/i);
+        return match?.[1] ?? 'unknown';
+    }
+
+    private readVersionFile(filePath: string): string {
+        try {
+            return fs.readFileSync(filePath, 'utf8').trim();
+        } catch {
+            return 'unknown';
+        }
+    }
+
+    private toPortablePath(value: string): string {
+        return value.replace(/\\/g, '/');
     }
 
     private normalizeCommand(command: string): string {

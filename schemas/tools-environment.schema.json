@@ -14,7 +14,11 @@
         },
         "solution": {
           "type": "string",
-          "description": "Name of the active solution file."
+          "description": "Path to the active solution file, relative to this document."
+        },
+        "generated-by": {
+          "type": "string",
+          "description": "Extension ID and version that generated this document."
         },
         "environment": {
           "type": "object",
@@ -40,7 +44,7 @@
           "items": { "$ref": "#/definitions/tool" }
         }
       },
-      "required": [ "version", "environment", "tools" ],
+      "required": [ "version", "generated-by", "solution", "environment", "tools" ],
       "additionalProperties": false
     }
   },
@@ -66,12 +70,13 @@
       "type": "object",
       "properties": {
         "name": { "type": "string" },
+        "version": { "type": "string" },
         "origin": { "const": "built-in" },
         "provider": { "$ref": "#/definitions/provider" },
         "directory": { "type": "string" },
         "manual": { "type": "string", "format": "uri" }
       },
-      "required": [ "name", "origin", "provider", "directory" ],
+      "required": [ "name", "version", "origin", "provider", "directory" ],
       "additionalProperties": false
     },
     "installed-tool": {

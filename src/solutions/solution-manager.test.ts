@@ -584,6 +584,7 @@ describe('SolutionManager', () => {
         const armclangRoot = path.join('/home/user', '.vcpkg', 'artifacts', 'registry', 'compilers.arm.armclang', '6.24.0');
         const armclangBin = path.join(armclangRoot, 'bin');
         const builtInToolboxBin = path.join(manifest.CMSIS_TOOLBOX_FOLDER, 'bin');
+        const toPortablePath = (value: string): string => value.replace(/\\/g, '/');
         let isActivating = true;
         environmentManagerApi.isActivating = jest.fn(() => isActivating);
 
@@ -611,17 +612,17 @@ describe('SolutionManager', () => {
         expect(yaml.parse(content)).toMatchObject({
             'cmsis-tools-environment': {
                 environment: {
-                    path: [builtInToolboxBin, armclangBin],
+                    path: [builtInToolboxBin, armclangBin].map(toPortablePath),
                     variables: {
                         CMSIS_PACK_ROOT: '/packs',
-                        AC6_TOOLCHAIN_6_24_0: armclangBin,
+                        AC6_TOOLCHAIN_6_24_0: toPortablePath(armclangBin),
                     },
                 },
                 tools: expect.arrayContaining([
                     expect.objectContaining({
                         name: 'compilers.arm.armclang',
                         version: '6.24.0',
-                        directory: armclangRoot,
+                        directory: toPortablePath(armclangRoot),
                     }),
                 ]),
             },

@@ -35,6 +35,7 @@ describe('ToolsEnvironment', () => {
     const ajv = new Ajv({ strict: true });
     addFormats(ajv);
     const validateToolsEnvironment = ajv.compile(toolsEnvironmentSchema);
+    const toPortablePath = (value: string): string => value.replace(/\\/g, '/');
 
     beforeEach(() => {
         (vscode.extensions.getExtension as jest.Mock).mockReturnValue(undefined);
@@ -49,10 +50,22 @@ describe('ToolsEnvironment', () => {
         const cmakeRoot = path.join(artifactsRoot, 'tools.kitware.cmake', '3.31.12');
         const cmakeBin = path.join(cmakeRoot, 'bin');
         const builtInToolboxBin = path.join(CMSIS_TOOLBOX_FOLDER, 'bin');
-        const debuggerExtensionPath = path.join('/extensions', 'cmsis-debugger');
+        const debuggerExtensionPath = fs.mkdtempSync(path.join(__dirname, 'cmsis-debugger-'));
         const pyocdPath = path.join(debuggerExtensionPath, 'tools', 'pyocd');
         const gdbBin = path.join(debuggerExtensionPath, 'tools', 'gdb', 'bin');
-        (vscode.extensions.getExtension as jest.Mock).mockReturnValue({ extensionPath: debuggerExtensionPath });
+        fs.mkdirSync(pyocdPath, { recursive: true });
+        fs.mkdirSync(gdbBin, { recursive: true });
+        fs.writeFileSync(path.join(pyocdPath, 'version.txt'), '0.38.0\n');
+        fs.writeFileSync(path.join(debuggerExtensionPath, 'tools', 'gdb', 'version.txt'), '15.2.rel1\n');
+        (vscode.extensions.getExtension as jest.Mock).mockImplementation((extensionId: string) => {
+            if (extensionId === 'arm.cmsis-csolution') {
+                return { packageJSON: { version: '1.70.1-41-20260902' } };
+            }
+            if (extensionId === 'arm.vscode-cmsis-debugger') {
+                return { extensionPath: debuggerExtensionPath };
+            }
+            return undefined;
+        });
         const environmentManager = {
             getEnvironmentVariables: jest.fn().mockReturnValue({
                 PATH: [
@@ -125,35 +138,38 @@ describe('ToolsEnvironment', () => {
         expect(yaml.parse(content)).toEqual({
             'cmsis-tools-environment': {
                 version: '1.0.0',
-                solution: 'project.csolution.yml',
+                'generated-by': 'arm.cmsis-csolution version 1.70.1-41-20260902',
+                solution: '../project.csolution.yml',
                 environment: {
-                    path: [pyocdPath, builtInToolboxBin, gccBin, cmakeBin, gdbBin],
+                    path: [pyocdPath, builtInToolboxBin, gccBin, cmakeBin, gdbBin].map(toPortablePath),
                     variables: {
                         CMSIS_PACK_ROOT: '/packs',
                         CMSIS_COMPILER_ROOT: '/compilers',
                         ARM_CONFIGURED_VAR: 'configured',
-                        GCC_TOOLCHAIN_14_3_1: gccBin,
+                        GCC_TOOLCHAIN_14_3_1: toPortablePath(gccBin),
                     },
                 },
                 tools: [
                     {
                         name: 'pyOCD',
+                        version: '0.38.0',
                         origin: 'built-in',
                         provider: {
                             type: 'vscode-extension',
                             id: 'arm.vscode-cmsis-debugger',
                         },
-                        directory: pyocdPath,
+                        directory: toPortablePath(pyocdPath),
                         manual: 'https://pyocd.io/docs/',
                     },
                     {
                         name: 'CMSIS-Toolbox',
+                        version: expect.stringMatching(/^2\.14\.1-/),
                         origin: 'built-in',
                         provider: {
                             type: 'vscode-extension',
                             id: 'arm.cmsis-csolution',
                         },
-                        directory: builtInToolboxBin,
+                        directory: toPortablePath(builtInToolboxBin),
                         manual: 'https://open-cmsis-pack.github.io/cmsis-toolbox/',
                     },
                     {
@@ -164,7 +180,7 @@ describe('ToolsEnvironment', () => {
                             type: 'vcpkg',
                             id: 'arm.environment-manager',
                         },
-                        directory: gccRoot,
+                        directory: toPortablePath(gccRoot),
                     },
                     {
                         name: 'tools.kitware.cmake',
@@ -174,16 +190,17 @@ describe('ToolsEnvironment', () => {
                             type: 'vcpkg',
                             id: 'arm.environment-manager',
                         },
-                        directory: cmakeRoot,
+                        directory: toPortablePath(cmakeRoot),
                     },
                     {
                         name: 'Arm GNU GDB',
+                        version: '15.2.rel1',
                         origin: 'built-in',
                         provider: {
                             type: 'vscode-extension',
                             id: 'arm.vscode-cmsis-debugger',
                         },
-                        directory: gdbBin,
+                        directory: toPortablePath(gdbBin),
                         manual: 'https://developer.arm.com/Tools%20and%20Software/GNU%20Toolchain',
                     },
                 ],
@@ -198,6 +215,8 @@ describe('ToolsEnvironment', () => {
 
         expect(workspaceFsProvider.createDirectory).not.toHaveBeenCalled();
         expect(workspaceFsProvider.writeUtf8File).not.toHaveBeenCalled();
+
+        fs.rmSync(debuggerExtensionPath, { recursive: true, force: true });
     });
 
     it('writes a minimal environment when Environment Manager is unavailable and replaces unreadable output', async () => {
@@ -329,7 +348,7 @@ describe('ToolsEnvironment', () => {
 
         const content = workspaceFsProvider.writeUtf8File.mock.calls[0][1];
         expect(yaml.parse(content)['cmsis-tools-environment'].environment).toEqual({
-            path: [builtInToolboxBin, vcpkgPath],
+            path: [builtInToolboxBin, vcpkgPath].map(toPortablePath),
             variables: {},
         });
     });
@@ -368,6 +387,8 @@ describe('ToolsEnvironment', () => {
         const baseDocument = {
             'cmsis-tools-environment': {
                 version: '1.0.0',
+                'generated-by': 'arm.cmsis-csolution version 1.70.0',
+                solution: '../project.csolution.yml',
                 environment: { path: [], variables: {} },
                 tools: [],
             },
