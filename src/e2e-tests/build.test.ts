@@ -262,7 +262,9 @@ test.describe('CMSIS Solution Build Validation', () => {
                         await vsCodeDriver.page.screenshot(`${example.name}/Build in progress - ${context}`);
                         await expect.poll(async () => {
                             const output = await helpers.copyTerminalText(vsCodeDriver);
-                            return /Program Size:\s*Code=\d+\s+RO-data=\d+\s+RW-data=\d+\s+ZI-data=\d+/i.test(output);
+                            const buildCompleted = /Program Size:\s*Code=\d+\s+RO-data=\d+\s+RW-data=\d+\s+ZI-data=\d+/i.test(output);
+                            log('debug', `Captured terminal output contains Program Size: ${buildCompleted}; output=${JSON.stringify(output)}`);
+                            return buildCompleted;
                         }, {
                             timeout: DEFAULT_TIMEOUT_MS,
                             intervals: [4000]
