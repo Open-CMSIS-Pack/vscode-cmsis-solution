@@ -281,6 +281,71 @@ describe('ToolsEnvironment', () => {
         expect(environmentManager.getEnvironmentVariables).toHaveBeenCalledTimes(1);
     });
 
+    it('captures after Environment Manager activation fails', async () => {
+        const environmentManager = {
+            getEnvironmentVariables: jest.fn().mockReturnValue({}),
+            getConfiguredEnvironmentVariables: jest.fn().mockReturnValue({}),
+        } as unknown as EnvironmentManager;
+        const activateEmitter = new vscode.EventEmitter<VcpkgResults>();
+        const failEmitter = new vscode.EventEmitter<vscode.Uri>();
+        let isActivating = true;
+        const workspaceFsProvider = workspaceFsProviderFactory();
+        let markWriteFinished!: () => void;
+        const writeFinished = new Promise<void>(resolve => { markWriteFinished = resolve; });
+        workspaceFsProvider.writeUtf8File.mockImplementation(async () => { markWriteFinished(); });
+        const toolsEnvironment = new ToolsEnvironment(
+            environmentManager,
+            extensionApiProviderFactory({
+                getActiveTools: jest.fn().mockReturnValue([]),
+                isActivating: jest.fn(() => isActivating),
+                onDidActivate: activateEmitter.event,
+                onDidFailActivation: failEmitter.event,
+            }),
+            workspaceFsProvider,
+        );
+
+        const scheduling = toolsEnvironment.captureAndQueueWrite(path.join('/workspace', 'project.csolution.yml'));
+        await Promise.resolve();
+        expect(environmentManager.getEnvironmentVariables).not.toHaveBeenCalled();
+
+        isActivating = false;
+        failEmitter.fire(vscode.Uri.file('/workspace'));
+        await scheduling;
+        await writeFinished;
+
+        expect(environmentManager.getEnvironmentVariables).toHaveBeenCalledTimes(1);
+        expect(workspaceFsProvider.writeUtf8File).toHaveBeenCalledTimes(1);
+    });
+
+    it('captures immediately when Environment Manager activation is idle', async () => {
+        const environmentManager = {
+            getEnvironmentVariables: jest.fn().mockReturnValue({}),
+            getConfiguredEnvironmentVariables: jest.fn().mockReturnValue({}),
+        } as unknown as EnvironmentManager;
+        const activateEmitter = new vscode.EventEmitter<VcpkgResults>();
+        const failEmitter = new vscode.EventEmitter<vscode.Uri>();
+        const workspaceFsProvider = workspaceFsProviderFactory();
+        let markWriteFinished!: () => void;
+        const writeFinished = new Promise<void>(resolve => { markWriteFinished = resolve; });
+        workspaceFsProvider.writeUtf8File.mockImplementation(async () => { markWriteFinished(); });
+        const toolsEnvironment = new ToolsEnvironment(
+            environmentManager,
+            extensionApiProviderFactory({
+                getActiveTools: jest.fn().mockReturnValue([]),
+                isActivating: jest.fn(() => false),
+                onDidActivate: activateEmitter.event,
+                onDidFailActivation: failEmitter.event,
+            }),
+            workspaceFsProvider,
+        );
+
+        await toolsEnvironment.captureAndQueueWrite(path.join('/workspace', 'project.csolution.yml'));
+        await writeFinished;
+
+        expect(environmentManager.getEnvironmentVariables).toHaveBeenCalledTimes(1);
+        expect(workspaceFsProvider.writeUtf8File).toHaveBeenCalledTimes(1);
+    });
+
     it('keeps queued writes in snapshot order', async () => {
         let configuredValue = 'first';
         const environmentManager = {
@@ -320,6 +385,54 @@ describe('ToolsEnvironment', () => {
         const secondContent = workspaceFsProvider.writeUtf8File.mock.calls[1][1];
         expect(firstContent).toContain('CONFIGURED_VALUE: first');
         expect(secondContent).toContain('CONFIGURED_VALUE: second');
+    });
+
+    it('continues queued writes after an earlier write fails', async () => {
+        let configuredValue = 'first';
+        const environmentManager = {
+            getEnvironmentVariables: jest.fn(() => ({ CONFIGURED_VALUE: configuredValue })),
+            getConfiguredEnvironmentVariables: jest.fn(() => ({ CONFIGURED_VALUE: configuredValue })),
+        } as unknown as EnvironmentManager;
+        const workspaceFsProvider = workspaceFsProviderFactory();
+        const writeError = new Error('write failed');
+        const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        let rejectFirstWrite!: (error: Error) => void;
+        let markFirstWriteStarted!: () => void;
+        const firstWriteStarted = new Promise<void>(resolve => { markFirstWriteStarted = resolve; });
+        let markSecondWriteFinished!: () => void;
+        const secondWriteFinished = new Promise<void>(resolve => { markSecondWriteFinished = resolve; });
+        workspaceFsProvider.writeUtf8File
+            .mockImplementationOnce(() => {
+                markFirstWriteStarted();
+                return new Promise<void>((_resolve, reject) => { rejectFirstWrite = reject; });
+            })
+            .mockImplementationOnce(async () => { markSecondWriteFinished(); });
+        const toolsEnvironment = new ToolsEnvironment(
+            environmentManager,
+            extensionApiProviderFactory(),
+            workspaceFsProvider,
+        );
+        const solutionPath = path.join('/workspace', 'project.csolution.yml');
+
+        try {
+            await toolsEnvironment.captureAndQueueWrite(solutionPath);
+            await firstWriteStarted;
+            configuredValue = 'second';
+            await toolsEnvironment.captureAndQueueWrite(solutionPath);
+            expect(workspaceFsProvider.writeUtf8File).toHaveBeenCalledTimes(1);
+
+            rejectFirstWrite(writeError);
+            await secondWriteFinished;
+
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                `Failed to write tools environment for '${solutionPath}'`,
+                writeError,
+            );
+            expect(workspaceFsProvider.writeUtf8File).toHaveBeenCalledTimes(2);
+            expect(workspaceFsProvider.writeUtf8File.mock.calls[1][1]).toContain('CONFIGURED_VALUE: second');
+        } finally {
+            consoleErrorSpy.mockRestore();
+        }
     });
 
     it('preserves resolved PATH precedence when vcpkg variables contain mixed-case Path', async () => {
@@ -381,6 +494,51 @@ describe('ToolsEnvironment', () => {
         const document = yaml.parse(workspaceFsProvider.writeUtf8File.mock.calls[0][1]);
         expect(validateToolsEnvironment(document)).toBe(true);
         expect(validateToolsEnvironment.errors).toBeNull();
+    });
+
+    it('uses unknown versions when extension metadata files are unavailable', async () => {
+        const debuggerExtensionPath = fs.mkdtempSync(path.join(__dirname, 'cmsis-debugger-'));
+        const pyocdPath = path.join(debuggerExtensionPath, 'tools', 'pyocd');
+        const gdbBin = path.join(debuggerExtensionPath, 'tools', 'gdb', 'bin');
+        (vscode.extensions.getExtension as jest.Mock).mockImplementation((extensionId: string) => {
+            if (extensionId === 'arm.vscode-cmsis-debugger') {
+                return { extensionPath: debuggerExtensionPath };
+            }
+            return undefined;
+        });
+        const environmentManager = {
+            getEnvironmentVariables: jest.fn().mockReturnValue({
+                PATH: [pyocdPath, gdbBin].join(path.delimiter),
+            }),
+            getConfiguredEnvironmentVariables: jest.fn().mockReturnValue({}),
+        } as unknown as EnvironmentManager;
+        const workspaceFsProvider = workspaceFsProviderFactory();
+        const toolsEnvironment = new ToolsEnvironment(
+            environmentManager,
+            extensionApiProviderFactory(),
+            workspaceFsProvider,
+        );
+
+        try {
+            await toolsEnvironment.write(path.join('/workspace', 'project.csolution.yml'));
+
+            const document = yaml.parse(workspaceFsProvider.writeUtf8File.mock.calls[0][1]);
+            expect(document['cmsis-tools-environment']['generated-by']).toBe('arm.cmsis-csolution version unknown');
+            expect(document['cmsis-tools-environment'].tools).toEqual(expect.arrayContaining([
+                expect.objectContaining({
+                    name: 'pyOCD',
+                    version: 'unknown',
+                    directory: toPortablePath(pyocdPath),
+                }),
+                expect.objectContaining({
+                    name: 'Arm GNU GDB',
+                    version: 'unknown',
+                    directory: toPortablePath(gdbBin),
+                }),
+            ]));
+        } finally {
+            fs.rmSync(debuggerExtensionPath, { recursive: true, force: true });
+        }
     });
 
     it('requires directory as the installed tool location', () => {
