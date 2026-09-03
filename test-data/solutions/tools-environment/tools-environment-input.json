@@ -1,0 +1,51 @@
+{
+  "extensionVersion": "1.70.0-test",
+  "platform": "linux",
+  "environment": {
+    "PATH": [
+      "/fixture-workspace/tools/cmake/bin",
+      "/host/bin",
+      "/fixture-workspace/.vcpkg/artifacts/registry/tools.open.cmsis.pack.cmsis.toolbox/2.15.0/bin",
+      "/fixture-workspace/.vcpkg/artifacts/registry/compilers.arm.arm.none.eabi.gcc/14.3.1/bin"
+    ],
+    "CMSIS_PACK_ROOT": "/fixture-workspace/packs",
+    "CMSIS_COMPILER_ROOT": "/fixture-workspace/compilers",
+    "CMSIS_SOLUTION_TOOLBOX": "/external/toolbox",
+    "UNRELATED_HOST_VALUE": "ignored"
+  },
+  "activeTools": [
+    {
+      "name": "tools.kitware.cmake",
+      "path": "bin/cmake",
+      "fullPath": "/fixture-workspace/tools/cmake/bin/cmake"
+    },
+    {
+      "name": "tools.open.cmsis.pack.cmsis.toolbox",
+      "path": "bin/csolution",
+      "fullPath": "/fixture-workspace/.vcpkg/artifacts/registry/tools.open.cmsis.pack.cmsis.toolbox/2.15.0/bin/csolution"
+    },
+    {
+      "name": "compilers.arm.arm.none.eabi.gcc",
+      "path": "bin/arm-none-eabi-gcc",
+      "fullPath": "/fixture-workspace/.vcpkg/artifacts/registry/compilers.arm.arm.none.eabi.gcc/14.3.1/bin/arm-none-eabi-gcc"
+    }
+  ],
+  "vcpkgResults": {
+    "version": 1,
+    "variables": {
+      "GCC_TOOLCHAIN_14_3_1": "/fixture-workspace/.vcpkg/artifacts/registry/compilers.arm.arm.none.eabi.gcc/14.3.1/bin",
+      "Path": "/ignored/vcpkg/path"
+    },
+    "paths": {
+      "PATH": [
+        "/fixture-workspace/tools/cmake/bin",
+        "/fixture-workspace/.vcpkg/artifacts/registry/tools.open.cmsis.pack.cmsis.toolbox/2.15.0/bin",
+        "/fixture-workspace/.vcpkg/artifacts/registry/compilers.arm.arm.none.eabi.gcc/14.3.1/bin"
+      ]
+    },
+    "tools": {
+      "csolution": "/fixture-workspace/.vcpkg/artifacts/registry/tools.open.cmsis.pack.cmsis.toolbox/2.15.0/bin/csolution",
+      "GCC_TOOLCHAIN_14_3_1": "/fixture-workspace/.vcpkg/artifacts/registry/compilers.arm.arm.none.eabi.gcc/14.3.1/bin"
+    }
+  }
+}
