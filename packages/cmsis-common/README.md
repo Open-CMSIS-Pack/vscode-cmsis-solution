@@ -27,7 +27,7 @@ Then install the package:
 npm install @open-cmsis-pack/cmsis-common
 ```
 
-The package requires Node.js 22.22 or later in the Node.js 22 release line and publishes CommonJS
+The package requires Node.js 22.22.2 or later in the Node.js 22 release line and publishes CommonJS
 modules with TypeScript declarations.
 
 ## Use
