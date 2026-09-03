@@ -73,6 +73,7 @@ describe('SolutionManager', () => {
     let rpcData: SolutionRpcData;
     let cbuildSetupRequestedListener: jest.Mock;
     let workspaceFsProvider: MockWorkspaceFsProvider;
+    let toolsEnvironment: ToolsEnvironment;
 
     const testDataHandler = new TestDataHandler();
 
@@ -142,6 +143,11 @@ describe('SolutionManager', () => {
         });
         jest.spyOn(environmentManager, 'getConfiguredEnvironmentVariables').mockReturnValue({});
 
+        toolsEnvironment = new ToolsEnvironment(
+            environmentManager,
+            extensionApiProviderFactory(environmentManagerApi),
+            workspaceFsProvider,
+        );
         solutionManager = new SolutionManagerImpl(
             mockActiveSolutionTracker as unknown as ActiveSolutionTracker,
             eventHub,
@@ -150,11 +156,7 @@ describe('SolutionManager', () => {
             extensionApiProviderFactory(environmentManagerApi),
             environmentManager,
             activeSolutionFilesDebounceMillis,
-            new ToolsEnvironment(
-                environmentManager,
-                extensionApiProviderFactory(environmentManagerApi),
-                workspaceFsProvider,
-            ),
+            toolsEnvironment,
         );
         loadStateChangeListener = jest.fn();
         solutionManager.onDidChangeLoadState(loadStateChangeListener);
@@ -168,7 +170,7 @@ describe('SolutionManager', () => {
     const activateTestSolution = async (): Promise<void> => {
         mockActiveSolutionTracker.activeSolution = testSolutionPath;
         changeActiveSolutionEmitter.fire();
-        await waitTimeout(100);
+        await waitTimeout(200);
     };
 
     const getLoadedSolutionFile = (suffix: string): string => {
@@ -191,13 +193,13 @@ describe('SolutionManager', () => {
         // Initialize solution state first
         mockActiveSolutionTracker.activeSolution = testSolutionPath;
         changeActiveSolutionEmitter.fire();
-        await waitTimeout(100);
+        await waitTimeout(200);
 
         await commandsProvider.mockRunRegistered(
             manifest.REFRESH_COMMAND_ID,
         );
 
-        await waitTimeout(100);
+        await waitTimeout(200);
 
         const expectedLoadState: SolutionLoadState = {
             solutionPath: testSolutionPath, loaded: true, converted: true, activated: true,
@@ -237,11 +239,11 @@ describe('SolutionManager', () => {
         // Initialize solution state first
         mockActiveSolutionTracker.activeSolution = testSolutionPath;
         changeActiveSolutionEmitter.fire();
-        await waitTimeout(100);
+        await waitTimeout(200);
 
         changeSolutionFilesEmitter.fire(getLoadedSolutionFile('.cproject.yml'));
 
-        await waitTimeout(100);
+        await waitTimeout(200);
 
         const expectedLoadState: SolutionLoadState = {
             solutionPath: testSolutionPath, loaded: true, converted: true, activated: true,
@@ -299,7 +301,7 @@ describe('SolutionManager', () => {
         loadBuildFilesListener.mockClear();
 
         changeSolutionFilesEmitter.fire(changedPath);
-        await waitTimeout(100);
+        await waitTimeout(200);
 
         expect(convertMock).toHaveBeenCalledTimes(1);
         expect(convertMock).toHaveBeenCalledWith(
@@ -323,7 +325,7 @@ describe('SolutionManager', () => {
         convertMock.mockClear();
 
         changeSolutionFilesEmitter.fire(outsideProjectPath);
-        await waitTimeout(100);
+        await waitTimeout(200);
 
         expect(convertMock).toHaveBeenCalledTimes(1);
         expect(convertMock).toHaveBeenCalledWith(
@@ -342,7 +344,7 @@ describe('SolutionManager', () => {
         loadBuildFilesListener.mockClear();
 
         changeSolutionFilesEmitter.fire(dbgconfPath);
-        await waitTimeout(100);
+        await waitTimeout(200);
 
         expect(convertMock).toHaveBeenCalledTimes(1);
         expect(convertMock).toHaveBeenCalledWith(
@@ -365,7 +367,7 @@ describe('SolutionManager', () => {
         convertMock.mockClear();
 
         changeSolutionFilesEmitter.fire(dbgconfPath);
-        await waitTimeout(100);
+        await waitTimeout(200);
 
         expect(convertMock).not.toHaveBeenCalled();
     });
@@ -376,7 +378,7 @@ describe('SolutionManager', () => {
         convertMock.mockClear();
 
         changeSolutionFilesEmitter.fire(unrelatedProjectPath);
-        await waitTimeout(100);
+        await waitTimeout(200);
 
         expect(convertMock).not.toHaveBeenCalled();
     });
@@ -387,7 +389,7 @@ describe('SolutionManager', () => {
         convertMock.mockClear();
 
         changeSolutionFilesEmitter.fire(inactiveSolutionPath);
-        await waitTimeout(100);
+        await waitTimeout(200);
 
         expect(convertMock).not.toHaveBeenCalled();
     });
@@ -400,7 +402,7 @@ describe('SolutionManager', () => {
 
         changeSolutionFilesEmitter.fire(cprojectPath);
         changeSolutionFilesEmitter.fire(clayerPath);
-        await waitTimeout(100);
+        await waitTimeout(200);
 
         expect(convertMock).toHaveBeenCalledTimes(1);
         expect(convertMock).toHaveBeenCalledWith(
@@ -417,7 +419,7 @@ describe('SolutionManager', () => {
         mockActiveSolutionTracker.activeSolution = newSolutionPath;
         changeActiveSolutionEmitter.fire();
 
-        await waitTimeout(100);
+        await waitTimeout(200);
 
         const expectedLoadingState: SolutionLoadState = {
             solutionPath: newSolutionPath, loaded: true,
@@ -443,7 +445,7 @@ describe('SolutionManager', () => {
     it('requests restartRpc when envVars change after solution is activated', async () => {
         mockActiveSolutionTracker.activeSolution = testSolutionPath;
         changeActiveSolutionEmitter.fire();
-        await waitTimeout(100);
+        await waitTimeout(200);
 
         await environmentManager.activate({
             subscriptions: [],
@@ -578,6 +580,26 @@ describe('SolutionManager', () => {
             writeError,
         );
         consoleErrorSpy.mockRestore();
+    });
+
+    it('continues conversion when queueing the tools environment write fails', async () => {
+        const queueError = new Error('queue failed');
+        const captureSpy = jest.spyOn(toolsEnvironment, 'captureAndQueueWrite').mockRejectedValueOnce(queueError);
+        const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        try {
+            await activateTestSolution();
+
+            expect(captureSpy).toHaveBeenCalledWith(testSolutionPath);
+            expect(convertMock).toHaveBeenCalledTimes(1);
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                `Failed to queue tools environment write for '${testSolutionPath}'`,
+                queueError,
+            );
+        } finally {
+            captureSpy.mockRestore();
+            consoleErrorSpy.mockRestore();
+        }
     });
 
     it('starts conversion while waiting to capture Environment Manager activation variables', async () => {
