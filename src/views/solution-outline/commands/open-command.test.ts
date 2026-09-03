@@ -60,8 +60,9 @@ describe('OpenCommand', () => {
         await openCommand.activate(extensionContextFactory());
 
         const expectedCommands = [OpenCommand.openSolutionCommandId, OpenCommand.openProjectCommandId, OpenCommand.openPrjConfCommandId,
+            OpenCommand.openPrjCmakeCommandId,
             OpenCommand.openLayerCommandId, OpenCommand.openLinkerCommandId, OpenCommand.openDocCommandId, OpenCommand.openSourceSmartCommandId, OpenCommand.openHelpCommandId,
-            OpenCommand.openZephyrTerminalCommandId];
+            OpenCommand.openZephyrTerminalCommandId, OpenCommand.openCMakeTerminalCommandId];
 
         expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(expectedCommands.length);
         expectedCommands.forEach(commandId => {
@@ -140,6 +141,21 @@ describe('OpenCommand', () => {
         await commandsProvider.mockRunRegistered(OpenCommand.openPrjConfCommandId, prjConfFile);
 
         expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(TEST_PRJ_CONF_PATH), { viewColumn: vscode.ViewColumn.Active });
+    });
+
+    it('opens and shows the CMakeLists.txt file for a CMake project', async () => {
+        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+        await openCommand.activate(extensionContextFactory());
+        const cmakeListsPath = path.join('some', 'path', 'to', 'cmake-app', 'CMakeLists.txt');
+
+        const cmakeProject = new COutlineItem('project');
+        cmakeProject.setAttribute('label', 'firmware.Debug+Native');
+        cmakeProject.setAttribute('prjCmakePath', cmakeListsPath);
+        cmakeProject.setAttribute('resourcePath', path.join('some', 'path', 'firmware.cproject-cmake.yml'));
+
+        await commandsProvider.mockRunRegistered(OpenCommand.openPrjCmakeCommandId, cmakeProject);
+
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(cmakeListsPath), { viewColumn: vscode.ViewColumn.Active });
     });
 
     it('opens and shows a doc file from the path', async () => {
@@ -243,6 +259,31 @@ describe('OpenCommand', () => {
 
         expect(createTerminalSpy).toHaveBeenCalledWith({
             name: 'Zephyr core0',
+            cwd: path.join('build'),
+        });
+        expect(mockTerminal.show).toHaveBeenCalled();
+    });
+
+    it('opens CMake terminal for matching context', async () => {
+        const mockTerminal = { show: jest.fn() } as unknown as vscode.Terminal;
+        const createTerminalSpy = jest.spyOn(vscode.window, 'createTerminal').mockReturnValue(mockTerminal);
+        const mockCbuildMap = new Map<string, CTreeItem>([
+            [path.join('other-build', 'other.Debug+Native.cbuild.yml'), new COutlineItem('file')],
+            [path.join('build', 'firmware.Debug+Native.cbuild.yml'), new COutlineItem('file')],
+        ]);
+        const mockSolutionManager = solutionManagerFactory();
+        jest.spyOn(mockSolutionManager, 'getCsolution').mockReturnValue({ cbuildYmlRoot: mockCbuildMap } as Partial<CSolution> as CSolution);
+
+        const openCommand = new OpenCommand(mockSolutionManager, commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+        await openCommand.activate(extensionContextFactory());
+
+        const node = new COutlineItem('project');
+        node.setAttribute('label', 'firmware.Debug+Native');
+
+        await commandsProvider.mockRunRegistered(OpenCommand.openCMakeTerminalCommandId, node);
+
+        expect(createTerminalSpy).toHaveBeenCalledWith({
+            name: 'CMake firmware',
             cwd: path.join('build'),
         });
         expect(mockTerminal.show).toHaveBeenCalled();

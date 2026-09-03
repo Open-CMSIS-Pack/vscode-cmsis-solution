@@ -17,8 +17,9 @@
 import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
-import { expandRootVars, getFileNameNoExt } from '../../utils/path-utils';
-import { PROJECT_WEST_SUFFIX } from '../constants';
+import path from 'node:path';
+import { expandRootVars } from '../../utils/path-utils';
+import { getVirtualProjectDescriptor } from './virtual-project';
 
 /**
  * Access a <context>.cbuild.yml file
@@ -65,20 +66,12 @@ class CbuildFileImpl extends CTreeItemYamlFile implements CbuildFile {
         const project = this.topItem?.getValue('project');
         if (project) {
             return this.resolvePath(project);
-        } else {
-            const west = this.topItem?.getChild('west');
-            if (west) {
-                const projPath = west.getChild('app-path')?.getValueAsString();
-                if (projPath) {
-                    let projId = west.getChild('project-id')?.getValueAsString();
-                    if (!projId) {
-                        projId = getFileNameNoExt(projPath);
-                    }
-                    return this.resolvePath(projPath + '/' + projId + PROJECT_WEST_SUFFIX);
-                }
-            }
         }
-        return undefined;
+
+        const solution = this.topItem?.getValueAsString('solution');
+        const defaultCmakeSource = solution ? path.dirname(solution) : '';
+        const virtualProject = getVirtualProjectDescriptor(this.topItem, defaultCmakeSource);
+        return virtualProject ? this.resolvePath(virtualProject.project) : undefined;
     }
 
     public getSourceFiles(): string[] {

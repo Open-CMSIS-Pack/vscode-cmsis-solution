@@ -16,6 +16,7 @@
 
 export * from './constructor';
 export * from './error-list';
+export * from './extract-zip';
 export * from './lazy';
 export * from './schema';
 export * from './string-utils';

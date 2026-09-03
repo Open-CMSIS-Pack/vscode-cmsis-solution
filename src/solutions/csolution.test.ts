@@ -690,6 +690,39 @@ describe('CSolution', () => {
         });
     });
 
+    describe('hasVirtualProject', () => {
+        let csolution: CSolution;
+
+        beforeEach(() => {
+            csolution = new CSolution();
+            csolution.projects.clear();
+        });
+
+        it.each(['West', 'CMake'] as const)('returns true for a read-only %s project', projectType => {
+            csolution.projects.set('virtual', { projectType, readOnly: true } as CProjectYamlFile);
+
+            expect(csolution.hasVirtualProject()).toBe(true);
+        });
+
+        it('returns true when a virtual project follows a physical project', () => {
+            csolution.projects.set('physical', { projectType: 'executable', readOnly: false } as CProjectYamlFile);
+            csolution.projects.set('virtual', { projectType: 'CMake', readOnly: true } as CProjectYamlFile);
+
+            expect(csolution.hasVirtualProject()).toBe(true);
+        });
+
+        it('returns false for writable projects regardless of project type', () => {
+            csolution.projects.set('cmake', { projectType: 'CMake', readOnly: false } as CProjectYamlFile);
+            csolution.projects.set('physical', { projectType: 'library', readOnly: false } as CProjectYamlFile);
+
+            expect(csolution.hasVirtualProject()).toBe(false);
+        });
+
+        it('returns false when there are no projects', () => {
+            expect(csolution.hasVirtualProject()).toBe(false);
+        });
+    });
+
     describe('getSolutionYmlFiles', () => {
         it('returns empty list when no solution is loaded', () => {
             const csolution = new CSolution();

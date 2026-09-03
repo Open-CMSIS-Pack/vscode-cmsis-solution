@@ -350,6 +350,28 @@ describe('ProjectsTable', () => {
         expect(openFile).toHaveBeenCalledWith(projects[0].path);
     });
 
+    it.each(['West', 'CMake'])('does not render a project file link for a read-only %s project', projectType => {
+        const projects: ProjectSelection[] = [{
+            name: 'virtual-project',
+            path: `/path/to/virtual-project.cproject-${projectType.toLowerCase()}.yml`,
+            buildTypes: ['type-1'],
+            selectedBuildType: 'type-1',
+            load: 'none',
+            selected: true,
+            projectType,
+            readOnly: true,
+        }];
+
+        React.act(() => {
+            root.render(
+                <ProjectsTable projects={projects} availableCores={[]} updateSolutionData={jest.fn()} openFile={jest.fn()} addProject={jest.fn()} addImage={jest.fn()} unlinkImage={jest.fn()} />
+            );
+        });
+
+        expect(container.querySelector('.project a')).toBeNull();
+        expect(container.querySelector('.project .name')?.textContent).toContain(`(${projectType})`);
+    });
+
     it('disables the project row when there are no build types to select', () => {
         const projects: ProjectSelection[] = [{
             name: 'some-project',

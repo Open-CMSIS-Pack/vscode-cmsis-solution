@@ -26,12 +26,12 @@ jobs:
       packages: write
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
       - name: Checkout repository
-        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v4.3.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -47,7 +47,7 @@ jobs:
         run: |
           VERSION=$(node -p "require('./packages/cmsis-common/package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-      
+
       - name: Verify release tag
         run: |
           PACKAGE_VERSION=${{ steps.get_version.outputs.version }}

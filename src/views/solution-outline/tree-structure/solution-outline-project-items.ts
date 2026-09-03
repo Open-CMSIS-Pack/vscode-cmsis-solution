@@ -42,9 +42,11 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         if (!cproject) {
             return;
         }
-        if (cbuild && cprojectFile.projectType === 'West') {
-            this.createGroupTree(cprojectItem, cbuild, '');
-            return; // there is nothing else available for West for now
+        if (cprojectFile.readOnly) {
+            if (cbuild) {
+                this.createGroupTree(cprojectItem, cbuild, '');
+            }
+            return;
         }
         this.createGroupTree(cprojectItem, cproject, '');
 

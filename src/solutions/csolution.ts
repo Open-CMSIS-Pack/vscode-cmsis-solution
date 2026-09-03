@@ -561,6 +561,16 @@ export class CSolution {
         return false;
     }
 
+    public hasVirtualProject(): boolean {
+        for (const project of this.projects.values()) {
+            if (project?.readOnly && (project.projectType === 'West' || project.projectType === 'CMake')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
 };
 
 export function expandPath(path: string, csolution?: CSolution, targetType?: string,): string {
