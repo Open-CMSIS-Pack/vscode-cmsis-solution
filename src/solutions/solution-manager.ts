@@ -28,6 +28,8 @@ import { debounce } from 'lodash';
 import { SolutionRpcData } from './solution-rpc-data';
 import { EnvironmentManager } from '../desktop/env-manager';
 import { pathsEqual } from '../utils/path-utils';
+import { workspaceFsProvider as defaultWorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
+import { ToolsEnvironment } from './tools-environment';
 
 
 export interface SolutionLoadState {
@@ -93,9 +95,11 @@ export class SolutionManagerImpl implements SolutionManager {
         private readonly eventHub: SolutionEventHub,
         private readonly rpcData: SolutionRpcData,
         private readonly commandsProvider: CommandsProvider,
-        private readonly environmentManagerApiProvider: ExtensionApiProvider<Pick<EnvironmentManagerApiV1, 'onDidActivate' | 'getActiveTools'>>,
+        private readonly environmentManagerApiProvider: ExtensionApiProvider<Pick<EnvironmentManagerApiV1,
+            'onDidActivate' | 'onDidFailActivation' | 'getActiveTools' | 'isActivating'>>,
         private readonly environmentManager: EnvironmentManager,
         activeSolutionFilesDebounceMillis = 500,
+        private readonly toolsEnvironment = new ToolsEnvironment(environmentManager, environmentManagerApiProvider, defaultWorkspaceFsProvider),
     ) {
         this.debouncedHandleActiveSolutionFileChange = debounce(
             this.reloadActiveSolutionFiles.bind(this),
@@ -111,7 +115,8 @@ export class SolutionManagerImpl implements SolutionManager {
             this.eventHub.onDidCbuildCompleted(this.handleCbuildCompleted, this),
             this.commandsProvider.registerCommand(manifest.REFRESH_COMMAND_ID, this.refresh, this),
             this.environmentManagerApiProvider.onActivate(environmentManagerApi => {
-                environmentManagerApi.onDidActivate(() => {
+                environmentManagerApi.onDidActivate(results => {
+                    this.toolsEnvironment.updateVcpkgResults(results);
                     if (!this.isSolutionActivated()) {
                         return;
                     }
@@ -219,8 +224,12 @@ export class SolutionManagerImpl implements SolutionManager {
         // Emit so subscribers (e.g. webviews) can show a 'Converting solution...' busy state
         this.setLoadState(newState, true);
 
+        const solutionPath = this.csolution.solutionPath;
+        void this.toolsEnvironment.captureAndQueueWrite(solutionPath).catch(error => {
+            console.error(`Failed to queue tools environment write for '${solutionPath}'`, error);
+        });
         this.eventHub.fireConvertRequest({
-            solutionPath: this.csolution.solutionPath,
+            solutionPath,
             targetSet: this.csolution.getActiveTargetSetName(),
             updateRte: updateRte,
             restartRpc: restartRpc,
