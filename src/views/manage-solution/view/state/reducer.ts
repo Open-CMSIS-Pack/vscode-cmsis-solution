@@ -215,11 +215,10 @@ const incomingMessageReducer = (
             return { ...state, isDirty: message.data };
         case 'IS_BUSY':
             return { ...state, busy: message.data };
-        case 'DEBUGGER':
-            {
-                const next = { ...state, debugger: message.data };
-                return { ...next, editableProperties: reconcileEditableProperties(next) };
-            }
+        case 'DEBUGGER': {
+            const next = { ...state, debugger: message.data };
+            return { ...next, editableProperties: reconcileEditableProperties(next) };
+        }
         case 'ACTIVE_TARGET_SET':
             return { ...state };
         case 'FILE_SELECTED':
