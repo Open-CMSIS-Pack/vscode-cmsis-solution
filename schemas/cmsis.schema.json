@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/Open-CMSIS-Pack/vscode-cmsis-solution/main/schemas/cmsis.schema.json",
+  "title": "CMSIS workspace settings",
+  "description": "Mirrored active CMSIS solution and persisted target type and target set selections for a workspace.",
+  "type": "object",
+  "properties": {
+    "activeSolution": {
+      "description": "Informational mirror of the active csolution file path relative to the containing cmsis.json file, or null when solution activation is disabled. The extension restores the active solution from VS Code workspace storage instead.",
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\.csolution\\.ya?ml$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "solutionSelections": {
+      "type": "object",
+      "description": "Remembered selections keyed by the complete csolution file path relative to the containing cmsis.json file.",
+      "propertyNames": {
+        "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\).+\\.csolution\\.ya?ml$"
+      },
+      "additionalProperties": {
+        "$ref": "#/definitions/solution-selection"
+      }
+    },
+    "targetSet": {
+      "type": "object",
+      "description": "Deprecated selection format accepted for migration. Its legacy contents are intentionally not constrained."
+    },
+    "force-update-rte": {
+      "type": "boolean",
+      "description": "Requests an RTE update when the solution is next initialized."
+    }
+  },
+  "additionalProperties": true,
+  "definitions": {
+    "solution-selection": {
+      "type": "object",
+      "description": "The selected target type name and remembered target-set selection for each target type.",
+      "properties": {
+        "selectedTargetType": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the selected target type."
+        },
+        "selectedTargetSets": {
+          "type": "array",
+          "description": "Remembered target-set selections with rename-aware target-type and target-set identities.",
+          "items": {
+            "$ref": "#/definitions/target-set-selection"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "target-set-selection": {
+      "type": "object",
+      "description": "A target type and its remembered target-set selection.",
+      "properties": {
+        "targetType": {
+          "$ref": "#/definitions/named-selection"
+        },
+        "targetSet": {
+          "$ref": "#/definitions/named-selection"
+        }
+      },
+      "required": [ "targetType", "targetSet" ],
+      "additionalProperties": false
+    },
+    "named-selection": {
+      "type": "object",
+      "description": "A readable selection name and its ordinal at the time it was saved.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": -1,
+          "description": "Zero-based ordinal at the time of persistence, or -1 when no ordinal is available."
+        }
+      },
+      "required": [ "name", "index" ],
+      "additionalProperties": false
+    }
+  }
+}

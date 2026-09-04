@@ -99,6 +99,17 @@ describe('CSolutionWrap', () => {
             expect(found).toBeInstanceOf(TargetSetWrap);
             expect(found?.name).toEqual('foo');
         });
+
+        it('should select an unnamed default target set that is not first', () => {
+            const parent = new CTreeItem('target-type');
+            const targetSets = parent.createChild('target-set');
+            targetSets.createChild('-').setValue('set', 'named');
+            targetSets.createChild('-').createChild('set');
+            const wrap = new TargetTypeWrap(parent);
+
+            expect(wrap.targetSetNames).toEqual(['named', '']);
+            expect(wrap.getTargetSetFromIndex(-1)?.name).toBe('');
+        });
     });
 
     describe('TypedWrap', () => {

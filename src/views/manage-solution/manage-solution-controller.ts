@@ -122,6 +122,22 @@ export class ManageSolutionController {
         const result = await this.csolutionYml.load(csolutionPath);
         this.cmsisJsonFile.solutionPath = this.solutionPath;
         await this.cmsisJsonFile.load();
+        if (result === ETextFileResult.Error || result === ETextFileResult.NotExists) {
+            this.refreshFileStamps();
+            return result;
+        }
+        const activeTargetType = this.activeTargetTypeWrap;
+        const activeTargetSet = this.getSelectedSetWrap(activeTargetType);
+        if (activeTargetType) {
+            this.cmsisJsonFile.setActiveTargetType(activeTargetType.name, this.csolutionYml.targetTypeNames);
+            this.cmsisJsonFile.setSelectedSet(
+                activeTargetType.name,
+                activeTargetSet?.name ?? '',
+                activeTargetType.targetSetNames,
+                this.csolutionYml.targetTypeNames,
+            );
+        }
+        await this.cmsisJsonFile.saveResolvedSelections();
         this.refreshFileStamps();
         return result;
     }
@@ -168,14 +184,14 @@ export class ManageSolutionController {
      * Sets the active target type name in cmsis.json state.
      */
     public set activeTargetTypeName(type: string) {
-        this.cmsisJsonFile.activeTargetTypeName = type;
+        this.cmsisJsonFile.setActiveTargetType(type, this.csolutionYml.targetTypeNames);
     }
 
     /**
      * Gets the active target type name from cmsis.json, or falls back to the first solution target.
      */
     public get activeTargetTypeName(): string | undefined {
-        return this.cmsisJsonFile.activeTargetTypeName ?? this.csolutionYml.getTargetType()?.name;
+        return this.cmsisJsonFile.getActiveTargetType(this.csolutionYml.targetTypeNames) ?? this.csolutionYml.getTargetType()?.name;
     }
 
     private async ensureActiveTargetTypeNameInKnownTargets(knownTargetNames: string[]): Promise<boolean> {
@@ -192,7 +208,7 @@ export class ManageSolutionController {
         if (fallbackTargetTypeName) {
             this.activeTargetTypeName = fallbackTargetTypeName;
         } else {
-            this.cmsisJsonFile.delete(`targetSet.${this.cmsisJsonFile.solutionDisplayName}.activeTargetType`);
+            this.cmsisJsonFile.deleteSolutionSelection('activeTargetType');
         }
 
         await this.cmsisJsonFile.save();
@@ -253,8 +269,9 @@ export class ManageSolutionController {
      * Gets the active target set name for the current active target type.
      */
     public get activeTargetSetName(): string | undefined {
-        const targetSetIdx = this.cmsisJsonFile.getSelectedSet(this.activeTargetTypeName ?? '');
-        return this.activeTargetTypeWrap?.getTargetSetFromIndex(targetSetIdx)?.name;
+        const targetType = this.activeTargetTypeWrap;
+        const targetSetIdx = this.cmsisJsonFile.getSelectedSet(targetType?.name ?? '', targetType?.targetSetNames);
+        return targetType?.getTargetSetFromIndex(targetSetIdx)?.name;
     };
 
     /**
@@ -277,7 +294,7 @@ export class ManageSolutionController {
         if (!tt) {
             return undefined;
         }
-        const targetSetIdx = this.cmsisJsonFile.getSelectedSet(tt?.name ?? '');
+        const targetSetIdx = this.cmsisJsonFile.getSelectedSet(tt.name, tt.targetSetNames);
         return tt.getTargetSetFromIndex(targetSetIdx);
     }
 
@@ -294,13 +311,8 @@ export class ManageSolutionController {
             return false;
         }
         this.activeTargetTypeName = targetType;
-        const solutionDisplayName = this.cmsisJsonFile.solutionDisplayName;
-        if (targetSet) {
-            const targetSetIndex = Math.max(0, this.activeTargetTypeWrap?.targetSetNames.indexOf(targetSet) ?? 0);
-            this.cmsisJsonFile.set(`targetSet.${solutionDisplayName}.${targetType}`, targetSetIndex);
-        } else {
-            this.cmsisJsonFile.delete(`targetSet.${solutionDisplayName}.${targetType}`);
-        }
+        const targetTypeWrap = this.csolutionYml.getTargetType(targetType);
+        this.cmsisJsonFile.setSelectedSet(targetType, targetSet ?? '', targetTypeWrap?.targetSetNames, this.csolutionYml.targetTypeNames);
         return true;
     }
 
@@ -582,13 +594,36 @@ export class ManageSolutionController {
      * Set data from SolutionData object to CSolutionYmlFile
      */
     public set solutionData(selectedContextState: SolutionData) {
-
+        this.reconcileTargetRenames(selectedContextState);
         this.setActiveTargetSet(selectedContextState.selectedTarget?.name ?? '', selectedContextState.selectedTarget?.selectedSet);
         const activeTargetSetWrap = this.activeTargetSetWrap;
         this.updateSelectedProjects(activeTargetSetWrap, selectedContextState.projects);
         this.updateSelectedImages(activeTargetSetWrap, selectedContextState.images ?? []);
         this.updateDebuggerFromSnapshot(selectedContextState);
         this.activeTargetSetWrap.purgeImages();
+    }
+
+    private reconcileTargetRenames(selectedContextState: SolutionData): void {
+        this.csolutionYml.targetTypes.forEach((targetTypeWrap, targetTypeIndex) => {
+            const targetTypeModel = selectedContextState.targets[targetTypeIndex];
+            if (!targetTypeModel) {
+                return;
+            }
+
+            targetTypeWrap.targetSets.forEach((targetSetWrap, targetSetIndex) => {
+                const targetSetModel = targetTypeModel.targetSets?.[targetSetIndex];
+                if (targetSetModel) {
+                    targetSetWrap.name = targetSetModel.name;
+                }
+            });
+
+            targetTypeWrap.name = targetTypeModel.name;
+        });
+
+        this.cmsisJsonFile.getActiveTargetType(this.csolutionYml.targetTypeNames);
+        this.csolutionYml.targetTypes.forEach(targetTypeWrap => {
+            this.cmsisJsonFile.getSelectedSet(targetTypeWrap.name, targetTypeWrap.targetSetNames);
+        });
     }
 
 

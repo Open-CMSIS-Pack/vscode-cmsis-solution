@@ -26,6 +26,7 @@ import { WorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { SOLUTION_SUFFIX } from './constants';
 import { ConfigurationProvider } from '../vscode-api/configuration-provider';
 import { stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
+import { CmsisSettingsJsonFile } from '../global/cmsis-settings-json-file';
 
 export const COMMAND_OPEN_SOLUTION = `${manifest.PACKAGE_NAME}.openSolution`;
 export const COMMAND_ACTIVATE_SOLUTION = `${manifest.PACKAGE_NAME}.activateSolution`;
@@ -99,6 +100,7 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
         protected readonly workspaceFsProvider: WorkspaceFsProvider,
         protected readonly configurationProvider: ConfigurationProvider,
         protected readonly debounceMillis = 1000,
+        private readonly cmsisJsonFile = new CmsisSettingsJsonFile(),
     ) {
         this.debouncedRefresh = debounce(this.refresh, this.debounceMillis);
     }
@@ -215,6 +217,8 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
             const previousActiveSolution = this._activeSolution;
             this._activeSolution = newPath;
             this.workspaceState?.update(ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_KEY, newPath);
+            this.cmsisJsonFile.setActiveSolution(newPath ?? null);
+            this.cmsisJsonFile.saveActiveSolution();
             const activeSolutionContext = newPath ? { [newPath]: true } : {};
             this.commandsProvider.executeCommand('setContext', ActiveSolutionTrackerImpl.ACTIVE_SOLUTION, activeSolutionContext);
 

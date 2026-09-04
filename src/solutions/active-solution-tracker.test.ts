@@ -36,6 +36,7 @@ import * as manifest from '../manifest';
 import { faker } from '@faker-js/faker';
 import { MockWorkspaceFsProvider, workspaceFsProviderFactory } from '../vscode-api/workspace-fs-provider.factories';
 import { FileType } from '../vscode-api/workspace-fs-provider';
+import { CmsisSettingsJsonFile } from '../global/cmsis-settings-json-file';
 
 const WORKSPACE_PATH = __dirname;
 
@@ -54,6 +55,7 @@ describe('ActiveSolutionTracker', () => {
     let workspaceFoldersProvider: MockWorkspaceFoldersProvider;
     let workspaceFsProvider: MockWorkspaceFsProvider;
     let configurationProvider: MockConfigurationProvider;
+    let cmsisJsonFile: CmsisSettingsJsonFile;
 
     beforeEach(() => {
         (vscode.workspace as { workspaceFolders: WorkspaceFolder[] | undefined }).workspaceFolders = [
@@ -75,6 +77,8 @@ describe('ActiveSolutionTracker', () => {
         workspaceFoldersProvider = workspaceFoldersProviderFactory([{ uri: URI.file(WORKSPACE_PATH), name: 'Workspace Folder 1', index: 1 }]);
         configurationProvider = configurationProviderFactory();
         workspaceFsProvider = workspaceFsProviderFactory();
+        cmsisJsonFile = new CmsisSettingsJsonFile(path.join(WORKSPACE_PATH, '.vscode', 'cmsis.json'));
+        jest.spyOn(cmsisJsonFile, 'saveActiveSolution').mockReturnValue(true);
 
         workspaceFoldersProvider.findFiles.mockResolvedValue([
             SOLUTION_URI_FOO,
@@ -88,7 +92,8 @@ describe('ActiveSolutionTracker', () => {
             workspaceFoldersProvider,
             workspaceFsProvider,
             configurationProvider,
-            0
+            0,
+            cmsisJsonFile,
         );
 
         activeSolutionTracker.onDidChangeActiveSolution(changeActiveListener);
@@ -249,6 +254,7 @@ describe('ActiveSolutionTracker', () => {
 
             expect(activeSolutionTracker.activeSolution).toBe(SOLUTION_URI_DEFAULT.fsPath);
             expect(changeActiveListener).toHaveBeenCalled();
+            expect(cmsisJsonFile.getSettings().activeSolution).toBe('../test.csolution.yml');
         });
 
         it('updates ACTIVE_SOLUTION_STATE to active', () => {
@@ -269,6 +275,7 @@ describe('ActiveSolutionTracker', () => {
         it('preserves the previous selection', () => {
             expect(activeSolutionTracker.activeSolution).toBe(SOLUTION_URI_FOO.fsPath);
             expect(changeActiveListener).toHaveBeenCalled();
+            expect(cmsisJsonFile.getSettings().activeSolution).toBe('../foo/Foo.csolution.yml');
         });
     });
 
@@ -317,6 +324,7 @@ describe('ActiveSolutionTracker', () => {
 
             expect(activeSolutionTracker.activeSolution).toBeUndefined();
             expect(changeActiveListener).not.toHaveBeenCalled();
+            expect(cmsisJsonFile.getSettings().activeSolution).toBeNull();
         });
 
         it('updates ACTIVE_SOLUTION_STATE to inactive', () => {
@@ -377,6 +385,19 @@ describe('ActiveSolutionTracker', () => {
             await activeSolutionChanged;
 
             expect(activeSolutionTracker.activeSolution).toBe(solutionPath);
+            expect(changeActiveListener).toHaveBeenCalled();
+        });
+
+        it('keeps the new solution active when the cmsis.json mirror cannot be saved', () => {
+            (cmsisJsonFile.saveActiveSolution as jest.Mock).mockReturnValueOnce(false);
+
+            activeSolutionTracker.activeSolution = SOLUTION_URI_FOO.fsPath;
+
+            expect(activeSolutionTracker.activeSolution).toBe(SOLUTION_URI_FOO.fsPath);
+            expect(context.workspaceState.update).toHaveBeenCalledWith(
+                ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_KEY,
+                SOLUTION_URI_FOO.fsPath,
+            );
             expect(changeActiveListener).toHaveBeenCalled();
         });
 
@@ -558,6 +579,7 @@ describe('ActiveSolutionTracker', () => {
 
                 expect(activeSolutionTracker.activeSolution).toBeUndefined();
                 expect(commandsProvider.executeCommand).toHaveBeenCalledWith('setContext', ActiveSolutionTrackerImpl.ACTIVE_SOLUTION, {});
+                expect(cmsisJsonFile.getSettings().activeSolution).toBeNull();
             });
         });
     });
@@ -572,6 +594,7 @@ describe('ActiveSolutionTracker solution file watching', () => {
     let workspaceFoldersProvider: MockWorkspaceFoldersProvider;
     let workspaceFsProvider: MockWorkspaceFsProvider;
     let configurationProvider: MockConfigurationProvider;
+    let cmsisJsonFile: CmsisSettingsJsonFile;
     let changeListener: jest.Mock;
     let tracker: ActiveSolutionTrackerImpl;
     let context: { subscriptions: Array<{ dispose: () => Promise<void> }>, workspaceState: { get: jest.Mock, update: jest.Mock }, extension: { activate: jest.Mock } };
@@ -590,6 +613,8 @@ describe('ActiveSolutionTracker solution file watching', () => {
         workspaceFoldersProvider = workspaceFoldersProviderFactory([{ uri: URI.file(solutionRoot), name: 'workspace', index: 0 }]);
         workspaceFsProvider = workspaceFsProviderFactory();
         configurationProvider = configurationProviderFactory();
+        cmsisJsonFile = new CmsisSettingsJsonFile(path.join(solutionRoot, '.vscode', 'cmsis.json'));
+        jest.spyOn(cmsisJsonFile, 'saveActiveSolution').mockReturnValue(true);
 
         workspaceFoldersProvider.findFiles.mockResolvedValue([URI.file(activeSolution)]);
 
@@ -600,6 +625,7 @@ describe('ActiveSolutionTracker solution file watching', () => {
             workspaceFsProvider,
             configurationProvider,
             0,
+            cmsisJsonFile,
         );
 
         await tracker.activate(context as unknown as vscode.ExtensionContext);

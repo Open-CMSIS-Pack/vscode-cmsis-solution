@@ -89,6 +89,42 @@ describe('manage-solution-controller', () => {
         expect(generated).toEqual(reference);
     });
 
+    it('persists default solution, target type, and target set selections on load', async () => {
+        const controller = new ManageSolutionController();
+
+        await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'));
+
+        expect(JSON.parse(fsUtils.readTextFile(cmsisJsonFilePath))).toEqual({
+            solutionSelections: {
+                '../solutions/simple/test.csolution.yml': {
+                    selectedTargetType: 'TEST_TARGET',
+                    selectedTargetSets: [{
+                        targetType: { name: 'TEST_TARGET', index: 0 },
+                        targetSet: { name: '', index: 0 },
+                    }],
+                },
+            },
+        });
+    });
+
+    it('does not fail loading when resolved selections cannot be persisted', async () => {
+        const controller = new ManageSolutionController();
+        jest.spyOn(controller.cmsisJsonFile, 'saveResolvedSelections').mockResolvedValue(false);
+
+        await expect(controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml')))
+            .resolves.toBe(ETextFileResult.Success);
+    });
+
+    it('does not mutate selections when the solution does not exist', async () => {
+        const controller = new ManageSolutionController();
+        const settingsBeforeLoad = JSON.stringify(controller.cmsisJsonFile.getSettings());
+
+        await expect(controller.loadSolution(path.join(tmpSolutionDir, 'missing.csolution.yml')))
+            .resolves.toBe(ETextFileResult.NotExists);
+        expect(JSON.stringify(controller.cmsisJsonFile.getSettings())).toBe(settingsBeforeLoad);
+        expect(controller.cmsisJsonFile.isDirty).toBe(false);
+    });
+
     it('creates a default target set for solution without build types', async () => {
         const { generated, reference } = await getSolutionDataStrings(tmpSolutionDir, 'simple/testNoBuildType.csolution.yml');
         expect(generated).toEqual(reference);
@@ -446,6 +482,67 @@ describe('manage-solution-controller', () => {
 
         const updatedData = controller.solutionData;
         expect(updatedData.solutionName).toBe(originalData.solutionName);
+    });
+
+    it('preserves the active selection when target type and target set are renamed', async () => {
+        const controller = new ManageSolutionController();
+        await controller.loadSolution(path.join(tmpSolutionDir, 'targetSet/TargetSets.csolution.yml'));
+        const snapshot = controller.solutionData;
+        const selectedTargetIndex = snapshot.targets.findIndex(target => target.name === snapshot.selectedTarget?.name);
+        const selectedTarget = snapshot.targets[selectedTargetIndex];
+        const selectedSetIndex = selectedTarget.targetSets?.findIndex(set => set.name === selectedTarget.selectedSet) ?? 0;
+        const oldTargetName = selectedTarget.name;
+
+        selectedTarget.name = 'RenamedTarget';
+        selectedTarget.targetSets![selectedSetIndex].name = 'RenamedSet';
+        selectedTarget.selectedSet = 'RenamedSet';
+        snapshot.selectedTarget = selectedTarget;
+
+        controller.solutionData = snapshot;
+
+        expect(controller.activeTargetTypeName).toBe('RenamedTarget');
+        expect(controller.activeTargetSetName).toBe('RenamedSet');
+        expect(controller.cmsisJsonFile.hasSelectedSet(oldTargetName)).toBe(false);
+        expect(controller.cmsisJsonFile.targetSetMap?.selectedTargetSets).toContainEqual({
+            targetType: { name: 'RenamedTarget', index: selectedTargetIndex },
+            targetSet: { name: 'RenamedSet', index: selectedSetIndex },
+        });
+    });
+
+    it('uses the documented defaults when target type and target set are renamed externally', async () => {
+        const solutionPath = path.join(tmpSolutionDir, 'targetSet/TargetSets.csolution.yml');
+        const controller = new ManageSolutionController();
+        await controller.loadSolution(solutionPath);
+        controller.setActiveTargetSet('A_FRDM-K32L3A6', 'ST-Link_Debugging');
+        await controller.cmsisJsonFile.saveResolvedSelections();
+
+        const solution = YAML.parse(fsUtils.readTextFile(solutionPath));
+        solution.solution['target-types'][1].type = 'ExternallyRenamedTarget';
+        solution.solution['target-types'][1]['target-set'][1].set = 'ExternallyRenamedSet';
+        fsUtils.writeTextFile(solutionPath, YAML.stringify(solution));
+
+        const reloadedController = new ManageSolutionController();
+        await reloadedController.loadSolution(solutionPath);
+
+        expect(reloadedController.activeTargetTypeName).toBe('ExternallyRenamedTarget');
+        expect(reloadedController.activeTargetSetName).toBe('ExternallyRenamedSet');
+        expect(JSON.parse(fsUtils.readTextFile(cmsisJsonFilePath))).toEqual({
+            solutionSelections: {
+                '../solutions/targetSet/TargetSets.csolution.yml': {
+                    selectedTargetType: 'ExternallyRenamedTarget',
+                    selectedTargetSets: [
+                        {
+                            targetType: { name: 'FRDM-K32L3A6', index: 0 },
+                            targetSet: { name: 'CMSIS-DAP', index: 0 },
+                        },
+                        {
+                            targetType: { name: 'ExternallyRenamedTarget', index: 1 },
+                            targetSet: { name: 'ExternallyRenamedSet', index: 1 },
+                        },
+                    ],
+                },
+            },
+        });
     });
 
     it('should set selected debugger with custom defaults applied', async () => {

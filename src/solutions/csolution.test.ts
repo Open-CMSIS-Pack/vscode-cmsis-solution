@@ -66,6 +66,29 @@ describe('CSolution', () => {
 
             verifyProjects(csolution, expectedProjects);
         });
+
+        it('does not fail loading when resolved selections cannot be persisted', async () => {
+            const csolution = new CSolution();
+            const fullPath = path.join(testDataHandler.tmpDir, 'solutions/simple/test.csolution.yml');
+            jest.spyOn(csolution.cmsisJsonFile, 'saveResolvedSelections').mockResolvedValue(false);
+
+            await expect(csolution.load(fullPath)).resolves.toBe(ETextFileResult.Success);
+        });
+
+        it('does not mutate resolved selections before build files finish loading', async () => {
+            const csolution = new CSolution();
+            const fullPath = path.join(testDataHandler.tmpDir, 'solutions/simple/test.csolution.yml');
+            jest.spyOn(csolution, 'loadBuildFiles').mockRejectedValue(new Error('build files failed'));
+            const saveSpy = jest.spyOn(csolution.cmsisJsonFile, 'saveResolvedSelections');
+            csolution.cmsisJsonFile.solutionPath = fullPath;
+            await csolution.cmsisJsonFile.load();
+            const settingsBeforeLoad = JSON.stringify(csolution.cmsisJsonFile.getSettings());
+
+            await expect(csolution.load(fullPath)).rejects.toThrow('build files failed');
+            expect(saveSpy).not.toHaveBeenCalled();
+            expect(JSON.stringify(csolution.cmsisJsonFile.getSettings())).toBe(settingsBeforeLoad);
+            expect(csolution.cmsisJsonFile.isDirty).toBe(false);
+        });
     });
 
     it('test load simple existing csolution', async () => {
@@ -171,7 +194,7 @@ describe('CSolution', () => {
             const targetTypeItem = parseYamlToCTreeItem(targetTypeYaml) as CTreeItem;
 
             jest.spyOn(CSolution.prototype, 'targetTypes', 'get').mockReturnValue(new Map<string, CTreeItem>([['MyTarget', targetTypeItem]]));
-            jest.spyOn(csolution.cmsisJsonFile, 'get').mockReturnValue('MyTarget');
+            jest.spyOn(csolution.cmsisJsonFile, 'getActiveTargetType').mockReturnValue('MyTarget');
 
             expect(csolution.getActiveTargetType()).toEqual('MyTarget');
         });
@@ -181,7 +204,17 @@ describe('CSolution', () => {
 
             const targetTypeYaml = YAML.stringify({ type: 'MyTarget', 'target-set': [{ set: 'board' }, { set: 'fvp' }] });
             const targetTypeItem = parseYamlToCTreeItem(targetTypeYaml) as CTreeItem;
-            csolution.cmsisJsonFile['contentObject'] = { targetSet: { HelloWorld: { activeTargetType: 'MyTarget', MyTarget: 'board' } } }; // mock selected target type
+            csolution.cmsisJsonFile['contentObject'] = {
+                solutionSelections: {
+                    'solutions/simple/HelloWorld.csolution.yml': {
+                        selectedTargetType: 'MyTarget',
+                        selectedTargetSets: [{
+                            targetType: { name: 'MyTarget', index: 0 },
+                            targetSet: { name: 'board', index: 0 },
+                        }],
+                    },
+                },
+            }; // mock selected target type
             csolution.solutionPath = path.join(testDataHandler.tmpDir, 'solutions', 'simple', 'HelloWorld.csolution.yml');
             csolution.csolutionYml.rootItem = parseYamlToCTreeItem(YAML.stringify({ solution: { 'target-types': [{ type: 'MyTarget', 'target-set': [{ set: 'board' }] }] } })) as CTreeItem;
 
