@@ -261,11 +261,11 @@ export class CSolution {
     }
 
     public setActiveTargetType(type: string): void {
-        this.cmsisJsonFile.activeTargetTypeName = type;
+        this.cmsisJsonFile.setActiveTargetType(type, this.csolutionYml.targetTypeNames);
     }
 
     public getActiveTargetType(): string | undefined {
-        return this.cmsisJsonFile.activeTargetTypeName ?? this.csolutionYml.getTargetType()?.name;
+        return this.cmsisJsonFile.getActiveTargetType(this.csolutionYml.targetTypeNames) ?? this.csolutionYml.getTargetType()?.name;
     }
 
     public getActiveTargetTypeWrap() {
@@ -275,7 +275,7 @@ export class CSolution {
     public getActiveTargetSetWrap() {
         const activeTargetWrap = this.getActiveTargetTypeWrap();
         if (activeTargetWrap) {
-            const activeTargetSetIdx = this.cmsisJsonFile.getSelectedSet(activeTargetWrap.name);
+            const activeTargetSetIdx = this.cmsisJsonFile.getSelectedSet(activeTargetWrap.name, activeTargetWrap.targetSetNames);
             return activeTargetWrap.getTargetSetFromIndex(activeTargetSetIdx);
         }
         return undefined;
@@ -344,10 +344,26 @@ export class CSolution {
             this.solutionDir = path.dirname(solutionPath);
         }
         this.cmsisJsonFile.solutionPath = this.solutionPath;
-        this.cmsisJsonFile.load(); // first load settings
+        await this.cmsisJsonFile.load(); // first load settings
         // load csolution and its cproject.yml files
         const solutionResult = await this.csolutionYml.load(this.solutionPath);
         await this.loadBuildFiles(); // can already be available
+        if (solutionResult === ETextFileResult.Error || solutionResult === ETextFileResult.NotExists) {
+            return solutionResult;
+        }
+        const activeTargetType = this.getActiveTargetTypeWrap();
+        const activeTargetSet = this.getActiveTargetSetWrap();
+        if (activeTargetType) {
+            // Materialize resolved defaults and migrate legacy selections to the current structured format.
+            this.cmsisJsonFile.setActiveTargetType(activeTargetType.name, this.csolutionYml.targetTypeNames);
+            this.cmsisJsonFile.setSelectedSet(
+                activeTargetType.name,
+                activeTargetSet?.name ?? '',
+                activeTargetType.targetSetNames,
+                this.csolutionYml.targetTypeNames,
+            );
+        }
+        await this.cmsisJsonFile.saveResolvedSelections();
         return solutionResult;
     }
 
