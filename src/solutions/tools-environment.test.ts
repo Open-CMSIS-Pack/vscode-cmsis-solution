@@ -21,11 +21,23 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import yaml from 'yaml';
 import { ActiveTool, VcpkgResults } from '@arm-software/vscode-environment-manager';
+import { getTestDataDir } from '../__test__/test-data';
 import { EnvironmentManager } from '../desktop/env-manager';
 import { CMSIS_TOOLBOX_FOLDER } from '../manifest';
 import { extensionApiProviderFactory } from '../vscode-api/extension-api-provider.factories';
 import { workspaceFsProviderFactory } from '../vscode-api/workspace-fs-provider.factories';
 import { ToolsEnvironment } from './tools-environment';
+
+type FixtureEnvironment = Record<string, string | string[]>;
+
+interface ToolsEnvironmentFixture {
+    extensionVersion: string;
+    platform: NodeJS.Platform;
+    environment: FixtureEnvironment;
+    configuredEnvironment?: FixtureEnvironment;
+    activeTools: ActiveTool[];
+    vcpkgResults: VcpkgResults;
+}
 
 describe('ToolsEnvironment', () => {
     const toolsEnvironmentSchema = JSON.parse(fs.readFileSync(
@@ -35,6 +47,22 @@ describe('ToolsEnvironment', () => {
     const ajv = new Ajv({ strict: true });
     addFormats(ajv);
     const validateToolsEnvironment = ajv.compile(toolsEnvironmentSchema);
+    const expectValidToolsEnvironment = (document: unknown) => {
+        expect(validateToolsEnvironment(document)).toBe(true);
+        expect(validateToolsEnvironment.errors).toBeNull();
+    };
+    const readJsonFixture = <T>(filePath: string): T => JSON.parse(fs.readFileSync(filePath, 'utf8')) as T;
+    const toProcessEnvironment = (environment: FixtureEnvironment | undefined): NodeJS.ProcessEnv | undefined => {
+        if (!environment) {
+            return undefined;
+        }
+        return Object.fromEntries(
+            Object.entries(environment).map(([key, value]) => [
+                key,
+                Array.isArray(value) ? value.join(path.delimiter) : value,
+            ]),
+        );
+    };
     const toPortablePath = (value: string): string => value.replace(/\\/g, '/');
 
     beforeEach(() => {
@@ -492,8 +520,49 @@ describe('ToolsEnvironment', () => {
         await toolsEnvironment.write(path.join('/workspace', 'project.csolution.yml'));
 
         const document = yaml.parse(workspaceFsProvider.writeUtf8File.mock.calls[0][1]);
-        expect(validateToolsEnvironment(document)).toBe(true);
-        expect(validateToolsEnvironment.errors).toBeNull();
+        expectValidToolsEnvironment(document);
+    });
+
+    it('matches the spec-compliant tools environment test data generated through ToolsEnvironment', async () => {
+        const fixtureDir = path.join(getTestDataDir(), 'solutions', 'tools-environment');
+        const fixture = readJsonFixture<ToolsEnvironmentFixture>(path.join(fixtureDir, 'tools-environment-input.json'));
+        const expectedDocument = yaml.parse(fs.readFileSync(
+            path.join(fixtureDir, '.cmsis', 'tools-environment.yml'),
+            'utf8',
+        ));
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, 'platform', { value: fixture.platform });
+        (vscode.extensions.getExtension as jest.Mock).mockImplementation((extensionId: string) => {
+            if (extensionId === 'arm.cmsis-csolution') {
+                return { packageJSON: { version: fixture.extensionVersion } };
+            }
+            return undefined;
+        });
+        const environmentManager = {
+            getEnvironmentVariables: jest.fn().mockReturnValue(toProcessEnvironment(fixture.environment)),
+            getConfiguredEnvironmentVariables: jest.fn().mockReturnValue(toProcessEnvironment(fixture.configuredEnvironment)),
+        } as unknown as EnvironmentManager;
+        const workspaceFsProvider = workspaceFsProviderFactory();
+        const toolsEnvironment = new ToolsEnvironment(
+            environmentManager,
+            extensionApiProviderFactory({
+                getActiveTools: jest.fn().mockReturnValue(fixture.activeTools),
+            }),
+            workspaceFsProvider,
+            fixture.vcpkgResults,
+        );
+
+        try {
+            expectValidToolsEnvironment(expectedDocument);
+
+            await toolsEnvironment.write(path.join(fixtureDir, 'project.csolution.yml'));
+
+            const generatedDocument = yaml.parse(workspaceFsProvider.writeUtf8File.mock.calls[0][1]);
+            expectValidToolsEnvironment(generatedDocument);
+            expect(generatedDocument).toEqual(expectedDocument);
+        } finally {
+            Object.defineProperty(process, 'platform', { value: originalPlatform });
+        }
     });
 
     it('uses unknown versions when extension metadata files are unavailable', async () => {
