@@ -154,6 +154,7 @@ describe('ContextSelection', () => {
                         {
                             section: 'telnet', options: [
                                 { name: 'propA', 'yml-node': 'telnet-prop_a', type: 'string', },
+                                { name: 'Misc', 'yml-node': 'args', type: 'string' },
                                 { name: 'propB', 'yml-node': 'telnet-prop_b', type: 'number' },
                                 { name: 'propC', 'yml-node': 'telnet-prop_c', type: 'enum', values: [{ name: 'A', value: 'a' }, { name: 'B', value: 'b' }, { name: 'C', value: 'c' }] },
                                 { name: 'propD', 'yml-node': 'telnet-prop_d', type: 'file' },
@@ -228,6 +229,26 @@ describe('ContextSelection', () => {
                 expect(document.activeElement).not.toBe(inputElement);
             }
         }
+    });
+
+    it('preserves an uncommitted Misc value when stale extension state arrives', () => {
+        createContextSelectionComponent();
+        postGenericDataContext();
+
+        const miscControl = Array.from(container.querySelectorAll('.section-control'))
+            .find(control => control.querySelector('.ant-input-group-addon')?.textContent === 'Misc');
+        const miscInput = miscControl?.querySelector('input') as HTMLInputElement | null;
+        expect(miscInput).not.toBeNull();
+
+        React.act(() => {
+            fireEvent.change(miscInput!, { target: { value: '--simlimit 25' } });
+        });
+        expect(miscInput?.value).toBe('--simlimit 25');
+
+        // Simulate the delayed response to an earlier Model or Config File update.
+        postGenericDataContext();
+
+        expect(miscInput?.value).toBe('--simlimit 25');
     });
 
     it('sends the open file message when clicking on the open solution link', () => {
