@@ -195,6 +195,9 @@ describe('SolutionManager', () => {
         changeActiveSolutionEmitter.fire();
         await waitTimeout(200);
 
+        const cmsisJsonFile = solutionManager.getCsolution()!.cmsisJsonFile.fileName;
+        testDataHandler.rmFile(cmsisJsonFile);
+
         await commandsProvider.mockRunRegistered(
             manifest.REFRESH_COMMAND_ID,
         );
@@ -206,6 +209,16 @@ describe('SolutionManager', () => {
         };
 
         expect(solutionManager.loadState).toEqual(expectedLoadState);
+        expect(solutionManager.getCsolution()!.cmsisJsonFile.exists()).toBe(true);
+        const csolution = solutionManager.getCsolution()!;
+        const settings = csolution.cmsisJsonFile.getSettings();
+        expect(path.resolve(
+            path.dirname(csolution.cmsisJsonFile.fileName),
+            settings.activeSolution as string
+        )).toBe(path.resolve(csolution.solutionPath));
+        expect(settings).toEqual(expect.objectContaining({
+            activeTarget: 'B-U585I-IOT02A',
+        }));
         expect(loadBuildFilesListener).toHaveBeenCalledTimes(2);
         expect(loadBuildFilesListener).toHaveBeenNthCalledWith(
             1,
