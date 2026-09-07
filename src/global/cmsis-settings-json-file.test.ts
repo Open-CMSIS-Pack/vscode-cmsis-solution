@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+import fs from 'fs';
 import * as path from 'path';
+import Ajv from 'ajv';
 import * as vscodeUtils from '../utils/vscode-utils';
 import * as fsUtils from '../utils/fs-utils';
 import { CmsisSettingsJsonFile, ContextSelectionSettings } from './cmsis-settings-json-file';
@@ -23,6 +25,11 @@ import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 
 
 describe('WorkspaceSettingsService', () => {
+    const cmsisSettingsSchema = JSON.parse(fs.readFileSync(
+        path.join(__dirname, '../../schemas/cmsis-settings.schema.json'),
+        'utf8',
+    ));
+    const validateCmsisSettings = new Ajv({ strict: true }).compile(cmsisSettingsSchema);
     const testDataHandler = new TestDataHandler();
     const testDir = testDataHandler.tmpDir;
     const testFile = 'cmsis.json';
@@ -58,6 +65,36 @@ describe('WorkspaceSettingsService', () => {
         cmsisJson.set('root.selectedTargetSet', 'bar');
         const value = cmsisJson.get('root.selectedTargetSet');
         expect(value).toBe('bar');
+    });
+
+    it.each([
+        { targetSet: undefined, expectedTarget: 'MyTarget' },
+        { targetSet: 'MySet', expectedTarget: 'MyTarget@MySet' },
+    ])('should write informative active selection for target set $targetSet', ({ targetSet, expectedTarget }) => {
+        cmsisJson.solutionPath = path.join(testDir, 'solutions', 'MySolution.csolution.yml');
+
+        cmsisJson.setActiveSelection('MyTarget', targetSet);
+
+        expect(cmsisJson.getSettings()).toEqual({
+            activeSolution: '../solutions/MySolution.csolution.yml',
+            activeTarget: expectedTarget,
+        });
+        expect(validateCmsisSettings(cmsisJson.getSettings())).toBe(true);
+    });
+
+    it('validates persisted target selections against the CMSIS settings schema', () => {
+        cmsisJson.setSettings({
+            activeSolution: '../solutions/MySolution.csolution.yml',
+            activeTarget: 'MyTarget@MySet',
+            targetSet: {
+                'solutions/MySolution': {
+                    activeTargetType: 'MyTarget',
+                    MyTarget: 0,
+                },
+            },
+        });
+
+        expect(validateCmsisSettings(cmsisJson.getSettings())).toBe(true);
     });
 
     it('should return undefined for missing setting', async () => {

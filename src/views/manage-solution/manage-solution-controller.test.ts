@@ -114,6 +114,38 @@ describe('manage-solution-controller', () => {
         expect(JSON.parse(generated)).toEqual(JSON.parse(reference));
     });
 
+    it('creates cmsis.json when the target selections are unchanged defaults', async () => {
+        const controller = new ManageSolutionController();
+        const solutionPath = path.join(tmpSolutionDir, 'simple/test.csolution.yml');
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(solutionPath);
+
+        expect(fsUtils.fileExists(cmsisJsonFilePath)).toBe(false);
+
+        await controller.saveSolution(solutionManager);
+
+        expect(fsUtils.fileExists(cmsisJsonFilePath)).toBe(true);
+        expect(controller.cmsisJsonFile.getSettings()).toEqual(expect.objectContaining({
+            activeSolution: path.relative(
+                path.dirname(controller.cmsisJsonFile.fileName),
+                solutionPath
+            ).replaceAll('\\', '/'),
+            activeTarget: 'TEST_TARGET',
+        }));
+    });
+
+    it('does not write an empty active target', async () => {
+        const controller = new ManageSolutionController();
+        const solutionPath = path.join(tmpSolutionDir, 'simple/test.csolution.yml');
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(solutionPath);
+        jest.spyOn(controller, 'activeTargetTypeName', 'get').mockReturnValue(undefined);
+
+        await controller.saveSolution(solutionManager);
+
+        expect(controller.cmsisJsonFile.get('activeTarget')).toBeUndefined();
+    });
+
     it('preserves CMake settings when selected contexts are reapplied', async () => {
         const controller = new ManageSolutionController();
         const solutionPath = path.join(tmpSolutionDir, 'CMakeSupport', 'solution.csolution.yml');

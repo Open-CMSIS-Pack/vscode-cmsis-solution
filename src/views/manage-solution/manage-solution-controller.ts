@@ -143,11 +143,13 @@ export class ManageSolutionController {
         this.csolutionYml.purgeAllProjectContexts();
 
         // directly copy content to global files
-        const cmsisJsonRes = csolution.cmsisJsonFile.copyFrom(this.cmsisJsonFile);
-        if (cmsisJsonRes !== ETextFileResult.Unchanged) {
-            await this.cmsisJsonFile.save();
-            this.cmsisJsonFileStamp = this.getCurrentFileStamp(this.cmsisJsonFile.fileName);
+        const activeTargetTypeName = this.activeTargetTypeName;
+        if (activeTargetTypeName) {
+            this.cmsisJsonFile.setActiveSelection(activeTargetTypeName, this.activeTargetSetName);
         }
+        const cmsisJsonRes = csolution.cmsisJsonFile.copyFrom(this.cmsisJsonFile);
+        await this.cmsisJsonFile.save();
+        this.cmsisJsonFileStamp = this.getCurrentFileStamp(this.cmsisJsonFile.fileName);
         const solutionRes = csolution.csolutionYml.copyFrom(this.csolutionYml);
         if (solutionRes !== ETextFileResult.Unchanged) {
             await this.csolutionYml.save();
