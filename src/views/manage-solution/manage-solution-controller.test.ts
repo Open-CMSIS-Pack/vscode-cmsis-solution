@@ -146,6 +146,31 @@ describe('manage-solution-controller', () => {
         expect(controller.cmsisJsonFile.get('activeTarget')).toBeUndefined();
     });
 
+    it('does not overwrite cmsis.json after it fails to load', async () => {
+        const invalidSettings = '{ invalid json';
+        fsUtils.writeTextFile(cmsisJsonFilePath, invalidSettings);
+        const controller = new ManageSolutionController();
+        const solutionPath = path.join(tmpSolutionDir, 'simple/test.csolution.yml');
+
+        await controller.loadSolution(solutionPath);
+        await controller.saveSolution(solutionManagerFactory());
+
+        expect(fsUtils.readTextFile(cmsisJsonFilePath)).toBe(invalidSettings);
+    });
+
+    it('does not update the cmsis.json stamp when saving fails', async () => {
+        fsUtils.writeTextFile(cmsisJsonFilePath, '{}');
+        const controller = new ManageSolutionController();
+        const solutionPath = path.join(tmpSolutionDir, 'simple/test.csolution.yml');
+        await controller.loadSolution(solutionPath);
+        fsUtils.writeTextFile(cmsisJsonFilePath, '{ "external": true }');
+        jest.spyOn(controller.cmsisJsonFile, 'save').mockResolvedValue(ETextFileResult.Error);
+
+        await controller.saveSolution(solutionManagerFactory());
+
+        expect(controller.hasExternalFileChanges()).toBe(true);
+    });
+
     it('preserves CMake settings when selected contexts are reapplied', async () => {
         const controller = new ManageSolutionController();
         const solutionPath = path.join(tmpSolutionDir, 'CMakeSupport', 'solution.csolution.yml');

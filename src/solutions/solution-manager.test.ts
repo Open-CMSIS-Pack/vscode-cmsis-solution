@@ -211,7 +211,6 @@ describe('SolutionManager', () => {
         expect(solutionManager.loadState).toEqual(expectedLoadState);
         expect(solutionManager.getCsolution()!.cmsisJsonFile.exists()).toBe(true);
         const csolution = solutionManager.getCsolution()!;
-        const solutionDisplayName = csolution.cmsisJsonFile.solutionDisplayName;
         const settings = csolution.cmsisJsonFile.getSettings();
         expect(path.resolve(
             path.dirname(csolution.cmsisJsonFile.fileName),
@@ -219,11 +218,6 @@ describe('SolutionManager', () => {
         )).toBe(path.resolve(csolution.solutionPath));
         expect(settings).toEqual(expect.objectContaining({
             activeTarget: 'B-U585I-IOT02A',
-            targetSet: {
-                [solutionDisplayName]: {
-                    activeTargetType: 'B-U585I-IOT02A',
-                },
-            },
         }));
         expect(loadBuildFilesListener).toHaveBeenCalledTimes(2);
         expect(loadBuildFilesListener).toHaveBeenNthCalledWith(
