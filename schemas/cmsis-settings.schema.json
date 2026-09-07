@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/Open-CMSIS-Pack/vscode-cmsis-solution/main/schemas/cmsis-settings.schema.json",
+  "title": "CMSIS workspace settings",
+  "description": "Mirrored active CMSIS solution and persisted target type and target set selections for a workspace.",
+  "type": "object",
+  "properties": {
+    "activeSolution": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\.csolution\\.ya?ml$",
+      "description": "Informational forward-slash path to the active csolution file, relative to the directory containing cmsis.json. The extension does not use this property to restore the active solution."
+    },
+    "activeTarget": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Informational active target in target-type or target-type@target-set form. The extension uses targetSet as the persisted selection."
+    },
+    "targetSet": {
+      "type": "object",
+      "description": "Persisted target selections keyed by workspace-relative csolution name without the .csolution.yml extension.",
+      "propertyNames": {
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/definitions/target-selection"
+      }
+    },
+    "force-update-rte": {
+      "type": "boolean",
+      "description": "One-shot request to update the runtime environment when the solution is next initialized. The extension removes this property after reading it."
+    }
+  },
+  "additionalProperties": true,
+  "definitions": {
+    "target-selection": {
+      "type": "object",
+      "description": "The active target type and optional selected target-set indexes for one solution.",
+      "properties": {
+        "activeTargetType": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the active target type."
+        }
+      },
+      "required": [ "activeTargetType" ],
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Zero-based target-set index keyed by target-type name. Omitted when the target type has no named target set."
+      }
+    }
+  }
+}
