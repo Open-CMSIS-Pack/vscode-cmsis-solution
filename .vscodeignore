@@ -38,3 +38,5 @@ e2e-report/**
 e2e-screenshots/**
 test-results/**
 .qlty/**
+.codex/**
+.cmsis-dev/**
