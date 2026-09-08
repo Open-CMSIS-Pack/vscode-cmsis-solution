@@ -147,6 +147,7 @@ export const incomingMessageReducer = (state: CreateSolutionState, message: Mess
                 solutionLocation: { value: message.data.path, hadInteraction: true },
             };
         case 'REQUEST_SUCCESSFUL':
+        case 'REQUEST_CANCELLED':
         case 'REQUEST_FAILED':
             return state;
         case 'CONNECTED_BOARD': {

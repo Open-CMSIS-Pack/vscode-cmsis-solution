@@ -42,7 +42,7 @@ type ResponseChannel =
 
 type PendingRequest = {
     requestType: RequestMessage['type'];
-    resolve: () => void;
+    resolve: (result: 'successful' | 'cancelled') => void;
     reject: (error: Error) => void;
     timeout: ReturnType<typeof setTimeout>;
 };
@@ -90,6 +90,7 @@ export class CreateSolutionViewModel {
 
     private createSnapshot(): CreateSolutionViewModelSnapshot {
         const validationErrors = validate(this.state, this.state.solutionExists, false);
+        const blockingValidationErrors = validate(this.state, { type: 'loaded', result: false }, false);
         const templateOptions = hardwareTemplateOptions(this.state.deviceSelection.value, this.state.datamanagerApps);
         const exampleEntries: Array<TreeViewCategory<string>> = [];
         if (templateOptions.length) {
@@ -117,7 +118,7 @@ export class CreateSolutionViewModel {
             this.state.solutionLocation.value,
             selectedTemplate,
         ].every(Boolean);
-        const formReady = hasRequiredSelections && !hasErrors(validationErrors);
+        const formReady = hasRequiredSelections && !hasErrors(blockingValidationErrors);
         const canCreate = formReady && !this.dropdownOpen;
 
         return {
@@ -218,19 +219,23 @@ export class CreateSolutionViewModel {
     public async createSolution(): Promise<void> {
         this.dispatch({ type: 'CREATION_CHECK_START' });
 
-        const solutionExists = await this.checkSolutionExists(
+        await this.checkSolutionExists(
             this.state.solutionLocation.value,
             this.state.solutionName.value,
             this.state.solutionFolder.value,
         );
-        if (hasErrors(validate(this.state, { type: 'loaded', result: solutionExists }, true))) {
+        if (hasErrors(validate(this.state, { type: 'loaded', result: false }, true))) {
             this.dispatch({ type: 'CREATION_END' });
             return;
         }
 
         this.dispatch({ type: 'CREATION_START' });
         try {
-            await this.awaitRequest(buildNewSolutionMessage(this.state)).promise;
+            const result = await this.awaitRequest(buildNewSolutionMessage(this.state)).promise;
+            if (result === 'cancelled') {
+                this.dispatch({ type: 'CREATION_END' });
+                return;
+            }
         } catch {
             this.dispatch({ type: 'CREATION_END' });
             return;
@@ -267,7 +272,7 @@ export class CreateSolutionViewModel {
     }
 
     private readonly handleIncomingMessage = (message: IncomingMessage): void => {
-        if (message.type === 'REQUEST_SUCCESSFUL' || message.type === 'REQUEST_FAILED') {
+        if (message.type === 'REQUEST_SUCCESSFUL' || message.type === 'REQUEST_CANCELLED' || message.type === 'REQUEST_FAILED') {
             const pending = this.pendingRequests.get(message.requestId);
             if (!pending || pending.requestType !== message.requestType) {
                 return;
@@ -275,7 +280,9 @@ export class CreateSolutionViewModel {
             clearTimeout(pending.timeout);
             this.pendingRequests.delete(message.requestId);
             if (message.type === 'REQUEST_SUCCESSFUL') {
-                pending.resolve();
+                pending.resolve('successful');
+            } else if (message.type === 'REQUEST_CANCELLED') {
+                pending.resolve('cancelled');
             } else {
                 pending.reject(new Error(`CMSIS Request Failed: ${message.errorMessage ?? 'unknown error'}`));
             }
@@ -283,15 +290,17 @@ export class CreateSolutionViewModel {
         }
 
         const channel = this.getResponseChannel(message.type);
-        if (channel && this.latestRequestByChannel.get(channel) !== message.requestId) {
+        const isCreateLocationResponse = message.type === 'SOLUTION_LOCATION'
+            && this.pendingRequests.get(message.requestId)?.requestType === 'NEW_SOLUTION';
+        if (channel && this.latestRequestByChannel.get(channel) !== message.requestId && !isCreateLocationResponse) {
             return;
         }
         this.dispatch({ type: 'INCOMING_MESSAGE', message });
     };
 
-    private awaitRequest(request: RequestMessagePayload): { requestId: string; promise: Promise<void> } {
+    private awaitRequest(request: RequestMessagePayload): { requestId: string; promise: Promise<'successful' | 'cancelled'> } {
         const message = addRequestId(request);
-        const promise = new Promise<void>((resolve, reject) => {
+        const promise = new Promise<'successful' | 'cancelled'>((resolve, reject) => {
             const timeout = setTimeout(() => {
                 this.pendingRequests.delete(message.requestId);
                 reject(new Error(`CMSIS Request Failed: extension didn't respond within the timeout limit (${MESSAGE_TIMEOUT}ms)`));
@@ -393,7 +402,7 @@ export class CreateSolutionViewModel {
         }
     }
 
-    private getResponseChannel(type: Exclude<IncomingMessage['type'], 'REQUEST_SUCCESSFUL' | 'REQUEST_FAILED'>): ResponseChannel {
+    private getResponseChannel(type: Exclude<IncomingMessage['type'], 'REQUEST_SUCCESSFUL' | 'REQUEST_CANCELLED' | 'REQUEST_FAILED'>): ResponseChannel {
         switch (type) {
             case 'TARGET_DATA': return 'targets';
             case 'SOLUTION_LOCATION': return 'solutionLocation';
