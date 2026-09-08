@@ -99,8 +99,8 @@ describe('SolutionCreatorImp', () => {
             targetTypes: [],
             packs: [],
         })).rejects.toThrow(
-            `Solution directory already contains a solution file (` +
-            `existing-1.csolution.yml, existing-2.csolution.yml, existing-3.csolution.yml, ` +
+            'Solution directory already contains a solution file (' +
+            'existing-1.csolution.yml, existing-2.csolution.yml, existing-3.csolution.yml, ' +
             `existing-4.csolution.yml, existing-5.csolution.yml (and 1 more)): ${URI.file(solutionDir).fsPath}`,
         );
     });
