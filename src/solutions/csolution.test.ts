@@ -831,6 +831,35 @@ describe('CSolution', () => {
 
             expect(files).toHaveLength(1 + projectPaths.length + layerPaths.length);
         });
+
+        it('includes expected layer paths that were not loaded', () => {
+            const csolution = new CSolution();
+            const missingLayerPath = path.join(testDataHandler.tmpDir, 'generated', 'missing.cgen.yml');
+            jest.spyOn(csolution.cbuildIdxFile, 'activeContexts', 'get').mockReturnValue([{
+                displayName: 'Project.Debug+Target',
+                projectName: 'Project',
+                buildType: 'Debug',
+                targetType: 'Target',
+                layers: [{ displayName: 'missing', absolutePath: missingLayerPath }],
+            }]);
+
+            expect(csolution.getSolutionYmlFiles()).toContain(missingLayerPath);
+        });
+
+        it('deduplicates loaded and expected layer paths', () => {
+            const csolution = new CSolution();
+            const layerPath = path.join(testDataHandler.tmpDir, 'generated', 'shared.cgen.yml');
+            csolution.clayerYmlRoot.set(layerPath, {} as CTreeItem);
+            jest.spyOn(csolution.cbuildIdxFile, 'activeContexts', 'get').mockReturnValue([{
+                displayName: 'Project.Debug+Target',
+                projectName: 'Project',
+                buildType: 'Debug',
+                targetType: 'Target',
+                layers: [{ displayName: 'shared', absolutePath: layerPath }],
+            }]);
+
+            expect(csolution.getSolutionYmlFiles()).toEqual([layerPath]);
+        });
     });
 
     describe('getUsedDbgconfFiles', () => {
