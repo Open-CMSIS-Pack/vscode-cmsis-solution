@@ -76,7 +76,7 @@ export const findExistingSolutionFiles: FindExistingSolutionFiles = solutionDir 
             .filter(entry => entry.isFile() && /\.csolution\.(yaml|yml)$/i.test(entry.name))
             .map(entry => path.join(entry.parentPath, entry.name));
     } catch (error) {
-        const errorCode = error instanceof Error && 'code' in error ? error.code : undefined;
+        const errorCode = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
         if (errorCode === 'ENOENT') {
             return [];
         }
