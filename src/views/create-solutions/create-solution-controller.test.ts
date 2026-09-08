@@ -40,7 +40,7 @@ describe('CreateSolutionController', () => {
         const messageProvider = messageProviderFactory();
         const commandsProvider = commandsProviderFactory();
         const workspaceFoldersProvider = workspaceFoldersProviderFactory();
-        const fileExists = jest.fn<boolean, [string]>();
+        const findSolutionFiles = jest.fn<string[], [string]>().mockReturnValue([]);
 
         const testee = new CreateSolutionController(
             dataModel,
@@ -48,15 +48,14 @@ describe('CreateSolutionController', () => {
             messageProvider,
             commandsProvider,
             workspaceFoldersProvider,
-            fileExists,
+            findSolutionFiles,
         );
 
-        return { testee, dataModel, solutionCreator, messageProvider, fileExists };
+        return { testee, dataModel, solutionCreator, messageProvider, findSolutionFiles };
     };
 
-    it('checks the named solution file for existence', async () => {
-        const { testee, fileExists } = createTestee();
-        fileExists.mockReturnValue(false);
+    it('checks the solution directory for existing solution files', async () => {
+        const { testee, findSolutionFiles } = createTestee();
 
         const responses = await testee.handleRequest({
             type: 'CHECK_SOLUTION_DOES_NOT_EXIST',
@@ -66,10 +65,117 @@ describe('CreateSolutionController', () => {
             solutionName: 'solution',
         });
 
-        expect(fileExists).toHaveBeenCalledWith(path.join('solutions', 'folder', 'solution.csolution.yml'));
+        expect(findSolutionFiles).toHaveBeenCalledWith(path.join('solutions', 'folder'));
         expect(responses).toEqual([{
             type: 'REQUEST_SUCCESSFUL',
             requestType: 'CHECK_SOLUTION_DOES_NOT_EXIST',
+            requestId,
+        }]);
+    });
+
+    it('reports a differently named YAML solution file as an existing solution', async () => {
+        const { testee, findSolutionFiles } = createTestee();
+        findSolutionFiles.mockReturnValue([path.join('solutions', 'folder', 'existing.csolution.yaml')]);
+
+        const responses = await testee.handleRequest({
+            type: 'CHECK_SOLUTION_DOES_NOT_EXIST',
+            requestId,
+            solutionLocation: 'solutions',
+            solutionFolder: 'folder',
+            solutionName: 'solution',
+        });
+
+        expect(responses).toEqual([{
+            type: 'REQUEST_FAILED',
+            requestType: 'CHECK_SOLUTION_DOES_NOT_EXIST',
+            requestId,
+            errorMessage: 'Solution already exists',
+        }]);
+    });
+
+    it('creates with overwrite permission when the user confirms the conflict', async () => {
+        const { testee, findSolutionFiles, solutionCreator, messageProvider } = createTestee();
+        findSolutionFiles.mockReturnValue([path.join('solutions', 'folder', 'existing.csolution.yml')]);
+        messageProvider.showWarningMessage.mockResolvedValue({ title: 'Overwrite', isCloseAffordance: false });
+
+        const responses = await testee.handleRequest({
+            type: 'NEW_SOLUTION',
+            requestId,
+            solutionName: 'solution',
+            projects: [],
+            targetTypes: [],
+            packs: [],
+            gitInit: false,
+            solutionLocation: 'solutions',
+            solutionFolder: 'folder',
+            compiler: 'AC6',
+        });
+
+        expect(solutionCreator.createSolution).toHaveBeenCalledWith(expect.objectContaining({ overwriteExisting: true }));
+        expect(responses).toEqual([{
+            type: 'REQUEST_SUCCESSFUL',
+            requestType: 'NEW_SOLUTION',
+            requestId,
+        }]);
+    });
+
+    it('selects another directory without creating the solution', async () => {
+        const findSolutionFiles = jest.fn<string[], [string]>().mockReturnValue(['existing.csolution.yml']);
+        const solutionCreator = { createSolution: jest.fn() } as jest.Mocked<SolutionCreator>;
+        const messageProvider = messageProviderFactory();
+        messageProvider.showWarningMessage.mockResolvedValue({ title: 'Select Another Directory', isCloseAffordance: false });
+        const showOpenDialog = jest.fn().mockResolvedValue([{ fsPath: 'other-solutions' }]);
+        const testee = new CreateSolutionController(
+            {} as CreateSolutionData,
+            solutionCreator,
+            messageProvider,
+            commandsProviderFactory(),
+            workspaceFoldersProviderFactory(),
+            findSolutionFiles,
+            showOpenDialog,
+        );
+
+        const responses = await testee.handleRequest({
+            type: 'NEW_SOLUTION',
+            requestId,
+            solutionName: 'solution',
+            projects: [],
+            targetTypes: [],
+            packs: [],
+            gitInit: false,
+            solutionLocation: 'solutions',
+            solutionFolder: 'folder',
+            compiler: 'AC6',
+        });
+
+        expect(solutionCreator.createSolution).not.toHaveBeenCalled();
+        expect(responses).toEqual([
+            { type: 'SOLUTION_LOCATION', requestId, data: { path: 'other-solutions' } },
+            { type: 'REQUEST_CANCELLED', requestType: 'NEW_SOLUTION', requestId },
+        ]);
+    });
+
+    it('cancels creation when the conflict prompt is dismissed', async () => {
+        const { testee, findSolutionFiles, solutionCreator } = createTestee();
+        findSolutionFiles.mockReturnValue(['existing.csolution.yml']);
+
+        const responses = await testee.handleRequest({
+            type: 'NEW_SOLUTION',
+            requestId,
+            solutionName: 'solution',
+            projects: [],
+            targetTypes: [],
+            packs: [],
+            gitInit: false,
+            solutionLocation: 'solutions',
+            solutionFolder: 'folder',
+            compiler: 'AC6',
+        });
+
+        expect(solutionCreator.createSolution).not.toHaveBeenCalled();
+        expect(responses).toEqual([{
+            type: 'REQUEST_CANCELLED',
+            requestType: 'NEW_SOLUTION',
             requestId,
         }]);
     });

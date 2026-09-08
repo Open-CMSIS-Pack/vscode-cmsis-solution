@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { copyFile, mkdir } from 'fs';
+import { copyFile, mkdir, readdirSync } from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
 import { Uri } from 'vscode';
@@ -65,7 +65,24 @@ export type CreateSolutionRequest = {
     compiler: string;
     showOpenDialog?: boolean;
     draftProject?: DraftProjectData;
+    overwriteExisting?: boolean;
 }
+
+export type FindExistingSolutionFiles = (solutionDir: string) => string[];
+
+export const findExistingSolutionFiles: FindExistingSolutionFiles = solutionDir => {
+    try {
+        return readdirSync(solutionDir, { recursive: true, withFileTypes: true })
+            .filter(entry => entry.isFile() && /\.csolution\.(yaml|yml)$/i.test(entry.name))
+            .map(entry => path.join(entry.parentPath, entry.name));
+    } catch (error) {
+        const errorCode = error instanceof Error && 'code' in error ? error.code : undefined;
+        if (errorCode === 'ENOENT') {
+            return [];
+        }
+        throw error;
+    }
+};
 
 export interface SolutionCreator {
     createSolution(message: CreateSolutionRequest): Promise<CreatedSolution>;
@@ -76,12 +93,16 @@ export class SolutionCreatorImp  implements SolutionCreator {
     constructor(
         private readonly createSolutionFromDataManager: CreateSolutionFromDataManager,
         private readonly solutionInitialiser: SolutionInitialiser,
+        private readonly findSolutionFiles: FindExistingSolutionFiles = findExistingSolutionFiles,
     ) {
     }
 
     public async createSolution(message: CreateSolutionRequest): Promise<CreatedSolution> {
         const solutionDirUri = URI.file(path.join(message.solutionLocation, message.solutionFolder));
         const solutionFileUri = Uri.joinPath(solutionDirUri, `${message.solutionName}${SOLUTION_SUFFIX}`);
+        if (!message.overwriteExisting && this.findSolutionFiles(solutionDirUri.fsPath).length > 0) {
+            throw new Error(`Solution directory already contains a solution file: ${solutionDirUri.fsPath}`);
+        }
         const createdSolution = await this.createSolutionWithSelectedTemplate(solutionDirUri, solutionFileUri, message);
         this.solutionInitialiser.initialiseSolution({
             createdSolution,

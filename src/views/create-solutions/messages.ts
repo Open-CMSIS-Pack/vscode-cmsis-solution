@@ -78,6 +78,7 @@ export type Platform = 'ksc' | 'vscode';
 */
 export type IncomingMessage
   = | { type: 'REQUEST_SUCCESSFUL'; requestType: RequestMessage['type']; requestId: RequestId }
+  | { type: 'REQUEST_CANCELLED'; requestType: RequestMessage['type']; requestId: RequestId }
   | { type: 'REQUEST_FAILED'; requestType: RequestMessage['type']; requestId: RequestId; errorMessage?: string }
   | { type: 'TARGET_DATA'; requestId: RequestId; data: HardwareLists; errors: string[] }
   | { type: 'SOLUTION_LOCATION'; requestId: RequestId; data: { path: string } }

@@ -22,7 +22,7 @@ import { URI } from 'vscode-uri';
 import * as fsUtils from '../utils/fs-utils';
 import { pathsEqual } from '../utils/path-utils';
 import { SolutionInitialiserFactory } from './solution-initialiser.factory';
-import { SolutionCreatorImp } from './solution-creator';
+import { findExistingSolutionFiles, SolutionCreatorImp } from './solution-creator';
 
 describe('SolutionCreatorImp', () => {
     let tempDir: string;
@@ -34,6 +34,72 @@ describe('SolutionCreatorImp', () => {
     afterEach(() => {
         jest.restoreAllMocks();
         fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('finds supported solution files recursively', () => {
+        const nestedDir = path.join(tempDir, 'nested');
+        fs.mkdirSync(nestedDir);
+        fs.writeFileSync(path.join(tempDir, 'first.csolution.yml'), '');
+        fs.writeFileSync(path.join(nestedDir, 'second.csolution.yaml'), '');
+        fs.writeFileSync(path.join(nestedDir, 'not-a-solution.yml'), '');
+
+        const relativeMatches = findExistingSolutionFiles(tempDir)
+            .map(fileName => path.relative(tempDir, fileName));
+
+        expect(relativeMatches).toHaveLength(2);
+        expect(relativeMatches).toEqual(expect.arrayContaining([
+            'first.csolution.yml',
+            path.join('nested', 'second.csolution.yaml'),
+        ]));
+    });
+
+    it('rejects a late solution-file conflict unless overwrite was confirmed', async () => {
+        const solutionName = 'MySolution';
+        const findSolutionFiles = jest.fn().mockReturnValue([path.join(tempDir, solutionName, 'existing.csolution.yaml')]);
+        const creator = new SolutionCreatorImp(
+            jest.fn(),
+            SolutionInitialiserFactory(),
+            findSolutionFiles,
+        );
+        const request = {
+            solutionName,
+            solutionLocation: tempDir,
+            solutionFolder: solutionName,
+            gitInit: false,
+            compiler: 'GCC',
+            projects: [],
+            targetTypes: [],
+            packs: [],
+        };
+
+        await expect(creator.createSolution(request)).rejects.toThrow('already contains a solution file');
+        expect(findSolutionFiles).toHaveBeenCalledTimes(1);
+        expect(pathsEqual(findSolutionFiles.mock.calls[0][0], path.join(tempDir, solutionName))).toBe(true);
+    });
+
+    it('allows creation after overwrite was confirmed', async () => {
+        const solutionName = 'MySolution';
+        const solutionDir = path.join(tempDir, solutionName);
+        const findSolutionFiles = jest.fn().mockReturnValue([path.join(solutionDir, 'existing.csolution.yml')]);
+        const creator = new SolutionCreatorImp(
+            jest.fn(),
+            SolutionInitialiserFactory(),
+            findSolutionFiles,
+        );
+
+        const createdSolution = await creator.createSolution({
+            solutionName,
+            solutionLocation: tempDir,
+            solutionFolder: solutionName,
+            gitInit: false,
+            compiler: 'GCC',
+            projects: [],
+            targetTypes: [],
+            packs: [],
+            overwriteExisting: true,
+        });
+
+        expect(pathsEqual(createdSolution.solutionDir.fsPath, solutionDir)).toBe(true);
     });
 
     it('creates blank solution YAML directly and writes the solution after its projects', async () => {
