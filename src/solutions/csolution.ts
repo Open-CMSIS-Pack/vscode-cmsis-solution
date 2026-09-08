@@ -65,26 +65,31 @@ export class CSolution {
     }
 
     public getSolutionYmlFiles(): string[] {
-        const ymlFiles: string[] = [];
+        const ymlFiles = new Set<string>();
 
         // Add solution path
         if (this.solutionPath) {
-            ymlFiles.push(this.solutionPath);
+            ymlFiles.add(this.solutionPath);
         }
 
         // Add project paths
         for (const project of this.projects.values()) {
             if (project?.fileName) {
-                ymlFiles.push(project.fileName);
+                ymlFiles.add(project.fileName);
             }
         }
 
         // Add layer paths
         for (const layerPath of this.clayerYmlRoot.keys()) {
-            ymlFiles.push(layerPath);
+            ymlFiles.add(layerPath);
+        }
+        for (const context of this.cbuildIdxFile.activeContexts) {
+            for (const layer of context.layers ?? []) {
+                ymlFiles.add(layer.absolutePath);
+            }
         }
 
-        return ymlFiles;
+        return [...ymlFiles];
     }
 
     public getSourceFiles(): string[] {
