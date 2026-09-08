@@ -98,10 +98,14 @@ export class SolutionCreatorImp  implements SolutionCreator {
     }
 
     public async createSolution(message: CreateSolutionRequest): Promise<CreatedSolution> {
-        const solutionDirUri = URI.file(path.join(message.solutionLocation, message.solutionFolder));
-        const solutionFileUri = Uri.joinPath(solutionDirUri, `${message.solutionName}${SOLUTION_SUFFIX}`);
-        if (!message.overwriteExisting && this.findSolutionFiles(solutionDirUri.fsPath).length > 0) {
-            throw new Error(`Solution directory already contains a solution file: ${solutionDirUri.fsPath}`);
+        const existingSolutionFiles = this.findSolutionFiles(solutionDirUri.fsPath);
+        if (!message.overwriteExisting && existingSolutionFiles.length > 0) {
+            const listed = existingSolutionFiles
+                .slice(0, 5)
+                .map(file => path.relative(solutionDirUri.fsPath, file))
+                .join(', ');
+            const suffix = existingSolutionFiles.length > 5 ? ` (and ${existingSolutionFiles.length - 5} more)` : '';
+            throw new Error(`Solution directory already contains a solution file (${listed}${suffix}): ${solutionDirUri.fsPath}`);
         }
         const createdSolution = await this.createSolutionWithSelectedTemplate(solutionDirUri, solutionFileUri, message);
         this.solutionInitialiser.initialiseSolution({
