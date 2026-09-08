@@ -72,9 +72,9 @@ export type FindExistingSolutionFiles = (solutionDir: string) => string[];
 
 export const findExistingSolutionFiles: FindExistingSolutionFiles = solutionDir => {
     try {
-        return readdirSync(solutionDir, { recursive: true, withFileTypes: true })
+        return readdirSync(solutionDir, { withFileTypes: true })
             .filter(entry => entry.isFile() && /\.csolution\.(yaml|yml)$/i.test(entry.name))
-            .map(entry => path.join(entry.parentPath, entry.name));
+            .map(entry => path.join(solutionDir, entry.name));
     } catch (error) {
         const errorCode = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
         if (errorCode === 'ENOENT') {
@@ -98,6 +98,8 @@ export class SolutionCreatorImp  implements SolutionCreator {
     }
 
     public async createSolution(message: CreateSolutionRequest): Promise<CreatedSolution> {
+        const solutionDirUri = URI.file(path.join(message.solutionLocation, message.solutionFolder));
+        const solutionFileUri = Uri.joinPath(solutionDirUri, `${message.solutionName}${SOLUTION_SUFFIX}`);
         const existingSolutionFiles = this.findSolutionFiles(solutionDirUri.fsPath);
         if (!message.overwriteExisting && existingSolutionFiles.length > 0) {
             const listed = existingSolutionFiles

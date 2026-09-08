@@ -36,26 +36,23 @@ describe('SolutionCreatorImp', () => {
         fs.rmSync(tempDir, { recursive: true, force: true });
     });
 
-    it('finds supported solution files recursively', () => {
+    it('finds supported solution files only in the destination directory', () => {
         const nestedDir = path.join(tempDir, 'nested');
         fs.mkdirSync(nestedDir);
         fs.writeFileSync(path.join(tempDir, 'first.csolution.yml'), '');
         fs.writeFileSync(path.join(nestedDir, 'second.csolution.yaml'), '');
-        fs.writeFileSync(path.join(nestedDir, 'not-a-solution.yml'), '');
+        fs.writeFileSync(path.join(tempDir, 'not-a-solution.yml'), '');
 
         const relativeMatches = findExistingSolutionFiles(tempDir)
             .map(fileName => path.relative(tempDir, fileName));
 
-        expect(relativeMatches).toHaveLength(2);
-        expect(relativeMatches).toEqual(expect.arrayContaining([
-            'first.csolution.yml',
-            path.join('nested', 'second.csolution.yaml'),
-        ]));
+        expect(relativeMatches).toEqual(['first.csolution.yml']);
     });
 
     it('rejects a late solution-file conflict unless overwrite was confirmed', async () => {
         const solutionName = 'MySolution';
-        const findSolutionFiles = jest.fn().mockReturnValue([path.join(tempDir, solutionName, 'existing.csolution.yaml')]);
+        const solutionDir = path.join(tempDir, solutionName);
+        const findSolutionFiles = jest.fn().mockReturnValue([path.join(solutionDir, 'existing.csolution.yaml')]);
         const creator = new SolutionCreatorImp(
             jest.fn(),
             SolutionInitialiserFactory(),
@@ -72,9 +69,40 @@ describe('SolutionCreatorImp', () => {
             packs: [],
         };
 
-        await expect(creator.createSolution(request)).rejects.toThrow('already contains a solution file');
+        await expect(creator.createSolution(request)).rejects.toThrow(
+            `Solution directory already contains a solution file (existing.csolution.yaml): ${URI.file(solutionDir).fsPath}`,
+        );
         expect(findSolutionFiles).toHaveBeenCalledTimes(1);
-        expect(pathsEqual(findSolutionFiles.mock.calls[0][0], path.join(tempDir, solutionName))).toBe(true);
+        expect(pathsEqual(findSolutionFiles.mock.calls[0][0], solutionDir)).toBe(true);
+    });
+
+    it('lists up to five conflicting solution files and reports the remainder', async () => {
+        const solutionName = 'MySolution';
+        const solutionDir = path.join(tempDir, solutionName);
+        const solutionFiles = Array.from(
+            { length: 6 },
+            (_, index) => path.join(solutionDir, `existing-${index + 1}.csolution.yml`),
+        );
+        const creator = new SolutionCreatorImp(
+            jest.fn(),
+            SolutionInitialiserFactory(),
+            jest.fn().mockReturnValue(solutionFiles),
+        );
+
+        await expect(creator.createSolution({
+            solutionName,
+            solutionLocation: tempDir,
+            solutionFolder: solutionName,
+            gitInit: false,
+            compiler: 'GCC',
+            projects: [],
+            targetTypes: [],
+            packs: [],
+        })).rejects.toThrow(
+            `Solution directory already contains a solution file (` +
+            `existing-1.csolution.yml, existing-2.csolution.yml, existing-3.csolution.yml, ` +
+            `existing-4.csolution.yml, existing-5.csolution.yml (and 1 more)): ${URI.file(solutionDir).fsPath}`,
+        );
     });
 
     it('allows creation after overwrite was confirmed', async () => {
