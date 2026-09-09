@@ -62,7 +62,6 @@ describe('CreateSolutionController', () => {
             requestId,
             solutionLocation: 'solutions',
             solutionFolder: 'folder',
-            solutionName: 'solution',
         });
 
         expect(findSolutionFiles).toHaveBeenCalledWith(path.join('solutions', 'folder'));
@@ -82,21 +81,28 @@ describe('CreateSolutionController', () => {
             requestId,
             solutionLocation: 'solutions',
             solutionFolder: 'folder',
-            solutionName: 'solution',
         });
 
         expect(responses).toEqual([{
             type: 'REQUEST_FAILED',
             requestType: 'CHECK_SOLUTION_DOES_NOT_EXIST',
             requestId,
-            errorMessage: 'Solution already exists',
+            errorMessage: 'Selected solution directory folder already contains existing.csolution.yaml',
+            solutionConflict: {
+                solutionFolder: 'folder',
+                fileName: 'existing.csolution.yaml',
+            },
         }]);
+        const [response] = responses;
+        if (response.type !== 'REQUEST_FAILED') {
+            throw new Error(`Expected REQUEST_FAILED but received ${response.type}`);
+        }
+        expect(response.errorMessage).not.toContain('solutions');
     });
 
-    it('creates with overwrite permission when the user confirms the conflict', async () => {
+    it('does not create or prompt when the submitted directory contains a solution', async () => {
         const { testee, findSolutionFiles, solutionCreator, messageProvider } = createTestee();
         findSolutionFiles.mockReturnValue([path.join('solutions', 'folder', 'existing.csolution.yml')]);
-        messageProvider.showWarningMessage.mockResolvedValue({ title: 'Overwrite', isCloseAffordance: false });
 
         const responses = await testee.handleRequest({
             type: 'NEW_SOLUTION',
@@ -111,28 +117,25 @@ describe('CreateSolutionController', () => {
             compiler: 'AC6',
         });
 
-        expect(solutionCreator.createSolution).toHaveBeenCalledWith(expect.objectContaining({ overwriteExisting: true }));
+        expect(solutionCreator.createSolution).not.toHaveBeenCalled();
+        expect(messageProvider.showWarningMessage).not.toHaveBeenCalled();
         expect(responses).toEqual([{
-            type: 'REQUEST_SUCCESSFUL',
+            type: 'REQUEST_FAILED',
             requestType: 'NEW_SOLUTION',
             requestId,
+            errorMessage: 'Selected solution directory folder already contains existing.csolution.yml',
+            solutionConflict: {
+                solutionFolder: 'folder',
+                fileName: 'existing.csolution.yml',
+            },
         }]);
     });
 
-    it('selects another directory without creating the solution', async () => {
-        const findSolutionFiles = jest.fn<string[], [string]>().mockReturnValue(['existing.csolution.yml']);
-        const solutionCreator = { createSolution: jest.fn() } as jest.Mocked<SolutionCreator>;
-        const messageProvider = messageProviderFactory();
-        messageProvider.showWarningMessage.mockResolvedValue({ title: 'Select Another Directory', isCloseAffordance: false });
-        const showOpenDialog = jest.fn().mockResolvedValue([{ fsPath: 'other-solutions' }]);
-        const testee = new CreateSolutionController(
-            {} as CreateSolutionData,
-            solutionCreator,
-            messageProvider,
-            commandsProviderFactory(),
-            workspaceFoldersProviderFactory(),
-            findSolutionFiles,
-            showOpenDialog,
+    it('returns a structured conflict when a solution appears during creation', async () => {
+        const { testee, solutionCreator, messageProvider } = createTestee();
+        const { SolutionDirectoryConflictError } = await import('../../solutions/solution-creator');
+        solutionCreator.createSolution.mockRejectedValue(
+            new SolutionDirectoryConflictError('folder', 'late.csolution.yml'),
         );
 
         const responses = await testee.handleRequest({
@@ -148,35 +151,17 @@ describe('CreateSolutionController', () => {
             compiler: 'AC6',
         });
 
-        expect(solutionCreator.createSolution).not.toHaveBeenCalled();
-        expect(responses).toEqual([
-            { type: 'SOLUTION_LOCATION', requestId, data: { path: 'other-solutions' } },
-            { type: 'REQUEST_CANCELLED', requestType: 'NEW_SOLUTION', requestId },
-        ]);
-    });
-
-    it('cancels creation when the conflict prompt is dismissed', async () => {
-        const { testee, findSolutionFiles, solutionCreator } = createTestee();
-        findSolutionFiles.mockReturnValue(['existing.csolution.yml']);
-
-        const responses = await testee.handleRequest({
-            type: 'NEW_SOLUTION',
-            requestId,
-            solutionName: 'solution',
-            projects: [],
-            targetTypes: [],
-            packs: [],
-            gitInit: false,
-            solutionLocation: 'solutions',
-            solutionFolder: 'folder',
-            compiler: 'AC6',
-        });
-
-        expect(solutionCreator.createSolution).not.toHaveBeenCalled();
+        expect(solutionCreator.createSolution).toHaveBeenCalledTimes(1);
+        expect(messageProvider.showErrorMessage).not.toHaveBeenCalled();
         expect(responses).toEqual([{
-            type: 'REQUEST_CANCELLED',
+            type: 'REQUEST_FAILED',
             requestType: 'NEW_SOLUTION',
             requestId,
+            errorMessage: 'Selected solution directory folder already contains late.csolution.yml',
+            solutionConflict: {
+                solutionFolder: 'folder',
+                fileName: 'late.csolution.yml',
+            },
         }]);
     });
 

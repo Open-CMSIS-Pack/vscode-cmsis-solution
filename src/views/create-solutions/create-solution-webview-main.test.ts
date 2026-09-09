@@ -148,7 +148,6 @@ describe('CreateSolutionWebviewMain', () => {
             compiler,
             showOpenDialog: undefined,
             draftProject: undefined,
-            overwriteExisting: false,
         });
     });
 

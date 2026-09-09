@@ -22,7 +22,7 @@ import { URI } from 'vscode-uri';
 import * as fsUtils from '../utils/fs-utils';
 import { pathsEqual } from '../utils/path-utils';
 import { SolutionInitialiserFactory } from './solution-initialiser.factory';
-import { findExistingSolutionFiles, SolutionCreatorImp } from './solution-creator';
+import { findExistingSolutionFiles, SolutionCreatorImp, SolutionDirectoryConflictError } from './solution-creator';
 
 describe('SolutionCreatorImp', () => {
     let tempDir: string;
@@ -39,17 +39,18 @@ describe('SolutionCreatorImp', () => {
     it('finds supported solution files only in the destination directory', () => {
         const nestedDir = path.join(tempDir, 'nested');
         fs.mkdirSync(nestedDir);
-        fs.writeFileSync(path.join(tempDir, 'first.csolution.yml'), '');
-        fs.writeFileSync(path.join(nestedDir, 'second.csolution.yaml'), '');
+        fs.writeFileSync(path.join(tempDir, 'second.csolution.yml'), '');
+        fs.writeFileSync(path.join(tempDir, 'first.csolution.yaml'), '');
+        fs.writeFileSync(path.join(nestedDir, 'nested.csolution.yaml'), '');
         fs.writeFileSync(path.join(tempDir, 'not-a-solution.yml'), '');
 
         const relativeMatches = findExistingSolutionFiles(tempDir)
             .map(fileName => path.relative(tempDir, fileName));
 
-        expect(relativeMatches).toEqual(['first.csolution.yml']);
+        expect(relativeMatches).toEqual(['first.csolution.yaml', 'second.csolution.yml']);
     });
 
-    it('rejects a late solution-file conflict unless overwrite was confirmed', async () => {
+    it('rejects a late solution-file conflict with the subfolder and first filename', async () => {
         const solutionName = 'MySolution';
         const solutionDir = path.join(tempDir, solutionName);
         const findSolutionFiles = jest.fn().mockReturnValue([path.join(solutionDir, 'existing.csolution.yaml')]);
@@ -69,65 +70,15 @@ describe('SolutionCreatorImp', () => {
             packs: [],
         };
 
-        await expect(creator.createSolution(request)).rejects.toThrow(
-            `Solution directory already contains a solution file (existing.csolution.yaml): ${URI.file(solutionDir).fsPath}`,
-        );
+        const creation = creator.createSolution(request);
+        await expect(creation).rejects.toEqual(expect.objectContaining({
+            name: 'SolutionDirectoryConflictError',
+            solutionFolder: solutionName,
+            fileName: 'existing.csolution.yaml',
+            message: `Selected solution directory ${solutionName} already contains existing.csolution.yaml`,
+        } satisfies Partial<SolutionDirectoryConflictError>));
         expect(findSolutionFiles).toHaveBeenCalledTimes(1);
         expect(pathsEqual(findSolutionFiles.mock.calls[0][0], solutionDir)).toBe(true);
-    });
-
-    it('lists up to five conflicting solution files and reports the remainder', async () => {
-        const solutionName = 'MySolution';
-        const solutionDir = path.join(tempDir, solutionName);
-        const solutionFiles = Array.from(
-            { length: 6 },
-            (_, index) => path.join(solutionDir, `existing-${index + 1}.csolution.yml`),
-        );
-        const creator = new SolutionCreatorImp(
-            jest.fn(),
-            SolutionInitialiserFactory(),
-            jest.fn().mockReturnValue(solutionFiles),
-        );
-
-        await expect(creator.createSolution({
-            solutionName,
-            solutionLocation: tempDir,
-            solutionFolder: solutionName,
-            gitInit: false,
-            compiler: 'GCC',
-            projects: [],
-            targetTypes: [],
-            packs: [],
-        })).rejects.toThrow(
-            'Solution directory already contains a solution file (' +
-            'existing-1.csolution.yml, existing-2.csolution.yml, existing-3.csolution.yml, ' +
-            `existing-4.csolution.yml, existing-5.csolution.yml (and 1 more)): ${URI.file(solutionDir).fsPath}`,
-        );
-    });
-
-    it('allows creation after overwrite was confirmed', async () => {
-        const solutionName = 'MySolution';
-        const solutionDir = path.join(tempDir, solutionName);
-        const findSolutionFiles = jest.fn().mockReturnValue([path.join(solutionDir, 'existing.csolution.yml')]);
-        const creator = new SolutionCreatorImp(
-            jest.fn(),
-            SolutionInitialiserFactory(),
-            findSolutionFiles,
-        );
-
-        const createdSolution = await creator.createSolution({
-            solutionName,
-            solutionLocation: tempDir,
-            solutionFolder: solutionName,
-            gitInit: false,
-            compiler: 'GCC',
-            projects: [],
-            targetTypes: [],
-            packs: [],
-            overwriteExisting: true,
-        });
-
-        expect(pathsEqual(createdSolution.solutionDir.fsPath, solutionDir)).toBe(true);
     });
 
     it('creates blank solution YAML directly and writes the solution after its projects', async () => {

@@ -21,6 +21,7 @@ import {
     findExistingSolutionFiles,
     FindExistingSolutionFiles,
     SolutionCreator,
+    SolutionDirectoryConflictError,
 } from '../../solutions/solution-creator';
 import { isUseWebServices } from '../../util';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
@@ -47,7 +48,7 @@ export class CreateSolutionController {
     public async handleRequest(message: Messages.RequestMessage): Promise<Messages.IncomingMessage[]> {
         try {
             const responses = await this.handleRequestData(message);
-            if (responses.some(response => response.type === 'REQUEST_FAILED' || response.type === 'REQUEST_CANCELLED')) {
+            if (responses.some(response => response.type === 'REQUEST_FAILED')) {
                 return responses;
             }
             return [
@@ -59,6 +60,9 @@ export class CreateSolutionController {
                 },
             ];
         } catch (error) {
+            if (error instanceof SolutionDirectoryConflictError) {
+                return [this.createConflictResponse(message, error.solutionFolder, error.fileName)];
+            }
             const errorMessage = error instanceof Error ? error.message : String(error);
             const failureMessage = message.type === 'NEW_SOLUTION'
                 ? `Failed to create solution: ${errorMessage}`
@@ -85,13 +89,9 @@ export class CreateSolutionController {
                 return await this.createSolution(message);
             case 'CHECK_SOLUTION_DOES_NOT_EXIST': {
                 const solutionDir = path.join(message.solutionLocation, message.solutionFolder);
-                if (this.findSolutionFiles(solutionDir).length > 0) {
-                    return [{
-                        type: 'REQUEST_FAILED',
-                        requestType: message.type,
-                        requestId: message.requestId,
-                        errorMessage: 'Solution already exists',
-                    }];
+                const existingSolutionFile = this.findSolutionFiles(solutionDir)[0];
+                if (existingSolutionFile) {
+                    return [this.createConflictResponse(message, message.solutionFolder, path.basename(existingSolutionFile))];
                 }
                 return [];
             }
@@ -159,46 +159,9 @@ export class CreateSolutionController {
 
     private async createSolution(message: Messages.NewSolutionMessage): Promise<Messages.IncomingMessage[]> {
         const solutionDir = path.join(message.solutionLocation, message.solutionFolder);
-        const existingSolutionFiles = this.findSolutionFiles(solutionDir);
-        let overwriteExisting = false;
-
-        if (existingSolutionFiles.length > 0) {
-            const overwrite = { title: 'Overwrite', isCloseAffordance: false };
-            const selectAnotherDirectory = { title: 'Select Another Directory', isCloseAffordance: false };
-            const cancel = { title: 'Cancel', isCloseAffordance: true };
-            const existingFileNames = existingSolutionFiles.map(file => path.relative(solutionDir, file)).join(', ');
-            const selected = await this.messageProvider.showWarningMessage(
-                `The selected directory already contains a solution file (${existingFileNames}). Creating this solution may overwrite existing files.`,
-                { modal: true, detail: 'Unrelated files in the directory will be preserved.' },
-                overwrite,
-                selectAnotherDirectory,
-                cancel,
-            );
-
-            if (selected?.title === selectAnotherDirectory.title) {
-                const selectedPath = await this.selectSolutionLocation(message.solutionLocation);
-                return [
-                    ...(selectedPath ? [{
-                        type: 'SOLUTION_LOCATION' as const,
-                        requestId: message.requestId,
-                        data: { path: selectedPath },
-                    }] : []),
-                    {
-                        type: 'REQUEST_CANCELLED',
-                        requestType: message.type,
-                        requestId: message.requestId,
-                    },
-                ];
-            }
-
-            if (selected?.title !== overwrite.title) {
-                return [{
-                    type: 'REQUEST_CANCELLED',
-                    requestType: message.type,
-                    requestId: message.requestId,
-                }];
-            }
-            overwriteExisting = true;
+        const existingSolutionFile = this.findSolutionFiles(solutionDir)[0];
+        if (existingSolutionFile) {
+            return [this.createConflictResponse(message, message.solutionFolder, path.basename(existingSolutionFile))];
         }
 
         const request: CreateSolutionRequest = {
@@ -223,7 +186,6 @@ export class CreateSolutionController {
             solutionFolder: message.solutionFolder,
             compiler: message.compiler,
             showOpenDialog: message.showOpenDialog,
-            overwriteExisting,
             draftProject: message.selectedDraftId
                 ? await this.dataModel.getDraftProject(message.selectedDraftId)
                 : undefined,
@@ -231,6 +193,20 @@ export class CreateSolutionController {
 
         await this.solutionCreator.createSolution(request);
         return [];
+    }
+
+    private createConflictResponse(
+        message: Messages.RequestMessage,
+        solutionFolder: string,
+        fileName: string,
+    ): Extract<Messages.IncomingMessage, { type: 'REQUEST_FAILED' }> {
+        return {
+            type: 'REQUEST_FAILED',
+            requestType: message.type,
+            requestId: message.requestId,
+            errorMessage: `Selected solution directory ${solutionFolder} already contains ${fileName}`,
+            solutionConflict: { solutionFolder, fileName },
+        };
     }
 
     private async selectSolutionLocation(solutionLocation?: string): Promise<string | undefined> {
