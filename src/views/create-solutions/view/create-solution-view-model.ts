@@ -21,7 +21,7 @@ import { TreeViewCategory, TreeViewItem } from '../../common/components/tree-vie
 import { MessageHandler } from '../../message-handler';
 import { NewProject, Trustzone, validTrustZone } from '../cmsis-solution-types';
 import { PackRequirement, TargetType } from '../create-solution-dto';
-import { addRequestId, IncomingMessage, OutgoingMessage, RequestMessage, RequestMessagePayload } from '../messages';
+import { addRequestId, IncomingMessage, OutgoingMessage, RequestMessage, RequestMessagePayload, SolutionDirectoryConflict } from '../messages';
 import { FieldAndInteraction } from './state/field-and-interaction';
 import { CreateSolutionAction, CreateSolutionState, createSolutionReducer, initialState } from './state/reducer';
 import { hardwareTemplateOptions } from './state/templates';
@@ -42,10 +42,20 @@ type ResponseChannel =
 
 type PendingRequest = {
     requestType: RequestMessage['type'];
-    resolve: (result: 'successful' | 'cancelled') => void;
+    resolve: () => void;
     reject: (error: Error) => void;
     timeout: ReturnType<typeof setTimeout>;
 };
+
+class RequestFailedError extends Error {
+    public constructor(
+        message: string,
+        public readonly solutionConflict?: SolutionDirectoryConflict,
+    ) {
+        super(message);
+        this.name = 'RequestFailedError';
+    }
+}
 
 export interface ProjectConfigurationRow {
     project: FieldAndInteraction<NewProject>;
@@ -90,7 +100,6 @@ export class CreateSolutionViewModel {
 
     private createSnapshot(): CreateSolutionViewModelSnapshot {
         const validationErrors = validate(this.state, this.state.solutionExists, false);
-        const blockingValidationErrors = validate(this.state, { type: 'loaded', result: false }, false);
         const templateOptions = hardwareTemplateOptions(this.state.deviceSelection.value, this.state.datamanagerApps);
         const exampleEntries: Array<TreeViewCategory<string>> = [];
         if (templateOptions.length) {
@@ -118,7 +127,9 @@ export class CreateSolutionViewModel {
             this.state.solutionLocation.value,
             selectedTemplate,
         ].every(Boolean);
-        const formReady = hasRequiredSelections && !hasErrors(blockingValidationErrors);
+        const formReady = hasRequiredSelections
+            && this.state.solutionExists.type === 'loaded'
+            && !hasErrors(validationErrors);
         const canCreate = formReady && !this.dropdownOpen;
 
         return {
@@ -221,22 +232,20 @@ export class CreateSolutionViewModel {
 
         await this.checkSolutionExists(
             this.state.solutionLocation.value,
-            this.state.solutionName.value,
             this.state.solutionFolder.value,
         );
-        if (hasErrors(validate(this.state, { type: 'loaded', result: false }, true))) {
+        if (hasErrors(validate(this.state, this.state.solutionExists, true))) {
             this.dispatch({ type: 'CREATION_END' });
             return;
         }
 
         this.dispatch({ type: 'CREATION_START' });
         try {
-            const result = await this.awaitRequest(buildNewSolutionMessage(this.state)).promise;
-            if (result === 'cancelled') {
-                this.dispatch({ type: 'CREATION_END' });
-                return;
+            await this.awaitRequest(buildNewSolutionMessage(this.state)).promise;
+        } catch (error) {
+            if (error instanceof RequestFailedError && error.solutionConflict) {
+                this.dispatch({ type: 'END_SOLUTION_EXISTS_CHECK', result: error.solutionConflict });
             }
-        } catch {
             this.dispatch({ type: 'CREATION_END' });
             return;
         }
@@ -246,33 +255,33 @@ export class CreateSolutionViewModel {
 
     public async checkSolutionExists(
         solutionLocation: string,
-        solutionName: string,
         solutionFolder: string,
-    ): Promise<boolean> {
+    ): Promise<SolutionDirectoryConflict | null> {
         this.dispatch({ type: 'START_SOLUTION_EXISTS_CHECK' });
         const pending = this.awaitRequest({
             type: 'CHECK_SOLUTION_DOES_NOT_EXIST',
             solutionLocation,
-            solutionName,
             solutionFolder,
         });
         this.latestExistenceRequestId = pending.requestId;
 
-        let solutionExists = false;
+        let solutionConflict: SolutionDirectoryConflict | null = null;
         try {
             await pending.promise;
         } catch (error) {
-            solutionExists = error instanceof Error && error.message.includes('already exists');
+            if (error instanceof RequestFailedError) {
+                solutionConflict = error.solutionConflict ?? null;
+            }
         }
 
         if (this.latestExistenceRequestId === pending.requestId) {
-            this.dispatch({ type: 'END_SOLUTION_EXISTS_CHECK', result: solutionExists });
+            this.dispatch({ type: 'END_SOLUTION_EXISTS_CHECK', result: solutionConflict });
         }
-        return solutionExists;
+        return solutionConflict;
     }
 
     private readonly handleIncomingMessage = (message: IncomingMessage): void => {
-        if (message.type === 'REQUEST_SUCCESSFUL' || message.type === 'REQUEST_CANCELLED' || message.type === 'REQUEST_FAILED') {
+        if (message.type === 'REQUEST_SUCCESSFUL' || message.type === 'REQUEST_FAILED') {
             const pending = this.pendingRequests.get(message.requestId);
             if (!pending || pending.requestType !== message.requestType) {
                 return;
@@ -280,27 +289,26 @@ export class CreateSolutionViewModel {
             clearTimeout(pending.timeout);
             this.pendingRequests.delete(message.requestId);
             if (message.type === 'REQUEST_SUCCESSFUL') {
-                pending.resolve('successful');
-            } else if (message.type === 'REQUEST_CANCELLED') {
-                pending.resolve('cancelled');
+                pending.resolve();
             } else {
-                pending.reject(new Error(`CMSIS Request Failed: ${message.errorMessage ?? 'unknown error'}`));
+                pending.reject(new RequestFailedError(
+                    `CMSIS Request Failed: ${message.errorMessage ?? 'unknown error'}`,
+                    message.solutionConflict,
+                ));
             }
             return;
         }
 
         const channel = this.getResponseChannel(message.type);
-        const isCreateLocationResponse = message.type === 'SOLUTION_LOCATION'
-            && this.pendingRequests.get(message.requestId)?.requestType === 'NEW_SOLUTION';
-        if (channel && this.latestRequestByChannel.get(channel) !== message.requestId && !isCreateLocationResponse) {
+        if (channel && this.latestRequestByChannel.get(channel) !== message.requestId) {
             return;
         }
         this.dispatch({ type: 'INCOMING_MESSAGE', message });
     };
 
-    private awaitRequest(request: RequestMessagePayload): { requestId: string; promise: Promise<'successful' | 'cancelled'> } {
+    private awaitRequest(request: RequestMessagePayload): { requestId: string; promise: Promise<void> } {
         const message = addRequestId(request);
-        const promise = new Promise<'successful' | 'cancelled'>((resolve, reject) => {
+        const promise = new Promise<void>((resolve, reject) => {
             const timeout = setTimeout(() => {
                 this.pendingRequests.delete(message.requestId);
                 reject(new Error(`CMSIS Request Failed: extension didn't respond within the timeout limit (${MESSAGE_TIMEOUT}ms)`));
@@ -318,11 +326,9 @@ export class CreateSolutionViewModel {
 
     private requestDependentData(previousState: CreateSolutionState, action: CreateSolutionAction): void {
         const solutionPathChanged = previousState.solutionLocation.value !== this.state.solutionLocation.value
-            || previousState.solutionName.value !== this.state.solutionName.value
             || previousState.solutionFolder.value !== this.state.solutionFolder.value;
         const solutionPathValues = [
             this.state.solutionLocation.value,
-            this.state.solutionName.value,
             this.state.solutionFolder.value,
         ];
         const existenceQuery = solutionPathValues.join('\n');
@@ -333,7 +339,6 @@ export class CreateSolutionViewModel {
             this.lastExistenceQuery = existenceQuery;
             void this.checkSolutionExists(
                 this.state.solutionLocation.value,
-                this.state.solutionName.value,
                 this.state.solutionFolder.value,
             );
         }
@@ -402,7 +407,7 @@ export class CreateSolutionViewModel {
         }
     }
 
-    private getResponseChannel(type: Exclude<IncomingMessage['type'], 'REQUEST_SUCCESSFUL' | 'REQUEST_CANCELLED' | 'REQUEST_FAILED'>): ResponseChannel {
+    private getResponseChannel(type: Exclude<IncomingMessage['type'], 'REQUEST_SUCCESSFUL' | 'REQUEST_FAILED'>): ResponseChannel {
         switch (type) {
             case 'TARGET_DATA': return 'targets';
             case 'SOLUTION_LOCATION': return 'solutionLocation';
