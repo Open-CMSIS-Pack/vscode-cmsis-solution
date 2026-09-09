@@ -64,6 +64,12 @@ export class CmsisSettingsJsonFile extends JsonFile {
         return this.get<string>(`targetSet.${this.solutionDisplayName}.activeTargetType`);
     }
 
+    public setActiveSelection(targetType: string, targetSet?: string): void {
+        const activeSolution = backToForwardSlashes(path.relative(path.dirname(this.fileName), this.solutionPath));
+        this.set('activeSolution', activeSolution);
+        this.set('activeTarget', targetSet ? `${targetType}@${targetSet}` : targetType);
+    }
+
     public getSelectedSet(targetType: string): number {
         const tsMap = this.targetSetMap;
         if (tsMap) {

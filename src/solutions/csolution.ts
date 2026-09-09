@@ -65,26 +65,31 @@ export class CSolution {
     }
 
     public getSolutionYmlFiles(): string[] {
-        const ymlFiles: string[] = [];
+        const ymlFiles = new Set<string>();
 
         // Add solution path
         if (this.solutionPath) {
-            ymlFiles.push(this.solutionPath);
+            ymlFiles.add(this.solutionPath);
         }
 
         // Add project paths
         for (const project of this.projects.values()) {
             if (project?.fileName) {
-                ymlFiles.push(project.fileName);
+                ymlFiles.add(project.fileName);
             }
         }
 
         // Add layer paths
         for (const layerPath of this.clayerYmlRoot.keys()) {
-            ymlFiles.push(layerPath);
+            ymlFiles.add(layerPath);
+        }
+        for (const context of this.cbuildIdxFile.activeContexts) {
+            for (const layer of context.layers ?? []) {
+                ymlFiles.add(layer.absolutePath);
+            }
         }
 
-        return ymlFiles;
+        return [...ymlFiles];
     }
 
     public getSourceFiles(): string[] {
@@ -344,9 +349,32 @@ export class CSolution {
             this.solutionDir = path.dirname(solutionPath);
         }
         this.cmsisJsonFile.solutionPath = this.solutionPath;
-        this.cmsisJsonFile.load(); // first load settings
+        const cmsisJsonResult = await this.cmsisJsonFile.load();
         // load csolution and its cproject.yml files
         const solutionResult = await this.csolutionYml.load(this.solutionPath);
+        if (solutionResult !== ETextFileResult.NotExists
+            && solutionResult !== ETextFileResult.Error
+            && cmsisJsonResult !== ETextFileResult.Error) {
+            if (cmsisJsonResult === ETextFileResult.NotExists) {
+                this.cmsisJsonFile.setSettings({});
+            }
+            const activeTargetType = this.getActiveTargetType();
+            if (activeTargetType) {
+                this.cmsisJsonFile.activeTargetTypeName = activeTargetType;
+                const targetType = this.csolutionYml.getTargetType(activeTargetType);
+                const selectedTargetSet = targetType?.getTargetSetFromIndex(this.cmsisJsonFile.getSelectedSet(activeTargetType));
+                if (selectedTargetSet?.name) {
+                    const targetSetIndex = targetType?.targetSetNames.indexOf(selectedTargetSet.name) ?? -1;
+                    this.cmsisJsonFile.set(`targetSet.${this.cmsisJsonFile.solutionDisplayName}.${activeTargetType}`, targetSetIndex);
+                }
+                this.cmsisJsonFile.setActiveSelection(activeTargetType, selectedTargetSet?.name);
+            }
+            const saveResult = await this.cmsisJsonFile.save();
+            if (saveResult === ETextFileResult.Error) {
+                await this.loadBuildFiles();
+                return saveResult;
+            }
+        }
         await this.loadBuildFiles(); // can already be available
         return solutionResult;
     }

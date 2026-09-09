@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
+import { UISection, UISectionChildren } from '../../../../debug/debug-adapters-yaml-file';
 import { IncomingMessage } from '../../messages';
-import { SolutionData, ManageSolutionState, LoadType } from './manage-solution-state';
+import { EditableProperty, SolutionData, ManageSolutionState, LoadType } from './manage-solution-state';
 
 /**
  * An action that updates the selected context.
@@ -75,7 +76,97 @@ export const contextUpdateReducer = (solutionData: SolutionData, action: Solutio
 
 type ManageSolutionAction
     = { type: 'INCOMING_MESSAGE', message: IncomingMessage }
+    | { type: 'EDIT_PROPERTY', key: string, value: string | number }
+    | { type: 'FOCUS_PROPERTY', key: string }
+    | { type: 'BLUR_PROPERTY', key: string }
     | SolutionUpdateAction;
+
+export const editablePropertyKey = (
+    solutionData: SolutionData,
+    debuggerName: string | undefined,
+    section: UISection | undefined,
+    option: UISectionChildren | undefined,
+): string => [
+    solutionData.selectedTarget?.name ?? '',
+    solutionData.selectedTarget?.selectedSet ?? '',
+    debuggerName ?? '',
+    section?.['yml-node'] ?? '',
+    option?.pname ?? '',
+    option?.['yml-node'] ?? '',
+].join('::');
+
+const getProperty = <T>(defaultValue: T | undefined, obj: Record<string, unknown>, ...keys: (string | undefined)[]): T | undefined => {
+    let result: unknown = obj;
+    let index = 0;
+    while (index < keys.length) {
+        const key = keys[index];
+        if (!key || !result) {
+            index++;
+            continue;
+        }
+        if (Array.isArray(result)) {
+            if (key === 'pname' && keys[index + 1] && keys[index + 2]) {
+                const pname = keys[index + 1];
+                const valueKey = keys[index + 2]!;
+                result = result.find(item => item.pname === pname)?.[valueKey];
+                index += 3;
+                continue;
+            }
+            result = result[0]?.[key];
+        } else {
+            result = (result as Record<string, unknown>)[key];
+        }
+        index++;
+    }
+    return (result as T | undefined) ?? defaultValue;
+};
+
+const propertyValue = (
+    selectedDebugger: Record<string, unknown>,
+    section: UISection,
+    option: UISectionChildren,
+): string | number => {
+    const sectionNode = section['yml-node'];
+    const optionNode = option['yml-node'];
+    if (option.type === 'number') {
+        const defaultValue = option.default ?? option.range?.[1] ?? 0;
+        const raw = getProperty<number>(
+            option.scale === undefined ? defaultValue : defaultValue * option.scale,
+            selectedDebugger,
+            sectionNode,
+            option.pname ? 'pname' : undefined,
+            option.pname,
+            optionNode,
+        ) ?? defaultValue;
+        return option.scale === undefined ? raw : raw / option.scale;
+    }
+    return getProperty<string>(
+        option.default ?? '',
+        selectedDebugger,
+        sectionNode,
+        option.pname ? 'pname' : undefined,
+        option.pname,
+        optionNode,
+    ) ?? '';
+};
+
+const reconcileEditableProperties = (state: ManageSolutionState): Record<string, EditableProperty> => {
+    const adapter = state.debugAdapters.find(candidate => candidate.name === state.debugger);
+    const selectedDebugger = state.solutionData.selectedTarget?.targetSets
+        ?.find(({ name }) => name === (state.solutionData.selectedTarget?.selectedSet ?? ''))
+        ?.debugger as Record<string, unknown> | undefined;
+    const next: Record<string, EditableProperty> = {};
+
+    adapter?.['user-interface']?.forEach(section => section.options.forEach(option => {
+        const key = editablePropertyKey(state.solutionData, state.debugger, section, option);
+        const incomingValue = propertyValue(selectedDebugger ?? {}, section, option);
+        const current = state.editableProperties[key];
+        next[key] = current?.focused || (current?.dirty && current.value !== incomingValue)
+            ? current
+            : { value: incomingValue, focused: false, dirty: false };
+    }));
+    return next;
+};
 
 export const initialState: ManageSolutionState = {
     solutionData: {
@@ -89,6 +180,7 @@ export const initialState: ManageSolutionState = {
     },
     debugAdapters: [],
     debugger: undefined,
+    editableProperties: {},
     isDirty: false,
     autoUpdate: true,
     busy: true,
@@ -100,7 +192,8 @@ const incomingMessageReducer = (
 ): ManageSolutionState => {
     switch (message.type) {
         case 'DATA_CONTEXT_SELECTION': {
-            return { ...state, solutionData: message.data };
+            const next = { ...state, solutionData: message.data };
+            return { ...next, editableProperties: reconcileEditableProperties(next) };
         }
         case 'DEBUG_ADAPTERS': {
             const updatedAdapters = message.data.map(da => {
@@ -115,14 +208,17 @@ const incomingMessageReducer = (
                     }) || da['user-interface'],
                 };
             });
-            return { ...state, debugAdapters: updatedAdapters };
+            const next = { ...state, debugAdapters: updatedAdapters };
+            return { ...next, editableProperties: reconcileEditableProperties(next) };
         }
         case 'IS_DIRTY':
             return { ...state, isDirty: message.data };
         case 'IS_BUSY':
             return { ...state, busy: message.data };
-        case 'DEBUGGER':
-            return { ...state, debugger: message.data };
+        case 'DEBUGGER': {
+            const next = { ...state, debugger: message.data };
+            return { ...next, editableProperties: reconcileEditableProperties(next) };
+        }
         case 'ACTIVE_TARGET_SET':
             return { ...state };
         case 'FILE_SELECTED':
@@ -139,6 +235,26 @@ export const manageSolutionReducer = (state: ManageSolutionState, action: Manage
     switch (action.type) {
         case 'INCOMING_MESSAGE':
             return incomingMessageReducer(state, action);
+        case 'EDIT_PROPERTY':
+            return {
+                ...state,
+                editableProperties: {
+                    ...state.editableProperties,
+                    [action.key]: { value: action.value, dirty: true, focused: state.editableProperties[action.key]?.focused ?? false },
+                },
+            };
+        case 'FOCUS_PROPERTY':
+        case 'BLUR_PROPERTY': {
+            const property = state.editableProperties[action.key];
+            if (!property) return state;
+            return {
+                ...state,
+                editableProperties: {
+                    ...state.editableProperties,
+                    [action.key]: { ...property, focused: action.type === 'FOCUS_PROPERTY' },
+                },
+            };
+        }
         case 'SET_SELECTED_TARGET':
         case 'SET_PROJECT_SELECTION':
         case 'SET_BUILD_TYPE_SELECTION':
