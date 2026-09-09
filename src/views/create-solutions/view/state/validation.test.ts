@@ -64,7 +64,7 @@ describe('Create solutions validation', () => {
             ...initialState,
             solutionName: { value:  'Test Solution Name', hadInteraction: true },
             projects: [{ value: { name: 'Test Project Name', processorName: 'some core', trustzone: 'off' }, hadInteraction: true }],
-            solutionExists: { type: 'loaded', result: false },
+            solutionExists: { type: 'loaded', result: null },
             deviceSelection: { value: deviceHardwareOptionFactory(), hadInteraction: true },
             solutionLocation: { value: '/some/path', hadInteraction: true },
             solutionFolder: { value: '/path2', hadInteraction: true },
@@ -162,22 +162,26 @@ describe('Create solutions validation', () => {
             });
         });
 
-        it('validates the solution does not already exist', () => {
+        it('reports the conflicting filename and subfolder without requiring interaction', () => {
             const inputState: CreateSolutionState = {
                 ...validStateFactory(),
-                solutionLocation: { value: '/path/to/solution', hadInteraction: true },
-                solutionExists: { type: 'loaded', result: true },
+                solutionLocation: { value: '/absolute/base/path', hadInteraction: false },
+                solutionExists: {
+                    type: 'loaded',
+                    result: { solutionFolder: 'my-subfolder', fileName: 'existing.csolution.yaml' },
+                },
             };
 
             expect(validate(inputState, inputState.solutionExists, false)).toEqual({
                 deviceSelection: '',
                 projects: [''],
                 solutionName: '',
-                solutionLocation: expect.stringContaining('already exists'),
+                solutionLocation: 'Selected solution directory my-subfolder already contains existing.csolution.yaml',
                 solutionFolder: expect.stringContaining('start with a letter'),
                 targetType: expect.stringContaining('must be'),
                 selectedTemplate: '',
             });
+            expect(validate(inputState, inputState.solutionExists, false).solutionLocation).not.toContain('/absolute/base/path');
         });
 
         it('validates the project name is unique', () => {

@@ -65,15 +65,25 @@ export type CreateSolutionRequest = {
     compiler: string;
     showOpenDialog?: boolean;
     draftProject?: DraftProjectData;
-    overwriteExisting?: boolean;
 }
 
 export type FindExistingSolutionFiles = (solutionDir: string) => string[];
+
+export class SolutionDirectoryConflictError extends Error {
+    constructor(
+        public readonly solutionFolder: string,
+        public readonly fileName: string,
+    ) {
+        super(`Selected solution directory ${solutionFolder} already contains ${fileName}`);
+        this.name = 'SolutionDirectoryConflictError';
+    }
+}
 
 export const findExistingSolutionFiles: FindExistingSolutionFiles = solutionDir => {
     try {
         return readdirSync(solutionDir, { withFileTypes: true })
             .filter(entry => entry.isFile() && /\.csolution\.(yaml|yml)$/i.test(entry.name))
+            .sort((left, right) => left.name.localeCompare(right.name))
             .map(entry => path.join(solutionDir, entry.name));
     } catch (error) {
         const errorCode = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
@@ -101,13 +111,9 @@ export class SolutionCreatorImp  implements SolutionCreator {
         const solutionDirUri = URI.file(path.join(message.solutionLocation, message.solutionFolder));
         const solutionFileUri = Uri.joinPath(solutionDirUri, `${message.solutionName}${SOLUTION_SUFFIX}`);
         const existingSolutionFiles = this.findSolutionFiles(solutionDirUri.fsPath);
-        if (!message.overwriteExisting && existingSolutionFiles.length > 0) {
-            const listed = existingSolutionFiles
-                .slice(0, 5)
-                .map(file => path.relative(solutionDirUri.fsPath, file))
-                .join(', ');
-            const suffix = existingSolutionFiles.length > 5 ? ` (and ${existingSolutionFiles.length - 5} more)` : '';
-            throw new Error(`Solution directory already contains a solution file (${listed}${suffix}): ${solutionDirUri.fsPath}`);
+        const existingSolutionFile = existingSolutionFiles[0];
+        if (existingSolutionFile) {
+            throw new SolutionDirectoryConflictError(message.solutionFolder, path.basename(existingSolutionFile));
         }
         const createdSolution = await this.createSolutionWithSelectedTemplate(solutionDirUri, solutionFileUri, message);
         this.solutionInitialiser.initialiseSolution({
