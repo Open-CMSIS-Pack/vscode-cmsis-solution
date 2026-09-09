@@ -1626,7 +1626,7 @@
       ]
     },
     "transformIgnorePatterns": [
-      "/node_modules/(?!(@microsoft|yaml)/)"
+      "/node_modules/(?!(@faker-js/faker|@microsoft|yaml)/)"
     ],
     "testPathIgnorePatterns": [
       "/node_modules/",
