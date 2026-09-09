@@ -134,13 +134,11 @@ export const incomingMessageReducer = (state: ManageLayersState, message: Messag
                 layerErrors: message.layerErrors,
                 layers: [], // removing layers
             };
-        case 'RESULT_LAYER_EXISTS_CHECK':
-            return { ...state,
-                layerPathError: {
-                    ...state.layerPathError,
-                    [message.variableId]: { variableId: message.variableId, pathExists: message.result },
-                }
-            };
+        case 'RESULT_LAYER_EXISTS_CHECK': {
+            const layerPathError = [ ...state.layerPathError ];
+            layerPathError[message.variableId] = { variableId: message.variableId, pathExists: message.result };
+            return { ...state, layerPathError };
+        }
 
         default:
             return message;
@@ -150,42 +148,46 @@ export const incomingMessageReducer = (state: ManageLayersState, message: Messag
 const applyCopyToPath = (state: ManageLayersState, id: number, newPath: string): ManageLayersState => {
     return {
         ...state,
-        layers: {
-            ...state.layers,
-            [state.currentLayerNumber]: {
-                ...state.layers[state.currentLayerNumber],
-                variables: state.layers[state.currentLayerNumber].variables.map((variable, index) => {
-                    if (index === id) {
-                        return {
-                            ...variable,
-                            copyTo: newPath,
-                        };
-                    }
-                    return variable;
-                })
+        layers: state.layers.map((layer, layerIndex) => {
+            if (layerIndex === state.currentLayerNumber) {
+                return {
+                    ...layer,
+                    variables: layer.variables.map((variable, index) => {
+                        if (index === id) {
+                            return {
+                                ...variable,
+                                copyTo: newPath,
+                            };
+                        }
+                        return variable;
+                    })
+                };
             }
-        },
+            return layer;
+        }),
     };
 };
 
 const applyCopyToPathDefault = (state: ManageLayersState, id: number): ManageLayersState => {
     return {
         ...state,
-        layers: {
-            ...state.layers,
-            [state.currentLayerNumber]: {
-                ...state.layers[state.currentLayerNumber],
-                variables: state.layers[state.currentLayerNumber].variables.map((variable, index) => {
-                    if (index === id) {
-                        return {
-                            ...variable,
-                            copyTo: variable.copyToOrig,
-                        };
-                    }
-                    return variable;
-                })
+        layers: state.layers.map((layer, layerIndex) => {
+            if (layerIndex === state.currentLayerNumber) {
+                return {
+                    ...layer,
+                    variables: layer.variables.map((variable, index) => {
+                        if (index === id) {
+                            return {
+                                ...variable,
+                                copyTo: variable.copyToOrig,
+                            };
+                        }
+                        return variable;
+                    })
+                };
             }
-        },
+            return layer;
+        }),
     };
 };
 
