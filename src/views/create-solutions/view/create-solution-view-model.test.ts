@@ -243,6 +243,38 @@ describe('CreateSolutionViewModel', () => {
         expect(messageListener).not.toHaveBeenCalledWith({ type: 'WEBVIEW_CLOSE' });
     });
 
+    it('keeps the webview open and updates the location when conflict creation is cancelled', async () => {
+        viewModel.dispose();
+        viewModel = new CreateSolutionViewModel(messageHandler, validStateFactory());
+        viewModel.initialize();
+
+        const creation = viewModel.createSolution();
+        const existenceRequest = getLastRequest('CHECK_SOLUTION_DOES_NOT_EXIST');
+        messageHandler.postWindowMessage({
+            type: 'REQUEST_FAILED',
+            requestType: existenceRequest.type,
+            requestId: existenceRequest.requestId,
+            errorMessage: 'Solution already exists',
+        });
+        await waitTimeout();
+        const creationRequest = getLastRequest('NEW_SOLUTION');
+        messageHandler.postWindowMessage({
+            type: 'SOLUTION_LOCATION',
+            requestId: creationRequest.requestId,
+            data: { path: '/another/location' },
+        });
+        messageHandler.postWindowMessage({
+            type: 'REQUEST_CANCELLED',
+            requestType: creationRequest.type,
+            requestId: creationRequest.requestId,
+        });
+        await creation;
+
+        expect(viewModel.getSnapshot().state.solutionLocation.value).toBe('/another/location');
+        expect(viewModel.getSnapshot().state.createProgress).toBe('idle');
+        expect(messageListener).not.toHaveBeenCalledWith({ type: 'WEBVIEW_CLOSE' });
+    });
+
     describe('buildNewSolutionMessage', () => {
         it('creates a NEW_SOLUTION message for valid device hardware inputs', () => {
             const device = deviceHardwareOptionFactory();

@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
-import { existsSync } from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { SOLUTION_SUFFIX } from '../../solutions/constants';
-import { CreateSolutionRequest, SolutionCreator } from '../../solutions/solution-creator';
+import {
+    CreateSolutionRequest,
+    findExistingSolutionFiles,
+    FindExistingSolutionFiles,
+    SolutionCreator,
+} from '../../solutions/solution-creator';
 import { isUseWebServices } from '../../util';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
 import { MessageProvider } from '../../vscode-api/message-provider';
@@ -36,7 +39,7 @@ export class CreateSolutionController {
         private readonly messageProvider: MessageProvider,
         private readonly commandsProvider: CommandsProvider,
         private readonly workspaceFoldersProvider: WorkspaceFoldersProvider,
-        private readonly fileExists: (filePath: string) => boolean = existsSync,
+        private readonly findSolutionFiles: FindExistingSolutionFiles = findExistingSolutionFiles,
         private readonly showOpenDialog: ShowOpenDialog = vscode.window.showOpenDialog,
         private readonly useWebServices: () => boolean = isUseWebServices,
     ) {}
@@ -44,7 +47,7 @@ export class CreateSolutionController {
     public async handleRequest(message: Messages.RequestMessage): Promise<Messages.IncomingMessage[]> {
         try {
             const responses = await this.handleRequestData(message);
-            if (responses.some(response => response.type === 'REQUEST_FAILED')) {
+            if (responses.some(response => response.type === 'REQUEST_FAILED' || response.type === 'REQUEST_CANCELLED')) {
                 return responses;
             }
             return [
@@ -79,15 +82,10 @@ export class CreateSolutionController {
     private async handleRequestData(message: Messages.RequestMessage): Promise<Messages.IncomingMessage[]> {
         switch (message.type) {
             case 'NEW_SOLUTION':
-                await this.createSolution(message);
-                return [];
+                return await this.createSolution(message);
             case 'CHECK_SOLUTION_DOES_NOT_EXIST': {
-                const solutionPath = path.join(
-                    message.solutionLocation,
-                    message.solutionFolder,
-                    `${message.solutionName}${SOLUTION_SUFFIX}`,
-                );
-                if (this.fileExists(solutionPath)) {
+                const solutionDir = path.join(message.solutionLocation, message.solutionFolder);
+                if (this.findSolutionFiles(solutionDir).length > 0) {
                     return [{
                         type: 'REQUEST_FAILED',
                         requestType: message.type,
@@ -102,20 +100,12 @@ export class CreateSolutionController {
                 return [{ type: 'TARGET_DATA', requestId: message.requestId, ...targets }];
             }
             case 'OPEN_FILE_PICKER': {
-                const defaultUri = message.solutionLocation
-                    ? vscode.Uri.file(message.solutionLocation)
-                    : undefined;
-                const selectedPaths = await this.showOpenDialog({
-                    defaultUri,
-                    canSelectFiles: false,
-                    canSelectFolders: true,
-                    canSelectMany: false,
-                });
-                return selectedPaths?.[0]
+                const selectedPath = await this.selectSolutionLocation(message.solutionLocation);
+                return selectedPath
                     ? [{
                         type: 'SOLUTION_LOCATION',
                         requestId: message.requestId,
-                        data: { path: selectedPaths[0].fsPath },
+                        data: { path: selectedPath },
                     }]
                     : [];
             }
@@ -167,7 +157,50 @@ export class CreateSolutionController {
         }
     }
 
-    private async createSolution(message: Messages.NewSolutionMessage): Promise<void> {
+    private async createSolution(message: Messages.NewSolutionMessage): Promise<Messages.IncomingMessage[]> {
+        const solutionDir = path.join(message.solutionLocation, message.solutionFolder);
+        const existingSolutionFiles = this.findSolutionFiles(solutionDir);
+        let overwriteExisting = false;
+
+        if (existingSolutionFiles.length > 0) {
+            const overwrite = { title: 'Overwrite', isCloseAffordance: false };
+            const selectAnotherDirectory = { title: 'Select Another Directory', isCloseAffordance: false };
+            const cancel = { title: 'Cancel', isCloseAffordance: true };
+            const existingFileNames = existingSolutionFiles.map(file => path.relative(solutionDir, file)).join(', ');
+            const selected = await this.messageProvider.showWarningMessage(
+                `The selected directory already contains a solution file (${existingFileNames}). Creating this solution may overwrite existing files.`,
+                { modal: true, detail: 'Unrelated files in the directory will be preserved.' },
+                overwrite,
+                selectAnotherDirectory,
+                cancel,
+            );
+
+            if (selected?.title === selectAnotherDirectory.title) {
+                const selectedPath = await this.selectSolutionLocation(message.solutionLocation);
+                return [
+                    ...(selectedPath ? [{
+                        type: 'SOLUTION_LOCATION' as const,
+                        requestId: message.requestId,
+                        data: { path: selectedPath },
+                    }] : []),
+                    {
+                        type: 'REQUEST_CANCELLED',
+                        requestType: message.type,
+                        requestId: message.requestId,
+                    },
+                ];
+            }
+
+            if (selected?.title !== overwrite.title) {
+                return [{
+                    type: 'REQUEST_CANCELLED',
+                    requestType: message.type,
+                    requestId: message.requestId,
+                }];
+            }
+            overwriteExisting = true;
+        }
+
         const request: CreateSolutionRequest = {
             solutionName: message.solutionName,
             projects: message.projects.map(project => ({
@@ -190,12 +223,25 @@ export class CreateSolutionController {
             solutionFolder: message.solutionFolder,
             compiler: message.compiler,
             showOpenDialog: message.showOpenDialog,
+            overwriteExisting,
             draftProject: message.selectedDraftId
                 ? await this.dataModel.getDraftProject(message.selectedDraftId)
                 : undefined,
         };
 
         await this.solutionCreator.createSolution(request);
+        return [];
+    }
+
+    private async selectSolutionLocation(solutionLocation?: string): Promise<string | undefined> {
+        const defaultUri = solutionLocation ? vscode.Uri.file(solutionLocation) : undefined;
+        const selectedPaths = await this.showOpenDialog({
+            defaultUri,
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+        });
+        return selectedPaths?.[0]?.fsPath;
     }
 
     private async getConnectedBoardName(): Promise<string | undefined> {
