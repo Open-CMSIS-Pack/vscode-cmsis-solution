@@ -21,6 +21,7 @@ import { URI } from 'vscode-uri';
 import { getCmsisPackRoot } from '../../utils/path-utils';
 import { COutlineItem } from './tree-structure/solution-outline-item';
 import * as manifest from '../../manifest';
+import { getOutlineItemResourceUri, solutionOutlineUriScheme } from './treeview-provider';
 
 export class TreeViewFileDecorationProvider implements vscode.FileDecorationProvider {
     static readonly badge: string = 'P';
@@ -33,6 +34,7 @@ export class TreeViewFileDecorationProvider implements vscode.FileDecorationProv
 
     static readonly excludedBadge: string = 'X';
     static readonly excludedTooltip: string = 'Excluded from build';
+    static readonly contextExcludedTooltip: string = 'Excluded from current context';
     static readonly excludedColor: string = 'errorForeground';
 
     private readonly _onDidChangeFileDecorations: vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined> = new vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined>();
@@ -55,18 +57,27 @@ export class TreeViewFileDecorationProvider implements vscode.FileDecorationProv
     }
 
     public provideFileDecoration(uri: vscode.Uri): vscode.FileDecoration | undefined {
-        // Check if file is excluded first (higher priority)
-        const fileItem = this.findFileItemByUri(this.treeRoot, uri);
-        if (fileItem?.getAttribute('excluded') === '1') {
+        if (uri.scheme !== 'file' && uri.scheme !== solutionOutlineUriScheme) {
+            return undefined;
+        }
+
+        const outlineItem = this.findOutlineItemByUri(this.treeRoot, uri);
+        if (outlineItem?.getAttribute('excluded') === '1') {
             return {
                 badge: TreeViewFileDecorationProvider.excludedBadge,
-                tooltip: TreeViewFileDecorationProvider.excludedTooltip,
+                tooltip: uri.scheme === solutionOutlineUriScheme
+                    ? TreeViewFileDecorationProvider.contextExcludedTooltip
+                    : TreeViewFileDecorationProvider.excludedTooltip,
                 color: this.themeProvider.getThemeColor(TreeViewFileDecorationProvider.excludedColor),
             };
         }
 
+        if (uri.scheme !== 'file') {
+            return undefined;
+        }
+
         // Merge-enabled files have higher priority than pack-sourced files
-        const features = fileItem?.getFeatures().split(';') ?? [];
+        const features = outlineItem?.getFeatures().split(';') ?? [];
         if (features.includes(manifest.MERGE_FILE_CONTEXT)) {
             return {
                 badge: TreeViewFileDecorationProvider.mergeBadge,
@@ -92,20 +103,18 @@ export class TreeViewFileDecorationProvider implements vscode.FileDecorationProv
         return undefined; // No decoration for other items
     }
 
-    private findFileItemByUri(tree: COutlineItem | undefined, uri: vscode.Uri): COutlineItem | undefined {
+    private findOutlineItemByUri(tree: COutlineItem | undefined, uri: vscode.Uri): COutlineItem | undefined {
         if (!tree) {
             return undefined;
         }
 
-        const targetPath = uri.fsPath;
-
-        // Recursively search for file with matching resourcePath
         const searchInNode = (node: COutlineItem): COutlineItem | undefined => {
-            if (node.getTag() === 'file') {
-                const resourcePath = node.getAttribute('resourcePath');
-                if (resourcePath && URI.file(resourcePath).fsPath === targetPath) {
-                    return node;
-                }
+            const nodeUri = getOutlineItemResourceUri(node);
+            const isMatch = uri.scheme === 'file'
+                ? node.getTag() === 'file' && nodeUri?.fsPath === uri.fsPath
+                : nodeUri?.scheme === uri.scheme && nodeUri.path === uri.path;
+            if (isMatch) {
+                return node;
             }
 
             for (const child of node.getChildren()) {
