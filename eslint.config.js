@@ -26,6 +26,7 @@ module.exports = [{
         "**/dist",
         "**/node_modules",
         "src/solar-search/graphql/client",
+        "src/e2e-tests/data",
         "**/*.vsix"
     ],
 }, ...fixupConfigRules(compat.extends(
