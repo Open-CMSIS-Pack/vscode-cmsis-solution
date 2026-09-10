@@ -20,6 +20,30 @@ import { COutlineItem } from './solution-outline-item';
 import { ProjectItemsBuilder } from './solution-outline-project-items';
 
 describe('ProjectItemsBuilder', () => {
+    it('inherits group context exclusion when rendering files', () => {
+        const cproject = new CProjectYamlFile();
+        const project = cproject.ensureTopItem('project');
+        const groups = project.createChild('groups');
+        groups.setKind(ETreeItemKind.Sequence);
+        const group = groups.createChild('-');
+        group.setValue('group', 'Debug Sources');
+        group.setValue('for-context', '.Debug');
+        const files = group.createChild('files');
+        files.setKind(ETreeItemKind.Sequence);
+        files.createChild('-').setValue('file', 'src/debug.c');
+
+        const cbuild = new CTreeItem('build');
+        cbuild.setValue('context', 'Project.Release+Target');
+        const projectItem = new COutlineItem('project');
+
+        new ProjectItemsBuilder().addProjectChildren(undefined, projectItem, cproject, cbuild);
+
+        const groupItem = projectItem.getChildItem('group');
+        const fileItem = groupItem?.getChildItem('file');
+        expect(groupItem?.getAttribute('excluded')).toBe('1');
+        expect(fileItem?.getAttribute('excluded')).toBe('1');
+    });
+
     it('renders generated groups for a read-only CMake project', () => {
         const cproject = new CProjectYamlFile();
         cproject.readOnly = true;
