@@ -43,6 +43,7 @@ export const CONFIG_DOWNLOAD_MISSING_PACKS = 'downloadPacks';
 export const OUTPUT_DIRECTORY = 'outputDirectory';
 export const CONFIG_AUTO_DEBUG_LAUNCH = 'autoDebugLaunch';
 export const CONFIG_AUTO_SHOW_CMSIS_VIEW = 'autoShowCMSISView';
+export const CONFIG_MANAGE_SOLUTION_SINGLE_EDITOR = 'manageSolutionSingleEditor';
 export const CONFIG_BUILD_OUTPUT_VERBOSITY = 'buildOutputVerbosity';
 export const MANAGE_COMPONENTS_PACKS_COMMAND_ID = `${PACKAGE_NAME}.manageComponentsPacks`;
 export const MERGE_FILE_COMMAND_ID = `${PACKAGE_NAME}.mergeFile`;
