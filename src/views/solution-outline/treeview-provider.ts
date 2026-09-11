@@ -19,6 +19,34 @@ import { TreeItemCollapsibleState } from 'vscode';
 import { COutlineItem } from './tree-structure/solution-outline-item';
 import { openSourceSmartCommandId } from './commands/open-command';
 
+export const solutionOutlineUriScheme = 'cmsis-csolution-outline';
+
+export function getOutlineItemResourceUri(element: COutlineItem): vscode.Uri | undefined {
+    const tag = element.getTag();
+    if (tag !== 'group' && tag !== 'component') {
+        const resourcePath = element.getAttribute('resourcePath');
+        return resourcePath ? vscode.Uri.file(resourcePath) : undefined;
+    }
+
+    const pathSegments: string[] = [];
+    let current: COutlineItem | undefined = element;
+    while (current?.getParent()) {
+        const parent = current.getParent() as COutlineItem;
+        const siblingIndex = (parent.getChildren() as COutlineItem[]).indexOf(current);
+        pathSegments.unshift(current.getTag() ?? 'item', siblingIndex.toString());
+        current = parent;
+    }
+
+    if (pathSegments.length === 0) {
+        pathSegments.push(tag, '0');
+    }
+
+    return vscode.Uri.from({
+        scheme: solutionOutlineUriScheme,
+        path: `/${pathSegments.join('/')}`,
+    });
+}
+
 export interface TreeViewProvider<A extends COutlineItem> {
     updateTree(tree?: A): void;
     setDescription(description: string): void;
@@ -164,9 +192,9 @@ export class TreeViewProviderImpl<A extends COutlineItem> implements TreeViewPro
             treeItem.command = command;
         }
 
-        const resourcePath = element.getAttribute('resourcePath');
-        if (resourcePath) {
-            treeItem.resourceUri = vscode.Uri.file(resourcePath);
+        const resourceUri = getOutlineItemResourceUri(element);
+        if (resourceUri) {
+            treeItem.resourceUri = resourceUri;
         }
 
         const tooltip = element.getAttribute('tooltip');
@@ -174,6 +202,8 @@ export class TreeViewProviderImpl<A extends COutlineItem> implements TreeViewPro
             const markdownTooltip = new vscode.MarkdownString(tooltip);
             markdownTooltip.supportThemeIcons = true;
             treeItem.tooltip = markdownTooltip;
+        } else if (resourceUri?.scheme === solutionOutlineUriScheme) {
+            treeItem.tooltip = label;
         } else {
             treeItem.tooltip = undefined;
         }

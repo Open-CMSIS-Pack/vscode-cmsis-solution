@@ -18,7 +18,7 @@ jest.mock('vscode');
 
 import path from 'path';
 import * as vscode from 'vscode';
-import { createItemCommand, TreeViewProviderImpl } from './treeview-provider';
+import { createItemCommand, solutionOutlineUriScheme, TreeViewProviderImpl } from './treeview-provider';
 import { COutlineItem } from './tree-structure/solution-outline-item';
 
 describe('createItemCommand', () => {
@@ -123,5 +123,78 @@ describe('TreeViewProviderImpl tooltip rendering', () => {
         const treeItem = provider.getTreeItem(node);
 
         expect(treeItem.tooltip).toBeUndefined();
+    });
+
+    it.each(['group', 'component'])('uses the label instead of the synthetic URI as the %s tooltip', tag => {
+        const provider = new TreeViewProviderImpl<COutlineItem>('cmsis.test');
+        const node = new COutlineItem(tag);
+        node.setAttribute('label', 'Outline item');
+
+        const treeItem = provider.getTreeItem(node);
+
+        expect(treeItem.tooltip).toBe('Outline item');
+        expect(String(treeItem.tooltip)).not.toContain(solutionOutlineUriScheme);
+    });
+});
+
+describe('TreeViewProviderImpl resource URI', () => {
+    it('preserves file URIs for resource-backed items', () => {
+        const provider = new TreeViewProviderImpl<COutlineItem>('cmsis.test');
+        const filePath = path.join('tmp', 'device.h');
+        const node = new COutlineItem('file');
+        node.setAttribute('resourcePath', filePath);
+
+        const treeItem = provider.getTreeItem(node);
+
+        expect(treeItem.resourceUri?.scheme).toBe('file');
+        expect(treeItem.resourceUri?.fsPath).toBe(filePath);
+    });
+
+    it('assigns unique structural URIs to groups with duplicate labels', () => {
+        const provider = new TreeViewProviderImpl<COutlineItem>('cmsis.test');
+        const root = new COutlineItem('root');
+        const firstGroup = root.createChild('group');
+        const secondGroup = root.createChild('group');
+        firstGroup.setAttribute('label', 'Sources');
+        secondGroup.setAttribute('label', 'Sources');
+
+        const firstTreeItem = provider.getTreeItem(firstGroup);
+        const secondTreeItem = provider.getTreeItem(secondGroup);
+
+        expect(firstTreeItem.resourceUri?.scheme).toBe(solutionOutlineUriScheme);
+        expect(firstTreeItem.resourceUri?.path).toBe('/group/0');
+        expect(secondTreeItem.resourceUri?.path).toBe('/group/1');
+    });
+
+    it('assigns a structural URI without a command to components', () => {
+        const provider = new TreeViewProviderImpl<COutlineItem>('cmsis.test');
+        const components = new COutlineItem('components');
+        const component = components.createChild('component');
+        component.setAttribute('label', 'Device:Startup');
+
+        const treeItem = provider.getTreeItem(component);
+
+        expect(treeItem.resourceUri?.scheme).toBe(solutionOutlineUriScheme);
+        expect(treeItem.resourceUri?.path).toBe('/component/0');
+        expect(treeItem.command).toBeUndefined();
+    });
+
+    it('keeps group and component identity structural when resource paths are present', () => {
+        const provider = new TreeViewProviderImpl<COutlineItem>('cmsis.test');
+        const group = new COutlineItem('group');
+        group.setAttribute('resourcePath', path.join('tmp', 'group.yml'));
+
+        const treeItem = provider.getTreeItem(group);
+
+        expect(treeItem.resourceUri?.scheme).toBe(solutionOutlineUriScheme);
+    });
+
+    it('does not assign a URI to structural container nodes', () => {
+        const provider = new TreeViewProviderImpl<COutlineItem>('cmsis.test');
+        const components = new COutlineItem('components');
+
+        const treeItem = provider.getTreeItem(components);
+
+        expect(treeItem.resourceUri).toBeUndefined();
     });
 });
