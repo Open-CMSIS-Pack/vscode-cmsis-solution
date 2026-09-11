@@ -13,6 +13,6 @@
     ],
     "requires": {
         "arm:compilers/arm/armclang": "6.24.0",
-        "arm:models/arm/avh-fvp": "11.31.28"
+        "arm:models/arm/avh-fvp": "11.32.23"
     }
 }

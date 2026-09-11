@@ -29,7 +29,7 @@ fvp:
 arm_tools:
   environment: Arm Virtual Hardware for Cortex®-M based on Fast Models
   artifact: arm:models/arm/avh-fvp
-  version: 11.31.28
+  version: 11.32.23
 
 expected_run:
   command_contains:
@@ -39,6 +39,9 @@ expected_run:
     - out/Blinky/SSE-300-MPS3/Debug/Blinky.hex
   output_contains:
     - Blinky example
+
+expected_debug:
+  output_contains: Temporary breakpoint 1, main ()  
 
 expected_files:
   created:
