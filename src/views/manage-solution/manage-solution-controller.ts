@@ -51,6 +51,7 @@ export class ManageSolutionController {
     private _csolutionService?: CsolutionService;
     private csolutionFileStamp?: FileStamp | null;
     private cmsisJsonFileStamp?: FileStamp | null;
+    private cmsisJsonLoadResult?: ETextFileResult;
 
     /**
      * Gets the initialized csolution service instance.
@@ -121,7 +122,7 @@ export class ManageSolutionController {
         }
         const result = await this.csolutionYml.load(csolutionPath);
         this.cmsisJsonFile.solutionPath = this.solutionPath;
-        await this.cmsisJsonFile.load();
+        this.cmsisJsonLoadResult = await this.cmsisJsonFile.load();
         this.refreshFileStamps();
         return result;
     }
@@ -143,10 +144,17 @@ export class ManageSolutionController {
         this.csolutionYml.purgeAllProjectContexts();
 
         // directly copy content to global files
-        const cmsisJsonRes = csolution.cmsisJsonFile.copyFrom(this.cmsisJsonFile);
-        if (cmsisJsonRes !== ETextFileResult.Unchanged) {
-            await this.cmsisJsonFile.save();
-            this.cmsisJsonFileStamp = this.getCurrentFileStamp(this.cmsisJsonFile.fileName);
+        let cmsisJsonRes = ETextFileResult.Unchanged;
+        if (this.cmsisJsonLoadResult !== ETextFileResult.Error) {
+            const activeTargetTypeName = this.activeTargetTypeName;
+            if (activeTargetTypeName) {
+                this.cmsisJsonFile.setActiveSelection(activeTargetTypeName, this.activeTargetSetName);
+            }
+            cmsisJsonRes = csolution.cmsisJsonFile.copyFrom(this.cmsisJsonFile);
+            const saveResult = await this.cmsisJsonFile.save();
+            if (saveResult !== ETextFileResult.Error) {
+                this.cmsisJsonFileStamp = this.getCurrentFileStamp(this.cmsisJsonFile.fileName);
+            }
         }
         const solutionRes = csolution.csolutionYml.copyFrom(this.csolutionYml);
         if (solutionRes !== ETextFileResult.Unchanged) {

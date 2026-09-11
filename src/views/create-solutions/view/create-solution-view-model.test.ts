@@ -101,8 +101,8 @@ describe('CreateSolutionViewModel', () => {
         }));
     });
 
-    it('updates existence state for correlated success and failure responses', async () => {
-        const success = viewModel.checkSolutionExists('/location', 'Solution', 'folder');
+    it('updates existence state for correlated success and conflict responses', async () => {
+        const success = viewModel.checkSolutionExists('/location', 'folder');
         const successRequest = getLastRequest('CHECK_SOLUTION_DOES_NOT_EXIST');
         messageHandler.postWindowMessage({
             type: 'REQUEST_SUCCESSFUL',
@@ -110,26 +110,29 @@ describe('CreateSolutionViewModel', () => {
             requestId: successRequest.requestId,
         });
 
-        await expect(success).resolves.toBe(false);
-        expect(viewModel.getSnapshot().state.solutionExists).toEqual({ type: 'loaded', result: false });
+        await expect(success).resolves.toBeNull();
+        expect(viewModel.getSnapshot().state.solutionExists).toEqual({ type: 'loaded', result: null });
 
-        const failure = viewModel.checkSolutionExists('/location', 'Solution', 'folder');
+        const failure = viewModel.checkSolutionExists('/location', 'folder');
         const failureRequest = getLastRequest('CHECK_SOLUTION_DOES_NOT_EXIST');
+        const solutionConflict = { solutionFolder: 'folder', fileName: 'existing.csolution.yml' };
         messageHandler.postWindowMessage({
             type: 'REQUEST_FAILED',
             requestType: failureRequest.type,
             requestId: failureRequest.requestId,
-            errorMessage: 'already exists',
+            errorMessage: 'Selected solution directory folder already contains existing.csolution.yml',
+            solutionConflict,
         });
 
-        await expect(failure).resolves.toBe(true);
-        expect(viewModel.getSnapshot().state.solutionExists).toEqual({ type: 'loaded', result: true });
+        await expect(failure).resolves.toEqual(solutionConflict);
+        expect(viewModel.getSnapshot().state.solutionExists).toEqual({ type: 'loaded', result: solutionConflict });
+        expect(viewModel.getSnapshot().canCreate).toBe(false);
     });
 
     it('ignores a stale existence response', async () => {
-        const first = viewModel.checkSolutionExists('/location', 'First', 'folder');
+        const first = viewModel.checkSolutionExists('/location', 'first-folder');
         const firstRequest = getLastRequest('CHECK_SOLUTION_DOES_NOT_EXIST');
-        const second = viewModel.checkSolutionExists('/location', 'Second', 'folder');
+        const second = viewModel.checkSolutionExists('/location', 'second-folder');
         const secondRequest = getLastRequest('CHECK_SOLUTION_DOES_NOT_EXIST');
 
         messageHandler.postWindowMessage({
@@ -142,11 +145,12 @@ describe('CreateSolutionViewModel', () => {
             type: 'REQUEST_FAILED',
             requestType: firstRequest.type,
             requestId: firstRequest.requestId,
-            errorMessage: 'already exists',
+            errorMessage: 'Selected solution directory first-folder already contains existing.csolution.yml',
+            solutionConflict: { solutionFolder: 'first-folder', fileName: 'existing.csolution.yml' },
         });
         await first;
 
-        expect(viewModel.getSnapshot().state.solutionExists).toEqual({ type: 'loaded', result: false });
+        expect(viewModel.getSnapshot().state.solutionExists).toEqual({ type: 'loaded', result: null });
     });
 
     it('ignores stale hardware preview data', () => {
@@ -239,6 +243,63 @@ describe('CreateSolutionViewModel', () => {
         });
         await creation;
 
+        expect(viewModel.getSnapshot().state.createProgress).toBe('idle');
+        expect(messageListener).not.toHaveBeenCalledWith({ type: 'WEBVIEW_CLOSE' });
+    });
+
+    it('does not submit when the preflight check finds a conflict', async () => {
+        viewModel.dispose();
+        viewModel = new CreateSolutionViewModel(messageHandler, validStateFactory());
+        viewModel.initialize();
+
+        const creation = viewModel.createSolution();
+        const existenceRequest = getLastRequest('CHECK_SOLUTION_DOES_NOT_EXIST');
+        messageHandler.postWindowMessage({
+            type: 'REQUEST_FAILED',
+            requestType: existenceRequest.type,
+            requestId: existenceRequest.requestId,
+            errorMessage: 'Selected solution directory Solution Name already contains existing.csolution.yml',
+            solutionConflict: { solutionFolder: 'Solution Name', fileName: 'existing.csolution.yml' },
+        });
+        await creation;
+
+        expect(getRequests('NEW_SOLUTION')).toHaveLength(0);
+        expect(viewModel.getSnapshot().state.solutionExists).toEqual({
+            type: 'loaded',
+            result: { solutionFolder: 'Solution Name', fileName: 'existing.csolution.yml' },
+        });
+        expect(viewModel.getSnapshot().state.createProgress).toBe('idle');
+        expect(messageListener).not.toHaveBeenCalledWith({ type: 'WEBVIEW_CLOSE' });
+    });
+
+    it('stores a conflict reported after creation starts', async () => {
+        viewModel.dispose();
+        viewModel = new CreateSolutionViewModel(messageHandler, validStateFactory());
+        viewModel.initialize();
+
+        const creation = viewModel.createSolution();
+        const existenceRequest = getLastRequest('CHECK_SOLUTION_DOES_NOT_EXIST');
+        messageHandler.postWindowMessage({
+            type: 'REQUEST_SUCCESSFUL',
+            requestType: existenceRequest.type,
+            requestId: existenceRequest.requestId,
+        });
+        await waitTimeout();
+        const creationRequest = getLastRequest('NEW_SOLUTION');
+        messageHandler.postWindowMessage({
+            type: 'REQUEST_FAILED',
+            requestType: creationRequest.type,
+            requestId: creationRequest.requestId,
+            errorMessage: 'Selected solution directory Solution Name already contains late.csolution.yaml',
+            solutionConflict: { solutionFolder: 'Solution Name', fileName: 'late.csolution.yaml' },
+        });
+        await creation;
+
+        expect(viewModel.getSnapshot().state.solutionExists).toEqual({
+            type: 'loaded',
+            result: { solutionFolder: 'Solution Name', fileName: 'late.csolution.yaml' },
+        });
+        expect(viewModel.getSnapshot().canCreate).toBe(false);
         expect(viewModel.getSnapshot().state.createProgress).toBe('idle');
         expect(messageListener).not.toHaveBeenCalledWith({ type: 'WEBVIEW_CLOSE' });
     });

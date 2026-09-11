@@ -15,7 +15,7 @@
     },
     {
         "name": "@vscode/codicons",
-        "version": "0.0.44",
+        "version": "0.0.45",
         "spdx": "CC-BY-4.0",
         "url": "https://github.com/microsoft/vscode-codicons",
         "license": "https://github.com/microsoft/vscode-codicons/blob/main/LICENSE"
@@ -127,7 +127,7 @@
     },
     {
         "name": "semver",
-        "version": "7.7.4",
+        "version": "7.8.5",
         "spdx": "ISC",
         "url": "https://github.com/npm/node-semver",
         "license": "https://github.com/npm/node-semver/blob/main/LICENSE"

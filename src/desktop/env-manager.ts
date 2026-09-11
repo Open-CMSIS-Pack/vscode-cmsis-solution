@@ -29,10 +29,13 @@ const DEFAULT_PATH_VAR = (process.platform === 'win32') ? 'Path' : 'PATH';
 const ENV_VAR_NAME_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const ENV_VAR_SETTINGS_NAME = `${PACKAGE_NAME}.${CONFIG_ENVIRONMENT_VARIABLES}`;
 const OPEN_SETTINGS_ACTION = 'Open Environment Variables Settings';
+const CMSIS_DEBUGGER_EXTENSION_ID = 'arm.vscode-cmsis-debugger';
 
 export interface EnvironmentManager {
     activate(context: vscode.ExtensionContext): Promise<void>;
     augmentEnv(env: Environment | undefined): Environment;
+    getEnvironmentVariables(): NodeJS.ProcessEnv;
+    getConfiguredEnvironmentVariables(): NodeJS.ProcessEnv;
 
     readonly onDidChangeEnvVars: vscode.Event<void>;
 }
@@ -223,6 +226,16 @@ class EnvironmentManagerImpl implements EnvironmentManager {
         return env;
     }
 
+    public getEnvironmentVariables(): NodeJS.ProcessEnv {
+        return this.augmentEnv(new EnvironmentImpl(process.env)).vars;
+    }
+
+    public getConfiguredEnvironmentVariables(): NodeJS.ProcessEnv {
+        const configuredEnv = this.configurationProvider.getConfigVariableOrDefault<NodeJS.ProcessEnv>(CONFIG_ENVIRONMENT_VARIABLES, {});
+        const { validEnv } = this.partitionConfiguredEnvironment(configuredEnv);
+        return new EnvironmentImpl(validEnv, process.env).vars;
+    }
+
     private updateEnvironment(context: vscode.ExtensionContext) {
         const configuredEnv = this.configurationProvider.getConfigVariableOrDefault<NodeJS.ProcessEnv>(CONFIG_ENVIRONMENT_VARIABLES, {});
         const { validEnv, invalidKeys } = this.partitionConfiguredEnvironment(configuredEnv);
@@ -239,7 +252,7 @@ class EnvironmentManagerImpl implements EnvironmentManager {
         });
 
         // prepend embedded pyOCD for CMSIS Debugger Extension to PATH
-        const debuggerExtension = vscode.extensions.getExtension<void>('arm.vscode-cmsis-debugger');
+        const debuggerExtension = vscode.extensions.getExtension<void>(CMSIS_DEBUGGER_EXTENSION_ID);
         if (debuggerExtension?.extensionPath) {
             const pyocdPath = path.join(debuggerExtension.extensionPath, 'tools', 'pyocd');
             envSettings.applyMutator(DEFAULT_PATH_VAR, {

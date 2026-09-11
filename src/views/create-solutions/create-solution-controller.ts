@@ -14,11 +14,15 @@
  * limitations under the License.
  */
 
-import { existsSync } from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { SOLUTION_SUFFIX } from '../../solutions/constants';
-import { CreateSolutionRequest, SolutionCreator } from '../../solutions/solution-creator';
+import {
+    CreateSolutionRequest,
+    findExistingSolutionFiles,
+    FindExistingSolutionFiles,
+    SolutionCreator,
+    SolutionDirectoryConflictError,
+} from '../../solutions/solution-creator';
 import { isUseWebServices } from '../../util';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
 import { MessageProvider } from '../../vscode-api/message-provider';
@@ -36,7 +40,7 @@ export class CreateSolutionController {
         private readonly messageProvider: MessageProvider,
         private readonly commandsProvider: CommandsProvider,
         private readonly workspaceFoldersProvider: WorkspaceFoldersProvider,
-        private readonly fileExists: (filePath: string) => boolean = existsSync,
+        private readonly findSolutionFiles: FindExistingSolutionFiles = findExistingSolutionFiles,
         private readonly showOpenDialog: ShowOpenDialog = vscode.window.showOpenDialog,
         private readonly useWebServices: () => boolean = isUseWebServices,
     ) {}
@@ -56,6 +60,9 @@ export class CreateSolutionController {
                 },
             ];
         } catch (error) {
+            if (error instanceof SolutionDirectoryConflictError) {
+                return [this.createConflictResponse(message, error.solutionFolder, error.fileName)];
+            }
             const errorMessage = error instanceof Error ? error.message : String(error);
             const failureMessage = message.type === 'NEW_SOLUTION'
                 ? `Failed to create solution: ${errorMessage}`
@@ -79,21 +86,12 @@ export class CreateSolutionController {
     private async handleRequestData(message: Messages.RequestMessage): Promise<Messages.IncomingMessage[]> {
         switch (message.type) {
             case 'NEW_SOLUTION':
-                await this.createSolution(message);
-                return [];
+                return await this.createSolution(message);
             case 'CHECK_SOLUTION_DOES_NOT_EXIST': {
-                const solutionPath = path.join(
-                    message.solutionLocation,
-                    message.solutionFolder,
-                    `${message.solutionName}${SOLUTION_SUFFIX}`,
-                );
-                if (this.fileExists(solutionPath)) {
-                    return [{
-                        type: 'REQUEST_FAILED',
-                        requestType: message.type,
-                        requestId: message.requestId,
-                        errorMessage: 'Solution already exists',
-                    }];
+                const solutionDir = path.join(message.solutionLocation, message.solutionFolder);
+                const existingSolutionFile = this.findSolutionFiles(solutionDir)[0];
+                if (existingSolutionFile) {
+                    return [this.createConflictResponse(message, message.solutionFolder, path.basename(existingSolutionFile))];
                 }
                 return [];
             }
@@ -102,20 +100,12 @@ export class CreateSolutionController {
                 return [{ type: 'TARGET_DATA', requestId: message.requestId, ...targets }];
             }
             case 'OPEN_FILE_PICKER': {
-                const defaultUri = message.solutionLocation
-                    ? vscode.Uri.file(message.solutionLocation)
-                    : undefined;
-                const selectedPaths = await this.showOpenDialog({
-                    defaultUri,
-                    canSelectFiles: false,
-                    canSelectFolders: true,
-                    canSelectMany: false,
-                });
-                return selectedPaths?.[0]
+                const selectedPath = await this.selectSolutionLocation(message.solutionLocation);
+                return selectedPath
                     ? [{
                         type: 'SOLUTION_LOCATION',
                         requestId: message.requestId,
-                        data: { path: selectedPaths[0].fsPath },
+                        data: { path: selectedPath },
                     }]
                     : [];
             }
@@ -167,7 +157,13 @@ export class CreateSolutionController {
         }
     }
 
-    private async createSolution(message: Messages.NewSolutionMessage): Promise<void> {
+    private async createSolution(message: Messages.NewSolutionMessage): Promise<Messages.IncomingMessage[]> {
+        const solutionDir = path.join(message.solutionLocation, message.solutionFolder);
+        const existingSolutionFile = this.findSolutionFiles(solutionDir)[0];
+        if (existingSolutionFile) {
+            return [this.createConflictResponse(message, message.solutionFolder, path.basename(existingSolutionFile))];
+        }
+
         const request: CreateSolutionRequest = {
             solutionName: message.solutionName,
             projects: message.projects.map(project => ({
@@ -196,6 +192,32 @@ export class CreateSolutionController {
         };
 
         await this.solutionCreator.createSolution(request);
+        return [];
+    }
+
+    private createConflictResponse(
+        message: Messages.RequestMessage,
+        solutionFolder: string,
+        fileName: string,
+    ): Extract<Messages.IncomingMessage, { type: 'REQUEST_FAILED' }> {
+        return {
+            type: 'REQUEST_FAILED',
+            requestType: message.type,
+            requestId: message.requestId,
+            errorMessage: `Selected solution directory ${solutionFolder} already contains ${fileName}`,
+            solutionConflict: { solutionFolder, fileName },
+        };
+    }
+
+    private async selectSolutionLocation(solutionLocation?: string): Promise<string | undefined> {
+        const defaultUri = solutionLocation ? vscode.Uri.file(solutionLocation) : undefined;
+        const selectedPaths = await this.showOpenDialog({
+            defaultUri,
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+        });
+        return selectedPaths?.[0]?.fsPath;
     }
 
     private async getConnectedBoardName(): Promise<string | undefined> {

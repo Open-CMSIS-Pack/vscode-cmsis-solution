@@ -509,7 +509,7 @@ describe('createSolutionReducer', () => {
 
     describe('START_SOLUTION_EXISTS_CHECK', () => {
         it('sets the loading state', () => {
-            const input: CreateSolutionState = { ...initialState, solutionExists: { type: 'loaded', result: false } };
+            const input: CreateSolutionState = { ...initialState, solutionExists: { type: 'loaded', result: null } };
 
             const output = createSolutionReducer(input, { type: 'START_SOLUTION_EXISTS_CHECK' });
 
@@ -519,12 +519,13 @@ describe('createSolutionReducer', () => {
     });
 
     describe('END_SOLUTION_EXISTS_CHECK', () => {
-        it('sets the loaded state', () => {
+        it('sets the loaded conflict state', () => {
             const input: CreateSolutionState = { ...initialState, solutionExists: { type: 'loading' } };
+            const conflict = { solutionFolder: 'folder', fileName: 'existing.csolution.yml' };
 
-            const output = createSolutionReducer(input, { type: 'END_SOLUTION_EXISTS_CHECK', result: false });
+            const output = createSolutionReducer(input, { type: 'END_SOLUTION_EXISTS_CHECK', result: conflict });
 
-            expect(output.solutionExists).toEqual({ type: 'loaded', result: false });
+            expect(output.solutionExists).toEqual({ type: 'loaded', result: conflict });
             checkValuesUnmodified(['solutionExists'], input, output);
         });
     });
