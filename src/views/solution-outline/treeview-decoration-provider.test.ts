@@ -21,6 +21,7 @@ import { ThemeProvider } from '../../vscode-api/theme-provider';
 import path from 'path';
 import { URI } from 'vscode-uri';
 import { COutlineItem } from './tree-structure/solution-outline-item';
+import { getOutlineItemResourceUri, solutionOutlineUriScheme } from './treeview-provider';
 
 describe('provideFileDecoration', () => {
     let treeViewDecorationProvider: TreeViewFileDecorationProvider;
@@ -85,6 +86,58 @@ describe('provideFileDecoration', () => {
             tooltip: TreeViewFileDecorationProvider.excludedTooltip,
             color: { id: TreeViewFileDecorationProvider.excludedColor },
         });
+    });
+
+    it.each(['group', 'component'])('should return context exclusion decoration for excluded %s items', tag => {
+        const root = new COutlineItem('root');
+        const container = root.createChild(tag === 'group' ? 'project' : 'components');
+        const item = container.createChild(tag);
+        item.setAttribute('excluded', '1');
+        const uri = getOutlineItemResourceUri(item);
+
+        treeViewDecorationProvider.setTreeRoot(root);
+
+        const result = treeViewDecorationProvider.provideFileDecoration(uri!);
+
+        expect(result).toEqual({
+            badge: TreeViewFileDecorationProvider.excludedBadge,
+            tooltip: TreeViewFileDecorationProvider.contextExcludedTooltip,
+            color: { id: TreeViewFileDecorationProvider.excludedColor },
+        });
+    });
+
+    it('should isolate synthetic decorations for duplicate labels', () => {
+        const root = new COutlineItem('root');
+        const firstGroup = root.createChild('group');
+        const secondGroup = root.createChild('group');
+        firstGroup.setAttribute('label', 'Sources');
+        firstGroup.setAttribute('excluded', '1');
+        secondGroup.setAttribute('label', 'Sources');
+
+        treeViewDecorationProvider.setTreeRoot(root);
+
+        const result = treeViewDecorationProvider.provideFileDecoration(getOutlineItemResourceUri(secondGroup)!);
+
+        expect(result).toBeUndefined();
+    });
+
+    it('should ignore unknown URI schemes', () => {
+        const result = treeViewDecorationProvider.provideFileDecoration(URI.parse('unknown:/group/0'));
+
+        expect(result).toBeUndefined();
+    });
+
+    it('should not apply file decorations to synthetic URIs', () => {
+        const root = new COutlineItem('root');
+        const group = root.createChild('group');
+        group.addFeature('mergeFile:');
+        jest.spyOn(path_utils, 'getCmsisPackRoot').mockReturnValue(group.getAttribute('label') ?? '');
+
+        treeViewDecorationProvider.setTreeRoot(root);
+
+        const uri = getOutlineItemResourceUri(group)!;
+        expect(uri.scheme).toBe(solutionOutlineUriScheme);
+        expect(treeViewDecorationProvider.provideFileDecoration(uri)).toBeUndefined();
     });
 
     it('should prioritize excluded decoration over pack-sourced decoration', () => {
