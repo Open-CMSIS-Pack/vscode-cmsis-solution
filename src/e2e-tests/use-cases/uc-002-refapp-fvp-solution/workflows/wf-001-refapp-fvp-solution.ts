@@ -47,9 +47,18 @@ import {
     waitForBuild,
 } from '../../../utils/helper';
 import { log } from '../../../utils/logger';
-import type { RequiredPack } from '../setup';
+import { prepareCmsisEnvironment } from './prepare-cmsis-environment';
 
 export { loadYamlFixture } from '../../../utils/usecases';
+
+export type RequiredPack = {
+    source: string;
+    agree_embedded_license?: boolean;
+    repository?: {
+        url: string;
+        directory: string;
+    };
+};
 
 // Fixture type
 export type CreateSolutionFixture = {
@@ -196,6 +205,12 @@ export const runWf001RefAppFVPSolution = async (
         await vsCodeDriver.page.getCommands().runCommandFromPalette('Notifications: Clear All Notifications');
         await vsCodeDriver.page.openCmsisPanel();
 
+        // Prepare CMSIS environment
+        await test.step('Prepare CMSIS environment', async () => {
+            await prepareCmsisEnvironment(vsCodeDriver, fixture);
+        });
+
+        // Create and load solution
         const { createdSolution, artifacts } = await test.step(
             'Create and load solution',
             async () => {
