@@ -59,7 +59,7 @@ export type CreateSolutionState = {
     solutionLocation: FieldAndInteraction<string>;
     solutionName: FieldAndInteraction<string>;
     solutionFolder: FieldAndInteraction<string>;
-    solutionExists: AsyncStatus<boolean>;
+    solutionExists: AsyncStatus<Messages.SolutionDirectoryConflict | null>;
     targetType: FieldAndInteraction<string>;
     connectedBoard: string;
     platform: Messages.Platform;
@@ -88,7 +88,7 @@ export const initialState: CreateSolutionState = {
     deviceSelection: { value: undefined, hadInteraction: false },
     boardPreview: undefined,
     devicePreview: undefined,
-    solutionExists: { type: 'loaded', result: false },
+    solutionExists: { type: 'loaded', result: null },
     hardwareInfo: undefined,
     targetType: { value: '', hadInteraction: false },
     connectedBoard: '',
@@ -117,7 +117,7 @@ export type CreateSolutionAction
     | { type: 'SET_DEVICE_PREVIEW', devicePreview: DeviceHardwareOption }
     | { type: 'INCOMING_MESSAGE', message: Messages.IncomingMessage }
     | { type: 'START_SOLUTION_EXISTS_CHECK' }
-    | { type: 'END_SOLUTION_EXISTS_CHECK', result: boolean }
+    | { type: 'END_SOLUTION_EXISTS_CHECK', result: Messages.SolutionDirectoryConflict | null }
     | { type: 'SET_BOARD_TREE_VIEW_SEARCH', search: string }
     | { type: 'SET_DEVICE_TREE_VIEW_SEARCH', search: string }
     | { type: 'SET_EXAMPLES_TREE_VIEW_SEARCH', search: string }

@@ -39,11 +39,16 @@ import {
  */
 export type RequestId = string;
 
+export type SolutionDirectoryConflict = {
+  solutionFolder: string;
+  fileName: string;
+};
+
 type Request<T extends string> = { type: T; requestId: RequestId };
 
 export type RequestMessage
   = Request<'NEW_SOLUTION'> & CreateSolutionSubmission
-  | Request<'CHECK_SOLUTION_DOES_NOT_EXIST'> & { solutionLocation: string; solutionName: string; solutionFolder: string }
+  | Request<'CHECK_SOLUTION_DOES_NOT_EXIST'> & { solutionLocation: string; solutionFolder: string }
   | Request<'DATA_GET_TARGETS'>
   | Request<'OPEN_FILE_PICKER'> & { solutionLocation?: string }
   | Request<'DATA_GET_DEFAULT_LOCATION'>
@@ -78,7 +83,7 @@ export type Platform = 'ksc' | 'vscode';
 */
 export type IncomingMessage
   = | { type: 'REQUEST_SUCCESSFUL'; requestType: RequestMessage['type']; requestId: RequestId }
-  | { type: 'REQUEST_FAILED'; requestType: RequestMessage['type']; requestId: RequestId; errorMessage?: string }
+  | { type: 'REQUEST_FAILED'; requestType: RequestMessage['type']; requestId: RequestId; errorMessage?: string; solutionConflict?: SolutionDirectoryConflict }
   | { type: 'TARGET_DATA'; requestId: RequestId; data: HardwareLists; errors: string[] }
   | { type: 'SOLUTION_LOCATION'; requestId: RequestId; data: { path: string } }
   | { type: 'HARDWARE_INFO'; requestId: RequestId; data: HardwareInfo }

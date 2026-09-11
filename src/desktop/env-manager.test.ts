@@ -366,6 +366,33 @@ describe('EnvironmentManager', () => {
         });
     });
 
+    describe('tools environment sources', () => {
+        it('returns resolved and configured environment variables', async () => {
+            configurationProviderMock = configurationProviderFactory({
+                [CONFIG_ENVIRONMENT_VARIABLES]: {
+                    CONFIGURED_VAR: 'configured',
+                    'invalid-name': 'ignored',
+                },
+            });
+            environmentManager = new EnvironmentManager(configurationProviderMock);
+            await environmentManager.activate(mockContext);
+            mockEnvironmentVariableCollection.forEach.mockImplementation(callback => {
+                callback('RESOLVED_VAR', {
+                    type: vscode.EnvironmentVariableMutatorType.Replace,
+                    value: 'resolved',
+                });
+            });
+
+            expect(environmentManager.getEnvironmentVariables()).toMatchObject({
+                RESOLVED_VAR: 'resolved',
+            });
+            expect(environmentManager.getConfiguredEnvironmentVariables()).toEqual({
+                CONFIGURED_VAR: 'configured',
+            });
+        });
+
+    });
+
     describe('updateEnvironment - PATH handling', () => {
         it('prepends PATH values with delimiter', async () => {
             const newPath = '/new/path';

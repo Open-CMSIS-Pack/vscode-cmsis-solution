@@ -17,7 +17,6 @@
 import 'jest';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as fs from 'fs';
 import type { ExtensionContext, WorkspaceFolder } from 'vscode';
 import { CreateSolutionWebviewMain } from './create-solution-webview-main';
 import { WebviewManager } from '../webview-manager';
@@ -52,7 +51,6 @@ jest.mock('fs', () => ({
 const WORKSPACE_ROOT_URI = URI.file(path.join(__dirname, 'local'));
 const EXTENSION_URI = URI.file(path.join(__dirname, 'extension'));
 
-const mockFsExistsSync = fs.existsSync as jest.Mock;
 const mockShowTextDocument = vscode.window.showTextDocument as jest.Mock;
 
 describe('CreateSolutionWebviewMain', () => {
@@ -80,6 +78,7 @@ describe('CreateSolutionWebviewMain', () => {
     let commandsProvider: MockCommandsProvider;
     let mockOpenDialog: jest.Mock;
     let mockSolutionCreator: jest.Mocked<SolutionCreator>;
+    let findSolutionFiles: jest.Mock;
 
     beforeEach(async () => {
         workspaceFoldersProvider = workspaceFoldersProviderFactory();
@@ -99,6 +98,7 @@ describe('CreateSolutionWebviewMain', () => {
         dataManager = dataManagerFactory();
         commandsProvider = commandsProviderFactory();
         mockOpenDialog = vscode.window.showOpenDialog as jest.Mock;
+        findSolutionFiles = jest.fn().mockReturnValue([]);
 
         mockSolutionCreator = { createSolution: jest.fn() };
 
@@ -110,7 +110,7 @@ describe('CreateSolutionWebviewMain', () => {
             messageProvider,
             commandsProvider,
             workspaceFoldersProvider,
-            mockFsExistsSync,
+            findSolutionFiles,
             mockOpenDialog,
         );
         webviewMain = new CreateSolutionWebviewMain(
@@ -127,7 +127,6 @@ describe('CreateSolutionWebviewMain', () => {
 
         await webviewMain.activate({ subscriptions: [] } as unknown as ExtensionContext);
 
-        mockFsExistsSync.mockReturnValue(true);
         mockShowTextDocument.mockResolvedValue(undefined);
         messageProvider.showInformationMessage.mockResolvedValue(undefined);
     });

@@ -25,7 +25,7 @@ import { useVSCodeTheme } from '../../../hooks/use-vscode-theme';
 import { MessageHandler } from '../../../message-handler';
 import { IncomingMessage, OutgoingMessage } from '../../messages';
 import { GenericPropertyList } from '../state/manage-solution-state';
-import { SolutionUpdateAction, contextUpdateReducer, initialState, manageSolutionReducer } from '../state/reducer';
+import { SolutionUpdateAction, contextUpdateReducer, editablePropertyKey, initialState, manageSolutionReducer } from '../state/reducer';
 import { ProjectsTable } from './projects-table';
 import { TargetsTable } from './targets-table';
 import { PathType } from '../../types';
@@ -55,8 +55,6 @@ export const manageSolutionTargetDocsUrl = 'https://mdk-packs.github.io/vscode-c
 
 export const ManageSolution = (props: ManageSolutionProps) => {
     const [state, dispatch] = React.useReducer(manageSolutionReducer, initialState);
-    // Eager local editable values snapshot (display-layer values). Numbers are stored scaled for user editing.
-    const [localValues, setLocalValues] = React.useState<Record<string, string | number>>({});
     const pendingFileSelections = React.useRef<Map<string, PendingFileSelection>>(new Map());
 
     const adapter = React.useMemo(
@@ -64,10 +62,11 @@ export const ManageSolution = (props: ManageSolutionProps) => {
         [state.debugAdapters, state.debugger]
     );
 
-    // returns section::[pname:]option
-    const keyFor = React.useCallback((section: UISection | undefined, option: UISectionChildren | undefined) => {
-        return `${section?.['yml-node'] || ''}::${option?.pname ? `${option.pname}:` : ''}${option?.['yml-node'] || ''}`;
-    }, []);
+    const keyFor = React.useCallback(
+        (section: UISection | undefined, option: UISectionChildren | undefined) =>
+            editablePropertyKey(state.solutionData, state.debugger, section, option),
+        [state.solutionData, state.debugger]
+    );
 
     const ulRef = React.useRef<HTMLUListElement>(null);
     React.useEffect(() => {
@@ -109,7 +108,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
             }
 
             const selectedPath = message.data[0];
-            setLocalValues(prev => ({ ...prev, [pendingSelection.localValueKey]: selectedPath }));
+            dispatch({ type: 'EDIT_PROPERTY', key: pendingSelection.localValueKey, value: selectedPath });
             props.messageHandler.push({
                 type: 'SET_DEBUG_ADAPTER_PROPERTY',
                 service: pendingSelection.service,
@@ -169,45 +168,6 @@ export const ManageSolution = (props: ManageSolutionProps) => {
             ?.debugger as GenericPropertyList || {}
     ), [state.solutionData.selectedTarget?.targetSets, state.solutionData.selectedTarget?.selectedSet]);
 
-    // Generic getter (stable, no deps needed as it does not capture changing values directly)
-    const getProperty = React.useCallback(function getProperty<T>(defaultValue: T | undefined, obj: Record<string, unknown>, ...keys: (string | unknown)[]): T | undefined {
-        let result = obj;
-        let i = 0;
-        while (i < keys.length) {
-            const key = keys[i];
-            if (typeof key === 'string') {
-                if (!result) break;
-
-                if (Array.isArray(result)) {
-                    // Special handling for patterns like: 'pname', <coreName>, <value>
-                    if (key === 'pname' && typeof keys[i + 1] === 'string' && typeof keys[i + 2] === 'string') {
-                        const [coreName, value] = keys.slice(i + 1, i + 3) as [string, string];
-                        result = (result as Array<Record<string, unknown>>)
-                            .find(p => p.pname === coreName)?.[value] as Record<string, unknown>;
-                        i += 3;
-                        continue;
-                    }
-                    // Special handling for single item arrays where key list doesn't contain a pname.
-                    result = result[0][keys[i] as string] as Record<string, unknown>;
-                    break;
-                } else {
-                    result = (result as Record<string, unknown>)[key] as Record<string, unknown>;
-                }
-            }
-            i++;
-        }
-        return result as T ?? defaultValue;
-    }, []);
-
-    const getScaledProperty = React.useCallback(function getScaledProperty(defaultValue: number | undefined, scale: number | undefined, obj: Record<string, unknown>, ...keys: (string | unknown)[]): number | undefined {
-        const scaled = (v: number | undefined) => (v !== undefined && scale !== undefined ? v / scale : v);
-        const unscaled = (v: number) => (scale !== undefined ? v * scale : v);
-        if (defaultValue === undefined) {
-            return scaled(getProperty<number>(undefined, obj, ...keys));
-        }
-        return scaled(getProperty<number>(unscaled(defaultValue), obj, ...keys));
-    }, [getProperty]);
-
     function sendDebugAdapterProperty(service: string | undefined, key: string, value: string): void;
     function sendDebugAdapterProperty(service: string | undefined, key: string, value: number, scale?: number): void;
     function sendDebugAdapterProperty(service: string | undefined, key: string, value: string, scale: undefined, pname?: string): void;
@@ -255,29 +215,6 @@ export const ManageSolution = (props: ManageSolutionProps) => {
             }
         });
     }, [props.messageHandler]);
-
-    // Eager initialization/reset of localValues whenever adapter context changes.
-    React.useEffect(() => {
-        const next: Record<string, string | number> = {};
-        adapter?.['user-interface']?.forEach(section => {
-            section.options?.forEach(o => {
-                const k = keyFor(section, o);
-                const sectionNode = section['yml-node'];
-                const optionNode = o['yml-node'];
-                if (o.type === 'number') {
-                    // Store scaled value for editing convenience (always number)
-                    next[k] = getScaledProperty(o.default ?? o.range?.[1] ?? 0, o.scale, selectedDebugAdapter, sectionNode, o.pname, optionNode) ?? (o.default ?? o.range?.[1] ?? 0);
-                } else {
-                    // All non-number types treated as strings; ensure fallback to ''
-                    const raw = o.pname
-                        ? getProperty<string>(o.default ?? '', selectedDebugAdapter, sectionNode, 'pname', o.pname, optionNode)
-                        : getProperty<string>(o.default ?? '', selectedDebugAdapter, sectionNode, optionNode);
-                    next[k] = raw ?? '';
-                }
-            });
-        });
-        setLocalValues(next);
-    }, [adapter, selectedDebugAdapter, getProperty, getScaledProperty, keyFor]);
 
     const showCoreSelector = state.solutionData.availableCoreNames !== undefined && state.solutionData.availableCoreNames.length > 1;
     const debugAdapterConfigurationDocsUrl = 'https://mdk-packs.github.io/vscode-cmsis-solution-docs/debug.html#configure-run-and-debug';
@@ -433,18 +370,23 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                             return (
                                                 <div key={`option-${section.section}-${o.name}`} className='section-control' title={o.description || ''}>{(() => {
                                                     const k = keyFor(section, o);
+                                                    const propertyValue = state.editableProperties[k]?.value;
+                                                    const focusProperty = () => dispatch({ type: 'FOCUS_PROPERTY', key: k });
+                                                    const blurProperty = () => dispatch({ type: 'BLUR_PROPERTY', key: k });
                                                     switch (o.type) {
                                                         case 'number':
                                                             return (
                                                                 <InputNumber
                                                                     addonBefore={o.name}
-                                                                    value={localValues[k] as number}
+                                                                    value={propertyValue as number}
                                                                     onPressEnter={blurOnEnter}
+                                                                    onFocus={focusProperty}
                                                                     onChange={(val) => {
-                                                                        if (val !== null) setLocalValues(prev => ({ ...prev, [k]: val }));
+                                                                        if (val !== null) dispatch({ type: 'EDIT_PROPERTY', key: k, value: val });
                                                                     }}
                                                                     onBlur={() => {
-                                                                        const displayVal = localValues[k];
+                                                                        blurProperty();
+                                                                        const displayVal = propertyValue;
                                                                         const numericDisplay = typeof displayVal === 'string' ? parseFloat(displayVal) : (displayVal as number);
                                                                         const fallback = o.default ?? o.range?.[1] ?? 0;
                                                                         const clamped = Math.min(Math.max(Number.isFinite(numericDisplay) ? numericDisplay : fallback, o.range?.[0] ?? -Infinity), o.range?.[1] ?? Infinity);
@@ -459,10 +401,14 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                             return (
                                                                 <Input
                                                                     addonBefore={o.name}
-                                                                    value={(localValues[k] as string) ?? ''}
+                                                                    value={(propertyValue as string) ?? ''}
                                                                     onPressEnter={blurOnEnter}
-                                                                    onChange={e => setLocalValues(prev => ({ ...prev, [k]: e.target.value }))}
-                                                                    onBlur={() => { sendDebugAdapterProperty(section['yml-node'], o['yml-node'], (localValues[k] as string) ?? ''); }}
+                                                                    onFocus={focusProperty}
+                                                                    onChange={e => dispatch({ type: 'EDIT_PROPERTY', key: k, value: e.target.value })}
+                                                                    onBlur={() => {
+                                                                        blurProperty();
+                                                                        sendDebugAdapterProperty(section['yml-node'], o['yml-node'], (propertyValue as string) ?? '');
+                                                                    }}
                                                                     title={o.description}
                                                                 />
                                                             );
@@ -472,7 +418,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                     addonBefore={<>{o.name}</>}
                                                                     addonAfter={
                                                                         <Space size={0}>
-                                                                            <Button aria-label='Open File' icon={<CmsisCodicon name='go-to-file' title='Go to file' />} disabled={localValues[k] ? false : true} onClick={() => { openFile(localValues[k] as string); }} type='text' className='file-open-icon-button' />
+                                                                            <Button aria-label='Open File' icon={<CmsisCodicon name='go-to-file' title='Go to file' />} disabled={!propertyValue} onClick={() => { openFile(propertyValue as string); }} type='text' className='file-open-icon-button' />
                                                                             <Button
                                                                                 type='primary'
                                                                                 className='file-button'
@@ -482,18 +428,20 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                                     key: o['yml-node'],
                                                                                     localValueKey: k,
                                                                                     title: o.description || 'Select File',
-                                                                                    defaultUri: (localValues[k] as string) ?? '',
+                                                                                    defaultUri: (propertyValue as string) ?? '',
                                                                                     pathType: o['path-type'],
                                                                                 })}
                                                                             >Browse</Button>
                                                                         </Space>
                                                                     }
-                                                                    value={(localValues[k] as string) ?? ''}
+                                                                    value={(propertyValue as string) ?? ''}
                                                                     data-yml-node={o['yml-node']}
                                                                     data-option-path-type={o['path-type']}
                                                                     onPressEnter={blurOnEnter}
+                                                                    onFocus={focusProperty}
+                                                                    onBlur={blurProperty}
                                                                     onChange={(e) => {
-                                                                        setLocalValues(prev => ({ ...prev, [k]: e.target.value }));
+                                                                        dispatch({ type: 'EDIT_PROPERTY', key: k, value: e.target.value });
                                                                         // immediate commit for file path edits
                                                                         sendDebugAdapterProperty(section['yml-node'], o['yml-node'], e.target.value);
                                                                     }}
@@ -502,7 +450,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                             );
                                                         case 'enum': {
                                                             const valueMap = new Map(o.values.map(v => [v.value, v]));
-                                                            const stringValue = (localValues[k] as string);
+                                                            const stringValue = propertyValue as string;
                                                             return (
                                                                 <CompactDropdown
                                                                     addonBefore={o.name}
@@ -512,7 +460,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                     selected={stringValue ?? ''}
                                                                     warning={!valueMap.has(stringValue) && `Value '${stringValue}' not in enum options`}
                                                                     onChange={(value) => {
-                                                                        setLocalValues(prev => ({ ...prev, [k]: value }));
+                                                                        dispatch({ type: 'EDIT_PROPERTY', key: k, value });
                                                                         sendDebugAdapterProperty(section['yml-node'], o['yml-node'], value, undefined, o.pname);
                                                                     }}
                                                                     title={o.description}

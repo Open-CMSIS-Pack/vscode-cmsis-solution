@@ -15,6 +15,7 @@
  */
 
 import * as YAML from 'yaml';
+import fs from 'fs';
 import { TestDataHandler } from '../__test__/test-data';
 import path from 'node:path';
 import { CSolution } from './csolution';
@@ -65,6 +66,50 @@ describe('CSolution', () => {
             expect(csolution.solutionPath).toEqual(fullPath);
 
             verifyProjects(csolution, expectedProjects);
+        });
+
+        it('persists the default target type and named target set selection', async () => {
+            const csolution = new CSolution();
+            const fullPath = path.join(testDataHandler.tmpDir, 'solutions', 'targetSet', 'TargetSets.csolution.yml');
+            csolution.cmsisJsonFile.unlink();
+
+            expect(await csolution.load(fullPath)).toEqual(ETextFileResult.Success);
+
+            expect(csolution.cmsisJsonFile.targetSetMap).toEqual({
+                activeTargetType: csolution.getActiveTargetType(),
+                [csolution.getActiveTargetType()!]: 0,
+            });
+            expect(csolution.cmsisJsonFile.getSettings()).toEqual(expect.objectContaining({
+                activeSolution: path.relative(
+                    path.dirname(csolution.cmsisJsonFile.fileName),
+                    csolution.solutionPath
+                ).replaceAll('\\', '/'),
+                activeTarget: `${csolution.getActiveTargetType()}@${csolution.getActiveTargetSetWrap()?.name}`,
+            }));
+        });
+
+        it('does not overwrite cmsis.json when loading it fails', async () => {
+            const csolution = new CSolution();
+            const fullPath = path.join(testDataHandler.tmpDir, 'solutions', 'simple', 'test.csolution.yml');
+            const invalidSettings = '{ invalid json';
+            fs.mkdirSync(path.dirname(csolution.cmsisJsonFile.fileName), { recursive: true });
+            fs.writeFileSync(csolution.cmsisJsonFile.fileName, invalidSettings, 'utf8');
+            const writeFileSpy = jest.spyOn(csolution.cmsisJsonFile, 'save');
+
+            expect(await csolution.load(fullPath)).toEqual(ETextFileResult.Success);
+            expect(writeFileSpy).not.toHaveBeenCalled();
+            expect(fs.readFileSync(csolution.cmsisJsonFile.fileName, 'utf8')).toBe(invalidSettings);
+        });
+
+        it('returns an error when saving cmsis.json fails', async () => {
+            const csolution = new CSolution();
+            const fullPath = path.join(testDataHandler.tmpDir, 'solutions', 'simple', 'test.csolution.yml');
+            csolution.cmsisJsonFile.unlink();
+            jest.spyOn(csolution.cmsisJsonFile, 'save').mockResolvedValue(ETextFileResult.Error);
+
+            expect(await csolution.load(fullPath)).toEqual(ETextFileResult.Error);
+            expect(csolution.solutionPath).toEqual(fullPath);
+            verifyProjects(csolution, 1);
         });
     });
 
@@ -785,6 +830,35 @@ describe('CSolution', () => {
             });
 
             expect(files).toHaveLength(1 + projectPaths.length + layerPaths.length);
+        });
+
+        it('includes expected layer paths that were not loaded', () => {
+            const csolution = new CSolution();
+            const missingLayerPath = path.join(testDataHandler.tmpDir, 'generated', 'missing.cgen.yml');
+            jest.spyOn(csolution.cbuildIdxFile, 'activeContexts', 'get').mockReturnValue([{
+                displayName: 'Project.Debug+Target',
+                projectName: 'Project',
+                buildType: 'Debug',
+                targetType: 'Target',
+                layers: [{ displayName: 'missing', absolutePath: missingLayerPath }],
+            }]);
+
+            expect(csolution.getSolutionYmlFiles()).toContain(missingLayerPath);
+        });
+
+        it('deduplicates loaded and expected layer paths', () => {
+            const csolution = new CSolution();
+            const layerPath = path.join(testDataHandler.tmpDir, 'generated', 'shared.cgen.yml');
+            csolution.clayerYmlRoot.set(layerPath, {} as CTreeItem);
+            jest.spyOn(csolution.cbuildIdxFile, 'activeContexts', 'get').mockReturnValue([{
+                displayName: 'Project.Debug+Target',
+                projectName: 'Project',
+                buildType: 'Debug',
+                targetType: 'Target',
+                layers: [{ displayName: 'shared', absolutePath: layerPath }],
+            }]);
+
+            expect(csolution.getSolutionYmlFiles()).toEqual([layerPath]);
         });
     });
 
