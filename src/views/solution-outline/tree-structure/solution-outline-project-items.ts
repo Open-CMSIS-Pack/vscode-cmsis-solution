@@ -243,6 +243,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
             componentItem.setAttribute('label', refId);
             componentItem.setAttribute('expandable', '0');
             componentItem.setAttribute('iconPath', 'csolution-software-component');
+            this.applyContextExclusion(componentItem, component);
             if (editable) {
                 componentItem.addFeature('component');
                 componentItem.setAttribute('projectUri', topTag === 'project' ? rootFileName : undefined);

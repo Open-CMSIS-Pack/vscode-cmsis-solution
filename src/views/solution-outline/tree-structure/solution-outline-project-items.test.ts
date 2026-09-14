@@ -44,6 +44,31 @@ describe('ProjectItemsBuilder', () => {
         expect(fileItem?.getAttribute('excluded')).toBe('1');
     });
 
+    it('marks only components excluded from the active context', () => {
+        const cproject = new CProjectYamlFile();
+        const project = cproject.ensureTopItem('project');
+        const components = project.createChild('components');
+        components.setKind(ETreeItemKind.Sequence);
+        const debugComponent = components.createChild('-');
+        debugComponent.setValue('component', 'Device:Debug');
+        debugComponent.setValue('for-context', '.Debug');
+        const releaseComponent = components.createChild('-');
+        releaseComponent.setValue('component', 'Device:Release');
+        releaseComponent.setValue('for-context', '.Release');
+
+        const cbuild = new CTreeItem('build');
+        cbuild.setValue('context', 'Project.Release+Target');
+        const projectItem = new COutlineItem('project');
+
+        new ProjectItemsBuilder().addProjectChildren(undefined, projectItem, cproject, cbuild);
+
+        const componentItems = projectItem.getChildItem('components')?.getChildren() as COutlineItem[];
+        expect(componentItems[0].getAttribute('label')).toBe('Device:Debug');
+        expect(componentItems[0].getAttribute('excluded')).toBe('1');
+        expect(componentItems[1].getAttribute('label')).toBe('Device:Release');
+        expect(componentItems[1].getAttribute('excluded')).toBeUndefined();
+    });
+
     it('renders generated groups for a read-only CMake project', () => {
         const cproject = new CProjectYamlFile();
         cproject.readOnly = true;
