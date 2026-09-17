@@ -53,10 +53,15 @@ describe('ToolsEnvironment', () => {
         const debuggerExtensionPath = fs.mkdtempSync(path.join(__dirname, 'cmsis-debugger-'));
         const pyocdPath = path.join(debuggerExtensionPath, 'tools', 'pyocd');
         const gdbBin = path.join(debuggerExtensionPath, 'tools', 'gdb', 'bin');
+        const sdsExtensionPath = fs.mkdtempSync(path.join(__dirname, 'cmsis-sds-'));
+        const sdsToolsPath = path.join(sdsExtensionPath, 'tools');
         fs.mkdirSync(pyocdPath, { recursive: true });
         fs.mkdirSync(gdbBin, { recursive: true });
+        fs.mkdirSync(sdsToolsPath, { recursive: true });
         fs.writeFileSync(path.join(pyocdPath, 'version.txt'), '0.38.0\n');
         fs.writeFileSync(path.join(debuggerExtensionPath, 'tools', 'gdb', 'version.txt'), '15.2.rel1\n');
+        fs.writeFileSync(path.join(sdsToolsPath, 'sdsio-server.exe'), '');
+        fs.writeFileSync(path.join(sdsToolsPath, 'version.txt'), '1.2.3\n');
         (vscode.extensions.getExtension as jest.Mock).mockImplementation((extensionId: string) => {
             if (extensionId === 'arm.cmsis-csolution') {
                 return { packageJSON: { version: '1.70.1-41-20260902' } };
@@ -64,12 +69,15 @@ describe('ToolsEnvironment', () => {
             if (extensionId === 'arm.vscode-cmsis-debugger') {
                 return { extensionPath: debuggerExtensionPath };
             }
+            if (extensionId === 'arm.cmsis-sds') {
+                return { extensionPath: sdsExtensionPath };
+            }
             return undefined;
         });
         const environmentManager = {
             getEnvironmentVariables: jest.fn().mockReturnValue({
                 PATH: [
-                    '/usr/local/bin', pyocdPath, builtInToolboxBin, toolboxBin, gccBin, cmakeBin, gdbBin,
+                    '/usr/local/bin', pyocdPath, builtInToolboxBin, toolboxBin, gccBin, cmakeBin, gdbBin, sdsToolsPath,
                 ].join(path.delimiter),
                 CMSIS_PACK_ROOT: '/packs',
                 CMSIS_COMPILER_ROOT: '/compilers',
@@ -141,7 +149,7 @@ describe('ToolsEnvironment', () => {
                 'generated-by': 'arm.cmsis-csolution version 1.70.1-41-20260902',
                 solution: '../project.csolution.yml',
                 environment: {
-                    path: [pyocdPath, builtInToolboxBin, gccBin, cmakeBin, gdbBin].map(toPortablePath),
+                    path: [pyocdPath, builtInToolboxBin, gccBin, cmakeBin, gdbBin, sdsToolsPath].map(toPortablePath),
                     variables: {
                         CMSIS_PACK_ROOT: '/packs',
                         CMSIS_COMPILER_ROOT: '/compilers',
@@ -202,6 +210,17 @@ describe('ToolsEnvironment', () => {
                         },
                         directory: toPortablePath(gdbBin),
                         manual: 'https://developer.arm.com/Tools%20and%20Software/GNU%20Toolchain',
+                    },
+                    {
+                        name: 'sdsio-server',
+                        version: '1.2.3',
+                        origin: 'built-in',
+                        provider: {
+                            type: 'vscode-extension',
+                            id: 'arm.cmsis-sds',
+                        },
+                        directory: toPortablePath(sdsToolsPath),
+                        manual: 'https://arm-software.github.io/SDS-Framework/main/utilities.html#sdsio-server',
                     },
                 ],
             },
