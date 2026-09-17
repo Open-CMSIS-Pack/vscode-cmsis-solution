@@ -58,19 +58,26 @@ describe('SearchSolutionSourcesCommand', () => {
         );
     });
 
-    it('searches only existing regular source files', async () => {
+    it('searches only existing regular source and solution YML files', async () => {
         const sourceFiles = [
             path.join(path.parse(process.cwd()).root, 'workspace', 'main.c'),
             path.join(path.parse(process.cwd()).root, 'packs', 'header[1].h'),
             path.join(path.parse(process.cwd()).root, 'west', 'missing.c'),
         ];
-        const solution = { getSourceFiles: jest.fn().mockReturnValue(sourceFiles) } as Pick<CSolution, 'getSourceFiles'>;
+        const solutionYmlFiles = [
+            path.join(path.parse(process.cwd()).root, 'workspace', 'solution.csolution.yml'),
+            path.join(path.parse(process.cwd()).root, 'workspace', 'missing.cproject.yml'),
+        ];
+        const solution = {
+            getSourceFiles: jest.fn().mockReturnValue(sourceFiles),
+            getSolutionYmlFiles: jest.fn().mockReturnValue(solutionYmlFiles),
+        } as Pick<CSolution, 'getSourceFiles' | 'getSolutionYmlFiles'>;
         const solutionManager = solutionManagerFactory({
             getCsolution: jest.fn().mockReturnValue(solution as CSolution),
         });
         const commandsProvider = commandsProviderFactory();
         const workspaceFsProvider = workspaceFsProviderFactory();
-        workspaceFsProvider.isFile.mockImplementation(async fileName => fileName !== sourceFiles[2]);
+        workspaceFsProvider.isFile.mockImplementation(async fileName => fileName !== sourceFiles[2] && fileName !== solutionYmlFiles[1]);
         const command = new SearchSolutionSourcesCommand(
             solutionManager,
             commandsProvider,
@@ -81,9 +88,9 @@ describe('SearchSolutionSourcesCommand', () => {
 
         await commandsProvider.mockRunRegistered(SearchSolutionSourcesCommand.commandId);
 
-        expect(workspaceFsProvider.isFile).toHaveBeenCalledTimes(3);
+        expect(workspaceFsProvider.isFile).toHaveBeenCalledTimes(5);
         expect(commandsProvider.executeCommand).toHaveBeenCalledWith('workbench.action.findInFiles', {
-            filesToInclude: sourceFiles.slice(0, 2).map(encodeSearchFileInclude).join(', '),
+            filesToInclude: [...sourceFiles.slice(0, 2), solutionYmlFiles[0]].map(encodeSearchFileInclude).join(', '),
             triggerSearch: false,
             showIncludesExcludes: true,
         });
@@ -109,8 +116,11 @@ describe('SearchSolutionSourcesCommand', () => {
         expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
     });
 
-    it('warns when no source paths are enumerated', async () => {
-        const solution = { getSourceFiles: jest.fn().mockReturnValue([]) } as Pick<CSolution, 'getSourceFiles'>;
+    it('warns when no searchable paths are enumerated', async () => {
+        const solution = {
+            getSourceFiles: jest.fn().mockReturnValue([]),
+            getSolutionYmlFiles: jest.fn().mockReturnValue([]),
+        } as Pick<CSolution, 'getSourceFiles' | 'getSolutionYmlFiles'>;
         const solutionManager = solutionManagerFactory({
             getCsolution: jest.fn().mockReturnValue(solution as CSolution),
         });
@@ -127,13 +137,45 @@ describe('SearchSolutionSourcesCommand', () => {
         await commandsProvider.mockRunRegistered(SearchSolutionSourcesCommand.commandId);
 
         expect(messageProvider.showWarningMessage).toHaveBeenCalledWith(
-            'The active CMSIS solution does not contain any searchable source files.'
+            'The active CMSIS solution does not contain any searchable source or solution YML files.'
         );
         expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
     });
 
+    it('searches solution YML files when no source files are enumerated', async () => {
+        const solutionYmlFile = path.join(path.parse(process.cwd()).root, 'workspace', 'solution.csolution.yml');
+        const solution = {
+            getSourceFiles: jest.fn().mockReturnValue([]),
+            getSolutionYmlFiles: jest.fn().mockReturnValue([solutionYmlFile]),
+        } as Pick<CSolution, 'getSourceFiles' | 'getSolutionYmlFiles'>;
+        const solutionManager = solutionManagerFactory({
+            getCsolution: jest.fn().mockReturnValue(solution as CSolution),
+        });
+        const commandsProvider = commandsProviderFactory();
+        const workspaceFsProvider = workspaceFsProviderFactory();
+        workspaceFsProvider.isFile.mockResolvedValue(true);
+        const command = new SearchSolutionSourcesCommand(
+            solutionManager,
+            commandsProvider,
+            workspaceFsProvider,
+            messageProviderFactory(),
+        );
+        await command.activate(extensionContextFactory());
+
+        await commandsProvider.mockRunRegistered(SearchSolutionSourcesCommand.commandId);
+
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('workbench.action.findInFiles', {
+            filesToInclude: encodeSearchFileInclude(solutionYmlFile),
+            triggerSearch: false,
+            showIncludesExcludes: true,
+        });
+    });
+
     it('warns when no enumerated paths are regular files', async () => {
-        const solution = { getSourceFiles: jest.fn().mockReturnValue([path.join('pack', 'include')]) } as Pick<CSolution, 'getSourceFiles'>;
+        const solution = {
+            getSourceFiles: jest.fn().mockReturnValue([path.join('pack', 'include')]),
+            getSolutionYmlFiles: jest.fn().mockReturnValue([]),
+        } as Pick<CSolution, 'getSourceFiles' | 'getSolutionYmlFiles'>;
         const solutionManager = solutionManagerFactory({
             getCsolution: jest.fn().mockReturnValue(solution as CSolution),
         });
@@ -150,7 +192,7 @@ describe('SearchSolutionSourcesCommand', () => {
         await commandsProvider.mockRunRegistered(SearchSolutionSourcesCommand.commandId);
 
         expect(messageProvider.showWarningMessage).toHaveBeenCalledWith(
-            'No existing source files were found for the active CMSIS solution.'
+            'No existing source or solution YML files were found for the active CMSIS solution.'
         );
         expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
     });
