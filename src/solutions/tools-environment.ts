@@ -28,6 +28,7 @@ import { WorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 const ENVIRONMENT_MANAGER_EXTENSION_ID = 'arm.environment-manager';
 const CMSIS_SOLUTION_EXTENSION_ID = `arm.${PACKAGE_NAME}`;
 const CMSIS_DEBUGGER_EXTENSION_ID = 'arm.vscode-cmsis-debugger';
+const CMSIS_SDS_EXTENSION_ID = 'arm.cmsis-sds';
 const DOCUMENT_VERSION = '1.0.0';
 const CMSIS_ENVIRONMENT_VARIABLES = ['CMSIS_PACK_ROOT', 'CMSIS_COMPILER_ROOT'];
 
@@ -233,6 +234,19 @@ export class ToolsEnvironment {
                 path: path.join(debuggerExtension.extensionPath, 'tools', 'gdb', 'bin'),
                 extension: CMSIS_DEBUGGER_EXTENSION_ID,
                 manual: 'https://developer.arm.com/Tools%20and%20Software/GNU%20Toolchain',
+            });
+        }
+
+        const sdsExtension = vscode.extensions.getExtension<void>(CMSIS_SDS_EXTENSION_ID);
+        if (sdsExtension?.extensionPath) {
+            const sdsToolsPath = path.join(sdsExtension.extensionPath, 'tools');
+            tools.push({
+                tool: 'sdsio-server',
+                version: this.readVersionFile(path.join(sdsToolsPath, 'version.txt')),
+                command: 'sdsio-server',
+                path: sdsToolsPath,
+                extension: CMSIS_SDS_EXTENSION_ID,
+                manual: 'https://arm-software.github.io/SDS-Framework/main/utilities.html#sdsio-server',
             });
         }
         return tools;

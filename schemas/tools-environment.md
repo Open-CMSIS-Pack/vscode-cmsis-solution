@@ -85,7 +85,7 @@ The semantic `version` field allows the document to evolve without requiring con
 
 ### Built-in Tools
 
-Built-in tool metadata is derived by the tools-environment exporter. The CMSIS Solution extension declares its bundled CMSIS-Toolbox, while the CMSIS Debugger extension location supplies pyOCD and Arm GNU GDB. Each entry contains:
+Built-in tool metadata is derived by the tools-environment exporter. The CMSIS Solution extension declares its bundled CMSIS-Toolbox, the CMSIS Debugger extension supplies pyOCD and Arm GNU GDB, and the Arm SDS extension supplies SDSIO-Server. Each entry contains:
 
 - `name`: the human-readable tool or tool-suite name declared by the providing extension.
 - `version`: the bundled tool version read from its manifest or version file.
