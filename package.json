@@ -703,6 +703,11 @@
       },
       {
         "category": "CMSIS",
+        "command": "cmsis-csolution.getSolutionName",
+        "title": "Name of Active Solution"
+      },
+      {
+        "category": "CMSIS",
         "command": "cmsis-csolution.getSolutionPath",
         "title": "Deprecated: Identical with getSolutionFile"
       },
