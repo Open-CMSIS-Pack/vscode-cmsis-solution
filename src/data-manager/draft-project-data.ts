@@ -81,6 +81,7 @@ export enum DraftProjectSource {
 export interface DraftProjectData {
     get id(): DraftProjectId;
     get name(): string;
+    get solutionFileName(): string | undefined;
     get description(): string;
     get format(): DraftProjectFormat;
     get draftType(): DraftProjectType;
@@ -96,6 +97,9 @@ abstract class BaseDraftProjectData implements DraftProjectData {
     }
 
     abstract get name(): string;
+    public get solutionFileName(): string | undefined {
+        return undefined;
+    }
     abstract get description(): string;
     abstract get format(): DraftProjectFormat;
     abstract get draftType(): DraftProjectType;
@@ -187,6 +191,12 @@ export class CsolutionExampleData extends BaseDraftProjectData {
         return this.data.name;
     }
 
+    public get solutionFileName() {
+        return this.format === DraftProjectFormat.Csolution && this.selectedEnvironment?.file
+            ? path.basename(this.selectedEnvironment.file)
+            : undefined;
+    }
+
     public get description() {
         return this.data.description;
     }
@@ -237,6 +247,10 @@ export class CsolutionTemplateData extends BaseDraftProjectData {
 
     public get name() {
         return this.data.name;
+    }
+
+    public get solutionFileName() {
+        return path.basename(this.data.file);
     }
 
     public get description() {
