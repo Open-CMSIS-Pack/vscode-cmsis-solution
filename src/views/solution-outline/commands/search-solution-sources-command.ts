@@ -65,18 +65,21 @@ export class SearchSolutionSourcesCommand {
             return;
         }
 
-        const sourceFiles = solution.getSourceFiles();
-        if (!sourceFiles.length) {
-            await this.messageProvider.showWarningMessage('The active CMSIS solution does not contain any searchable source files.');
+        const searchFiles = [...new Set([
+            ...solution.getSourceFiles(),
+            ...solution.getSolutionYmlFiles(),
+        ])];
+        if (!searchFiles.length) {
+            await this.messageProvider.showWarningMessage('The active CMSIS solution does not contain any searchable source or solution YML files.');
             return;
         }
 
         const existingFiles = (await Promise.all(
-            sourceFiles.map(async fileName => await this.workspaceFsProvider.isFile(fileName) ? fileName : undefined)
+            searchFiles.map(async fileName => await this.workspaceFsProvider.isFile(fileName) ? fileName : undefined)
         )).filter((fileName): fileName is string => !!fileName);
 
         if (!existingFiles.length) {
-            await this.messageProvider.showWarningMessage('No existing source files were found for the active CMSIS solution.');
+            await this.messageProvider.showWarningMessage('No existing source or solution YML files were found for the active CMSIS solution.');
             return;
         }
 
