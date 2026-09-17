@@ -26,6 +26,7 @@ import { solutionManagerFactory } from '../../solutions/solution-manager.factori
 import * as fsUtils from '../../utils/fs-utils';
 import * as vscodeUtils from '../../utils/vscode-utils';
 import { csolutionServiceFactory } from '../../json-rpc/csolution-rpc-client.factory';
+import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import YAML from 'yaml';
 
 /**
@@ -481,6 +482,39 @@ describe('manage-solution-controller', () => {
         controller.setDebuggerParameter('section1', 'param1', 'value1');
 
         expect(controller.activeDebugger).toBeDefined();
+    });
+
+    it('creates a missing processor entry when setting a pname parameter', async () => {
+        const controller = new ManageSolutionController();
+        const targetSet = controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
+        controller.activeTargetTypeName = 'test-target';
+        controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
+        const telnet = targetSet.ensureDebugger('Test Debugger').item
+            ?.createChild('telnet', true)
+            ?.setKind(ETreeItemKind.Sequence);
+        const hpEntry = telnet?.createChild('-');
+        hpEntry?.setKind(ETreeItemKind.Map).setText(undefined);
+        hpEntry?.setValue('pname', 'M55_HP');
+        hpEntry?.setValue('mode', 'console');
+        controller.csolutionService = csolutionServiceFactory({
+            getDeviceInfo: jest.fn().mockResolvedValue({
+                result: 'success',
+                device: {
+                    id: 'TestVendor::TestDevice',
+                    name: 'TestDevice',
+                    processors: [
+                        { name: 'M55_HP', core: 'Cortex-M55' },
+                        { name: 'M55_HE', core: 'Cortex-M55' },
+                    ],
+                },
+            }),
+        });
+
+        await controller.setDebuggerParameterWithPname('telnet', 'M55_HE', 'mode', 'off');
+
+        expect(telnet?.getChildren()).toHaveLength(2);
+        expect(telnet?.getChildByValue('pname', 'M55_HP')?.getValue('mode')).toBe('console');
+        expect(telnet?.getChildByValue('pname', 'M55_HE')?.getValue('mode')).toBe('off');
     });
 
     it('should get solution data', async () => {

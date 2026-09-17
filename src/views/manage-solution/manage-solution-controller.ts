@@ -559,11 +559,16 @@ export class ManageSolutionController {
             }
             child?.setValue(param, value as string);
         } else {
-            this.activeTargetSetWrap.ensureDebugger().item
+            const sectionNode = this.activeTargetSetWrap.ensureDebugger().item
                 ?.createChild(section, true)
-                ?.setKind(ETreeItemKind.Sequence)
-                ?.getChildByValue('pname', pname)
-                ?.setValue(param, value as string);
+                ?.setKind(ETreeItemKind.Sequence);
+            let processorNode = sectionNode?.getChildByValue('pname', pname);
+            if (!processorNode) {
+                processorNode = sectionNode?.createChild('-');
+                processorNode?.setKind(ETreeItemKind.Map).setText(undefined);
+                processorNode?.setValue('pname', pname);
+            }
+            processorNode?.setValue(param, value as string);
         }
 
     }
