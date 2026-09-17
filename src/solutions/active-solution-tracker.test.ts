@@ -19,6 +19,7 @@ import {
     ActiveSolutionTrackerImpl,
     COMMAND_ACTIVATE_SOLUTION,
     COMMAND_DEACTIVATE_SOLUTION,
+    COMMAND_GET_SOLUTION_NAME,
     dbgconfFileWatchPattern,
     solutionFileWatchPattern,
 } from './active-solution-tracker';
@@ -297,7 +298,7 @@ describe('ActiveSolutionTracker', () => {
     describe('activated with solutions in the workspace and explicit previous close', () => {
         beforeEach(async () => {
             context.workspaceState.get.mockImplementation(
-                key => key === ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_STATE_KEY ? 'inactive'  : undefined
+                key => key === ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_STATE_KEY ? 'inactive' : undefined
             );
 
             activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
@@ -549,6 +550,38 @@ describe('ActiveSolutionTracker', () => {
 
                 expect(activeSolutionTracker.activeSolution).toEqual(SOLUTION_URI_FOO.fsPath);
                 expect(changeActiveListener).toHaveBeenCalledTimes(1);
+            });
+        });
+
+        describe('get solution name command', () => {
+
+            it('is registered on activation', () => {
+                expect(commandsProvider.registerCommand).toHaveBeenCalledWith(
+                    COMMAND_GET_SOLUTION_NAME,
+                    expect.any(Function),
+                    expect.anything(),
+                );
+            });
+
+            it('returns the active solution name without csolution.yml', async () => {
+                const result = await commandsProvider.mockRunRegistered(
+                    COMMAND_GET_SOLUTION_NAME,
+                );
+
+                expect(result).toBe('test');
+            });
+
+            it('returns the solution name after changing the active solution', async () => {
+                await commandsProvider.mockRunRegistered(
+                    COMMAND_ACTIVATE_SOLUTION,
+                    SOLUTION_URI_FOO.fsPath,
+                );
+
+                const solutionName = await commandsProvider.mockRunRegistered(
+                    COMMAND_GET_SOLUTION_NAME,
+                );
+
+                expect(solutionName).toBe('Foo');
             });
         });
 

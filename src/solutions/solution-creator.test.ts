@@ -19,6 +19,8 @@ import * as os from 'os';
 import * as path from 'path';
 import * as YAML from 'yaml';
 import { URI } from 'vscode-uri';
+import { draftProjectDataFactory } from '../data-manager/data-manager.factories';
+import { DraftProjectFormat } from '../data-manager/draft-project-data';
 import * as fsUtils from '../utils/fs-utils';
 import { pathsEqual } from '../utils/path-utils';
 import { SolutionInitialiserFactory } from './solution-initialiser.factory';
@@ -79,6 +81,48 @@ describe('SolutionCreatorImp', () => {
         } satisfies Partial<SolutionDirectoryConflictError>));
         expect(findSolutionFiles).toHaveBeenCalledTimes(1);
         expect(pathsEqual(findSolutionFiles.mock.calls[0][0], solutionDir)).toBe(true);
+    });
+
+    it('corrects a contradictory draft name and keeps its solution file in the selected destination', async () => {
+        const solutionFolder = 'SelectedDestination';
+        const solutionDir = path.join(tempDir, solutionFolder);
+        const selectedFileName = 'Test-Ethos-U55.csolution.yml';
+        const createFromDraft = jest.fn().mockResolvedValue({
+            solutionFile: URI.file(path.join(solutionDir, selectedFileName)),
+            solutionDir: URI.file(solutionDir),
+            conversionStatus: 'none',
+            vcpkgConfigured: false,
+            forceRteUpdate: true,
+        });
+        const creator = new SolutionCreatorImp(
+            createFromDraft,
+            SolutionInitialiserFactory(),
+            jest.fn().mockReturnValue([]),
+        );
+
+        await creator.createSolution({
+            solutionName: 'ContradictoryName',
+            solutionLocation: tempDir,
+            solutionFolder,
+            gitInit: false,
+            compiler: 'GCC',
+            projects: [],
+            targetTypes: [],
+            packs: [],
+            draftProject: draftProjectDataFactory({
+                format: DraftProjectFormat.Csolution,
+                solutionFileName: path.join(tempDir, 'source', selectedFileName),
+            }),
+        });
+
+        expect(createFromDraft).toHaveBeenCalledTimes(1);
+        const [actualSolutionDir, actualSolutionFile, actualRequest] = createFromDraft.mock.calls[0];
+        expect(pathsEqual(actualSolutionDir.fsPath, solutionDir)).toBe(true);
+        expect(pathsEqual(actualSolutionFile.fsPath, path.join(solutionDir, selectedFileName))).toBe(true);
+        expect(actualRequest).toMatchObject({
+            solutionName: 'Test-Ethos-U55',
+            solutionFolder,
+        });
     });
 
     it('creates blank solution YAML directly and writes the solution after its projects', async () => {
