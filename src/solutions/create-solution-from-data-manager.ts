@@ -53,8 +53,11 @@ export const getCreateSolutionFromDataManager = (
             : draftProjectObject.draftSource === DraftProjectSource.Web
                 ? await findCsolutionFile(findFiles, solutionDirUri)
                 : undefined;
-        if (!cSolutionFile || !await workspaceFsProvider.exists(cSolutionFile.fsPath)) {
-            throw new Error(`Could not find the csolution file ${solutionFileUri.fsPath} after copying the draft project`);
+        if (!cSolutionFile) {
+            throw new Error(`Could not determine the csolution file path after copying the draft project into ${solutionDirUri.fsPath}`);
+        }
+        if (!await workspaceFsProvider.exists(cSolutionFile.fsPath)) {
+            throw new Error(`Could not find the csolution file ${cSolutionFile.fsPath} after copying the draft project`);
         }
         const vcpkgConfigured = await workspaceFsProvider.exists(path.join(solutionDirUri.fsPath, DEFAULT_VCPKG_FILENAME));
         createdSolution = { conversionStatus: 'none', vcpkgConfigured, solutionFile: cSolutionFile, solutionDir: solutionDirUri, forceRteUpdate: true };
