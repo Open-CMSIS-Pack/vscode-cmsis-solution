@@ -18,7 +18,7 @@ import _ from 'lodash';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { RelativePattern, Uri } from 'vscode';
-import { DraftProjectType } from '../data-manager/draft-project-data';
+import { DraftProjectFormat, DraftProjectSource, DraftProjectType } from '../data-manager/draft-project-data';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { WorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { MdkToCsolutionConverter } from './mdk-conversion/convert-mdk-command';
@@ -29,6 +29,7 @@ import { CSolutionYamlFile } from './files/csolution-yaml-file';
 
 export type CreateSolutionFromDataManager = (
     solutionDirUri: Uri,
+    solutionFileUri: Uri,
     message: CreateSolutionRequest,
 ) => Promise<CreatedSolution>;
 
@@ -36,7 +37,7 @@ export const getCreateSolutionFromDataManager = (
     workspaceFsProvider: WorkspaceFsProvider,
     mdkToCsolutionConverter: MdkToCsolutionConverter,
     findFiles: typeof vscode.workspace.findFiles,
-): CreateSolutionFromDataManager => async (solutionDirUri, message) => {
+): CreateSolutionFromDataManager => async (solutionDirUri, solutionFileUri, message) => {
     const draftProjectObject = message.draftProject;
     if (!draftProjectObject) {
         throw ('DraftProject Object undefined!');
@@ -45,20 +46,29 @@ export const getCreateSolutionFromDataManager = (
     await workspaceFsProvider.createDirectory(solutionDirUri.fsPath);
     await draftProjectObject?.copyTo(solutionDirUri.fsPath);
 
-    const cSolutionFile = await findCsolutionFile(findFiles, solutionDirUri);
-    const uVisionFile = await findUvisionProjectFile(findFiles, solutionDirUri);
-
-    let createdSolution: CreatedSolution | undefined = undefined;
-    if (cSolutionFile) {
+    let createdSolution: CreatedSolution;
+    if (draftProjectObject.format === DraftProjectFormat.Csolution) {
+        const cSolutionFile = draftProjectObject.solutionFileName
+            ? solutionFileUri
+            : draftProjectObject.draftSource === DraftProjectSource.Web
+                ? await findCsolutionFile(findFiles, solutionDirUri)
+                : undefined;
+        if (!cSolutionFile || !await workspaceFsProvider.exists(cSolutionFile.fsPath)) {
+            throw new Error(`Could not find the csolution file ${solutionFileUri.fsPath} after copying the draft project`);
+        }
         const vcpkgConfigured = await workspaceFsProvider.exists(path.join(solutionDirUri.fsPath, DEFAULT_VCPKG_FILENAME));
         createdSolution = { conversionStatus: 'none', vcpkgConfigured, solutionFile: cSolutionFile, solutionDir: solutionDirUri, forceRteUpdate: true };
-    } else if (uVisionFile) {
+    } else if (draftProjectObject.format === DraftProjectFormat.uVision) {
+        const uVisionFile = await findUvisionProjectFile(findFiles, solutionDirUri);
+        if (!uVisionFile) {
+            throw new Error(`Could not find the uvprojx or uvmpw file to create a new solution in ${solutionDirUri.fsPath}`);
+        }
         createdSolution = await convertUvisionProjectFile(uVisionFile, solutionDirUri, mdkToCsolutionConverter, workspaceFsProvider);
     } else {
-        throw new Error(`Could not find the uvprojx, uvmpw or csolution files to create a new solution in ${solutionDirUri.fsPath}`);
+        throw new Error(`Unsupported draft project format ${draftProjectObject.format}`);
     }
 
-    if (cSolutionFile) {
+    if (draftProjectObject.format === DraftProjectFormat.Csolution) {
         switch (draftProjectObject.draftType) {
             case DraftProjectType.Example:
                 break;
@@ -162,9 +172,6 @@ const findUvisionProjectFile = async (findFiles: typeof vscode.workspace.findFil
     return undefined;
 };
 
-/**
- * Finds the csolution project file in the given directory. Assumes there is only one.
- */
 const findCsolutionFile = async (findFiles: typeof vscode.workspace.findFiles, directoryUri: Uri): Promise<Uri | undefined> =>
     await findOneFileWithExtension(findFiles, directoryUri, 'csolution.{yaml,yml}');
 

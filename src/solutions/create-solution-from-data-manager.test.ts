@@ -42,17 +42,15 @@ describe('createSolutionFromDataManager', () => {
         const solutionPath = path.join(solutionDir, 'MySolution.csolution.yml');
         const workspaceFsProvider = workspaceFsProviderFactory();
         workspaceFsProvider.createDirectory.mockImplementation(directory => fs.promises.mkdir(directory, { recursive: true }).then(() => undefined));
-        workspaceFsProvider.exists.mockResolvedValue(false);
-        const findFiles = jest.fn()
-            .mockResolvedValueOnce([Uri.file(solutionPath)])
-            .mockResolvedValueOnce([]);
+        workspaceFsProvider.exists.mockImplementation(fileName => Promise.resolve(fs.existsSync(fileName)));
+        const findFiles = jest.fn();
         const createSolution = getCreateSolutionFromDataManager(
             workspaceFsProvider,
             {} as MdkToCsolutionConverter,
             findFiles,
         );
 
-        await createSolution(URI.file(solutionDir), {
+        await createSolution(URI.file(solutionDir), URI.file(solutionPath), {
             solutionName: 'MySolution',
             solutionLocation: tempDir,
             solutionFolder: 'MySolution',
@@ -68,6 +66,7 @@ describe('createSolutionFromDataManager', () => {
             draftProject: {
                 id: { name: 'Draft', key: 'draft' },
                 name: 'Draft',
+                solutionFileName: 'MySolution.csolution.yml',
                 description: 'Draft solution',
                 format: DraftProjectFormat.Csolution,
                 draftType: DraftProjectType.Template,
@@ -105,17 +104,15 @@ describe('createSolutionFromDataManager', () => {
         const originalContent = 'solution:\n  description: Example content\n';
         const workspaceFsProvider = workspaceFsProviderFactory();
         workspaceFsProvider.createDirectory.mockImplementation(directory => fs.promises.mkdir(directory, { recursive: true }).then(() => undefined));
-        workspaceFsProvider.exists.mockResolvedValue(false);
-        const findFiles = jest.fn()
-            .mockResolvedValueOnce([Uri.file(solutionPath)])
-            .mockResolvedValueOnce([]);
+        workspaceFsProvider.exists.mockImplementation(fileName => Promise.resolve(fs.existsSync(fileName)));
+        const findFiles = jest.fn();
         const createSolution = getCreateSolutionFromDataManager(
             workspaceFsProvider,
             {} as MdkToCsolutionConverter,
             findFiles,
         );
 
-        await createSolution(URI.file(solutionDir), {
+        await createSolution(URI.file(solutionDir), URI.file(solutionPath), {
             solutionName: 'Example',
             solutionLocation: tempDir,
             solutionFolder: 'Example',
@@ -127,6 +124,7 @@ describe('createSolutionFromDataManager', () => {
             draftProject: {
                 id: { name: 'Example', key: 'example' },
                 name: 'Example',
+                solutionFileName: 'Example.csolution.yml',
                 description: 'Example solution',
                 format: DraftProjectFormat.Csolution,
                 draftType: DraftProjectType.Example,
@@ -142,6 +140,107 @@ describe('createSolutionFromDataManager', () => {
         expect(fs.readFileSync(solutionPath, 'utf8')).toBe(originalContent);
     });
 
+    it('updates only the selected solution when a copied reference application contains multiple solutions', async () => {
+        const solutionDir = path.join(tempDir, 'EthosReference');
+        const selectedFileName = 'Test-Ethos-U55.csolution.yml';
+        const selectedSolutionPath = path.join(solutionDir, selectedFileName);
+        const siblingContents = new Map([
+            ['Test-Ethos-U65.csolution.yml', 'solution:\n  description: U65\n'],
+            ['Test-Ethos-U85.csolution.yml', 'solution:\n  description: U85\n'],
+        ]);
+        const workspaceFsProvider = workspaceFsProviderFactory();
+        workspaceFsProvider.createDirectory.mockImplementation(directory => fs.promises.mkdir(directory, { recursive: true }).then(() => undefined));
+        workspaceFsProvider.exists.mockImplementation(fileName => Promise.resolve(fs.existsSync(fileName)));
+        const findFiles = jest.fn();
+        const createSolution = getCreateSolutionFromDataManager(
+            workspaceFsProvider,
+            {} as MdkToCsolutionConverter,
+            findFiles,
+        );
+
+        const createdSolution = await createSolution(URI.file(solutionDir), URI.file(selectedSolutionPath), {
+            solutionName: 'Test-Ethos-U55',
+            solutionLocation: tempDir,
+            solutionFolder: 'EthosReference',
+            gitInit: false,
+            compiler: 'GCC',
+            projects: [],
+            targetTypes: [],
+            packs: [{ pack: 'ARM::CMSIS-Ethos-U@1.0.0', forContext: [], notForContext: [] }],
+            draftProject: {
+                id: { name: 'Ethos reference', key: 'ethos-reference' },
+                name: 'Ethos reference',
+                solutionFileName: selectedFileName,
+                description: 'Reference application with multiple solutions',
+                format: DraftProjectFormat.Csolution,
+                draftType: DraftProjectType.RefApp,
+                draftSource: DraftProjectSource.Local,
+                pack: undefined,
+                copyTo: async destination => {
+                    await fs.promises.mkdir(destination, { recursive: true });
+                    await fs.promises.writeFile(selectedSolutionPath, 'solution:\n  description: U55\n', 'utf8');
+                    for (const [fileName, content] of siblingContents) {
+                        await fs.promises.writeFile(path.join(destination, fileName), content, 'utf8');
+                    }
+                },
+            },
+        });
+
+        expect(YAML.parse(fs.readFileSync(selectedSolutionPath, 'utf8')).solution.packs).toEqual([
+            { pack: 'ARM::CMSIS-Ethos-U@1.0.0' },
+        ]);
+        for (const [fileName, content] of siblingContents) {
+            expect(fs.readFileSync(path.join(solutionDir, fileName), 'utf8')).toBe(content);
+        }
+        expect(pathsEqual(createdSolution.solutionFile?.fsPath, selectedSolutionPath)).toBe(true);
+        expect(findFiles).not.toHaveBeenCalled();
+    });
+
+    it('retains discovery for web drafts whose metadata has no solution filename', async () => {
+        const solutionDir = path.join(tempDir, 'WebExample');
+        const discoveredSolutionPath = path.join(solutionDir, 'downloaded.csolution.yml');
+        const workspaceFsProvider = workspaceFsProviderFactory();
+        workspaceFsProvider.createDirectory.mockImplementation(directory => fs.promises.mkdir(directory, { recursive: true }).then(() => undefined));
+        workspaceFsProvider.exists.mockImplementation(fileName => Promise.resolve(fs.existsSync(fileName)));
+        const findFiles = jest.fn().mockResolvedValue([Uri.file(discoveredSolutionPath)]);
+        const createSolution = getCreateSolutionFromDataManager(
+            workspaceFsProvider,
+            {} as MdkToCsolutionConverter,
+            findFiles,
+        );
+
+        const createdSolution = await createSolution(
+            URI.file(solutionDir),
+            URI.file(path.join(solutionDir, 'WebExample.csolution.yml')),
+            {
+                solutionName: 'WebExample',
+                solutionLocation: tempDir,
+                solutionFolder: 'WebExample',
+                gitInit: false,
+                compiler: 'GCC',
+                projects: [],
+                targetTypes: [],
+                packs: [],
+                draftProject: {
+                    id: { name: 'Web example', key: 'web-example' },
+                    name: 'Web example',
+                    solutionFileName: undefined,
+                    description: 'Downloadable example',
+                    format: DraftProjectFormat.Csolution,
+                    draftType: DraftProjectType.Example,
+                    draftSource: DraftProjectSource.Web,
+                    pack: undefined,
+                    copyTo: async destination => {
+                        await fs.promises.mkdir(destination, { recursive: true });
+                        await fs.promises.writeFile(discoveredSolutionPath, 'solution:\n', 'utf8');
+                    },
+                },
+            });
+
+        expect(pathsEqual(createdSolution.solutionFile?.fsPath, discoveredSolutionPath)).toBe(true);
+        expect(findFiles).toHaveBeenCalledTimes(1);
+    });
+
     it('converts a uVision draft and returns the requested solution directory', async () => {
         const solutionDir = path.join(tempDir, 'Converted');
         const uVisionPath = path.join(solutionDir, 'project.uvmpw');
@@ -149,7 +248,6 @@ describe('createSolutionFromDataManager', () => {
         const workspaceFsProvider = workspaceFsProviderFactory();
         workspaceFsProvider.createDirectory.mockResolvedValue(undefined);
         const findFiles = jest.fn()
-            .mockResolvedValueOnce([])
             .mockResolvedValueOnce([Uri.file(uVisionPath)]);
         const mdkToCsolutionConverter: jest.Mocked<MdkToCsolutionConverter> = {
             convert: jest.fn().mockResolvedValue({
@@ -166,26 +264,30 @@ describe('createSolutionFromDataManager', () => {
             findFiles,
         );
 
-        const createdSolution = await createSolution(URI.file(solutionDir), {
-            solutionName: 'Converted',
-            solutionLocation: tempDir,
-            solutionFolder: 'Converted',
-            gitInit: false,
-            compiler: 'GCC',
-            projects: [],
-            targetTypes: [],
-            packs: [],
-            draftProject: {
-                id: { name: 'uVision', key: 'uvision' },
-                name: 'uVision',
-                description: 'uVision solution',
-                format: DraftProjectFormat.uVision,
-                draftType: DraftProjectType.Example,
-                draftSource: DraftProjectSource.Local,
-                pack: undefined,
-                copyTo: jest.fn().mockResolvedValue(undefined),
-            },
-        });
+        const createdSolution = await createSolution(
+            URI.file(solutionDir),
+            URI.file(path.join(solutionDir, 'Converted.csolution.yml')),
+            {
+                solutionName: 'Converted',
+                solutionLocation: tempDir,
+                solutionFolder: 'Converted',
+                gitInit: false,
+                compiler: 'GCC',
+                projects: [],
+                targetTypes: [],
+                packs: [],
+                draftProject: {
+                    id: { name: 'uVision', key: 'uvision' },
+                    name: 'uVision',
+                    solutionFileName: undefined,
+                    description: 'uVision solution',
+                    format: DraftProjectFormat.uVision,
+                    draftType: DraftProjectType.Example,
+                    draftSource: DraftProjectSource.Local,
+                    pack: undefined,
+                    copyTo: jest.fn().mockResolvedValue(undefined),
+                },
+            });
 
         expect(mdkToCsolutionConverter.convert).toHaveBeenCalledWith(Uri.file(uVisionPath));
         const [sourcePath, destinationPath, overwrite] = workspaceFsProvider.rename.mock.calls[0];
