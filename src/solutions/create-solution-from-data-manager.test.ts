@@ -15,11 +15,11 @@
  */
 
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import * as YAML from 'yaml';
 import { Uri } from 'vscode';
 import { URI } from 'vscode-uri';
+import { TestDataHandler } from '../__test__/test-data';
 import { DraftProjectFormat, DraftProjectSource, DraftProjectType } from '../data-manager/draft-project-data';
 import { pathsEqual } from '../utils/path-utils';
 import { workspaceFsProviderFactory } from '../vscode-api/workspace-fs-provider.factories';
@@ -27,14 +27,15 @@ import { getCreateSolutionFromDataManager } from './create-solution-from-data-ma
 import { MdkToCsolutionConverter } from './mdk-conversion/convert-mdk-command';
 
 describe('createSolutionFromDataManager', () => {
+    const testDataHandler = new TestDataHandler();
     let tempDir: string;
 
-    beforeEach(() => {
-        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'data-manager-solution-'));
+    beforeAll(() => {
+        tempDir = testDataHandler.tmpDir;
     });
 
-    afterEach(() => {
-        fs.rmSync(tempDir, { recursive: true, force: true });
+    afterAll(() => {
+        testDataHandler.dispose();
     });
 
     it('adds requested pack metadata and a target type without synthesizing a target set', async () => {
