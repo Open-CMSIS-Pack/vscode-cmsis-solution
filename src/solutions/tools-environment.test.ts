@@ -21,6 +21,7 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import yaml from 'yaml';
 import { ActiveTool, VcpkgResults } from '@arm-software/vscode-environment-manager';
+import { TestDataHandler } from '../__test__/test-data';
 import { EnvironmentManager } from '../desktop/env-manager';
 import { CMSIS_TOOLBOX_FOLDER } from '../manifest';
 import { extensionApiProviderFactory } from '../vscode-api/extension-api-provider.factories';
@@ -50,10 +51,11 @@ describe('ToolsEnvironment', () => {
         const cmakeRoot = path.join(artifactsRoot, 'tools.kitware.cmake', '3.31.12');
         const cmakeBin = path.join(cmakeRoot, 'bin');
         const builtInToolboxBin = path.join(CMSIS_TOOLBOX_FOLDER, 'bin');
-        const debuggerExtensionPath = fs.mkdtempSync(path.join(__dirname, 'cmsis-debugger-'));
+        const testDataHandler = new TestDataHandler();
+        const debuggerExtensionPath = path.join(testDataHandler.tmpDir, 'cmsis-debugger');
         const pyocdPath = path.join(debuggerExtensionPath, 'tools', 'pyocd');
         const gdbBin = path.join(debuggerExtensionPath, 'tools', 'gdb', 'bin');
-        const sdsExtensionPath = fs.mkdtempSync(path.join(__dirname, 'cmsis-sds-'));
+        const sdsExtensionPath = path.join(testDataHandler.tmpDir, 'cmsis-sds');
         const sdsToolsPath = path.join(sdsExtensionPath, 'tools');
 
         try {
@@ -237,8 +239,7 @@ describe('ToolsEnvironment', () => {
             expect(workspaceFsProvider.createDirectory).not.toHaveBeenCalled();
             expect(workspaceFsProvider.writeUtf8File).not.toHaveBeenCalled();
         } finally {
-            fs.rmSync(debuggerExtensionPath, { recursive: true, force: true });
-            fs.rmSync(sdsExtensionPath, { recursive: true, force: true });
+            testDataHandler.dispose();
         }
     });
 
@@ -520,7 +521,8 @@ describe('ToolsEnvironment', () => {
     });
 
     it('uses unknown versions when extension metadata files are unavailable', async () => {
-        const debuggerExtensionPath = fs.mkdtempSync(path.join(__dirname, 'cmsis-debugger-'));
+        const testDataHandler = new TestDataHandler();
+        const debuggerExtensionPath = path.join(testDataHandler.tmpDir, 'cmsis-debugger');
         const pyocdPath = path.join(debuggerExtensionPath, 'tools', 'pyocd');
         const gdbBin = path.join(debuggerExtensionPath, 'tools', 'gdb', 'bin');
         (vscode.extensions.getExtension as jest.Mock).mockImplementation((extensionId: string) => {
@@ -560,7 +562,7 @@ describe('ToolsEnvironment', () => {
                 }),
             ]));
         } finally {
-            fs.rmSync(debuggerExtensionPath, { recursive: true, force: true });
+            testDataHandler.dispose();
         }
     });
 
