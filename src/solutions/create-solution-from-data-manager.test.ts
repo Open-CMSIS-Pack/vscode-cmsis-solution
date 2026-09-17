@@ -241,6 +241,91 @@ describe('createSolutionFromDataManager', () => {
         expect(findFiles).toHaveBeenCalledTimes(1);
     });
 
+    it('fails when a local csolution draft does not identify its solution file', async () => {
+        const solutionDir = path.join(tempDir, 'MissingFileName');
+        const solutionDirUri = URI.file(solutionDir);
+        const workspaceFsProvider = workspaceFsProviderFactory();
+        workspaceFsProvider.createDirectory.mockImplementation(directory => fs.promises.mkdir(directory, { recursive: true }).then(() => undefined));
+        const findFiles = jest.fn();
+        const createSolution = getCreateSolutionFromDataManager(
+            workspaceFsProvider,
+            {} as MdkToCsolutionConverter,
+            findFiles,
+        );
+
+        const creation = createSolution(
+            solutionDirUri,
+            URI.file(path.join(solutionDir, 'MissingFileName.csolution.yml')),
+            {
+                solutionName: 'MissingFileName',
+                solutionLocation: tempDir,
+                solutionFolder: 'MissingFileName',
+                gitInit: false,
+                compiler: 'GCC',
+                projects: [],
+                targetTypes: [],
+                packs: [],
+                draftProject: {
+                    id: { name: 'Local example', key: 'local-example' },
+                    name: 'Local example',
+                    solutionFileName: undefined,
+                    description: 'Local example without file metadata',
+                    format: DraftProjectFormat.Csolution,
+                    draftType: DraftProjectType.Example,
+                    draftSource: DraftProjectSource.Local,
+                    pack: undefined,
+                    copyTo: async destination => fs.promises.mkdir(destination, { recursive: true }).then(() => undefined),
+                },
+            });
+
+        await expect(creation).rejects.toThrow(
+            `Could not determine the csolution file path after copying the draft project into ${solutionDirUri.fsPath}`,
+        );
+        expect(findFiles).not.toHaveBeenCalled();
+    });
+
+    it('fails when the identified csolution file was not copied', async () => {
+        const solutionDir = path.join(tempDir, 'MissingFile');
+        const solutionPath = path.join(solutionDir, 'MissingFile.csolution.yml');
+        const solutionFileUri = URI.file(solutionPath);
+        const workspaceFsProvider = workspaceFsProviderFactory();
+        workspaceFsProvider.createDirectory.mockImplementation(directory => fs.promises.mkdir(directory, { recursive: true }).then(() => undefined));
+        workspaceFsProvider.exists.mockImplementation(fileName => Promise.resolve(fs.existsSync(fileName)));
+        const findFiles = jest.fn();
+        const createSolution = getCreateSolutionFromDataManager(
+            workspaceFsProvider,
+            {} as MdkToCsolutionConverter,
+            findFiles,
+        );
+
+        const creation = createSolution(URI.file(solutionDir), solutionFileUri, {
+            solutionName: 'MissingFile',
+            solutionLocation: tempDir,
+            solutionFolder: 'MissingFile',
+            gitInit: false,
+            compiler: 'GCC',
+            projects: [],
+            targetTypes: [],
+            packs: [],
+            draftProject: {
+                id: { name: 'Local example', key: 'local-example' },
+                name: 'Local example',
+                solutionFileName: 'MissingFile.csolution.yml',
+                description: 'Local example with missing copied file',
+                format: DraftProjectFormat.Csolution,
+                draftType: DraftProjectType.Example,
+                draftSource: DraftProjectSource.Local,
+                pack: undefined,
+                copyTo: async destination => fs.promises.mkdir(destination, { recursive: true }).then(() => undefined),
+            },
+        });
+
+        await expect(creation).rejects.toThrow(
+            `Could not find the csolution file ${solutionFileUri.fsPath} after copying the draft project`,
+        );
+        expect(findFiles).not.toHaveBeenCalled();
+    });
+
     it('converts a uVision draft and returns the requested solution directory', async () => {
         const solutionDir = path.join(tempDir, 'Converted');
         const uVisionPath = path.join(solutionDir, 'project.uvmpw');
