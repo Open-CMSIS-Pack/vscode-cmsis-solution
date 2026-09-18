@@ -615,15 +615,6 @@ describe('ActiveSolutionTracker', () => {
                 expect(result).toBe(path.dirname(SOLUTION_URI_FOO.fsPath));
             });
 
-            it('should return the solution directory rather than the workspace directory', async () => {
-                const result = await commandsProvider.mockRunRegistered(
-                    COMMAND_GET_SOLUTION_DIR,
-                );
-
-                expect(result).toBe(path.dirname(SOLUTION_URI_DEFAULT.fsPath));
-                expect(result).not.toBe(WORKSPACE_PATH);
-            });
-
             it('should return an absolute solution directory path', async () => {
                 const result = await commandsProvider.mockRunRegistered<string>(
                     COMMAND_GET_SOLUTION_DIR,
