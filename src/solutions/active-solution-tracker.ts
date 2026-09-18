@@ -32,6 +32,7 @@ export const COMMAND_ACTIVATE_SOLUTION = `${manifest.PACKAGE_NAME}.activateSolut
 export const COMMAND_DEACTIVATE_SOLUTION = `${manifest.PACKAGE_NAME}.deactivateSolution`;
 export const COMMAND_GET_SOLUTION_FILE = `${manifest.PACKAGE_NAME}.getSolutionFile`;
 export const COMMAND_GET_SOLUTION_NAME = `${manifest.PACKAGE_NAME}.getSolutionName`;
+export const COMMAND_GET_SOLUTION_DIR = `${manifest.PACKAGE_NAME}.getSolutionDir`;
 /** @deprecated */
 export const COMMAND_GET_SOLUTION_PATH = `${manifest.PACKAGE_NAME}.getSolutionPath`;
 
@@ -130,6 +131,7 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
             this.commandsProvider.registerCommand(COMMAND_DEACTIVATE_SOLUTION, this.handleDeactivateSolution, this),
             this.commandsProvider.registerCommand(COMMAND_GET_SOLUTION_FILE, this.handleGetSolutionFile, this),
             this.commandsProvider.registerCommand(COMMAND_GET_SOLUTION_NAME, this.handleGetSolutionName, this),
+            this.commandsProvider.registerCommand(COMMAND_GET_SOLUTION_DIR, this.handleGetSolutionDir, this),
             this.commandsProvider.registerCommand(COMMAND_GET_SOLUTION_PATH, this.handleGetSolutionFile, this),
             this.workspaceFoldersProvider.onDidChangeWorkspaceFolders(this.debouncedRefresh, this),
             this.changeActiveSolutionEmitter,
@@ -293,6 +295,12 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
     private async handleGetSolutionName(): Promise<string | undefined> {
         return this._activeSolution
             ? stripTwoExtensions(path.basename(this._activeSolution))
+            : undefined;
+    }
+
+    private async handleGetSolutionDir(): Promise<string | undefined> {
+        return this._activeSolution
+            ? path.dirname(this._activeSolution)
             : undefined;
     }
 
