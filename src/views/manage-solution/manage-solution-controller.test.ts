@@ -45,7 +45,7 @@ async function getSolutionDataStrings(solutionDir: string, solutionName: string)
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars, unused-imports/no-unused-vars
-    const { availableCoreNames, ...selectionState } = controller.solutionData;
+    const { availableCoreNames, usedCoreNames, ...selectionState } = controller.solutionData;
     const generated = JSON.stringify(selectionState, TmpDirReplacer(solutionDir), 4);
 
     const genFile = new TextFile(stripTwoExtensions(solutionPath) + 'Gen.json');
@@ -386,6 +386,29 @@ describe('manage-solution-controller', () => {
         await controller.getAvailableCoreNames();
         const coreNames = controller.availableCoreNames;
         expect(Array.isArray(coreNames)).toBe(true);
+    });
+
+    it('gets distinct cores used by selected projects and active images', () => {
+        const controller = new ManageSolutionController();
+        controller['availableCoreNamesCache'] = ['M55_HE', 'M55_HP'];
+        jest.spyOn(controller as unknown as { collectProjects(): ProjectSelection[] }, 'collectProjects').mockReturnValue([
+            { device: 'M55_HE', selected: true },
+            { device: 'M55_HP', selected: false },
+            { device: 'M55_HE', selected: true },
+        ] as ProjectSelection[]);
+        controller.activeTargetSetWrap.addImage('app.axf').device = 'M55_HE';
+
+        expect(controller.usedCoreNames).toEqual(['M55_HE']);
+    });
+
+    it('falls back to available cores when selected items have no processor', () => {
+        const controller = new ManageSolutionController();
+        controller['availableCoreNamesCache'] = ['M55_HE', 'M55_HP'];
+        jest.spyOn(controller as unknown as { collectProjects(): ProjectSelection[] }, 'collectProjects').mockReturnValue([
+            { selected: true },
+        ] as ProjectSelection[]);
+
+        expect(controller.usedCoreNames).toEqual(['M55_HE', 'M55_HP']);
     });
 
     it.each([

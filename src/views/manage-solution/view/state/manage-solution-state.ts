@@ -84,6 +84,7 @@ export type SolutionData = {
     projects: ProjectSelection[];
     images?: ImageSelection[];
     availableCoreNames: string[];
+    usedCoreNames: string[];
 }
 
 export type ActiveTargetSet = {
