@@ -19,6 +19,7 @@ import {
     ActiveSolutionTrackerImpl,
     COMMAND_ACTIVATE_SOLUTION,
     COMMAND_DEACTIVATE_SOLUTION,
+    COMMAND_GET_SOLUTION_DIR,
     COMMAND_GET_SOLUTION_NAME,
     dbgconfFileWatchPattern,
     solutionFileWatchPattern,
@@ -583,6 +584,55 @@ describe('ActiveSolutionTracker', () => {
 
                 expect(solutionName).toBe('Foo');
             });
+        });
+
+        describe('get solution dir command', () => {
+
+            it('is registered on activation', () => {
+                expect(commandsProvider.registerCommand).toHaveBeenCalledWith(
+                    COMMAND_GET_SOLUTION_DIR,
+                    expect.any(Function),
+                    expect.anything(),
+                );
+            });
+            it('returns the directory of the active solution', async () => {
+                const result = await commandsProvider.mockRunRegistered(
+                    COMMAND_GET_SOLUTION_DIR,
+                );
+
+                expect(result).toBe(path.dirname(SOLUTION_URI_DEFAULT.fsPath));
+            });
+            it('returns the directory of the currently active solution when multiple solutions exist', async () => {
+                await commandsProvider.mockRunRegistered(
+                    COMMAND_ACTIVATE_SOLUTION,
+                    SOLUTION_URI_FOO.fsPath,
+                );
+
+                const result = await commandsProvider.mockRunRegistered(
+                    COMMAND_GET_SOLUTION_DIR,
+                );
+
+                expect(result).toBe(path.dirname(SOLUTION_URI_FOO.fsPath));
+            });
+
+            it('should return an absolute solution directory path', async () => {
+                const result = await commandsProvider.mockRunRegistered<string>(
+                    COMMAND_GET_SOLUTION_DIR,
+                );
+
+                expect(path.isAbsolute(result)).toBe(true);
+            });
+
+            it('should return undefined when no solution is active', async () => {
+                await commandsProvider.mockRunRegistered(COMMAND_DEACTIVATE_SOLUTION);
+
+                const result = await commandsProvider.mockRunRegistered(
+                    COMMAND_GET_SOLUTION_DIR,
+                );
+
+                expect(result).toBeUndefined();
+            });
+
         });
 
         describe('deactivate command', () => {
