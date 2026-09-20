@@ -91,6 +91,14 @@ type DialogWithBackup = ElectronDialog & {
     __e2eOriginalShowMessageBox?: ElectronDialog['showMessageBox'];
 };
 
+type OpenDialog = {
+    showOpenDialog: (browserWindow: unknown, options: unknown) => Promise<{ canceled: boolean, filePaths: string[] }>;
+};
+
+type OpenDialogWithBackup = OpenDialog & {
+    __e2eOriginalShowOpenDialog?: OpenDialog['showOpenDialog'];
+};
+
 export type MockShowMessageBoxOptions = {
     /**
      * When true the mock stays installed and auto-answers every subsequent dialog that
@@ -150,5 +158,26 @@ export const mockShowMessageBoxResponse = async (
             };
         },
         { targetButtonName: buttonNameToClick, persist: options.persist ?? false },
+    );
+};
+
+/** Select an exact path in the next native open dialog. */
+export const mockShowOpenDialogResponse = async (
+    electronApp: playwright.ElectronApplication,
+    selectedPath: string,
+): Promise<void> => {
+    await electronApp.evaluate(
+        ({ dialog }: { dialog: OpenDialogWithBackup }, { path }: { path: string }) => {
+            if (!dialog.__e2eOriginalShowOpenDialog) {
+                dialog.__e2eOriginalShowOpenDialog = dialog.showOpenDialog;
+            }
+            const originalShowOpenDialog = dialog.__e2eOriginalShowOpenDialog;
+
+            dialog.showOpenDialog = function () {
+                dialog.showOpenDialog = originalShowOpenDialog;
+                return Promise.resolve({ canceled: false, filePaths: [path] });
+            };
+        },
+        { path: selectedPath },
     );
 };

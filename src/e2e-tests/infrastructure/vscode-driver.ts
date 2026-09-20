@@ -30,14 +30,13 @@
  */
 
 import { Page, ElectronApplication } from 'playwright';
-import { ELECTRON_APPLICATION_CLOSED_MESSAGE, getPage, mockShowMessageBoxResponse, MockShowMessageBoxOptions, setupElectronLogging } from './electron';
+import { ELECTRON_APPLICATION_CLOSED_MESSAGE, getPage, mockShowMessageBoxResponse, mockShowOpenDialogResponse, MockShowMessageBoxOptions, setupElectronLogging } from './electron';
 import { TestDirectories, tryCleanTestDirectories, createTestDirectories, createWorkspace } from './test-directories';
 import { getVsCode, installExtension, launchVsCode, openWorkspaceInExistingWindow } from './vscode';
 import { PageDriver } from '../drivers/page-driver';
 import { initializeExtensionCache } from '../utils/install-extensions';
 import { log } from '../utils/logger';
 import { DEFAULT_TIMEOUT_MS } from '../constants';
-import { getTestEnvironment } from './test-environment';
 
 type RunningApp = {
     pageDriver: PageDriver;
@@ -98,11 +97,8 @@ export class VsCodeDriver {
 
             initializeExtensionCache(vsCodeExecutablePath, testDirectories);
 
-            // Resolve ${env:AVH_FVP_PLUGINS}
-            const env = await getTestEnvironment();
             const electronApp = await launchVsCode({
                 testDirectories, vsCodeExecutablePath, defaultTimeoutMillis: DEFAULT_TIMEOUT_MS,
-                env,
             });
             try {
                 const page = await this.setupPage(electronApp);
@@ -198,6 +194,12 @@ export class VsCodeDriver {
         await mockShowMessageBoxResponse(runningApp.electronApp, buttonNameToClick, options);
     }
 
+    /** Select an exact path in the next native open dialog. */
+    async mockShowOpenDialogResponse(selectedPath: string): Promise<void> {
+        const runningApp = requireRunning(this.state);
+        await mockShowOpenDialogResponse(runningApp.electronApp, selectedPath);
+    }
+
     /**
      * Switches the current VS Code instance to a new workspace.
      * Allows reusing the same VS Code instance across tests while isolating workspaces.
@@ -241,6 +243,18 @@ export class VsCodeDriver {
             vsCodeExecutablePath: runningApp.vsCodeExecutablePath,
         });
         await navigation;
+        await runningApp.pageDriver.waitForVsCodeToBeReady();
+        await runningApp.pageDriver.waitForActionItem('CMSIS');
+    }
+
+    async openWorkspaceFolder(workspaceDir: string): Promise<void> {
+        const runningApp = requireRunning(this.state);
+
+        await openWorkspaceInExistingWindow({
+            testDirectories: runningApp.testDirectories,
+            workspaceDir,
+            vsCodeExecutablePath: runningApp.vsCodeExecutablePath,
+        });
         await runningApp.pageDriver.waitForVsCodeToBeReady();
         await runningApp.pageDriver.waitForActionItem('CMSIS');
     }
