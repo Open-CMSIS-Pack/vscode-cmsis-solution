@@ -131,6 +131,7 @@ export class SolutionCreatorImp  implements SolutionCreator {
             createdSolution,
             enableGit: createRequest.gitInit,
             compiler: createRequest.compiler,
+            activeTarget: createRequest.targetTypes[0]?.type,
             showOpenDialog: createRequest.showOpenDialog
         });
         return createdSolution;

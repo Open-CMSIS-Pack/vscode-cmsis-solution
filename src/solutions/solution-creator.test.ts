@@ -94,9 +94,10 @@ describe('SolutionCreatorImp', () => {
             vcpkgConfigured: false,
             forceRteUpdate: true,
         });
+        const solutionInitialiser = SolutionInitialiserFactory();
         const creator = new SolutionCreatorImp(
             createFromDraft,
-            SolutionInitialiserFactory(),
+            solutionInitialiser,
             jest.fn().mockReturnValue([]),
         );
 
@@ -107,7 +108,7 @@ describe('SolutionCreatorImp', () => {
             gitInit: false,
             compiler: 'GCC',
             projects: [],
-            targetTypes: [],
+            targetTypes: [{ type: 'SelectedTarget' }],
             packs: [],
             draftProject: draftProjectDataFactory({
                 format: DraftProjectFormat.Csolution,
@@ -123,6 +124,9 @@ describe('SolutionCreatorImp', () => {
             solutionName: 'Test-Ethos-U55',
             solutionFolder,
         });
+        expect(solutionInitialiser.initialiseSolution).toHaveBeenCalledWith(expect.objectContaining({
+            activeTarget: 'SelectedTarget',
+        }));
     });
 
     it('creates blank solution YAML directly and writes the solution after its projects', async () => {
