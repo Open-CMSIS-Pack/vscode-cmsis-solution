@@ -1,7 +1,6 @@
 ---
 name: change
 description: 'Implement and validate repository changes. Use when asked to modify, fix, refactor, or add code after requirements are understood.'
-argument-hint: 'Describe the change to implement'
 ---
 
 # Change

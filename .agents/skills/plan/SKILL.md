@@ -1,7 +1,6 @@
 ---
 name: plan
 description: 'Create implementation plans for repository changes. Use when asked to plan, design, scope, investigate, or outline a code change before editing.'
-argument-hint: 'Describe the change to plan'
 ---
 
 # Plan
