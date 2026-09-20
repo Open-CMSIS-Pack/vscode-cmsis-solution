@@ -28,7 +28,6 @@ export type ContextSelectionSettings = {
     [key: string]: SettingsValueType | ContextSelectionSettings;
 };
 
-
 export class CmsisSettingsJsonFile extends JsonFile {
     constructor(filename: string = 'cmsis.json') {
         super(filename);
@@ -64,9 +63,13 @@ export class CmsisSettingsJsonFile extends JsonFile {
         return this.get<string>(`targetSet.${this.solutionDisplayName}.activeTargetType`);
     }
 
-    public setActiveSelection(targetType: string, targetSet?: string): void {
+    public setActiveSolution(): void {
         const activeSolution = backToForwardSlashes(path.relative(path.dirname(this.fileName), this.solutionPath));
         this.set('activeSolution', activeSolution);
+    }
+
+    public setActiveSelection(targetType: string, targetSet?: string): void {
+        this.setActiveSolution();
         this.set('activeTarget', targetSet ? `${targetType}@${targetSet}` : targetType);
     }
 

@@ -38,6 +38,8 @@ import * as manifest from '../manifest';
 import { faker } from '@faker-js/faker';
 import { MockWorkspaceFsProvider, workspaceFsProviderFactory } from '../vscode-api/workspace-fs-provider.factories';
 import { FileType } from '../vscode-api/workspace-fs-provider';
+import { CmsisSettingsJsonFile } from '../global/cmsis-settings-json-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 
 const WORKSPACE_PATH = __dirname;
 
@@ -100,7 +102,17 @@ describe('ActiveSolutionTracker', () => {
         for (const { dispose } of context.subscriptions) {
             await dispose();
         }
+        jest.restoreAllMocks();
     });
+
+    const mockCmsisActiveSolution = (
+        activeSolution: unknown,
+        loadResult = ETextFileResult.Success,
+    ) => {
+        jest.spyOn(CmsisSettingsJsonFile.prototype, 'exists').mockReturnValue(true);
+        jest.spyOn(CmsisSettingsJsonFile.prototype, 'load').mockResolvedValue(loadResult);
+        jest.spyOn(CmsisSettingsJsonFile.prototype, 'get').mockReturnValue(activeSolution as never);
+    };
 
     it('searches for solution files on activation', async () => {
         activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
@@ -258,8 +270,65 @@ describe('ActiveSolutionTracker', () => {
         });
     });
 
+    it('uses activeSolution from cmsis.json as the default solution', async () => {
+        mockCmsisActiveSolution('../foo/Foo.csolution.yml');
+
+        activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+        await waitForEvent(activeSolutionTracker.onDidChangeActiveSolution, undefined, 200);
+
+        expect(activeSolutionTracker.activeSolution).toBe(SOLUTION_URI_FOO.fsPath);
+    });
+
+    it.each([
+        42,
+        '',
+        '../stale/Stale.csolution.yml',
+    ])('uses the existing root solution when cmsis.json has no valid discovered solution: %p', async configuredSolution => {
+        mockCmsisActiveSolution(configuredSolution);
+
+        activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+        await waitForEvent(activeSolutionTracker.onDidChangeActiveSolution, undefined, 200);
+
+        expect(activeSolutionTracker.activeSolution).toBe(SOLUTION_URI_DEFAULT.fsPath);
+    });
+
+    it('reads cmsis.json from the first workspace folder', async () => {
+        const firstWorkspaceFolder = { uri: URI.file(path.join(WORKSPACE_PATH, 'workspace-1')), name: 'Workspace Folder 1', index: 0 } as WorkspaceFolder;
+        const secondWorkspaceFolder = { uri: URI.file(path.join(WORKSPACE_PATH, 'workspace-2')), name: 'Workspace Folder 2', index: 1 } as WorkspaceFolder;
+        const firstSolution = URI.file(path.join(firstWorkspaceFolder.uri.fsPath, 'First.csolution.yml'));
+        const secondSolution = URI.file(path.join(secondWorkspaceFolder.uri.fsPath, 'Second.csolution.yml'));
+        workspaceFoldersProvider.updateWorkspaceFolders([firstWorkspaceFolder, secondWorkspaceFolder]);
+        workspaceFoldersProvider.findFiles
+            .mockResolvedValueOnce([firstSolution])
+            .mockResolvedValueOnce([secondSolution]);
+        let cmsisJsonPath: string | undefined;
+        jest.spyOn(CmsisSettingsJsonFile.prototype, 'exists').mockImplementation(function (this: CmsisSettingsJsonFile) {
+            cmsisJsonPath = this.fileName;
+            return true;
+        });
+        const loadCmsisJson = jest.spyOn(CmsisSettingsJsonFile.prototype, 'load').mockResolvedValue(ETextFileResult.Success);
+        jest.spyOn(CmsisSettingsJsonFile.prototype, 'get').mockReturnValue('../First.csolution.yml');
+
+        activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+        await waitForEvent(activeSolutionTracker.onDidChangeActiveSolution, undefined, 200);
+
+        expect(loadCmsisJson).toHaveBeenCalledTimes(1);
+        expect(cmsisJsonPath).toBe(path.join(firstWorkspaceFolder.uri.fsPath, '.vscode', 'cmsis.json'));
+        expect(activeSolutionTracker.activeSolution).toBe(firstSolution.fsPath);
+    });
+
+    it('uses the existing root solution when cmsis.json cannot be loaded', async () => {
+        mockCmsisActiveSolution('../foo/Foo.csolution.yml', ETextFileResult.Error);
+
+        activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+        await waitForEvent(activeSolutionTracker.onDidChangeActiveSolution, undefined, 200);
+
+        expect(activeSolutionTracker.activeSolution).toBe(SOLUTION_URI_DEFAULT.fsPath);
+    });
+
     describe('activated with solutions in the workspace and an existing previous selection', () => {
         beforeEach(async () => {
+            mockCmsisActiveSolution('../bar/Bar.csolution.yml');
             context.workspaceState.get.mockImplementation(
                 key => key === ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_KEY ? SOLUTION_URI_FOO.fsPath : undefined
             );
@@ -298,6 +367,7 @@ describe('ActiveSolutionTracker', () => {
 
     describe('activated with solutions in the workspace and explicit previous close', () => {
         beforeEach(async () => {
+            mockCmsisActiveSolution('../foo/Foo.csolution.yml');
             context.workspaceState.get.mockImplementation(
                 key => key === ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_STATE_KEY ? 'inactive' : undefined
             );
@@ -355,6 +425,43 @@ describe('ActiveSolutionTracker', () => {
             expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
         });
 
+        it('selects activeSolution from cmsis.json', async () => {
+            mockCmsisActiveSolution('../foo/Foo.csolution.yml');
+
+            activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+            await waitForEvent(activeSolutionTracker.onDidChangeActiveSolution, undefined, 200);
+
+            expect(activeSolutionTracker.activeSolution).toBe(SOLUTION_URI_FOO.fsPath);
+        });
+
+    });
+
+    it('does not overwrite a command selection while cmsis.json is loading', async () => {
+        let resolveSettingsLoad: (result: ETextFileResult) => void;
+        const settingsLoad = new Promise<ETextFileResult>(resolve => {
+            resolveSettingsLoad = resolve;
+        });
+        jest.spyOn(CmsisSettingsJsonFile.prototype, 'exists').mockReturnValue(true);
+        jest.spyOn(CmsisSettingsJsonFile.prototype, 'load').mockReturnValue(settingsLoad);
+        jest.spyOn(CmsisSettingsJsonFile.prototype, 'get').mockReturnValue('../bar/Bar.csolution.yml');
+        context.extension.activate.mockResolvedValue(undefined);
+
+        activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+        await waitForCondition(
+            async () => (CmsisSettingsJsonFile.prototype.load as jest.Mock).mock.calls.length > 0,
+            'CMSIS settings load to start',
+            200,
+        );
+        await commandsProvider.mockRunRegistered(COMMAND_ACTIVATE_SOLUTION, SOLUTION_URI_FOO.fsPath);
+
+        resolveSettingsLoad!(ETextFileResult.Success);
+        await waitForCondition(
+            async () => context.workspaceState.get.mock.calls.length > 0,
+            'refresh to complete after CMSIS settings load',
+            200,
+        );
+
+        expect(activeSolutionTracker.activeSolution).toBe(SOLUTION_URI_FOO.fsPath);
     });
 
     describe('after activation', () => {
