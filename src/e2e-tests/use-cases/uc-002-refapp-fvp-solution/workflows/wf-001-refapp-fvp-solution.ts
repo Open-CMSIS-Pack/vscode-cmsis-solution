@@ -336,41 +336,6 @@ export const runWf001RefAppFVPSolution = async (
             await vcpkg.waitForLoadedSolution(fixture.device ?? fixture.board);
         });
 
-        await test.step('Reopen workspace', async () => {
-            const page = vsCodeDriver.page.getPage();
-            const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
-
-            const solutionFolderPath = path.dirname(
-                createdSolution.solutionFilePath,
-            );
-
-            // Close folder and wait until VS Code finishes the transition.
-            const closed = page.waitForEvent('framenavigated', {
-                timeout: DEFAULT_TIMEOUT_MS,
-            });
-
-            await page.keyboard.press(`${modifier}+K`);
-            await page.keyboard.press('F');
-
-            await closed;
-            await vsCodeDriver.page.waitForVsCodeToBeReady();
-
-            // Reopen folder.
-            await vsCodeDriver.mockShowOpenDialogResponse(solutionFolderPath);
-
-            const reopened = page.waitForEvent('framenavigated', {
-                timeout: DEFAULT_TIMEOUT_MS,
-            });
-
-            await page.keyboard.press(`${modifier}+K`);
-            await page.keyboard.press(`${modifier}+O`);
-
-            await reopened;
-
-            await vsCodeDriver.page.waitForVsCodeToBeReady();
-            await vsCodeDriver.page.waitForActionItem('CMSIS');
-        });
-
         const targetName = fixture.device ?? fixture.board;
         await test.step('Build solution', async () => {
             // The generated index is the readiness postcondition for cbuild conversion.
@@ -538,6 +503,41 @@ export const runWf001RefAppFVPSolution = async (
                 log('warn', `Failed to stop CMSIS Load+Run during cleanup: ${String(error)}`);
             }
         }
+
+        await test.step('Reopen workspace', async () => {
+            const page = vsCodeDriver.page.getPage();
+            const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+
+            const solutionFolderPath = path.dirname(
+                createdSolution.solutionFilePath,
+            );
+
+            // Close folder and wait until VS Code finishes the transition.
+            const closed = page.waitForEvent('framenavigated', {
+                timeout: DEFAULT_TIMEOUT_MS,
+            });
+
+            await page.keyboard.press(`${modifier}+K`);
+            await page.keyboard.press('F');
+
+            await closed;
+            await vsCodeDriver.page.waitForVsCodeToBeReady();
+
+            // Reopen folder.
+            await vsCodeDriver.mockShowOpenDialogResponse(solutionFolderPath);
+
+            const reopened = page.waitForEvent('framenavigated', {
+                timeout: DEFAULT_TIMEOUT_MS,
+            });
+
+            await page.keyboard.press(`${modifier}+K`);
+            await page.keyboard.press(`${modifier}+O`);
+
+            await reopened;
+
+            await vsCodeDriver.page.waitForVsCodeToBeReady();
+            await vsCodeDriver.page.waitForActionItem('CMSIS');
+        });
 
         await test.step('Start debugger', async () => {
             await vsCodeDriver.page.openCmsisPanel();
