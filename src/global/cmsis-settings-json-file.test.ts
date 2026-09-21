@@ -82,6 +82,17 @@ describe('WorkspaceSettingsService', () => {
         expect(validateCmsisSettings(cmsisJson.getSettings())).toBe(true);
     });
 
+    it('writes the active solution without an active target', () => {
+        const solutionPath = path.join(testDir, 'solutions', 'MySolution.csolution.yml');
+        cmsisJson.solutionPath = solutionPath;
+
+        cmsisJson.setActiveSolution();
+
+        expect(cmsisJson.getSettings()).toEqual({
+            activeSolution: '../solutions/MySolution.csolution.yml',
+        });
+    });
+
     it('validates persisted target selections against the CMSIS settings schema', () => {
         cmsisJson.setSettings({
             activeSolution: '../solutions/MySolution.csolution.yml',

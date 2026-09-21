@@ -75,6 +75,7 @@ export const boardDataFactory = makeFactory<BoardData>({
 
 export const draftProjectDataFactory = makeFactory<DraftProjectData>({
     name: (r) => r.id?.name ?? faker.word.words(2),
+    solutionFileName: () => undefined,
     id: (r) => new DraftProjectId(r.name!, r.pack),
     description: () => faker.lorem.sentence(8),
     format: () => faker.helpers.enumValue(DraftProjectFormat),

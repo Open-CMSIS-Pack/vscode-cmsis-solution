@@ -177,6 +177,7 @@ export const initialState: ManageSolutionState = {
         projects: [],
         images: [],
         availableCoreNames: [],
+        usedCoreNames: [],
     },
     debugAdapters: [],
     debugger: undefined,

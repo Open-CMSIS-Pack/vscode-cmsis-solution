@@ -703,6 +703,16 @@
       },
       {
         "category": "CMSIS",
+        "command": "cmsis-csolution.getSolutionName",
+        "title": "Name of Active Solution"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getSolutionDir",
+        "title": "Directory of Active Solution"
+      },
+      {
+        "category": "CMSIS",
         "command": "cmsis-csolution.getSolutionPath",
         "title": "Deprecated: Identical with getSolutionFile"
       },
@@ -821,7 +831,7 @@
       },
       {
         "command": "cmsis-csolution.list.find",
-        "title": "Search"
+        "title": "Find a file in Solution"
       },
       {
         "category": "CMSIS",

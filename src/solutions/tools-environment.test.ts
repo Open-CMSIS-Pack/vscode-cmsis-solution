@@ -21,6 +21,7 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import yaml from 'yaml';
 import { ActiveTool, VcpkgResults } from '@arm-software/vscode-environment-manager';
+import { TestDataHandler } from '../__test__/test-data';
 import { EnvironmentManager } from '../desktop/env-manager';
 import { CMSIS_TOOLBOX_FOLDER } from '../manifest';
 import { extensionApiProviderFactory } from '../vscode-api/extension-api-provider.factories';
@@ -28,6 +29,8 @@ import { workspaceFsProviderFactory } from '../vscode-api/workspace-fs-provider.
 import { ToolsEnvironment } from './tools-environment';
 
 describe('ToolsEnvironment', () => {
+    const testDataHandler = new TestDataHandler();
+    const tempDir = testDataHandler.tmpDir;
     const toolsEnvironmentSchema = JSON.parse(fs.readFileSync(
         path.join(__dirname, '../../schemas/tools-environment.schema.json'),
         'utf8',
@@ -41,6 +44,10 @@ describe('ToolsEnvironment', () => {
         (vscode.extensions.getExtension as jest.Mock).mockReturnValue(undefined);
     });
 
+    afterAll(() => {
+        testDataHandler.dispose();
+    });
+
     it('writes the resolved environment next to the solution', async () => {
         const artifactsRoot = path.join('/home/user', '.vcpkg', 'artifacts', 'registry');
         const toolboxRoot = path.join(artifactsRoot, 'tools.open.cmsis.pack.cmsis.toolbox', '2.14.1');
@@ -50,13 +57,19 @@ describe('ToolsEnvironment', () => {
         const cmakeRoot = path.join(artifactsRoot, 'tools.kitware.cmake', '3.31.12');
         const cmakeBin = path.join(cmakeRoot, 'bin');
         const builtInToolboxBin = path.join(CMSIS_TOOLBOX_FOLDER, 'bin');
-        const debuggerExtensionPath = fs.mkdtempSync(path.join(__dirname, 'cmsis-debugger-'));
+        const debuggerExtensionPath = path.join(tempDir, 'cmsis-debugger');
         const pyocdPath = path.join(debuggerExtensionPath, 'tools', 'pyocd');
         const gdbBin = path.join(debuggerExtensionPath, 'tools', 'gdb', 'bin');
+        const sdsExtensionPath = path.join(tempDir, 'cmsis-sds');
+        const sdsToolsPath = path.join(sdsExtensionPath, 'tools');
+
         fs.mkdirSync(pyocdPath, { recursive: true });
         fs.mkdirSync(gdbBin, { recursive: true });
+        fs.mkdirSync(sdsToolsPath, { recursive: true });
         fs.writeFileSync(path.join(pyocdPath, 'version.txt'), '0.38.0\n');
         fs.writeFileSync(path.join(debuggerExtensionPath, 'tools', 'gdb', 'version.txt'), '15.2.rel1\n');
+        fs.writeFileSync(path.join(sdsToolsPath, 'sdsio-server.exe'), '');
+        fs.writeFileSync(path.join(sdsToolsPath, 'version.txt'), '1.2.3\n');
         (vscode.extensions.getExtension as jest.Mock).mockImplementation((extensionId: string) => {
             if (extensionId === 'arm.cmsis-csolution') {
                 return { packageJSON: { version: '1.70.1-41-20260902' } };
@@ -64,12 +77,15 @@ describe('ToolsEnvironment', () => {
             if (extensionId === 'arm.vscode-cmsis-debugger') {
                 return { extensionPath: debuggerExtensionPath };
             }
+            if (extensionId === 'arm.cmsis-sds') {
+                return { extensionPath: sdsExtensionPath };
+            }
             return undefined;
         });
         const environmentManager = {
             getEnvironmentVariables: jest.fn().mockReturnValue({
                 PATH: [
-                    '/usr/local/bin', pyocdPath, builtInToolboxBin, toolboxBin, gccBin, cmakeBin, gdbBin,
+                    '/usr/local/bin', pyocdPath, builtInToolboxBin, toolboxBin, gccBin, cmakeBin, gdbBin, sdsToolsPath,
                 ].join(path.delimiter),
                 CMSIS_PACK_ROOT: '/packs',
                 CMSIS_COMPILER_ROOT: '/compilers',
@@ -141,7 +157,7 @@ describe('ToolsEnvironment', () => {
                 'generated-by': 'arm.cmsis-csolution version 1.70.1-41-20260902',
                 solution: '../project.csolution.yml',
                 environment: {
-                    path: [pyocdPath, builtInToolboxBin, gccBin, cmakeBin, gdbBin].map(toPortablePath),
+                    path: [pyocdPath, builtInToolboxBin, gccBin, cmakeBin, gdbBin, sdsToolsPath].map(toPortablePath),
                     variables: {
                         CMSIS_PACK_ROOT: '/packs',
                         CMSIS_COMPILER_ROOT: '/compilers',
@@ -203,6 +219,17 @@ describe('ToolsEnvironment', () => {
                         directory: toPortablePath(gdbBin),
                         manual: 'https://developer.arm.com/Tools%20and%20Software/GNU%20Toolchain',
                     },
+                    {
+                        name: 'sdsio-server',
+                        version: '1.2.3',
+                        origin: 'built-in',
+                        provider: {
+                            type: 'vscode-extension',
+                            id: 'arm.cmsis-sds',
+                        },
+                        directory: toPortablePath(sdsToolsPath),
+                        manual: 'https://arm-software.github.io/SDS-Framework/main/utilities.html#sdsio-server',
+                    },
                 ],
             },
         });
@@ -215,8 +242,6 @@ describe('ToolsEnvironment', () => {
 
         expect(workspaceFsProvider.createDirectory).not.toHaveBeenCalled();
         expect(workspaceFsProvider.writeUtf8File).not.toHaveBeenCalled();
-
-        fs.rmSync(debuggerExtensionPath, { recursive: true, force: true });
     });
 
     it('writes a minimal environment when Environment Manager is unavailable and replaces unreadable output', async () => {
@@ -497,7 +522,7 @@ describe('ToolsEnvironment', () => {
     });
 
     it('uses unknown versions when extension metadata files are unavailable', async () => {
-        const debuggerExtensionPath = fs.mkdtempSync(path.join(__dirname, 'cmsis-debugger-'));
+        const debuggerExtensionPath = path.join(tempDir, 'cmsis-debugger-without-metadata');
         const pyocdPath = path.join(debuggerExtensionPath, 'tools', 'pyocd');
         const gdbBin = path.join(debuggerExtensionPath, 'tools', 'gdb', 'bin');
         (vscode.extensions.getExtension as jest.Mock).mockImplementation((extensionId: string) => {
@@ -519,26 +544,22 @@ describe('ToolsEnvironment', () => {
             workspaceFsProvider,
         );
 
-        try {
-            await toolsEnvironment.write(path.join('/workspace', 'project.csolution.yml'));
+        await toolsEnvironment.write(path.join('/workspace', 'project.csolution.yml'));
 
-            const document = yaml.parse(workspaceFsProvider.writeUtf8File.mock.calls[0][1]);
-            expect(document['cmsis-tools-environment']['generated-by']).toBe('arm.cmsis-csolution version unknown');
-            expect(document['cmsis-tools-environment'].tools).toEqual(expect.arrayContaining([
-                expect.objectContaining({
-                    name: 'pyOCD',
-                    version: 'unknown',
-                    directory: toPortablePath(pyocdPath),
-                }),
-                expect.objectContaining({
-                    name: 'Arm GNU GDB',
-                    version: 'unknown',
-                    directory: toPortablePath(gdbBin),
-                }),
-            ]));
-        } finally {
-            fs.rmSync(debuggerExtensionPath, { recursive: true, force: true });
-        }
+        const document = yaml.parse(workspaceFsProvider.writeUtf8File.mock.calls[0][1]);
+        expect(document['cmsis-tools-environment']['generated-by']).toBe('arm.cmsis-csolution version unknown');
+        expect(document['cmsis-tools-environment'].tools).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                name: 'pyOCD',
+                version: 'unknown',
+                directory: toPortablePath(pyocdPath),
+            }),
+            expect.objectContaining({
+                name: 'Arm GNU GDB',
+                version: 'unknown',
+                directory: toPortablePath(gdbBin),
+            }),
+        ]));
     });
 
     it('requires directory as the installed tool location', () => {

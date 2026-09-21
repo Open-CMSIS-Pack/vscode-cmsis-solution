@@ -399,9 +399,9 @@ export class ManageSolutionController {
     public async toggleDebugAdapterSection(section: string) {
         const adapter = this.debugAdaptersYmlFile?.getAdapterByName(this.activeDebuggerName);
         this.customizeDebugAdapterDefaults(adapter);
-        const availableCores = await this.getAvailableCoreNames();
+        await this.getAvailableCoreNames();
         const uiSection = adapter?.['user-interface']?.find(sec => sec['yml-node'] === section);
-        const defaults = uiSection ? this.buildSectionDefaults(uiSection, availableCores) : {};
+        const defaults = uiSection ? this.buildSectionDefaults(uiSection, this.usedCoreNames) : {};
         this.activeTargetSetWrap.ensureDebugger().toggleSection(section, defaults);
     }
 
@@ -432,6 +432,22 @@ export class ManageSolutionController {
     }
 
     /**
+     * Gets processor core names used by selected projects and active images.
+     * Falls back to all device cores when no processor is specified.
+     */
+    public get usedCoreNames(): string[] {
+        const usedCores = new Set<string>();
+        const addCore = (core?: string) => {
+            if (core && this.availableCoreNames.includes(core)) {
+                usedCores.add(core);
+            }
+        };
+        this.collectProjects().filter(project => project.selected).forEach(project => addCore(project.device));
+        this.activeTargetSetWrap.imagesOnly.forEach(image => addCore(image.device));
+        return usedCores.size > 0 ? [...usedCores] : this.availableCoreNames;
+    }
+
+    /**
      * Resolves the processor used to start debugging for the active target set.
      */
     public async getEffectiveStartProcessor(): Promise<string | undefined> {
@@ -440,11 +456,12 @@ export class ManageSolutionController {
             return undefined;
         }
 
-        const availableCores = await this.getAvailableCoreNames();
+        await this.getAvailableCoreNames();
+        const usedCores = this.usedCoreNames;
         const configuredStartProcessor = debuggerWrap.startPname;
-        return configuredStartProcessor && availableCores.includes(configuredStartProcessor)
+        return configuredStartProcessor && usedCores.includes(configuredStartProcessor)
             ? configuredStartProcessor
-            : availableCores.at(0);
+            : usedCores.at(0);
     }
 
     /**
@@ -468,16 +485,17 @@ export class ManageSolutionController {
     }
 
     /**
-     * Rebuilds debug adapter definitions using current defaults and available cores.
+     * Rebuilds debug adapter definitions using current defaults and used cores.
      */
     public async refreshDebugAdapters(): Promise<DebugAdapter[]> {
         const adapters = this.debugAdaptersYmlFile?.debugAdapters ?? [];
-        const availableCores = await this.getAvailableCoreNames();
+        await this.getAvailableCoreNames();
+        const usedCores = this.usedCoreNames;
         adapters.forEach(da => this.customizeDebugAdapterDefaults(da));
         adapters.forEach(da => {
             da['user-interface']?.forEach(section => {
                 if (section['pname-options'] !== undefined) {
-                    section.options = this.expandPnameOptions(section, availableCores);
+                    section.options = this.expandPnameOptions(section, usedCores);
                 }
             });
         });
@@ -559,11 +577,16 @@ export class ManageSolutionController {
             }
             child?.setValue(param, value as string);
         } else {
-            this.activeTargetSetWrap.ensureDebugger().item
+            const sectionNode = this.activeTargetSetWrap.ensureDebugger().item
                 ?.createChild(section, true)
-                ?.setKind(ETreeItemKind.Sequence)
-                ?.getChildByValue('pname', pname)
-                ?.setValue(param, value as string);
+                ?.setKind(ETreeItemKind.Sequence);
+            let processorNode = sectionNode?.getChildByValue('pname', pname);
+            if (!processorNode) {
+                processorNode = sectionNode?.createChild('-');
+                processorNode?.setKind(ETreeItemKind.Map).setText(undefined);
+                processorNode?.setValue('pname', pname);
+            }
+            processorNode?.setValue(param, value as string);
         }
 
     }
@@ -583,6 +606,7 @@ export class ManageSolutionController {
             projects: projects,
             images: selectedTargetSet?.images,
             availableCoreNames: this.availableCoreNames,
+            usedCoreNames: this.usedCoreNames,
         };
     }
 
