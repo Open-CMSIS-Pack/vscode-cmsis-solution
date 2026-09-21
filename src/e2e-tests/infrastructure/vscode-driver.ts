@@ -97,9 +97,13 @@ export class VsCodeDriver {
 
             initializeExtensionCache(vsCodeExecutablePath, testDirectories);
 
-            const electronApp = await launchVsCode({
-                testDirectories, vsCodeExecutablePath, defaultTimeoutMillis: DEFAULT_TIMEOUT_MS,
-            });
+            const electronApp = await launchVsCode(
+                {
+                    testDirectories,
+                    vsCodeExecutablePath,
+                    defaultTimeoutMillis: DEFAULT_TIMEOUT_MS,
+                }
+            );
             try {
                 const page = await this.setupPage(electronApp);
                 const pageDriver = new PageDriver(page);

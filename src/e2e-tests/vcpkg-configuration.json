@@ -12,6 +12,6 @@
         }
     ],
     "requires": {
-        "arm:compilers/arm/armclang": "6.24.0"        
+        "arm:compilers/arm/armclang": "6.24.0"
     }
 }

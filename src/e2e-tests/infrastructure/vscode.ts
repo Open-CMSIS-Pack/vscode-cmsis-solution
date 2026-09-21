@@ -46,7 +46,6 @@ export type LaunchOptions = {
     vsCodeExecutablePath: string;
     testDirectories: TestDirectories;
     defaultTimeoutMillis: number;
-    env?: Record<string, string>;
 }
 
 export const launchVsCode = async ({ vsCodeExecutablePath, testDirectories, defaultTimeoutMillis }: LaunchOptions): Promise<playwright.ElectronApplication> => {
