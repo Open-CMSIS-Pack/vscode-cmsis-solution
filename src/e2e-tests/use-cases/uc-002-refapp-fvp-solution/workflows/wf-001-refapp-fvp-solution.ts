@@ -85,6 +85,9 @@ export type CreateSolutionFixture = {
         command_contains?: string[];
         output_contains?: string[];
     };
+    expected_debug: {
+        output_contains: string;
+    };
     expected_files?: ExpectedFiles;
     expected_problems?: ExpectedProblems;
 };
@@ -500,6 +503,97 @@ export const runWf001RefAppFVPSolution = async (
                 log('warn', `Failed to stop CMSIS Load+Run during cleanup: ${String(error)}`);
             }
         }
+
+        await test.step('Reopen workspace', async () => {
+            const page = vsCodeDriver.page.getPage();
+            const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+
+            const solutionFolderPath = path.dirname(
+                createdSolution.solutionFilePath,
+            );
+
+            // Close folder and wait until VS Code finishes the transition.
+            const closed = page.waitForEvent('framenavigated', {
+                timeout: DEFAULT_TIMEOUT_MS,
+            });
+
+            await page.keyboard.press(`${modifier}+K`);
+            await page.keyboard.press('F');
+
+            await closed;
+            await vsCodeDriver.page.waitForVsCodeToBeReady();
+
+            // Reopen folder.
+            await vsCodeDriver.mockShowOpenDialogResponse(solutionFolderPath);
+
+            const reopened = page.waitForEvent('framenavigated', {
+                timeout: DEFAULT_TIMEOUT_MS,
+            });
+
+            await page.keyboard.press(`${modifier}+K`);
+            await page.keyboard.press(`${modifier}+O`);
+
+            await reopened;
+
+            await vsCodeDriver.page.waitForVsCodeToBeReady();
+            await vsCodeDriver.page.waitForActionItem('CMSIS');
+        });
+
+        await test.step('Start debugger', async () => {
+            await vsCodeDriver.page.openCmsisPanel();
+
+            const loadAndDebugButton = vsCodeDriver.page.getRoleByName('button', {
+                name: 'Load & Debug Application',
+            });
+
+            await expect(loadAndDebugButton).toBeVisible({
+                timeout: DEFAULT_TIMEOUT_MS,
+            });
+            await expect(loadAndDebugButton).toBeEnabled({
+                timeout: DEFAULT_TIMEOUT_MS,
+            });
+
+            await loadAndDebugButton.click();
+
+            // 1. Open Debug Console
+            await vsCodeDriver.page
+                .getRoleByName('tab', { name: 'Debug Console' })
+                .click();
+
+            // 2. Verify debugger started and execution reached main()
+            const debugConsole =
+                vsCodeDriver.page.getLocator('#workbench\\.panel\\.repl');
+
+            await expect(debugConsole).toBeVisible({
+                timeout: DEFAULT_TIMEOUT_MS,
+            });
+
+            await expect(debugConsole).toContainText(
+                fixture.expected_debug.output_contains,
+                { timeout: DEFAULT_TIMEOUT_MS },
+            );
+
+            // 3. Stop debugger
+            const stopButton = vsCodeDriver.page.getLocator(
+                '[aria-label^="Stop"]',
+            );
+
+            await expect(stopButton).toBeVisible({
+                timeout: DEFAULT_TIMEOUT_MS,
+            });
+
+            await stopButton.click();
+
+            // 4. Verify debug session terminated
+            await expect(debugConsole).toContainText(
+                'gdbserver stopped',
+                { timeout: DEFAULT_TIMEOUT_MS },
+            );
+
+            await expect(stopButton).not.toBeVisible({
+                timeout: DEFAULT_TIMEOUT_MS,
+            });
+        });
     } finally {
         try {
             await vsCodeDriver.restoreTestWorkspace();
