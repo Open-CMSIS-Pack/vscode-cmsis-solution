@@ -142,7 +142,8 @@ describe('ContextSelection', () => {
                     images: [
                         { name: 'image1', path: '/path/to/image1', selected: true, loadOffset: '0x1000', load: 'image+symbols' },
                     ],
-                    availableCoreNames: ['cm0', 'cm4_cpu', 'cm4_fpu']
+                    availableCoreNames: ['cm0', 'cm4_cpu', 'cm4_fpu'],
+                    usedCoreNames: ['cm0', 'cm4_cpu', 'cm4_fpu']
                 },
             });
 

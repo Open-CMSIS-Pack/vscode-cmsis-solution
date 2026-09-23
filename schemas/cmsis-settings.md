@@ -24,7 +24,7 @@ Paths use forward slashes on every platform.
 }
 ```
 
-### Informational Selection
+### Active Selection
 
 - `activeSolution` is the path to the active `*.csolution.yml` file, including
   its extension, relative to the directory containing `cmsis.json`.
@@ -32,10 +32,12 @@ Paths use forward slashes on every platform.
   `target-type@target-set` form. The target-set suffix is omitted when no named
   target set is active.
 
-These properties mirror the current state for people and external tools. The
-extension writes them but does not read them. In particular, it restores the
-active solution from VS Code workspace storage and reads target selection from
-`targetSet`.
+The extension reads `activeSolution` as the default solution when a workspace
+has no valid persisted selection. A persisted user selection or explicit
+deactivation in VS Code workspace storage takes precedence. In a multi-root
+workspace, the extension reads `.vscode/cmsis.json` from the first workspace
+folder. `activeTarget` mirrors the current state for people and external tools;
+target selection is restored from `targetSet`.
 
 ### Persisted Target Selection
 
@@ -64,11 +66,11 @@ Selections for other solutions are retained when the active solution changes.
 
 ## Compatibility
 
-Consumers should treat `activeSolution` and `activeTarget` as informational
-and use `targetSet` only when they need the extension's persisted selection
-format. All properties are optional so the schema accepts settings written by
-older extension versions. Unknown top-level properties are allowed for
-compatibility.
+Consumers may set `activeSolution` to provide the default solution and should
+treat `activeTarget` as informational. Use `targetSet` when the extension's
+persisted target selection format is required. All properties are optional so
+the schema accepts settings written by older extension versions. Unknown
+top-level properties are allowed for compatibility.
 
 ## Other settings
 

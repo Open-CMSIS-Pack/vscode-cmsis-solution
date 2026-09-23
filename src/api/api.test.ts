@@ -18,7 +18,7 @@ import { faker } from '@faker-js/faker';
 import * as fs from 'node:fs';
 import { tmpdir } from 'os';
 import path from 'path';
-import { Uri, workspace } from 'vscode';
+import { workspace } from 'vscode';
 import { CsolutionApiV2, CsolutionExtension } from '../../api/csolution';
 import { getTestDataDir, SOLUTIONS_DIR } from '../__test__/test-data';
 import { DataManager } from '../data-manager/data-manager';
@@ -60,6 +60,7 @@ describe('Csolution Extension APIv2', () => {
                 }
             }));
         });
+        mockWorkspaceFsProvider.exists.mockImplementation((filePath: string) => Promise.resolve(fs.existsSync(filePath)));
 
         mockDataSource = dataSourceFactory();
         const dataManager = new DataManager(mockDataSource);
@@ -120,13 +121,10 @@ describe('Csolution Extension APIv2', () => {
                 copyFolderRecursive(projectSrc, dest);
             });
 
-            (workspace.findFiles as jest.Mock).mockResolvedValue([
-                Uri.file(path.join(tempFolder, 'test.csolution.yml'))
-            ]);
-
             const draftOptions: Partial<DraftProjectData> = {
                 format: DraftProjectFormat.Csolution,
                 draftType: DraftProjectType.Example,
+                solutionFileName: 'test.csolution.yml',
                 copyTo: mockCopyTo,
             };
             const draft = draftProjectDataFactory(draftOptions);

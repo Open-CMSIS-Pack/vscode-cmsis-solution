@@ -189,9 +189,9 @@ export const ManageSolution = (props: ManageSolutionProps) => {
     const hasDebugger = !!state.debugger;
     const configuredStartProcessor = selectedDebugAdapter['start-pname'] as string | undefined;
     const startProcessor = hasDebugger
-        ? (configuredStartProcessor && state.solutionData.availableCoreNames.includes(configuredStartProcessor)
+        ? (configuredStartProcessor && state.solutionData.usedCoreNames.includes(configuredStartProcessor)
             ? configuredStartProcessor
-            : state.solutionData.availableCoreNames.at(0))
+            : state.solutionData.usedCoreNames.at(0))
         : undefined;
 
     const selectFile = React.useCallback((context: SelectFileContext) => {
@@ -216,7 +216,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
         });
     }, [props.messageHandler]);
 
-    const showCoreSelector = state.solutionData.availableCoreNames !== undefined && state.solutionData.availableCoreNames.length > 1;
+    const showCoreSelector = state.solutionData.usedCoreNames.length > 1;
     const debugAdapterConfigurationDocsUrl = 'https://mdk-packs.github.io/vscode-cmsis-solution-docs/debug.html#configure-run-and-debug';
     const externalLink = (link: string, aria: string, external?: boolean): React.JSX.Element => {
         return (<Button
@@ -313,7 +313,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                 <h4>Start Processor</h4>
                                                 <CompactDropdown
                                                     disabled={!hasDebugger}
-                                                    available={state.solutionData.availableCoreNames}
+                                                    available={state.solutionData.usedCoreNames}
                                                     selected={startProcessor ?? ''}
                                                     className="start-processor-dropdown"
                                                     style={{ minWidth: '130px' }}

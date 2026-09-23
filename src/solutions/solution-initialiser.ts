@@ -29,6 +29,7 @@ type SolutionInitialiserOptions = {
     createdSolution: CreatedSolution;
     enableGit?: boolean; // defaults to false
     compiler?: string; // defaults to AC6
+    activeTarget?: string;
     showOpenDialog?: boolean; // defaults to false
 }
 export interface SolutionInitialiser {
@@ -57,11 +58,23 @@ export class SolutionInitialiserImp implements SolutionInitialiser {
             await this.configureVcpkgForNewSolution(solutionDirUri, [options.compiler ?? 'AC6']);
         }
 
-        if (options.createdSolution.forceRteUpdate && options.createdSolution.solutionFile) {
+        if (options.createdSolution.solutionFile) {
             const cmsisJsonFile = path.join(solutionDirUri.fsPath, '.vscode', 'cmsis.json');
             const ccmsisJson = new CmsisSettingsJsonFile(cmsisJsonFile);
-            await ccmsisJson.load();
-            ccmsisJson.set('force-update-rte', true);
+            if (ccmsisJson.exists()) {
+                await ccmsisJson.load();
+            } else {
+                ccmsisJson.setSettings({});
+            }
+            ccmsisJson.solutionPath = options.createdSolution.solutionFile.fsPath;
+            if (options.activeTarget) {
+                ccmsisJson.setActiveSelection(options.activeTarget);
+            } else {
+                ccmsisJson.setActiveSolution();
+            }
+            if (options.createdSolution.forceRteUpdate) {
+                ccmsisJson.set('force-update-rte', true);
+            }
             await ccmsisJson.save();
         }
 

@@ -2,14 +2,14 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://raw.githubusercontent.com/Open-CMSIS-Pack/vscode-cmsis-solution/main/schemas/cmsis-settings.schema.json",
   "title": "CMSIS workspace settings",
-  "description": "Mirrored active CMSIS solution and persisted target type and target set selections for a workspace.",
+  "description": "Default active CMSIS solution and persisted target type and target set selections for a workspace.",
   "type": "object",
   "properties": {
     "activeSolution": {
       "type": "string",
       "minLength": 1,
       "pattern": "\\.csolution\\.ya?ml$",
-      "description": "Informational forward-slash path to the active csolution file, relative to the directory containing cmsis.json. The extension does not use this property to restore the active solution."
+      "description": "Forward-slash path to the default active csolution file, relative to the directory containing cmsis.json. A valid persisted user selection or explicit deactivation takes precedence."
     },
     "activeTarget": {
       "type": "string",

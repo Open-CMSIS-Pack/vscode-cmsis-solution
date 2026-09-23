@@ -27,6 +27,7 @@ import { SolutionInitialiser } from './solution-initialiser';
 import { TEMPLATES_FOLDER } from '../manifest';
 import { CProjectYamlFile } from './files/cproject-yaml-file';
 import { CSolutionYamlFile } from './files/csolution-yaml-file';
+import { getFileNameNoExt } from '../utils/path-utils';
 
 export type CreatedSolution = {
     vcpkgConfigured: boolean;
@@ -109,25 +110,36 @@ export class SolutionCreatorImp  implements SolutionCreator {
 
     public async createSolution(message: CreateSolutionRequest): Promise<CreatedSolution> {
         const solutionDirUri = URI.file(path.join(message.solutionLocation, message.solutionFolder));
-        const solutionFileUri = Uri.joinPath(solutionDirUri, `${message.solutionName}${SOLUTION_SUFFIX}`);
+        const draftSolutionFileName = message.draftProject?.solutionFileName;
+        const solutionFileName = draftSolutionFileName
+            ? path.basename(draftSolutionFileName)
+            : `${message.solutionName}${SOLUTION_SUFFIX}`;
+        const solutionName = draftSolutionFileName
+            ? getFileNameNoExt(solutionFileName)
+            : message.solutionName;
+        const createRequest = solutionName === message.solutionName
+            ? message
+            : { ...message, solutionName };
+        const solutionFileUri = Uri.joinPath(solutionDirUri, solutionFileName);
         const existingSolutionFiles = this.findSolutionFiles(solutionDirUri.fsPath);
         const existingSolutionFile = existingSolutionFiles[0];
         if (existingSolutionFile) {
             throw new SolutionDirectoryConflictError(message.solutionFolder, path.basename(existingSolutionFile));
         }
-        const createdSolution = await this.createSolutionWithSelectedTemplate(solutionDirUri, solutionFileUri, message);
+        const createdSolution = await this.createSolutionWithSelectedTemplate(solutionDirUri, solutionFileUri, createRequest);
         this.solutionInitialiser.initialiseSolution({
             createdSolution,
-            enableGit: message.gitInit,
-            compiler: message.compiler,
-            showOpenDialog: message.showOpenDialog
+            enableGit: createRequest.gitInit,
+            compiler: createRequest.compiler,
+            activeTarget: createRequest.targetTypes[0]?.type,
+            showOpenDialog: createRequest.showOpenDialog
         });
         return createdSolution;
     }
 
     public async createSolutionWithSelectedTemplate(solutionDirUri: Uri, solutionFileUri: Uri, message: CreateSolutionRequest): Promise<CreatedSolution> {
         if (message.draftProject) {
-            return this.createSolutionFromDataManager(solutionDirUri, message);
+            return this.createSolutionFromDataManager(solutionDirUri, solutionFileUri, message);
         } else {
             return this.createSolutionFromTemplate(solutionDirUri, solutionFileUri, message);
         }
