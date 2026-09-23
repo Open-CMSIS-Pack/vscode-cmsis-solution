@@ -3,6 +3,7 @@
 ## 1.72.0
 
 - Updates:
+  - The extension uses the bundled [**CMSIS-Toolbox v2.15.0**](https://github.com/Open-CMSIS-Pack/cmsis-toolbox/releases/tag/2.15.0) exclusively, adding [Native CMake Project Integration](https://open-cmsis-pack.github.io/cmsis-toolbox/build-operation/#native-cmake-project-integration) support.
   - Added new action ["Search in Solution Sources"](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#search-in-solution-sources) to **CMSIS-View** using a magnifying-glass icon. The search covers the active target, including YAML files and files referenced from CMSIS-Packs.
   - The tree view of the **CMSIS-View** now decorates files and groups that are excluded from the build through [conditional build nodes](https://open-cmsis-pack.github.io/cmsis-toolbox/YML-Input-Format/#conditional-build) like `for-context:`.
   - Made [**Configuration Wizard**](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#configuration-wizard) more tolerant of errors and added annotation-error reporting with an option to navigate to the error location in the editor view.
