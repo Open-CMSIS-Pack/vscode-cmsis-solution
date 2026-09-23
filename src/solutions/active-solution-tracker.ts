@@ -26,11 +26,15 @@ import { WorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { SOLUTION_SUFFIX } from './constants';
 import { ConfigurationProvider } from '../vscode-api/configuration-provider';
 import { stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { CmsisSettingsJsonFile } from '../global/cmsis-settings-json-file';
 
 export const COMMAND_OPEN_SOLUTION = `${manifest.PACKAGE_NAME}.openSolution`;
 export const COMMAND_ACTIVATE_SOLUTION = `${manifest.PACKAGE_NAME}.activateSolution`;
 export const COMMAND_DEACTIVATE_SOLUTION = `${manifest.PACKAGE_NAME}.deactivateSolution`;
 export const COMMAND_GET_SOLUTION_FILE = `${manifest.PACKAGE_NAME}.getSolutionFile`;
+export const COMMAND_GET_SOLUTION_NAME = `${manifest.PACKAGE_NAME}.getSolutionName`;
+export const COMMAND_GET_SOLUTION_DIR = `${manifest.PACKAGE_NAME}.getSolutionDir`;
 /** @deprecated */
 export const COMMAND_GET_SOLUTION_PATH = `${manifest.PACKAGE_NAME}.getSolutionPath`;
 
@@ -111,11 +115,11 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
             // it doesn't care about their contents. Renames come through as a delete and create event.
             this.fileWatcherProvider.watchFiles(ActiveSolutionTrackerImpl.GLOB_PATTERN, {
                 onCreate: this.debouncedRefresh,
-            },this),
+            }, this),
             // VS Code already watches the workspace folders recursively, so this doesn't have an adverse performance impact
             this.fileWatcherProvider.watchFiles('**/*', {
                 onDelete: this.handleFileDeleted,
-            },this),
+            }, this),
             this.activeSolutionFilesChangedEmitter,
             this.fileWatcherProvider.watchFiles(solutionFileWatchPattern, {
                 onChange: this.handleActiveSolutionFileChange,
@@ -128,6 +132,8 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
             this.commandsProvider.registerCommand(COMMAND_ACTIVATE_SOLUTION, this.handleActivateSolution, this),
             this.commandsProvider.registerCommand(COMMAND_DEACTIVATE_SOLUTION, this.handleDeactivateSolution, this),
             this.commandsProvider.registerCommand(COMMAND_GET_SOLUTION_FILE, this.handleGetSolutionFile, this),
+            this.commandsProvider.registerCommand(COMMAND_GET_SOLUTION_NAME, this.handleGetSolutionName, this),
+            this.commandsProvider.registerCommand(COMMAND_GET_SOLUTION_DIR, this.handleGetSolutionDir, this),
             this.commandsProvider.registerCommand(COMMAND_GET_SOLUTION_PATH, this.handleGetSolutionFile, this),
             this.workspaceFoldersProvider.onDidChangeWorkspaceFolders(this.debouncedRefresh, this),
             this.changeActiveSolutionEmitter,
@@ -176,11 +182,33 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
         return [...new Set(solutionPaths)].sort();
     }
 
+    private async getConfiguredDefaultSolution(): Promise<string | undefined> {
+        const workspaceFolder = this.workspaceFoldersProvider.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            return undefined;
+        }
+
+        const cmsisJsonPath = path.join(workspaceFolder.uri.fsPath, '.vscode', 'cmsis.json');
+        const cmsisJson = new CmsisSettingsJsonFile(cmsisJsonPath);
+        if (!cmsisJson.exists() || await cmsisJson.load() === ETextFileResult.Error) {
+            return undefined;
+        }
+
+        const activeSolution = cmsisJson.get('activeSolution');
+        return typeof activeSolution === 'string' && activeSolution.trim()
+            ? path.resolve(path.dirname(cmsisJsonPath), activeSolution)
+            : undefined;
+    }
+
     /**
      * Reload list of available solutions, check active solution is still present.
      */
     private async refresh() {
-        this._solutions = await this.getSolutionPaths();
+        const [solutions, configuredDefaultSolution] = await Promise.all([
+            this.getSolutionPaths(),
+            this.getConfiguredDefaultSolution(),
+        ]);
+        this._solutions = solutions;
 
         const previous = this._activeSolution || this.workspaceState?.get<string>(ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_KEY);
         const previousState = this.workspaceState?.get<SolutionState>(ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_STATE_KEY);
@@ -188,7 +216,9 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
         if (previous && this._solutions.includes(previous)) {
             this.activeSolution = previous;
         } else if (previousState === undefined || previousState === 'active') {
-            const defaultSolution = this._solutions?.find(s => path.dirname(s) === this.workspaceFoldersProvider.getWorkspaceFolder(s)?.uri?.fsPath);
+            const defaultSolution = configuredDefaultSolution && this._solutions.includes(configuredDefaultSolution)
+                ? configuredDefaultSolution
+                : this._solutions.find(s => path.dirname(s) === this.workspaceFoldersProvider.getWorkspaceFolder(s)?.uri?.fsPath);
             this.activeSolution = defaultSolution;
         } else {
             this.activeSolution = undefined;
@@ -286,6 +316,18 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
 
     private async handleGetSolutionFile(): Promise<string | undefined> {
         return this._activeSolution;
+    }
+
+    private async handleGetSolutionName(): Promise<string | undefined> {
+        return this._activeSolution
+            ? stripTwoExtensions(path.basename(this._activeSolution))
+            : undefined;
+    }
+
+    private async handleGetSolutionDir(): Promise<string | undefined> {
+        return this._activeSolution
+            ? path.dirname(this._activeSolution)
+            : undefined;
     }
 
     private getExcludeGlob(): string {

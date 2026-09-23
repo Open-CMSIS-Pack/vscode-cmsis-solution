@@ -84,6 +84,7 @@ export type SolutionData = {
     projects: ProjectSelection[];
     images?: ImageSelection[];
     availableCoreNames: string[];
+    usedCoreNames: string[];
 }
 
 export type ActiveTargetSet = {
@@ -104,9 +105,16 @@ export type ManageSolutionState = {
     solutionData: SolutionData;
     debugAdapters: DebugAdapter[];
     debugger: string | undefined;
+    editableProperties: Record<string, EditableProperty>;
     isDirty: boolean;
     autoUpdate: boolean;
     busy: boolean;
+}
+
+export type EditableProperty = {
+    value: string | number;
+    dirty: boolean;
+    focused: boolean;
 }
 
 export function getSelectedTargetSet(tt?: TargetType): TargetSet | undefined {

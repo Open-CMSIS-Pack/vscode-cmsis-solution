@@ -77,7 +77,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         const topTag = group.getRoot()?.getChild()?.getTag() ?? '';
 
         const cgroupItem = this.createGroupTreeItem(cprojectItem, group, parentGroupPath, topTag, mapFilePath);
-
+        this.applyContextExclusion(cgroupItem, group);
         this.createGroupChildren(cgroupItem, group, topTag);
 
         this.setExpandableAttribute(cgroupItem);
@@ -243,6 +243,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
             componentItem.setAttribute('label', refId);
             componentItem.setAttribute('expandable', '0');
             componentItem.setAttribute('iconPath', 'csolution-software-component');
+            this.applyContextExclusion(componentItem, component);
             if (editable) {
                 componentItem.addFeature('component');
                 componentItem.setAttribute('projectUri', topTag === 'project' ? rootFileName : undefined);

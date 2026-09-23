@@ -16,7 +16,7 @@
 
 import { ManageSolutionState, ImageSelection, ProjectSelection, TargetType } from './manage-solution-state';
 import { solutionDataFactory, projectSelectionFactory } from './manage-solution-state.factories';
-import { manageSolutionReducer, initialState } from './reducer';
+import { editablePropertyKey, manageSolutionReducer, initialState } from './reducer';
 
 describe('contextSelectionReducer', () => {
     describe('INCOMING_MESSAGE', () => {
@@ -191,6 +191,67 @@ describe('contextSelectionReducer', () => {
                     selectedTarget: newSelectedTarget,
                 }
             });
+        });
+    });
+
+    describe('editable properties', () => {
+        const section = { section: 'Debug', options: [{ name: 'Misc', 'yml-node': 'args', type: 'string' as const }] };
+        const adapter = { name: 'TestAdapter', 'user-interface': [section] };
+        const solutionData = solutionDataFactory();
+        solutionData.selectedTarget = {
+            name: 'target',
+            selectedSet: 'set',
+            targetSets: [{ name: 'set', debugger: { args: '' } }],
+        };
+        const key = editablePropertyKey(solutionData, adapter.name, section, section.options[0]);
+
+        const editorState = (value: string, dirty: boolean, focused = false): ManageSolutionState => ({
+            ...initialState,
+            solutionData,
+            debugger: adapter.name,
+            debugAdapters: [adapter],
+            editableProperties: { [key]: { value, dirty, focused } },
+        });
+
+        it('preserves a dirty value when a stale snapshot arrives', () => {
+            const output = manageSolutionReducer(editorState('--simlimit 25', true), {
+                type: 'INCOMING_MESSAGE',
+                message: { type: 'DATA_CONTEXT_SELECTION', data: solutionData },
+            });
+
+            expect(output.editableProperties[key]).toEqual({ value: '--simlimit 25', dirty: true, focused: false });
+        });
+
+        it('marks a dirty value clean when an acknowledging snapshot arrives', () => {
+            const acknowledgedData = {
+                ...solutionData,
+                selectedTarget: {
+                    ...solutionData.selectedTarget!,
+                    targetSets: [{ name: 'set', debugger: { args: '--simlimit 25' } }],
+                },
+            };
+            const output = manageSolutionReducer(editorState('--simlimit 25', true), {
+                type: 'INCOMING_MESSAGE',
+                message: { type: 'DATA_CONTEXT_SELECTION', data: acknowledgedData },
+            });
+
+            expect(output.editableProperties[key]).toEqual({ value: '--simlimit 25', dirty: false, focused: false });
+        });
+
+        it('updates a clean value from a new snapshot', () => {
+            const updatedData = {
+                ...solutionData,
+                selectedTarget: {
+                    ...solutionData.selectedTarget!,
+                    targetSets: [{ name: 'set', debugger: { args: '--updated' } }],
+                },
+            };
+            const output = manageSolutionReducer(editorState('', false), {
+                type: 'INCOMING_MESSAGE',
+                message: { type: 'DATA_CONTEXT_SELECTION', data: updatedData },
+            });
+
+            expect(output.editableProperties[key]).toEqual({ value: '--updated', dirty: false, focused: false });
         });
     });
 

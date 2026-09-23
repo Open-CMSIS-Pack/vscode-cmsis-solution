@@ -180,7 +180,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
                 cancellationToken
             );
             const version = versionOutput.match(/(\d+\.\d+(\.\d+)?)/)?.[0];
-            if (versionReturnCode !== 0 || !version) {
+            if (versionReturnCode !== 0 || !version || version === '0.0.0') {
                 console.warn(`Could not determine version of ${toolCmd}`);
                 console.warn(versionMsg);
             } else if (MIN_TOOL_VERSIONS[tool].compare(version) === 1) {

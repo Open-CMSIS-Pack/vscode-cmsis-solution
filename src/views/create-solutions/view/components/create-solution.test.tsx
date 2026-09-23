@@ -18,6 +18,7 @@ import 'jest';
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import { simulateChangeEvent } from '../../../../__test__/dom-events';
+import { waitTimeout } from '../../../../__test__/test-waits';
 import { MockMessageHandler } from '../../../__test__/mock-message-handler';
 import { boardHardwareOptionFactory, deviceHardwareOptionFactory } from '../../cmsis-solution-types.factories';
 import { IncomingMessage, OutgoingMessage } from '../../messages';
@@ -191,7 +192,7 @@ describe('CreateSolution', () => {
         expect(elements.gitCheckbox.disabled).toBeFalsy();
     });
 
-    it('checks if the solution exists when the name or location is changed', async () => {
+    it('checks if the solution exists when the subfolder or location is changed', async () => {
         await renderCreateSolution();
 
         await fillOutFormFields();
@@ -202,7 +203,6 @@ describe('CreateSolution', () => {
         expect(listener).toHaveBeenCalledWith(expect.objectContaining({
             type: 'CHECK_SOLUTION_DOES_NOT_EXIST',
             solutionLocation: 'test-location',
-            solutionName: 'Blank_solution',
             solutionFolder: 'The new value',
         }));
     });
@@ -211,6 +211,7 @@ describe('CreateSolution', () => {
         it('submits the solution', async () => {
             await renderCreateSolution();
             await fillOutFormFields();
+            await act(async () => waitTimeout());
             await act(async () => getElements().createBtn!.click());
 
             expect(listener).toHaveBeenCalledWith(expect.objectContaining({
@@ -222,6 +223,7 @@ describe('CreateSolution', () => {
         it('disables interactive elements', async () => {
             await renderCreateSolution();
             await fillOutFormFields();
+            await act(async () => waitTimeout());
             await act(async () => getElements().createBtn!.click());
 
             const elements = getElements();
@@ -266,19 +268,30 @@ describe('CreateSolution', () => {
                     type: 'REQUEST_FAILED',
                     requestType: message.type,
                     requestId: message.requestId,
-                    errorMessage: 'already exists',
+                    errorMessage: 'Selected solution directory some solution already contains existing.csolution.yml',
+                    solutionConflict: {
+                        solutionFolder: 'some solution',
+                        fileName: 'existing.csolution.yml',
+                    },
                 });
             }
         });
 
         simulateChangeEvent(getElements().fInput, 'some solution');
         simulateChangeEvent(getElements().solutionLocationInput, 'existing/path');
+        await act(async () => waitTimeout());
 
-        const errorMessageElement = getElements().solutionLocationInput.nextSibling as HTMLElement;
+        const errorMessageElement = getElements().solutionLocationInput
+            .closest('.form-row')
+            ?.querySelector('.input-validation-error') as HTMLElement;
 
         expect(errorMessageElement).not.toBeNull();
         expect(errorMessageElement!.classList.contains('input-validation-error'));
-        expect(errorMessageElement.innerHTML.includes('already exists at this location'));
+        expect(errorMessageElement.textContent).toContain(
+            'Selected solution directory some solution already contains existing.csolution.yml',
+        );
+        expect(errorMessageElement.textContent).not.toContain('existing/path');
+        expect(getElements().createBtn.disabled).toBe(true);
     });
 
     it('auto selects a board if it is connected', async () => {

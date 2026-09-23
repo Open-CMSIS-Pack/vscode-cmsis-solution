@@ -26,6 +26,7 @@ import { solutionManagerFactory } from '../../solutions/solution-manager.factori
 import * as fsUtils from '../../utils/fs-utils';
 import * as vscodeUtils from '../../utils/vscode-utils';
 import { csolutionServiceFactory } from '../../json-rpc/csolution-rpc-client.factory';
+import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import YAML from 'yaml';
 
 /**
@@ -44,7 +45,7 @@ async function getSolutionDataStrings(solutionDir: string, solutionName: string)
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars, unused-imports/no-unused-vars
-    const { availableCoreNames, ...selectionState } = controller.solutionData;
+    const { availableCoreNames, usedCoreNames, ...selectionState } = controller.solutionData;
     const generated = JSON.stringify(selectionState, TmpDirReplacer(solutionDir), 4);
 
     const genFile = new TextFile(stripTwoExtensions(solutionPath) + 'Gen.json');
@@ -112,6 +113,63 @@ describe('manage-solution-controller', () => {
     it('creates solution data for a CMake project', async () => {
         const { generated, reference } = await getSolutionDataStrings(tmpSolutionDir, 'CMakeSupport/solution.csolution.yml');
         expect(JSON.parse(generated)).toEqual(JSON.parse(reference));
+    });
+
+    it('creates cmsis.json when the target selections are unchanged defaults', async () => {
+        const controller = new ManageSolutionController();
+        const solutionPath = path.join(tmpSolutionDir, 'simple/test.csolution.yml');
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(solutionPath);
+
+        expect(fsUtils.fileExists(cmsisJsonFilePath)).toBe(false);
+
+        await controller.saveSolution(solutionManager);
+
+        expect(fsUtils.fileExists(cmsisJsonFilePath)).toBe(true);
+        expect(controller.cmsisJsonFile.getSettings()).toEqual(expect.objectContaining({
+            activeSolution: path.relative(
+                path.dirname(controller.cmsisJsonFile.fileName),
+                solutionPath
+            ).replaceAll('\\', '/'),
+            activeTarget: 'TEST_TARGET',
+        }));
+    });
+
+    it('does not write an empty active target', async () => {
+        const controller = new ManageSolutionController();
+        const solutionPath = path.join(tmpSolutionDir, 'simple/test.csolution.yml');
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(solutionPath);
+        jest.spyOn(controller, 'activeTargetTypeName', 'get').mockReturnValue(undefined);
+
+        await controller.saveSolution(solutionManager);
+
+        expect(controller.cmsisJsonFile.get('activeTarget')).toBeUndefined();
+    });
+
+    it('does not overwrite cmsis.json after it fails to load', async () => {
+        const invalidSettings = '{ invalid json';
+        fsUtils.writeTextFile(cmsisJsonFilePath, invalidSettings);
+        const controller = new ManageSolutionController();
+        const solutionPath = path.join(tmpSolutionDir, 'simple/test.csolution.yml');
+
+        await controller.loadSolution(solutionPath);
+        await controller.saveSolution(solutionManagerFactory());
+
+        expect(fsUtils.readTextFile(cmsisJsonFilePath)).toBe(invalidSettings);
+    });
+
+    it('does not update the cmsis.json stamp when saving fails', async () => {
+        fsUtils.writeTextFile(cmsisJsonFilePath, '{}');
+        const controller = new ManageSolutionController();
+        const solutionPath = path.join(tmpSolutionDir, 'simple/test.csolution.yml');
+        await controller.loadSolution(solutionPath);
+        fsUtils.writeTextFile(cmsisJsonFilePath, '{ "external": true }');
+        jest.spyOn(controller.cmsisJsonFile, 'save').mockResolvedValue(ETextFileResult.Error);
+
+        await controller.saveSolution(solutionManagerFactory());
+
+        expect(controller.hasExternalFileChanges()).toBe(true);
     });
 
     it('preserves CMake settings when selected contexts are reapplied', async () => {
@@ -330,6 +388,29 @@ describe('manage-solution-controller', () => {
         expect(Array.isArray(coreNames)).toBe(true);
     });
 
+    it('gets distinct cores used by selected projects and active images', () => {
+        const controller = new ManageSolutionController();
+        controller['availableCoreNamesCache'] = ['M55_HE', 'M55_HP'];
+        jest.spyOn(controller as unknown as { collectProjects(): ProjectSelection[] }, 'collectProjects').mockReturnValue([
+            { device: 'M55_HE', selected: true },
+            { device: 'M55_HP', selected: false },
+            { device: 'M55_HE', selected: true },
+        ] as ProjectSelection[]);
+        controller.activeTargetSetWrap.addImage('app.axf').device = 'M55_HE';
+
+        expect(controller.usedCoreNames).toEqual(['M55_HE']);
+    });
+
+    it('falls back to available cores when selected items have no processor', () => {
+        const controller = new ManageSolutionController();
+        controller['availableCoreNamesCache'] = ['M55_HE', 'M55_HP'];
+        jest.spyOn(controller as unknown as { collectProjects(): ProjectSelection[] }, 'collectProjects').mockReturnValue([
+            { selected: true },
+        ] as ProjectSelection[]);
+
+        expect(controller.usedCoreNames).toEqual(['M55_HE', 'M55_HP']);
+    });
+
     it.each([
         { configuredStart: 'C1', expectedStart: 'C1' },
         { configuredStart: undefined, expectedStart: 'C0' },
@@ -424,6 +505,39 @@ describe('manage-solution-controller', () => {
         controller.setDebuggerParameter('section1', 'param1', 'value1');
 
         expect(controller.activeDebugger).toBeDefined();
+    });
+
+    it('creates a missing processor entry when setting a pname parameter', async () => {
+        const controller = new ManageSolutionController();
+        const targetSet = controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
+        controller.activeTargetTypeName = 'test-target';
+        controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
+        const telnet = targetSet.ensureDebugger('Test Debugger').item
+            ?.createChild('telnet', true)
+            ?.setKind(ETreeItemKind.Sequence);
+        const hpEntry = telnet?.createChild('-');
+        hpEntry?.setKind(ETreeItemKind.Map).setText(undefined);
+        hpEntry?.setValue('pname', 'M55_HP');
+        hpEntry?.setValue('mode', 'console');
+        controller.csolutionService = csolutionServiceFactory({
+            getDeviceInfo: jest.fn().mockResolvedValue({
+                result: 'success',
+                device: {
+                    id: 'TestVendor::TestDevice',
+                    name: 'TestDevice',
+                    processors: [
+                        { name: 'M55_HP', core: 'Cortex-M55' },
+                        { name: 'M55_HE', core: 'Cortex-M55' },
+                    ],
+                },
+            }),
+        });
+
+        await controller.setDebuggerParameterWithPname('telnet', 'M55_HE', 'mode', 'off');
+
+        expect(telnet?.getChildren()).toHaveLength(2);
+        expect(telnet?.getChildByValue('pname', 'M55_HP')?.getValue('mode')).toBe('console');
+        expect(telnet?.getChildByValue('pname', 'M55_HE')?.getValue('mode')).toBe('off');
     });
 
     it('should get solution data', async () => {
