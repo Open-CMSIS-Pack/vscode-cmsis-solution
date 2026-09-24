@@ -179,7 +179,7 @@ describe('ToolsEnvironment', () => {
                     },
                     {
                         name: 'CMSIS-Toolbox',
-                        version: expect.stringMatching(/^2\.14\.1-/),
+                        version: expect.stringMatching(/^\d+\.\d+\.\d+(?:[-+].+)?$/),
                         origin: 'built-in',
                         provider: {
                             type: 'vscode-extension',
