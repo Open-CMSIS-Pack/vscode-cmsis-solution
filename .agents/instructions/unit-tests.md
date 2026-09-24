@@ -1,6 +1,6 @@
 # Unit Tests
 
-1. Keep unit tests beside their source as `*.test.ts`.
+1. Keep unit tests beside their source as `*.test.ts` or `*.test.tsx`.
 2. Add the fewest focused tests needed to cover changed behavior.
 3. Prefer real implementations over mocks.
 4. Prefer real representative data over generated data.
