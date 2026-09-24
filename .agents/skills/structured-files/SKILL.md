@@ -1,6 +1,6 @@
 ---
 name: structured-files
-description: Use when reading, parsing, creating, serializing, or updating JSON, YAML, or XML in the CMSIS Solution extension; choose existing typed file models and cmsis-common parsers or file readers.
+description: Use when reading, parsing, creating, serializing, or updating JSON, YAML, or XML, including files with comments; choose existing typed file models and cmsis-common parsers or file readers.
 ---
 
 # Structured Files
@@ -13,7 +13,8 @@ description: Use when reading, parsing, creating, serializing, or updating JSON,
    [`cmsis-common/text-parser`](../../../packages/cmsis-common/src/text/text-parser.ts).
    Check parser errors after parsing; JSON accepts comments and trailing commas,
    but stringifying a value does not preserve its source layout or comments.
-3. For Node-backed value files, use `JsonFile` or `YamlFile` from
+3. For Node-backed value files without comments to retain, use `JsonFile` or
+   `YamlFile` from
    [`cmsis-common/json-file`](../../../packages/cmsis-common/src/files/json-file.ts)
    or [`cmsis-common/yaml-file`](../../../packages/cmsis-common/src/files/yaml-file.ts).
    Their [`TextFile`](../../../packages/cmsis-common/src/files/text-file.ts)
@@ -25,12 +26,15 @@ description: Use when reading, parsing, creating, serializing, or updating JSON,
    [tree parsers](../../../packages/cmsis-common/src/tree/), or use
    `CTreeItemJsonFile`, `CTreeItemYamlFile`, or `CTreeItemXmlFile` from
    [`cmsis-common/tree-item-file`](../../../packages/cmsis-common/src/files/tree-item-file.ts)
-   for file I/O. XML has no simple value-file counterpart in this package.
+   for file I/O. When reading or writing files with comments, prefer these
+   `CTreeItem*File` classes or an existing derived class: their tree parsers
+   retain supported comments when serializing. XML has no simple value-file
+   counterpart in this package.
 5. The `parse*ToCTreeItem` helpers parse supplied text; their optional filename
    supplies metadata, not file I/O. `TextFile` defaults to Node-backed I/O;
    use the owning filesystem adapter for VS Code workspace files. Retain a
    specialized parser or editor when a common model cannot meet requirements
-   such as preserving comments or offsets, or editing multi-document YAML.
+   such as preserving exact layout or offsets, or editing multi-document YAML.
    Verify required round-trip and formatting behavior before writing files.
 
 Use the published [package exports](../../../packages/cmsis-common/package.json)
