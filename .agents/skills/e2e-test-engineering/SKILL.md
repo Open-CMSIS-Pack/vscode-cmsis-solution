@@ -1,54 +1,40 @@
 # E2E Test Engineering
 
-## Purpose
+## Role
 
-Create meaningful E2E tests using Arm CMSIS Solution’s existing Playwright, VS Code harness, and driver infrastructure.
+You are an E2E test engineer for Arm CMSIS Solution. Design tests that provide meaningful evidence that a user workflow works across real system boundaries.
 
-## Entry Point
+## Context
 
-The user provides a workflow description or a GitHub issue. If neither is available, ask for one.
+First, read `vscode-cmsis-solution/src/e2e-tests/README.md`. Then inspect the relevant code under `src/e2e-tests/`. Follow the current README and E2E code if they differ from examples in this skill.
 
-## Steps
+The framework currently supports:
 
-### 1. Understand the request
+- **Data-driven tests:** Open existing CMSIS solutions and validate builds across examples and contexts. See `src/e2e-tests/build.test.ts`.
+- **Use-case tests:** Test a user goal (`UC-###`) through concrete workflows (`WF-###`). See `src/e2e-tests/use-cases/`.
 
-Identify the user goal, prerequisites, starting preconditions, actions, observable results, and constraints. Do not invent missing behavior.
+Both styles use shared infrastructure, drivers, and utilities under `src/e2e-tests/`.
 
-### 2. Choose the test style
+## Task
 
-Read `vscode-cmsis-solution/src/e2e-tests/README.md` and inspect relevant existing tests:
+1. **Understand the request.** Read the user’s workflow description or GitHub issue. If neither is provided, ask for one. Identify prerequisites, starting preconditions, actions, expected observable results, and constraints. Do not invent missing behavior.
 
-- **Data-driven:** Open existing CMSIS solutions and validate builds across examples and contexts. See `src/e2e-tests/build.test.ts`.
-- **Use-case:** Test a user goal (`UC-###`) through concrete workflows (`WF-###`). See `src/e2e-tests/use-cases/`.
+2. **Choose the test style.** Use the current README and relevant tests to select the clear match. If both styles fit and the choice changes the scope, ask the user which they want.
 
-If the user has not specified a style, select the clear match. If both fit and the choice changes the test’s scope, ask which style they want.
+3. **Design the test.** Inspect relevant infrastructure, drivers, utilities, fixtures, configuration, and product behavior. For each significant step, define:
 
-### 3. Inspect the infrastructure and design the test
+   `input → action → synchronization → observable result`
 
-Inspect only the relevant files under `src/e2e-tests/infrastructure/`, `drivers/`, `utils/`, and the selected test style. Check `playwright.config.ts` where needed. Reuse existing setup, drivers, fixtures, and helpers.
+4. **Confirm a plan.** Before editing code, briefly present the test style, coverage, prerequisites, assertions, files to change, and unresolved questions. Wait for the user to confirm or correct the plan.
 
-For each significant step, define:
+5. **Implement the confirmed plan.** Follow the responsibilities and conventions defined by the current test style. Reuse existing capabilities. Keep assertions focused on observable behavior and failures easy to diagnose.
 
-`input → action → synchronization → observable result`
+6. **Evaluate the result.** Run relevant checks when possible. Investigate failures and report confirmed findings separately from hypotheses. A green run is not required if the test exposes a genuine problem.
 
-Prefer controlled data and observable conditions over fixed sleeps.
+## Constraints
 
-### 4. Present a plan
-
-Before editing code, give the user a concise plan covering the test style, workflow or build matrix, prerequisites, assertions, files to change, and unresolved questions. **Wait for explicit confirmation or correction before implementing.**
-
-### 5. Implement the confirmed plan
-
-Follow the selected repository pattern. For use-case tests, keep the Playwright entry point thin, document the workflow in YAML, put variable inputs and expected results in a fixture, and use drivers for UI interactions. Keep assertions focused on observable behavior.
-
-### 6. Evaluate the result
-
-Run relevant checks when possible. Investigate failures before changing the test; do not add retries, reloads, delays, or state injection solely to make it pass. Report confirmed findings separately from hypotheses and retain useful diagnostics without secrets.
-
-## Completion
-
-Report what changed, what was run, and any unresolved findings. A green run is not required if the test exposes a genuine problem.
-
-## Token discipline
-
-Read the README once, then inspect only files relevant to the chosen style and workflow. Reuse findings instead of repeatedly searching or restating them. Keep the plan and final report brief; include details only when they affect an engineering decision.
+- Apply software design principles: **low coupling, high cohesion, clear responsibilities, and minimal duplication**. Add abstractions only when they serve a clear purpose.
+- Prefer controlled test data and observable conditions over machine-dependent state and fixed sleeps.
+- Do not add retries, reloads, delays, or state injection solely to make a failing test pass.
+- Preserve useful diagnostics without exposing secrets.
+- Save tokens: avoid repeated broad searches, revisit relevant documentation when needed, and keep the plan and final report concise.
