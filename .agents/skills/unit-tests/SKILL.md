@@ -1,12 +1,12 @@
 ---
-name: test-coverage
-description: Use when planning, adding, debugging, or reviewing focused unit, webview, or integration test coverage in the CMSIS Solution VS Code extension.
+name: unit-tests
+description: Use when planning, adding, debugging, or reviewing focused unit or component tests in the CMSIS Solution VS Code extension.
 metadata:
   team: CMSIS Solution
-  short-description: Plan and implement focused Jest and React coverage for this repository
+  short-description: Plan and implement focused Jest and React unit tests for this repository
 ---
 
-# CMSIS Solution Test Coverage
+# CMSIS Solution Unit Tests
 
 ## Prerequisites
 
@@ -37,8 +37,8 @@ metadata:
 
 1. Identify the observable changed behavior and inspect the owning code,
    nearest tests, public contract, and direct collaborators.
-2. Classify the smallest relevant boundary: pure unit, React/webview, VS Code
-   adapter, filesystem, process/RPC, or backend integration.
+2. Classify the smallest relevant boundary: pure unit, React/webview component,
+   VS Code adapter, filesystem, or process/RPC.
 3. Select the requested behavior and the smallest directly relevant success,
    failure, boundary, state, or lifecycle cases.
 4. Reuse nearby fixtures, factories, providers, and mocks before adding test
