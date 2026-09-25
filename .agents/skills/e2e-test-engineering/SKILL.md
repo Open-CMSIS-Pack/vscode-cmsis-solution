@@ -1,257 +1,40 @@
 # E2E Test Engineering
 
-## Purpose
+## Role
 
-Design, implement, validate, and diagnose end-to-end tests that exercise
-valuable user workflows across real system boundaries.
+You test the Arm CMSIS Solution VS Code extension. Design end-to-end tests that provide meaningful evidence that user workflows work across real system boundaries.
 
-The goal is not merely to make an automated test pass. The goal is to
-provide evidence that an important user workflow works correctly in a
-representative environment.
+## Context
 
-## Principles
+First, read `vscode-cmsis-solution/src/e2e-tests/README.md`. Then inspect the relevant code under `src/e2e-tests/`. Follow the current README and E2E code if they differ from examples in this skill.
 
-### 1. Start from valuable use cases
+The framework currently supports:
 
-Before implementing automation, identify the user workflows that provide
-the most value or protect the highest-risk functionality.
+- **Data-driven tests:** Open existing CMSIS solutions and validate builds across examples and contexts. See `src/e2e-tests/build.test.ts`.
+- **Use-case tests:** Test a user goal (`UC-###`) through concrete workflows (`WF-###`). See `src/e2e-tests/use-cases/`.
 
-Prefer tests covering complete workflows such as:
+Both styles use shared infrastructure, drivers, and utilities under `src/e2e-tests/`.
 
-    environment/target discovery
-        → project or solution creation
-        → build
-        → load/run/debug
-        → inspect
-        → verify
+## Task
 
-Avoid starting from implementation details simply because they are easy
-to automate.
+1. **Understand the request.** Read the user’s workflow description or GitHub issue. If neither is provided, ask for one. Identify prerequisites, starting preconditions, actions, expected observable results, and constraints. Do not invent missing behavior.
 
-### 2. Exercise the workflow before automating it
+2. **Choose the test style.** Use the current README and relevant tests to select the clear match. If both styles fit and the choice changes the scope, ask the user which they want.
 
-Perform the intended workflow manually before implementing the E2E test.
+3. **Design the test.** Inspect relevant infrastructure, drivers, utilities, fixtures, configuration, and product behavior. For each significant step, define:
 
-Determine:
+   `input → action → synchronization → observable result`
 
-- What does the user actually do?
-- What prerequisites are required?
-- What environment state is expected?
-- What observable result demonstrates success?
-- Which steps cross component or process boundaries?
-- Which steps are potentially non-deterministic?
+4. **Confirm a plan.** Before editing code, briefly present the test style, coverage, prerequisites, assertions, files to change, and unresolved questions. Wait for the user to confirm or correct the plan.
 
-The automated test should reproduce the intended user workflow rather
-than an assumed implementation workflow.
+5. **Implement the confirmed plan.** Follow the responsibilities and conventions defined by the current test style. Reuse existing capabilities. Keep assertions focused on observable behavior and failures easy to diagnose.
 
-### 3. Do not hide product weaknesses in the test
+6. **Evaluate the result.** Run relevant checks when possible. Investigate failures and report confirmed findings separately from hypotheses. A green run is not required if the test exposes a genuine problem.
 
-Do not add test-specific workarounds merely to make an E2E test pass.
+## Constraints
 
-When automation requires unusual setup, retries, reloads, delays, state
-injection, or other workarounds, determine why they are necessary.
-
-A failing E2E test may reveal a real product defect or architectural
-weakness.
-
-The test should expose such behavior rather than silently compensate for it.
-
-### 4. Prefer deterministic behavior
-
-Inputs, actions, synchronization points, and expected outputs should be
-deterministic whenever possible.
-
-Prefer:
-
-- explicit state over inherited state
-- observable conditions over fixed sleeps
-- known test data over machine-dependent data
-- controlled environment setup over assumptions about the host
-- explicit success criteria over indirect signals
-
-When non-determinism cannot be removed, document its source and boundary.
-
-### 5. Treat failures as engineering evidence
-
-When an E2E test fails, first classify the failure.
-
-Possible categories include:
-
-- product defect
-- test implementation defect
-- environment/setup defect
-- infrastructure or CI defect
-- dependency/tool defect
-- non-deterministic behavior
-
-Do not automatically modify the test because it failed.
-
-Ask:
-
-> Is the test wrong, or has the test discovered that the system is wrong?
-
-Preserve enough evidence to answer that question.
-
-### 6. Investigate local/CI differences systematically
-
-If a failure occurs locally but cannot be reproduced in CI, or occurs in
-CI but cannot be reproduced locally, compare the environments before
-changing the test.
-
-Inspect relevant differences such as:
-
-- operating system
-- environment variables
-- installed tools and versions
-- extensions
-- configuration
-- process lifecycle
-- workspace state
-- caches
-- inherited environment
-- timing and startup order
-
-When necessary, reproduce the workflow on a clean machine or clean
-environment.
-
-A clean environment is a diagnostic tool for identifying hidden
-dependencies and leaked state.
-
-### 7. Preserve diagnostic artifacts
-
-An E2E test should provide enough information to understand a failure
-without immediately rerunning it interactively.
-
-Where appropriate, retain:
-
-- logs
-- command output
-- relevant environment information
-- screenshots
-- traces
-- generated configuration
-- build/debug output
-- test-step information
-
-Diagnostics should be useful while avoiding unnecessary secrets or
-machine-specific noise.
-
-## Workflow
-
-When asked to create or investigate an E2E test, follow these phases.
-
-### Phase 1 — Define
-
-Identify:
-
-1. User use case
-2. User value
-3. Preconditions
-4. Actions
-5. Expected observable outcome
-6. System boundaries crossed
-
-Do not start implementation until the expected outcome is clear.
-
-### Phase 2 — Exercise
-
-Run or reason through the workflow as a user would perform it.
-
-Record required state, dependencies, environment changes, and observable
-outputs.
-
-Identify assumptions that could make the workflow machine-dependent.
-
-### Phase 3 — Design
-
-Break the workflow into reusable engineering capabilities.
-
-For example:
-
-    discover environment
-        → prepare target
-        → build
-        → start execution/debugging
-        → inspect state
-        → verify result
-
-Define deterministic inputs and verification points for each step.
-
-### Phase 4 — Implement
-
-Use existing Developer Assistant tools, MCP servers, and smaller skills
-where they already provide the required capability.
-
-Keep orchestration in the E2E skill.
-
-Do not reimplement low-level capabilities that belong in tools or MCP
-servers.
-
-### Phase 5 — Validate
-
-Run the test:
-
-1. in the development environment
-2. repeatedly to detect instability
-3. in CI
-4. in a clean environment when environment-specific behavior is suspected
-
-Verify that failures produce useful diagnostics.
-
-### Phase 6 — Diagnose
-
-When the test fails, classify the failure before changing implementation.
-
-Determine whether the evidence indicates:
-
-    E2E test defect
-    product defect
-    environment defect
-    infrastructure defect
-    dependency/tool defect
-    non-determinism
-
-Then act on the identified cause.
-
-## Skill vs Tool/MCP Boundary
-
-The E2E skill owns engineering reasoning and orchestration:
-
-- selecting and structuring the use case
-- sequencing capabilities
-- deciding what should be verified
-- identifying deterministic boundaries
-- interpreting failures
-- deciding what diagnostic information is required
-
-Tools and MCP servers own concrete operations, for example:
-
-- discovering installed targets or tools
-- executing commands
-- building projects
-- starting a debugger
-- querying debugger state
-- interacting with VS Code
-- reading logs or files
-- collecting execution artifacts
-
-A useful rule is:
-
-> The skill decides what engineering workflow should happen and why.
-> Tools/MCP implementations provide the mechanisms for performing the steps.
-
-## Expected Output
-
-For a new E2E scenario, produce:
-
-- use-case description
-- user value
-- preconditions
-- workflow steps
-- expected observable outcome
-- deterministic inputs and outputs
-- required skills/tools/MCP capabilities
-- skill/tool boundary
-- failure classification strategy
-- diagnostic artifacts
-- local and CI validation strategy
+- Apply software design principles: **low coupling, high cohesion, clear responsibilities, and minimal duplication**. Add abstractions only when they serve a clear purpose.
+- Prefer controlled test data and observable conditions over machine-dependent state and fixed sleeps.
+- Do not add retries, reloads, delays, or state injection solely to make a failing test pass.
+- Preserve useful diagnostics without exposing secrets.
+- Save tokens: avoid repeated broad searches, revisit relevant documentation when needed, and keep the plan and final report concise.
