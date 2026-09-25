@@ -2,7 +2,7 @@
 
 ## Role
 
-You are an E2E test engineer for Arm CMSIS Solution. Design tests that provide meaningful evidence that a user workflow works across real system boundaries.
+You test the Arm CMSIS Solution VS Code extension. Design end-to-end tests that provide meaningful evidence that user workflows work across real system boundaries.
 
 ## Context
 
