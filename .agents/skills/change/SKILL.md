@@ -14,7 +14,8 @@ description: 'Implement and validate repository changes. Use when asked to modif
    - Follow the [e2e-tests skill](../e2e-tests/SKILL.md) for tests of user workflows across real system boundaries.
 6. Follow the [git-mv skill](../git-mv/SKILL.md) when moving or renaming Git-tracked files or directories.
 7. Follow the [structured-files skill](../structured-files/SKILL.md) when implementing JSON, YAML, or XML parsing, creation, or updates.
-8. Consult the [architecture](../../references/architecture.md), [structure](../../references/structure.md), and [module map](../../references/modules.md) only as needed.
-9. Follow the approved plan when one exists.
-10. Make the smallest complete change that satisfies the request.
-11. Run focused validation after editing.
+8. Follow the [copyright instructions](../../instructions/copyright.md) for covered source files that are added or changed.
+9. Consult the [architecture](../../references/architecture.md), [structure](../../references/structure.md), and [module map](../../references/modules.md) only as needed.
+10. Follow the approved plan when one exists.
+11. Make the smallest complete change that satisfies the request.
+12. Run focused validation after editing.
