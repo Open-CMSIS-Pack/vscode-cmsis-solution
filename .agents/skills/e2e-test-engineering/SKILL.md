@@ -2,150 +2,53 @@
 
 ## Purpose
 
-Create E2E tests that exercise valuable user workflows across real system boundaries and provide meaningful evidence that the intended workflow works correctly.
-
-The goal is not merely to make a test pass, but to apply sound E2E test engineering principles when designing and implementing it.
+Create meaningful E2E tests using Arm CMSIS Solution’s existing Playwright, VS Code harness, and driver infrastructure.
 
 ## Entry Point
 
-A **GitHub issue describing the E2E use case and workflow to be tested** is required.
-
-Read the issue before designing or writing the test. If no GitHub issue is provided, ask for it.
+The user provides a workflow description or a GitHub issue. If neither is available, ask for one.
 
 ## Steps
 
-### 1. Understand the use case
+### 1. Understand the request
 
-Read the GitHub issue and identify:
+Identify the user goal, prerequisites, starting preconditions, actions, observable results, and constraints. Do not invent missing behavior.
 
-* user workflow
-* prerequisites — tools, dependencies, or resources that must be available
-* preconditions — system state required when the workflow starts
-* actions
-* expected observable outcome
-* relevant system or process boundaries
-* known environment or tooling constraints
+### 2. Choose the test style
 
-If essential information is missing or ambiguous, identify it rather than inventing behavior.
+Read `vscode-cmsis-solution/src/e2e-tests/README.md` and inspect relevant existing tests:
 
-Design the test around the user workflow, not around implementation details that are convenient to automate.
+- **Data-driven:** Open existing CMSIS solutions and validate builds across examples and contexts. See `src/e2e-tests/build.test.ts`.
+- **Use-case:** Test a user goal (`UC-###`) through concrete workflows (`WF-###`). See `src/e2e-tests/use-cases/`.
 
-### 2. Understand the workflow
+If the user has not specified a style, select the clear match. If both fit and the choice changes the test’s scope, ask which style they want.
 
-Inspect relevant product code, documentation, configuration, and existing tests to determine how the workflow is expected to work.
+### 3. Inspect the infrastructure and design the test
 
-When suitable tools or MCP capabilities are available, use them to exercise relevant parts of the workflow before automating it.
+Inspect only the relevant files under `src/e2e-tests/infrastructure/`, `drivers/`, `utils/`, and the selected test style. Check `playwright.config.ts` where needed. Reuse existing setup, drivers, fixtures, and helpers.
 
-Identify:
+For each significant step, define:
 
-* dependencies between workflow steps
-* observable success criteria
-* potentially non-deterministic behavior
+`input → action → synchronization → observable result`
 
-Do not automate assumptions that have not been established.
+Prefer controlled data and observable conditions over fixed sleeps.
 
-### 3. Inspect existing E2E infrastructure
+### 4. Present a plan
 
-Search the repository for relevant:
+Before editing code, give the user a concise plan covering the test style, workflow or build matrix, prerequisites, assertions, files to change, and unresolved questions. **Wait for explicit confirmation or correction before implementing.**
 
-* E2E tests
-* fixtures
-* drivers
-* helpers
-* mocks
-* environment setup
+### 5. Implement the confirmed plan
 
-Reuse existing capabilities and follow established repository patterns where appropriate.
+Follow the selected repository pattern. For use-case tests, keep the Playwright entry point thin, document the workflow in YAML, put variable inputs and expected results in a fixture, and use drivers for UI interactions. Keep assertions focused on observable behavior.
 
-Do not create new helpers or abstractions when an existing capability already provides the required behavior.
+### 6. Evaluate the result
 
-### 4. Design deterministic test steps
+Run relevant checks when possible. Investigate failures before changing the test; do not add retries, reloads, delays, or state injection solely to make it pass. Report confirmed findings separately from hypotheses and retain useful diagnostics without secrets.
 
-Translate the workflow into meaningful test steps.
+## Completion
 
-For each significant step, determine:
+Report what changed, what was run, and any unresolved findings. A green run is not required if the test exposes a genuine problem.
 
-```text
-input → action → synchronization → observable result
-```
+## Token discipline
 
-Prefer:
-
-* explicit state over inherited state
-* observable conditions over fixed sleeps
-* event/state-based synchronization over timing assumptions
-* controlled test data over machine-dependent data
-* explicit success criteria over indirect signals
-
-If non-determinism cannot be avoided, make its source and boundary clear.
-
-### 5. Implement the test
-
-Implement the workflow using existing test infrastructure and available tools.
-
-Keep assertions focused on observable behavior that demonstrates the workflow is working.
-
-Use meaningful test steps so failures indicate which part of the workflow failed.
-
-Avoid unnecessary coupling to implementation details.
-
-### 6. Do not hide product weaknesses
-
-Do not introduce retries, reloads, delays, state injection, or other workarounds merely to make the test pass.
-
-If unusual setup or synchronization appears necessary, inspect the cause first.
-
-A failing E2E test may expose a product, lifecycle, environment, infrastructure, dependency, or test problem.
-
-Do not mask such behavior in the test.
-
-### 7. Evaluate failures as evidence
-
-If execution results or failure evidence are available, classify the failure as:
-
-* product defect
-* test defect
-* environment/setup defect
-* infrastructure/CI defect
-* dependency/tool defect
-* non-deterministic behavior
-
-Do not automatically modify the test because it failed.
-
-Ask:
-
-> Is the test wrong, or has the test discovered that the system is wrong?
-
-Clearly distinguish confirmed findings from hypotheses.
-
-### 8. Keep the test diagnosable
-
-Use assertions and test steps that make failures understandable.
-
-When supported by the existing infrastructure, preserve useful diagnostics such as:
-
-* logs or command output
-* screenshots or traces
-* generated configuration
-* relevant environment information
-
-Avoid secrets and unnecessary machine-specific information.
-
-## Boundary
-
-This skill defines **how the E2E test should be engineered**:
-
-* interpret the use case
-* structure the workflow
-* identify prerequisites and preconditions
-* identify system boundaries
-* design deterministic test steps
-* decide what should be verified
-* apply E2E engineering principles
-* interpret available failure evidence
-
-Repository helpers, tools, and MCP capabilities provide the concrete mechanisms used to perform operations.
-
-Successful execution of the test is **not required to complete this skill**. Do not modify product behavior or introduce test workarounds solely to obtain a passing test.
-
-The objective is a **well-engineered E2E test**, not a green test at any cost.
+Read the README once, then inspect only files relevant to the chosen style and workflow. Reuse findings instead of repeatedly searching or restating them. Keep the plan and final report brief; include details only when they affect an engineering decision.
