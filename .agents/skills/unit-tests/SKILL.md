@@ -8,10 +8,16 @@ metadata:
 
 # CMSIS Solution Unit Tests
 
-## Prerequisites
+## Core Principles
 
-- For unit-test work, follow the
-  [unit-test instructions](../../instructions/unit-tests.md).
+1. Keep unit tests beside their source as `*.test.ts` or `*.test.tsx`.
+2. Add the fewest focused tests needed to cover changed behavior.
+3. Prefer real implementations over mocks.
+4. Prefer real representative data over generated data.
+5. Mock only boundaries that cannot be used directly in a unit test.
+
+## Scope
+
 - Use the [architecture](../../references/architecture.md),
   [structure](../../references/structure.md), and
   [module map](../../references/modules.md) only as needed to identify the
