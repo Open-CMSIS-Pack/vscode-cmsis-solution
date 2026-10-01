@@ -115,7 +115,7 @@
     "vscode-messenger": "~0.6.0",
     "vscode-messenger-common": "~0.6.0",
     "vscode-messenger-webview": "~0.6.0",
-    "which": "^6.0.1",
+    "which": "^7.0.0",
     "yaml": "^2.8.2",
     "yargs-parser": "^21.1.1"
   },
