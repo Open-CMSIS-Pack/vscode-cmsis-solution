@@ -95,7 +95,7 @@
     "@vscode/codicons": "^0.0.45",
     "antd": "^5.29.3",
     "async-mutex": "^0.5.0",
-    "eta": "^4.5.1",
+    "eta": "^4.6.0",
     "fetch-blob": "^4.0.0",
     "formdata-polyfill": "^4.0.10",
     "glob": "^13.0.6",

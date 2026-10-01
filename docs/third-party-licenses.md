@@ -13,7 +13,7 @@ Generated for release: 1.72.0
 |@vscode/codicons|0.0.45|https://github.com/microsoft/vscode-codicons|https://github.com/microsoft/vscode-codicons/blob/main/LICENSE|
 |antd|5.29.3|https://ant.design|https://github.com/ant-design/ant-design/blob/master/LICENSE|
 |async-mutex|0.5.0|https://github.com/DirtyHairy/async-mutex|https://github.com/DirtyHairy/async-mutex/blob/master/LICENSE|
-|eta|4.5.1|https://github.com/eta-dev/eta|https://github.com/eta-dev/eta/blob/main/LICENSE|
+|eta|4.6.0|https://github.com/eta-dev/eta|https://github.com/eta-dev/eta/blob/main/LICENSE|
 |fetch-blob|4.0.0|https://github.com/node-fetch/fetch-blob|https://github.com/node-fetch/fetch-blob/blob/main/LICENSE|
 |formdata-polyfill|4.0.10|https://github.com/jimmywarting/FormData|https://github.com/jimmywarting/FormData/blob/master/LICENSE|
 |glob|13.0.6|https://github.com/isaacs/node-glob|https://github.com/isaacs/node-glob/blob/main/LICENSE.md|
