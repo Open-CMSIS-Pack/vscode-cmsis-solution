@@ -149,6 +149,7 @@ describe('process-manager.ts', () => {
         });
 
         it('forces PTY with default dimensions while debugging on Windows', async () => {
+            Object.defineProperty(process, 'platform', { value: 'win32' });
             (inspector.url as jest.Mock).mockReturnValue('ws://debugger');
 
             let onData: ((data: string) => void) | undefined;
@@ -190,6 +191,8 @@ describe('process-manager.ts', () => {
         });
 
         it('filters PTY control sequences split across output chunks', async () => {
+            Object.defineProperty(process, 'platform', { value: 'win32' });
+
             let onData: ((data: string) => void) | undefined;
             let onExit: ((event: { exitCode: number }) => void) | undefined;
             const ptyProcess = {
