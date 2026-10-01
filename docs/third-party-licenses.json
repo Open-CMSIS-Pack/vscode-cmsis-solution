@@ -204,7 +204,7 @@
     },
     {
         "name": "which",
-        "version": "6.0.1",
+        "version": "7.0.0",
         "spdx": "ISC",
         "url": "https://github.com/npm/node-which",
         "license": "https://github.com/npm/node-which/blob/main/LICENSE"
