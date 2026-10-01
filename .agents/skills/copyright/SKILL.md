@@ -1,8 +1,16 @@
+---
+name: copyright
+description: 'Apply or review repository copyright notices. Use when adding or modifying covered source files, checking current-year notices, fixing copyright headers, or reviewing changed files for copyright compliance.'
+user-invocable: false
+---
+
 # Copyright
 
-For added or modified source files covered by `scripts/copyright-manager.ts`,
-use the repository's Apache-style Arm copyright notice. Preserve an existing
-starting year and update the ending year to the current year.
+Treat [`scripts/copyright-manager.ts`](../../../scripts/copyright-manager.ts)
+as authoritative for covered files and exclusions. For covered source files
+that are added or modified, use the repository's Apache-style Arm copyright
+notice. Preserve an existing starting year and update the ending year to the
+current year.
 
 Exclude every file under a `test-data` directory from copyright requirements,
 checks, and fixes. This includes files selected by an explicit `--include` or
