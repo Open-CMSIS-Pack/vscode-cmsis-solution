@@ -453,7 +453,7 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.refresh",
-        "title": "Refresh (Reload Packs, Update RTE)",
+        "title": "Refresh Build Information",
         "icon": "$(refresh)"
       },
       {

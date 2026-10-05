@@ -146,6 +146,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const csolutionService = new CsolutionService(
         envManager,
         commandsProvider,
+        eventHub,
     );
 
     const rpcData = new SolutionRpcData(csolutionService);
@@ -241,7 +242,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const fileDecorationProviderManager = new FileDecorationProviderManagerImpl();
     const treeViewProviderImpl = new TreeViewProviderImpl(SolutionOutlineView.treeViewId);
     const treeViewFileDecorationProvider = new TreeViewFileDecorationProvider(fileDecorationProviderManager, themeProvider);
-    const mergeSessionCoordinator = new MergeSessionCoordinatorImpl(commandsProvider);
+    const mergeSessionCoordinator = new MergeSessionCoordinatorImpl(solutionManager);
     const mergeCommand = new MergeCommand(commandsProvider, mergeSessionCoordinator, messageProvider);
     const buildCommand = new BuildCommand(buildTaskProvider, commandsProvider, buildTaskDefinitionBuilder, componentsManager);
     const runGeneratorCommand = new GeneratorCommand(commandsProvider, solutionManager, outputChannelProvider, cmsisToolboxManager, eventHub);

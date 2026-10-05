@@ -91,7 +91,9 @@ export class ManageSolutionWebviewMain {
         const { solutionPath: newPath, converted: newConverted, loaded: newLoaded, activated: newActivated } = e.newState;
         const { solutionPath: prevPath, converted: prevConverted, loaded: prevLoaded, activated: prevActivated } = e.previousState;
 
-        if (!this.webviewManager.isPanelActive || (newPath === prevPath && newConverted !== prevConverted)) {
+        const dirtyOnlyChange = newPath === prevPath && newConverted === prevConverted
+            && newLoaded === prevLoaded && newActivated === prevActivated && e.newState.dirty !== e.previousState.dirty;
+        if (!this.webviewManager.isPanelActive || dirtyOnlyChange || (newPath === prevPath && newConverted !== prevConverted)) {
             return;
         }
 
@@ -334,10 +336,15 @@ export class ManageSolutionWebviewMain {
             return;
         }
         await this.setBusyState(true);
-        await this.controller.saveSolution(this.solutionManager);
-        this.wasDirty = false;
-        await this.setBusyState(false);
-        await this.sendContextData();
+        try {
+            const saved = await this.controller.saveSolution(this.solutionManager);
+            if (saved) {
+                this.wasDirty = false;
+                await this.sendContextData();
+            }
+        } finally {
+            await this.setBusyState(false);
+        }
     }
 
     public async revertToDisk(): Promise<void> {

@@ -23,6 +23,7 @@ import { Severity } from './constants';
  */
 export interface ConvertRequestData {
     solutionPath?: string;
+    requestId?: number;
     targetSet?: string;
     updateRte?: boolean;
     restartRpc?: boolean;
@@ -50,6 +51,8 @@ export interface CbuildResultData {
  * Event data for solution conversion result
  */
 export interface ConvertResultData extends CbuildResultData {
+    solutionPath?: string;
+    requestId?: number;
     detection: boolean;
     logMessages: LogMessages;
 }
@@ -100,6 +103,8 @@ export interface SolutionEventHub {
      * Event fired when cbuild setup is requested
      */
     readonly onDidCbuildSetupRequested: vscode.Event<void>;
+    firePacksReloaded(): Promise<void>;
+    readonly onDidReloadPacks: vscode.Event<void>;
     /**
      * Fire generator run completion event
      */
@@ -132,6 +137,9 @@ class SolutionEventHubImpl {
     private readonly cbuildSetupRequestEmitter = new vscode.EventEmitter<void>();
     public readonly onDidCbuildSetupRequested: vscode.Event<void> = this.cbuildSetupRequestEmitter.event;
 
+    private readonly packsReloadedEmitter = new vscode.EventEmitter<void>();
+    public readonly onDidReloadPacks: vscode.Event<void> = this.packsReloadedEmitter.event;
+
     private readonly generatorRunCompleteEmitter = new vscode.EventEmitter<CbuildResultData>();
     public readonly onDidGeneratorRunCompleted: vscode.Event<CbuildResultData> = this.generatorRunCompleteEmitter.event;
 
@@ -143,6 +151,7 @@ class SolutionEventHubImpl {
         context.subscriptions.push(this.convertCompleteEmitter);
         context.subscriptions.push(this.cbuildCompleteEmitter);
         context.subscriptions.push(this.cbuildSetupRequestEmitter);
+        context.subscriptions.push(this.packsReloadedEmitter);
         context.subscriptions.push(this.generatorRunCompleteEmitter);
         context.subscriptions.push(this.configureSolutionDataEmitter);
     }
@@ -161,6 +170,10 @@ class SolutionEventHubImpl {
 
     public async requestCbuildSetup(): Promise<void> {
         this.cbuildSetupRequestEmitter.fire();
+    }
+
+    public async firePacksReloaded(): Promise<void> {
+        this.packsReloadedEmitter.fire();
     }
 
     public async fireGeneratorRunCompleted(data: CbuildResultData): Promise<void> {

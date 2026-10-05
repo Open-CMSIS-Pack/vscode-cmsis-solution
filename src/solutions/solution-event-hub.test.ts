@@ -34,7 +34,18 @@ describe('EventHub', () => {
         it('should register emitters with context subscriptions', async () => {
             await eventHub.activate(mockContext);
 
-            expect(mockContext.subscriptions).toHaveLength(6);
+            expect(mockContext.subscriptions).toHaveLength(7);
+        });
+    });
+
+    describe('firePacksReloaded', () => {
+        it('notifies pack reload listeners', async () => {
+            const listener = jest.fn();
+            eventHub.onDidReloadPacks(listener);
+
+            await eventHub.firePacksReloaded();
+
+            expect(listener).toHaveBeenCalledTimes(1);
         });
     });
 

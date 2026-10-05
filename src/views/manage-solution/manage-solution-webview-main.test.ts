@@ -286,6 +286,20 @@ describe('ContextSelectionWebviewMain', () => {
     });
 
     describe('onDidChangeLoadState callback', () => {
+        it('does not reload the editor for a dirty-only load state change', async () => {
+            const main = manageSolutionWebviewMainFactory({ webviewManager });
+            (main as any).webviewManager.isPanelActive = true;
+            const loadSolutionSpy = jest.spyOn(main as any, 'loadSolution');
+
+            await (main as any).handleSolutionLoadChange({
+                previousState: { solutionPath: '/path/to/solution.csolution.yml', loaded: true, converted: true, activated: true, dirty: false },
+                newState: { solutionPath: '/path/to/solution.csolution.yml', loaded: true, converted: true, activated: true, dirty: true },
+            });
+
+            expect(loadSolutionSpy).not.toHaveBeenCalled();
+            expect(webviewManager.sendMessage).not.toHaveBeenCalled();
+        });
+
         it('reloads solution before active target validation when external files changed', async () => {
             const solutionManager = solutionManagerFactory();
             const main = manageSolutionWebviewMainFactory({
@@ -530,7 +544,7 @@ describe('ContextSelectionWebviewMain', () => {
         const main = manageSolutionWebviewMainFactory({ webviewManager });
 
         const controller = main.controller;
-        const saveSpy = jest.spyOn(controller, 'saveSolution').mockResolvedValue(undefined as any);
+        const saveSpy = jest.spyOn(controller, 'saveSolution').mockResolvedValue(true);
         const setBusyStateSpy = jest.spyOn(main as any, 'setBusyState').mockResolvedValue(undefined);
         const sendContextDataSpy = jest.spyOn(main as any, 'sendContextData').mockResolvedValue(undefined);
         jest.spyOn(main as any, 'isDirty', 'get').mockReturnValue(true);
@@ -543,6 +557,19 @@ describe('ContextSelectionWebviewMain', () => {
         expect(setBusyStateSpy).toHaveBeenNthCalledWith(2, false);
         expect(sendContextDataSpy).toHaveBeenCalled();
         expect((main as any).wasDirty).toBe(false);
+    });
+
+    it('preserves dirty state when saving fails', async () => {
+        const main = manageSolutionWebviewMainFactory({ webviewManager });
+        jest.spyOn(main.controller, 'saveSolution').mockResolvedValue(false);
+        jest.spyOn(main as any, 'isDirty', 'get').mockReturnValue(true);
+        const sendContextDataSpy = jest.spyOn(main as any, 'sendContextData');
+        (main as any).wasDirty = true;
+
+        await main.saveChanges();
+
+        expect((main as any).wasDirty).toBe(true);
+        expect(sendContextDataSpy).not.toHaveBeenCalled();
     });
 
     it('returns NotExists when no solution loaded', async () => {

@@ -45,8 +45,6 @@ const convertResultData: ConvertResultData = {
     logMessages: { success: true, errors: [], warnings: [], info: [] },
 };
 
-const activeSolutionFilesDebounceMillis = 5;
-
 describe('SolutionManager', () => {
     let mockActiveSolutionTracker: {
         activeSolution: string | undefined;
@@ -108,9 +106,9 @@ describe('SolutionManager', () => {
         eventHub = new SolutionEventHub();
         cbuildSetupRequestedListener = jest.fn();
         eventHub.onDidCbuildSetupRequested(cbuildSetupRequestedListener);
-        convertMock = jest.fn(() => {
+        convertMock = jest.fn(request => {
             setTimeout(() => {
-                eventHub.fireConvertCompleted(convertResultData);
+                eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath, requestId: request.requestId });
             }, 1);
         });
         eventHub.onDidConvertRequested(convertMock);
@@ -155,7 +153,6 @@ describe('SolutionManager', () => {
             commandsProvider,
             extensionApiProviderFactory(environmentManagerApi),
             environmentManager,
-            activeSolutionFilesDebounceMillis,
             toolsEnvironment,
         );
         loadStateChangeListener = jest.fn();
@@ -205,7 +202,7 @@ describe('SolutionManager', () => {
         await waitTimeout(200);
 
         const expectedLoadState: SolutionLoadState = {
-            solutionPath: testSolutionPath, loaded: true, converted: true, activated: true,
+            solutionPath: testSolutionPath, loaded: true, converted: true, activated: true, dirty: false,
         };
 
         expect(solutionManager.loadState).toEqual(expectedLoadState);
@@ -248,7 +245,7 @@ describe('SolutionManager', () => {
         );
     });
 
-    it('reloads the solution when a file in the active solution is modified', async () => {
+    it('marks the solution dirty when a file in the active solution is modified', async () => {
         // Initialize solution state first
         mockActiveSolutionTracker.activeSolution = testSolutionPath;
         changeActiveSolutionEmitter.fire();
@@ -259,28 +256,12 @@ describe('SolutionManager', () => {
         await waitTimeout(200);
 
         const expectedLoadState: SolutionLoadState = {
-            solutionPath: testSolutionPath, loaded: true, converted: true, activated: true,
+            solutionPath: testSolutionPath, loaded: true, converted: true, activated: true, dirty: true,
         };
         expect(solutionManager.loadState).toEqual(expectedLoadState);
-
-        expect(loadStateChangeListener.mock.calls.length).toBeGreaterThanOrEqual(3);
-
-        expect(loadBuildFilesListener).toHaveBeenCalledTimes(2);
-        expect(loadBuildFilesListener).toHaveBeenNthCalledWith(
-            1,
-            expect.objectContaining([
-                convertResultData.severity,
-                convertResultData.detection,
-            ]),
-        );
-        expect(loadBuildFilesListener).toHaveBeenNthCalledWith(
-            2,
-            expect.objectContaining([
-                convertResultData.severity,
-                convertResultData.detection,
-            ]),
-        );
-        expect(convertMock).toHaveBeenCalledTimes(2);
+        expect(loadBuildFilesListener).toHaveBeenCalledTimes(1);
+        expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(1);
+        expect(convertMock).toHaveBeenCalledTimes(1);
         expect(convertMock).toHaveBeenNthCalledWith(
             1,
             expect.objectContaining({
@@ -291,23 +272,121 @@ describe('SolutionManager', () => {
                 lockAbort: true,
             }),
         );
-        expect(convertMock).toHaveBeenNthCalledWith(
-            2,
-            expect.objectContaining({
-                solutionPath: testSolutionPath,
-                targetSet: 'B-U585I-IOT02A',
-                restartRpc: false,
-                updateRte: true,
-                lockAbort: false,
-            }),
-        );
+    });
+
+    it('marks a watched solution file dirty without converting or setting up again', async () => {
+        await activateTestSolution();
+        convertMock.mockClear();
+        cbuildSetupRequestedListener.mockClear();
+
+        changeSolutionFilesEmitter.fire(getLoadedSolutionFile('.cproject.yml'));
+        await waitTimeout(200);
+
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({
+            converted: true,
+            dirty: true,
+        }));
+        expect(convertMock).not.toHaveBeenCalled();
+        expect(cbuildSetupRequestedListener).not.toHaveBeenCalled();
+    });
+
+    it('marks the active solution dirty after a pack reload without converting or setting up', async () => {
+        await activateTestSolution();
+        convertMock.mockClear();
+        cbuildSetupRequestedListener.mockClear();
+
+        await eventHub.firePacksReloaded();
+
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: true }));
+        expect(convertMock).not.toHaveBeenCalled();
+        expect(cbuildSetupRequestedListener).not.toHaveBeenCalled();
+    });
+
+    it('marks dirty when a watcher notification arrives after a webview save', async () => {
+        await activateTestSolution();
+        const changedPath = getLoadedSolutionFile('.cproject.yml');
+        convertMock.mockClear();
+        changeSolutionFilesEmitter.fire(changedPath);
+        await solutionManager.refreshAfterSave();
+        await waitTimeout(50);
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
+
+        changeSolutionFilesEmitter.fire(changedPath);
+
+        expect(convertMock).toHaveBeenCalledTimes(1);
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: true }));
+    });
+
+    it('keeps a newer dirty change after conversion completes', async () => {
+        await activateTestSolution();
+        convertMock.mockClear();
+        convertMock.mockImplementationOnce(() => undefined);
+        solutionManager.markDirty();
+        await solutionManager.refresh();
+        await waitTimeout(20);
+        const request = convertMock.mock.calls[0][0];
+        solutionManager.markDirty();
+        eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath, requestId: request.requestId });
+        await waitTimeout(20);
+
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: true }));
+    });
+
+    it('ignores a completion from a superseded request and clears dirty on an error completion', async () => {
+        await activateTestSolution();
+        convertMock.mockClear();
+        convertMock.mockImplementationOnce(() => undefined);
+        solutionManager.markDirty();
+        await solutionManager.refresh();
+        await waitTimeout(20);
+        const request = convertMock.mock.calls[0][0];
+        const setupCount = cbuildSetupRequestedListener.mock.calls.length;
+
+        eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath, requestId: request.requestId - 1 });
+        await waitTimeout(20);
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: false, dirty: true }));
+
+        eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath, requestId: request.requestId, success: false, severity: 'error' });
+        await waitTimeout(20);
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
+        expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(setupCount);
+    });
+
+    it('does not finish an older completion after a new conversion starts', async () => {
+        await activateTestSolution();
+        convertMock.mockClear();
+        convertMock.mockImplementation(() => undefined);
+        let releaseUpdate: () => void = () => undefined;
+        const updatePaused = new Promise<void>(resolve => { releaseUpdate = resolve; });
+        const updateSpy = jest.spyOn(rpcData, 'update').mockImplementationOnce(async () => updatePaused);
+
+        solutionManager.markDirty();
+        await solutionManager.refresh();
+        await waitTimeout(20);
+        const firstRequest = convertMock.mock.calls[0][0];
+        const setupCount = cbuildSetupRequestedListener.mock.calls.length;
+        await eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: firstRequest.solutionPath, requestId: firstRequest.requestId });
+        expect(updateSpy).toHaveBeenCalledTimes(1);
+
+        await solutionManager.refresh();
+        await waitTimeout(20);
+        const secondRequest = convertMock.mock.calls[1][0];
+        releaseUpdate();
+        await waitTimeout(20);
+
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: false, dirty: true }));
+        expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(setupCount);
+
+        await eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: secondRequest.solutionPath, requestId: secondRequest.requestId });
+        await waitTimeout(20);
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
     });
 
     it.each([
         ['cproject', '.cproject.yml'],
         ['clayer', '.clayer.yml'],
         ['cgen', '.cgen.yml'],
-    ])('reloads the solution when a changed %s file belongs to the active solution', async (_fileType, suffix) => {
+    ])('marks the solution dirty when a changed %s file belongs to the active solution', async (_fileType, suffix) => {
         await activateTestSolution();
         const changedPath = getLoadedSolutionFile(suffix);
         convertMock.mockClear();
@@ -316,19 +395,12 @@ describe('SolutionManager', () => {
         changeSolutionFilesEmitter.fire(changedPath);
         await waitTimeout(200);
 
-        expect(convertMock).toHaveBeenCalledTimes(1);
-        expect(convertMock).toHaveBeenCalledWith(
-            expect.objectContaining({
-                solutionPath: testSolutionPath,
-                updateRte: true,
-                restartRpc: false,
-                lockAbort: false,
-            }),
-        );
-        expect(loadBuildFilesListener).toHaveBeenCalledTimes(1);
+        expect(solutionManager.loadState.dirty).toBe(true);
+        expect(convertMock).not.toHaveBeenCalled();
+        expect(loadBuildFilesListener).not.toHaveBeenCalled();
     });
 
-    it('reloads the solution when an outside workspace file is listed by the active solution model', async () => {
+    it('marks the solution dirty when an outside workspace file is listed by the active solution model', async () => {
         await activateTestSolution();
         const outsideProjectPath = path.join(tmpSolutionsDir, 'external', 'External.cproject.yml');
         jest.spyOn(solutionManager.getCsolution()!, 'getSolutionYmlFiles').mockReturnValue([
@@ -340,16 +412,11 @@ describe('SolutionManager', () => {
         changeSolutionFilesEmitter.fire(outsideProjectPath);
         await waitTimeout(200);
 
-        expect(convertMock).toHaveBeenCalledTimes(1);
-        expect(convertMock).toHaveBeenCalledWith(
-            expect.objectContaining({
-                solutionPath: testSolutionPath,
-                updateRte: true,
-            }),
-        );
+        expect(convertMock).not.toHaveBeenCalled();
+        expect(solutionManager.loadState.dirty).toBe(true);
     });
 
-    it('reloads the solution when a changed dbgconf file is used by the active solution', async () => {
+    it('marks the solution dirty when a changed dbgconf file is used by the active solution', async () => {
         await activateTestSolution();
         const dbgconfPath = path.join(path.dirname(testSolutionPath), '.cmsis', 'Used.Debug+B-U585I-IOT02A.dbgconf');
         jest.spyOn(solutionManager.getCsolution()!, 'getUsedDbgconfFiles').mockReturnValue([dbgconfPath]);
@@ -359,16 +426,9 @@ describe('SolutionManager', () => {
         changeSolutionFilesEmitter.fire(dbgconfPath);
         await waitTimeout(200);
 
-        expect(convertMock).toHaveBeenCalledTimes(1);
-        expect(convertMock).toHaveBeenCalledWith(
-            expect.objectContaining({
-                solutionPath: testSolutionPath,
-                updateRte: true,
-                restartRpc: false,
-                lockAbort: false,
-            }),
-        );
-        expect(loadBuildFilesListener).toHaveBeenCalledTimes(1);
+        expect(convertMock).not.toHaveBeenCalled();
+        expect(loadBuildFilesListener).not.toHaveBeenCalled();
+        expect(solutionManager.loadState.dirty).toBe(true);
     });
 
     it('does not reload when a changed dbgconf file is not used by the active solution', async () => {
@@ -396,7 +456,7 @@ describe('SolutionManager', () => {
         expect(convertMock).not.toHaveBeenCalled();
     });
 
-    it('does not reload for another solution file elsewhere in the workspace', async () => {
+    it('marks dirty for a tracker event elsewhere in the workspace without reloading', async () => {
         await activateTestSolution();
         const inactiveSolutionPath = path.join(tmpSolutionsDir, 'simple', 'test.csolution.yml');
         convertMock.mockClear();
@@ -405,9 +465,10 @@ describe('SolutionManager', () => {
         await waitTimeout(200);
 
         expect(convertMock).not.toHaveBeenCalled();
+        expect(solutionManager.loadState.dirty).toBe(true);
     });
 
-    it('debounces multiple relevant active solution file changes into one reload', async () => {
+    it('keeps dirty state when multiple active solution file changes arrive', async () => {
         await activateTestSolution();
         const cprojectPath = getLoadedSolutionFile('.cproject.yml');
         const clayerPath = getLoadedSolutionFile('.clayer.yml');
@@ -417,13 +478,8 @@ describe('SolutionManager', () => {
         changeSolutionFilesEmitter.fire(clayerPath);
         await waitTimeout(200);
 
-        expect(convertMock).toHaveBeenCalledTimes(1);
-        expect(convertMock).toHaveBeenCalledWith(
-            expect.objectContaining({
-                solutionPath: testSolutionPath,
-                updateRte: true,
-            }),
-        );
+        expect(convertMock).not.toHaveBeenCalled();
+        expect(solutionManager.loadState.dirty).toBe(true);
     });
 
     it('loads the new solution when the active solution is changed', async () => {
@@ -455,7 +511,7 @@ describe('SolutionManager', () => {
         );
     });
 
-    it('requests restartRpc when envVars change after solution is activated', async () => {
+    it('defers restartRpc until refresh when envVars change after solution is activated', async () => {
         mockActiveSolutionTracker.activeSolution = testSolutionPath;
         changeActiveSolutionEmitter.fire();
         await waitTimeout(200);
@@ -476,15 +532,22 @@ describe('SolutionManager', () => {
         configurationProviderMock.fireOnChangeConfiguration(CONFIG_ENVIRONMENT_VARIABLES);
         await waitTimeout(600);
 
+        expect(convertMock).not.toHaveBeenCalled();
+        expect(solutionManager.loadState.dirty).toBe(true);
+
+        await solutionManager.refresh();
+        await waitTimeout(20);
+
         expect(convertMock).toHaveBeenCalledTimes(1);
         expect(convertMock).toHaveBeenLastCalledWith(
             expect.objectContaining({
                 solutionPath: testSolutionPath,
-                updateRte: false,
+                updateRte: true,
                 restartRpc: true,
                 lockAbort: false,
             }),
         );
+        expect(solutionManager.loadState.dirty).toBe(false);
     });
 
     it('fires updatedCompileCommands when cbuild completes', async () => {
@@ -558,9 +621,11 @@ describe('SolutionManager', () => {
     });
 
     it('writes the tools environment when conversion fails', async () => {
-        convertMock.mockImplementationOnce(() => {
+        convertMock.mockImplementationOnce(request => {
             setTimeout(() => {
                 eventHub.fireConvertCompleted({
+                    solutionPath: request.solutionPath,
+                    requestId: request.requestId,
                     success: false,
                     severity: 'error',
                     detection: false,
@@ -665,9 +730,11 @@ describe('SolutionManager', () => {
     });
 
     it('does not request cbuild setup when conversion completes with detection=true', async () => {
-        convertMock.mockImplementationOnce(() => {
+        convertMock.mockImplementationOnce(request => {
             setTimeout(() => {
                 eventHub.fireConvertCompleted({
+                    solutionPath: request.solutionPath,
+                    requestId: request.requestId,
                     success: true,
                     severity: 'success',
                     detection: true,

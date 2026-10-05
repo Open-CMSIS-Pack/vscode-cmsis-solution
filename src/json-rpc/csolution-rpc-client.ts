@@ -18,6 +18,7 @@ import { VcpkgManager } from '../vcpkg/vcpkg-manager';
 import { Environment, EnvironmentManager } from '../desktop/env-manager';
 import { Mutex } from 'async-mutex';
 import { CommandsProvider } from '../vscode-api/commands-provider';
+import { SolutionEventHub } from '../solutions/solution-event-hub';
 export * from './interface/rpc-interface';
 
 
@@ -58,6 +59,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     constructor(
         private readonly environmentManager: EnvironmentManager,
         private readonly commandsProvider: CommandsProvider,
+        private readonly eventHub: SolutionEventHub,
     ) {
         super();
         this.mutex = new Mutex();
@@ -105,7 +107,9 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
 
     private async reloadPacks() {
         const result = await this.loadPacks();
-        void this.commandsProvider.executeCommand(manifest.REFRESH_COMMAND_ID);
+        if (result.success) {
+            await this.eventHub.firePacksReloaded();
+        }
         return result;
     }
 

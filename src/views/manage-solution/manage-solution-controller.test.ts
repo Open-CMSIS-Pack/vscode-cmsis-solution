@@ -133,6 +133,21 @@ describe('manage-solution-controller', () => {
             ).replaceAll('\\', '/'),
             activeTarget: 'TEST_TARGET',
         }));
+        expect(solutionManager.refreshAfterSave).toHaveBeenCalledTimes(1);
+    });
+
+    it('converts once after a modified solution save and not after a repeated unchanged save', async () => {
+        const controller = new ManageSolutionController();
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'));
+        controller.csolutionYml.text = controller.csolutionYml.text + '\n';
+
+        expect(await controller.saveSolution(solutionManager)).toBe(true);
+        expect(solutionManager.refreshAfterSave).toHaveBeenCalledTimes(1);
+        expect(solutionManager.refreshAfterSave).toHaveBeenCalledWith();
+
+        await controller.saveSolution(solutionManager);
+        expect(solutionManager.refreshAfterSave).toHaveBeenCalledTimes(1);
     });
 
     it('does not write an empty active target', async () => {
@@ -167,9 +182,11 @@ describe('manage-solution-controller', () => {
         fsUtils.writeTextFile(cmsisJsonFilePath, '{ "external": true }');
         jest.spyOn(controller.cmsisJsonFile, 'save').mockResolvedValue(ETextFileResult.Error);
 
-        await controller.saveSolution(solutionManagerFactory());
+        const solutionManager = solutionManagerFactory();
+        expect(await controller.saveSolution(solutionManager)).toBe(false);
 
         expect(controller.hasExternalFileChanges()).toBe(true);
+        expect(solutionManager.refreshAfterSave).not.toHaveBeenCalled();
     });
 
     it('preserves CMake settings when selected contexts are reapplied', async () => {
