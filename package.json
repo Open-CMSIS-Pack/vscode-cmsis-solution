@@ -95,7 +95,7 @@
     "@vscode/codicons": "^0.0.45",
     "antd": "^5.29.3",
     "async-mutex": "^0.5.0",
-    "eta": "^4.5.1",
+    "eta": "^4.6.0",
     "fetch-blob": "^4.0.0",
     "formdata-polyfill": "^4.0.10",
     "glob": "^13.0.6",
@@ -115,7 +115,7 @@
     "vscode-messenger": "~0.6.0",
     "vscode-messenger-common": "~0.6.0",
     "vscode-messenger-webview": "~0.6.0",
-    "which": "^6.0.1",
+    "which": "^7.0.0",
     "yaml": "^2.8.2",
     "yargs-parser": "^21.1.1"
   },
@@ -189,7 +189,7 @@
     "vscode-uri": "^3.1.0",
     "webpack": "^5.105.3",
     "webpack-cli": "^6.0.1",
-    "yargs": "^18.0.0"
+    "yargs": "^18.2.0"
   },
   "overrides": {
     "ajv@>=7.0.0": "^8.18.0",
