@@ -13,7 +13,7 @@ Generated for release: 1.72.0
 |@vscode/codicons|0.0.45|https://github.com/microsoft/vscode-codicons|https://github.com/microsoft/vscode-codicons/blob/main/LICENSE|
 |antd|5.29.3|https://ant.design|https://github.com/ant-design/ant-design/blob/master/LICENSE|
 |async-mutex|0.5.0|https://github.com/DirtyHairy/async-mutex|https://github.com/DirtyHairy/async-mutex/blob/master/LICENSE|
-|eta|4.5.1|https://github.com/eta-dev/eta|https://github.com/eta-dev/eta/blob/main/LICENSE|
+|eta|4.6.0|https://github.com/eta-dev/eta|https://github.com/eta-dev/eta/blob/main/LICENSE|
 |fetch-blob|4.0.0|https://github.com/node-fetch/fetch-blob|https://github.com/node-fetch/fetch-blob/blob/main/LICENSE|
 |formdata-polyfill|4.0.10|https://github.com/jimmywarting/FormData|https://github.com/jimmywarting/FormData/blob/master/LICENSE|
 |glob|13.0.6|https://github.com/isaacs/node-glob|https://github.com/isaacs/node-glob/blob/main/LICENSE.md|
@@ -36,7 +36,7 @@ Generated for release: 1.72.0
 |vscode-messenger|0.6.0|https://github.com/TypeFox/vscode-messenger|https://github.com/TypeFox/vscode-messenger/blob/main/LICENSE|
 |vscode-messenger-common|0.6.0|https://github.com/TypeFox/vscode-messenger|https://github.com/TypeFox/vscode-messenger/blob/main/LICENSE|
 |vscode-messenger-webview|0.6.0|https://github.com/TypeFox/vscode-messenger|https://github.com/TypeFox/vscode-messenger/blob/main/LICENSE|
-|which|6.0.1|https://github.com/npm/node-which|https://github.com/npm/node-which/blob/main/LICENSE|
+|which|7.0.0|https://github.com/npm/node-which|https://github.com/npm/node-which/blob/main/LICENSE|
 |yaml|2.9.0|https://github.com/eemeli/yaml|https://github.com/eemeli/yaml/blob/main/LICENSE|
 |yargs-parser|21.1.1|https://github.com/yargs/yargs-parser|https://github.com/yargs/yargs-parser/blob/main/LICENSE.txt|
 |yauzl|3.4.0|https://github.com/thejoshwolfe/yauzl|https://github.com/thejoshwolfe/yauzl/blob/master/LICENSE|
