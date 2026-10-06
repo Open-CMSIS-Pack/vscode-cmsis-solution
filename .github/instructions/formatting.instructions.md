@@ -1,3 +1,8 @@
+---
+description: 'Apply repository text-file formatting requirements when creating or modifying source, configuration, data, or documentation files.'
+applyTo: "**"
+---
+
 # File Formatting
 
 For all text and source files, including YAML, JSON, C, C++, header, TypeScript, and JavaScript files:
