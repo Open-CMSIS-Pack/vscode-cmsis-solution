@@ -1135,7 +1135,7 @@
         {
           "command": "cmsis-csolution.refresh",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
-          "group": "Build@3"
+          "group": "navigation@7"
         },
         {
           "command": "cmsis-csolution.reloadPacks",
