@@ -197,14 +197,14 @@
     },
     {
         "name": "eta",
-        "version": "4.5.1",
+        "version": "4.6.0",
         "spdx": "MIT",
         "url": "https://github.com/eta-dev/eta",
         "license": "https://github.com/eta-dev/eta/blob/main/LICENSE"
     },
     {
         "name": "which",
-        "version": "6.0.1",
+        "version": "7.0.0",
         "spdx": "ISC",
         "url": "https://github.com/npm/node-which",
         "license": "https://github.com/npm/node-which/blob/main/LICENSE"
