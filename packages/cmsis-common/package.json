@@ -247,7 +247,7 @@
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
-    "@types/lodash": "^4.17.24",
+    "@types/lodash": "^4.17.25",
     "@types/node": "^22.19.15",
     "@types/yauzl": "^3.4.0",
     "dedent": "1.7.1",
