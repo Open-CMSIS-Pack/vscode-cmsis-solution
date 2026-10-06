@@ -225,11 +225,9 @@ export class SolutionManagerImpl implements SolutionManager {
         restartRpc = restartRpc || this.restartRpcOnConvert;
         this.restartRpcOnConvert = false;
 
-        // Create new state object with converted and dirty flags reset
         const newState: SolutionLoadState = {
             ...this.loadState,
             converted: false,
-            dirty: false,
         };
         // Emit so subscribers (e.g. webviews) can show a 'Converting solution...' busy state
         this.setLoadState(newState, true);
@@ -282,6 +280,9 @@ export class SolutionManagerImpl implements SolutionManager {
     }
 
     private async handleSolutionConvertCompleted(data: ConvertResultData) {
+        if (!this.csolution) {
+            return;
+        }
         await this.updateRpcData(); // refresh RPC data
         await this.loadSolutionBuildFiles();
         this.setupCompletedEmitter.fire([data.severity, data.detection]);
@@ -313,6 +314,7 @@ export class SolutionManagerImpl implements SolutionManager {
                 ...this.loadState,
                 activated: true,
                 converted: true,
+                dirty: false,
             };
             // Always emit so subscribers are notified when conversion completes
             this.setLoadState(newState, true);

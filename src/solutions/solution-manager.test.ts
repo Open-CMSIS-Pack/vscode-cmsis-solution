@@ -317,23 +317,36 @@ describe('SolutionManager', () => {
         expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: true }));
     });
 
+    it('keeps a clean solution clean while conversion is pending', async () => {
+        await activateTestSolution();
+        convertMock.mockClear();
+        convertMock.mockImplementationOnce(() => undefined);
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
+
+        await solutionManager.refresh();
+        await waitTimeout(20);
+
+        expect(convertMock).toHaveBeenCalledTimes(1);
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: false, dirty: false }));
+    });
+
     it.each([
         ['success', 'success', true],
         ['error', 'error', false],
-    ] as const)('keeps a newer dirty change after %s conversion completes', async (_result, severity, success) => {
+    ] as const)('clears dirty after %s conversion completes with a newer change', async (_result, severity, success) => {
         await activateTestSolution();
         convertMock.mockClear();
         convertMock.mockImplementationOnce(() => undefined);
         solutionManager.markDirty();
         await solutionManager.refresh();
         await waitTimeout(20);
-        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: false, dirty: false }));
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: false, dirty: true }));
         const request = convertMock.mock.calls[0][0];
         solutionManager.markDirty();
         eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath, severity, success });
         await waitTimeout(20);
 
-        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: true }));
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
     });
 
     it('accepts a completion for another solution and finishes an error completion', async () => {
