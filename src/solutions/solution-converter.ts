@@ -75,7 +75,6 @@ export class SolutionConverterImpl implements SolutionConverter {
         // make deep copy of incoming data
         this.data = {
             solutionPath: data.solutionPath,
-            requestId: data.requestId,
             targetSet: data.targetSet,
             updateRte: data.updateRte,
             restartRpc: data.restartRpc,
@@ -220,7 +219,6 @@ export class SolutionConverterImpl implements SolutionConverter {
         // notify conversion result and detection status asynchronously!
         this.eventHub.fireConvertCompleted({
             solutionPath: this.data.solutionPath,
-            requestId: this.data.requestId,
             success: convertResult.success,
             severity: severity,
             detection: detection,
@@ -297,7 +295,6 @@ export class SolutionConverterImpl implements SolutionConverter {
 
         await this.eventHub.fireConvertCompleted({
             solutionPath: this.data.solutionPath,
-            requestId: this.data.requestId,
             success: false,
             severity: 'error',
             detection: false,

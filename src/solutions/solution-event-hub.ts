@@ -23,7 +23,6 @@ import { Severity } from './constants';
  */
 export interface ConvertRequestData {
     solutionPath?: string;
-    requestId?: number;
     targetSet?: string;
     updateRte?: boolean;
     restartRpc?: boolean;
@@ -52,7 +51,6 @@ export interface CbuildResultData {
  */
 export interface ConvertResultData extends CbuildResultData {
     solutionPath?: string;
-    requestId?: number;
     detection: boolean;
     logMessages: LogMessages;
 }

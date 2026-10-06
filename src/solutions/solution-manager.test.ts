@@ -108,7 +108,7 @@ describe('SolutionManager', () => {
         eventHub.onDidCbuildSetupRequested(cbuildSetupRequestedListener);
         convertMock = jest.fn(request => {
             setTimeout(() => {
-                eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath, requestId: request.requestId });
+                eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath });
             }, 1);
         });
         eventHub.onDidConvertRequested(convertMock);
@@ -317,22 +317,26 @@ describe('SolutionManager', () => {
         expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: true }));
     });
 
-    it('keeps a newer dirty change after conversion completes', async () => {
+    it.each([
+        ['success', 'success', true],
+        ['error', 'error', false],
+    ] as const)('keeps a newer dirty change after %s conversion completes', async (_result, severity, success) => {
         await activateTestSolution();
         convertMock.mockClear();
         convertMock.mockImplementationOnce(() => undefined);
         solutionManager.markDirty();
         await solutionManager.refresh();
         await waitTimeout(20);
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: false, dirty: false }));
         const request = convertMock.mock.calls[0][0];
         solutionManager.markDirty();
-        eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath, requestId: request.requestId });
+        eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath, severity, success });
         await waitTimeout(20);
 
         expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: true }));
     });
 
-    it('ignores a completion from a superseded request and clears dirty on an error completion', async () => {
+    it('ignores a completion for another solution and finishes an error completion', async () => {
         await activateTestSolution();
         convertMock.mockClear();
         convertMock.mockImplementationOnce(() => undefined);
@@ -342,17 +346,17 @@ describe('SolutionManager', () => {
         const request = convertMock.mock.calls[0][0];
         const setupCount = cbuildSetupRequestedListener.mock.calls.length;
 
-        eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath, requestId: request.requestId - 1 });
+        eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: 'another-solution.csolution.yml' });
         await waitTimeout(20);
-        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: false, dirty: true }));
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: false, dirty: false }));
 
-        eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath, requestId: request.requestId, success: false, severity: 'error' });
+        eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath, success: false, severity: 'error' });
         await waitTimeout(20);
         expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
         expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(setupCount);
     });
 
-    it('does not finish an older completion after a new conversion starts', async () => {
+    it('does not finish an older completion after the solution model is reloaded', async () => {
         await activateTestSolution();
         convertMock.mockClear();
         convertMock.mockImplementation(() => undefined);
@@ -365,7 +369,7 @@ describe('SolutionManager', () => {
         await waitTimeout(20);
         const firstRequest = convertMock.mock.calls[0][0];
         const setupCount = cbuildSetupRequestedListener.mock.calls.length;
-        await eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: firstRequest.solutionPath, requestId: firstRequest.requestId });
+        await eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: firstRequest.solutionPath });
         expect(updateSpy).toHaveBeenCalledTimes(1);
 
         await solutionManager.refresh();
@@ -374,10 +378,10 @@ describe('SolutionManager', () => {
         releaseUpdate();
         await waitTimeout(20);
 
-        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: false, dirty: true }));
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: false, dirty: false }));
         expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(setupCount);
 
-        await eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: secondRequest.solutionPath, requestId: secondRequest.requestId });
+        await eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: secondRequest.solutionPath });
         await waitTimeout(20);
         expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
     });
@@ -625,7 +629,6 @@ describe('SolutionManager', () => {
             setTimeout(() => {
                 eventHub.fireConvertCompleted({
                     solutionPath: request.solutionPath,
-                    requestId: request.requestId,
                     success: false,
                     severity: 'error',
                     detection: false,
@@ -734,7 +737,6 @@ describe('SolutionManager', () => {
             setTimeout(() => {
                 eventHub.fireConvertCompleted({
                     solutionPath: request.solutionPath,
-                    requestId: request.requestId,
                     success: true,
                     severity: 'success',
                     detection: true,

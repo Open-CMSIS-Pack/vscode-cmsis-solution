@@ -93,9 +93,6 @@ export class SolutionManagerImpl implements SolutionManager {
     private _loadState: Readonly<SolutionLoadState> = { solutionPath: undefined };
     private csolution?: CSolution;
     private loadingSolution = false;
-    private dirtyGeneration = 0;
-    private requestId = 0;
-    private pendingConversion?: { solutionPath: string; requestId: number; dirtyGeneration: number };
     private restartRpcOnConvert = false;
 
     constructor(
@@ -170,8 +167,6 @@ export class SolutionManagerImpl implements SolutionManager {
         const solutionPath = this.activeSolutionTracker.activeSolution;
         this.debouncedHandleEnvironmentChange.cancel();
         this.csolution = undefined; // clear data model
-        this.pendingConversion = undefined;
-        this.dirtyGeneration = 0;
         this.restartRpcOnConvert = false;
         // Create new state object
         const newState: SolutionLoadState = {
@@ -193,7 +188,6 @@ export class SolutionManagerImpl implements SolutionManager {
         if (!this.isSolutionActivated()) {
             return;
         }
-        this.dirtyGeneration++;
         if (!this.loadState.dirty) {
             this.setLoadState({ ...this.loadState, dirty: true }, true);
         }
@@ -232,23 +226,21 @@ export class SolutionManagerImpl implements SolutionManager {
         restartRpc = restartRpc || this.restartRpcOnConvert;
         this.restartRpcOnConvert = false;
 
-        // Create new state object with converted flag reset
+        // Create new state object with converted and dirty flags reset
         const newState: SolutionLoadState = {
             ...this.loadState,
-            converted: false
+            converted: false,
+            dirty: false,
         };
         // Emit so subscribers (e.g. webviews) can show a 'Converting solution...' busy state
         this.setLoadState(newState, true);
 
         const solutionPath = this.csolution.solutionPath;
-        const requestId = ++this.requestId;
-        this.pendingConversion = { solutionPath, requestId, dirtyGeneration: this.dirtyGeneration };
         void this.toolsEnvironment.captureAndQueueWrite(solutionPath).catch(error => {
             console.error(`Failed to queue tools environment write for '${solutionPath}'`, error);
         });
         this.eventHub.fireConvertRequest({
             solutionPath,
-            requestId,
             targetSet: this.csolution.getActiveTargetSetName(),
             updateRte: updateRte,
             restartRpc: restartRpc,
@@ -296,18 +288,17 @@ export class SolutionManagerImpl implements SolutionManager {
     }
 
     private async handleSolutionConvertCompleted(data: ConvertResultData) {
-        const pending = this.pendingConversion;
-        if (!pending || !this.csolution || data.solutionPath !== pending.solutionPath
-            || data.requestId !== pending.requestId || this.loadState.solutionPath !== pending.solutionPath) {
+        const csolution = this.csolution;
+        if (!csolution || !data.solutionPath || data.solutionPath !== csolution.solutionPath
+            || this.loadState.solutionPath !== data.solutionPath) {
             return;
         }
-        this.pendingConversion = undefined;
         await this.updateRpcData(); // refresh RPC data
-        if (this.requestId !== pending.requestId || this.loadState.solutionPath !== pending.solutionPath) {
+        if (this.csolution !== csolution || this.loadState.solutionPath !== data.solutionPath) {
             return;
         }
-        await this.loadSolutionBuildFiles(pending);
-        if (this.requestId !== pending.requestId || this.loadState.solutionPath !== pending.solutionPath) {
+        await this.loadSolutionBuildFiles();
+        if (this.csolution !== csolution || this.loadState.solutionPath !== data.solutionPath) {
             return;
         }
         this.setupCompletedEmitter.fire([data.severity, data.detection]);
@@ -332,19 +323,18 @@ export class SolutionManagerImpl implements SolutionManager {
         }
     }
 
-    public async loadSolutionBuildFiles(pending?: { solutionPath: string; requestId: number; dirtyGeneration: number }) {
+    public async loadSolutionBuildFiles() {
         if (this.loadState.solutionPath && this.csolution) {
             const csolution = this.csolution;
+            const solutionPath = this.loadState.solutionPath;
             await csolution.loadBuildFiles();
-            if (this.csolution !== csolution || (pending && (this.loadState.solutionPath !== pending.solutionPath
-                || this.requestId !== pending.requestId))) {
+            if (this.csolution !== csolution || this.loadState.solutionPath !== solutionPath) {
                 return;
             }
             const newState: SolutionLoadState = {
                 ...this.loadState,
                 activated: true,
                 converted: true,
-                dirty: pending && this.dirtyGeneration === pending.dirtyGeneration ? false : this.loadState.dirty,
             };
             // Always emit so subscribers are notified when conversion completes
             this.setLoadState(newState, true);
