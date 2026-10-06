@@ -21,12 +21,13 @@ import * as vscode from 'vscode';
 import { TestDataHandler } from '../../../__test__/test-data';
 import { MergeSessionCoordinatorImpl } from './merge-session-coordinator';
 import * as fsUtils from '../../../utils/fs-utils';
-import { MockSolutionManager, solutionManagerFactory } from '../../../solutions/solution-manager.factories';
+import { commandsProviderFactory, MockCommandsProvider } from '../../../vscode-api/commands-provider.factories';
+import { REFRESH_COMMAND_ID } from '../../../manifest';
 
 describe('MergeSessionCoordinator', () => {
     const testDataHandler = new TestDataHandler();
     let tmpDir: string;
-    let solutionManager: MockSolutionManager;
+    let commandsProvider: MockCommandsProvider;
     let coordinator: MergeSessionCoordinatorImpl;
     let saveEmitter: vscode.EventEmitter<vscode.TextDocument>;
 
@@ -40,9 +41,10 @@ describe('MergeSessionCoordinator', () => {
         saveEmitter = new vscode.EventEmitter<vscode.TextDocument>();
         (vscode.workspace as unknown as { onDidSaveTextDocument: vscode.Event<vscode.TextDocument> }).onDidSaveTextDocument = saveEmitter.event;
 
-        solutionManager = solutionManagerFactory();
+        commandsProvider = commandsProviderFactory();
+        commandsProvider.executeCommand.mockResolvedValue(undefined);
 
-        coordinator = new MergeSessionCoordinatorImpl(solutionManager);
+        coordinator = new MergeSessionCoordinatorImpl(commandsProvider);
 
         await coordinator.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
     });
@@ -51,7 +53,7 @@ describe('MergeSessionCoordinator', () => {
         testDataHandler.dispose();
     });
 
-    it('marks dirty on save without destructive file operations', async () => {
+    it('refreshes on save without destructive file operations', async () => {
         const local = path.join(tmpDir, 'component.c');
         const update = path.join(tmpDir, 'component.c.update@1.0.0');
         const base = path.join(tmpDir, 'component.c.base@1.0.0');
@@ -75,7 +77,8 @@ describe('MergeSessionCoordinator', () => {
         expect(fsUtils.fileExists(update)).toBeTruthy();
         expect(fsUtils.fileExists(`${local}.bak`)).toBeFalsy();
 
-        expect(solutionManager.markDirty).toHaveBeenCalledTimes(1);
+        expect(commandsProvider.executeCommand).toHaveBeenCalledTimes(1);
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith(REFRESH_COMMAND_ID);
     });
 
     it('emits merge-applied event on merged file save', async () => {
@@ -118,11 +121,11 @@ describe('MergeSessionCoordinator', () => {
             handleDidSaveTextDocument: (document: vscode.TextDocument) => Promise<void>
         }).handleDidSaveTextDocument({ uri: { fsPath: path.join(tmpDir, 'other.c') } } as vscode.TextDocument);
 
-        expect(solutionManager.markDirty).not.toHaveBeenCalled();
+        expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
         expect(fsUtils.fileExists(merged)).toBeTruthy();
     });
 
-    it('does not mark dirty on save after session is canceled', async () => {
+    it('does not refresh on save after session is canceled', async () => {
         const local = path.join(tmpDir, 'component.c');
         const update = path.join(tmpDir, 'component.c.update@1.0.0');
         const base = path.join(tmpDir, 'component.c.base@1.0.0');
@@ -140,7 +143,7 @@ describe('MergeSessionCoordinator', () => {
             handleDidSaveTextDocument: (document: vscode.TextDocument) => Promise<void>
         }).handleDidSaveTextDocument({ uri: { fsPath: merged } } as vscode.TextDocument);
 
-        expect(solutionManager.markDirty).not.toHaveBeenCalled();
+        expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
         expect(fsUtils.fileExists(merged)).toBeTruthy();
     });
 
@@ -160,7 +163,8 @@ describe('MergeSessionCoordinator', () => {
 
         expect(fsUtils.fileExists(local)).toBeTruthy();
         expect(fsUtils.readTextFile(local)).toContain('// merged');
-        expect(solutionManager.markDirty).toHaveBeenCalledTimes(1);
+        expect(commandsProvider.executeCommand).toHaveBeenCalledTimes(1);
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith(REFRESH_COMMAND_ID);
     });
 
     it('finalizes on merge process exit when update file is already absent but base exists', async () => {

@@ -16,9 +16,10 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { REFRESH_COMMAND_ID } from '../../../manifest';
 import * as fsUtils from '../../../utils/fs-utils';
 import { pathsEqual } from '../../../utils/path-utils';
-import type { SolutionManager } from '../../../solutions/solution-manager';
+import type { CommandsProvider } from '../../../vscode-api/commands-provider';
 
 export interface MergeSessionFiles {
     local: string;
@@ -47,7 +48,7 @@ export class MergeSessionCoordinatorImpl implements MergeSessionCoordinator {
     private readonly mergeAppliedEmitter = new vscode.EventEmitter<void>();
 
     constructor(
-        private readonly solutionManager: Pick<SolutionManager, 'markDirty'>,
+        private readonly commandsProvider: Pick<CommandsProvider, 'executeCommand'>,
     ) {
     }
 
@@ -99,8 +100,9 @@ export class MergeSessionCoordinatorImpl implements MergeSessionCoordinator {
         if (!this.mergeAppliedNotified && mergedMTimeAfter > this.activeSession.mergedMTimeBefore) {
             this.mergeAppliedNotified = true;
             this.mergeAppliedEmitter.fire();
-            this.solutionManager.markDirty();
         }
+
+        void this.commandsProvider.executeCommand(REFRESH_COMMAND_ID);
     }
 
     private async tryFinalizeOnExit(): Promise<boolean> {
@@ -118,9 +120,9 @@ export class MergeSessionCoordinatorImpl implements MergeSessionCoordinator {
         try {
             this.performPostMergeOperations(session);
             this.activeSession = undefined;
-            if (!this.mergeAppliedNotified) {
-                this.solutionManager.markDirty();
-            }
+            // Await is required here so merge finalization is not reported complete
+            // before the refresh command has finished processing.
+            await this.commandsProvider.executeCommand(REFRESH_COMMAND_ID);
             return true;
         } finally {
             this.finalizing = false;
