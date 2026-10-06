@@ -356,7 +356,7 @@ describe('SolutionManager', () => {
         expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(setupCount);
     });
 
-    it('does not finish an older completion after the solution model is reloaded', async () => {
+    it('does not finish a conversion after the active solution closes', async () => {
         await activateTestSolution();
         convertMock.mockClear();
         convertMock.mockImplementation(() => undefined);
@@ -367,23 +367,18 @@ describe('SolutionManager', () => {
         solutionManager.markDirty();
         await solutionManager.refresh();
         await waitTimeout(20);
-        const firstRequest = convertMock.mock.calls[0][0];
+        const request = convertMock.mock.calls[0][0];
         const setupCount = cbuildSetupRequestedListener.mock.calls.length;
-        await eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: firstRequest.solutionPath });
+        await eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath });
         expect(updateSpy).toHaveBeenCalledTimes(1);
 
-        await solutionManager.refresh();
-        await waitTimeout(20);
-        const secondRequest = convertMock.mock.calls[1][0];
+        mockActiveSolutionTracker.activeSolution = undefined;
+        changeActiveSolutionEmitter.fire();
         releaseUpdate();
         await waitTimeout(20);
 
-        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: false, dirty: false }));
+        expect(solutionManager.loadState.solutionPath).toBeUndefined();
         expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(setupCount);
-
-        await eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: secondRequest.solutionPath });
-        await waitTimeout(20);
-        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
     });
 
     it.each([

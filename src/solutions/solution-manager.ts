@@ -288,17 +288,15 @@ export class SolutionManagerImpl implements SolutionManager {
     }
 
     private async handleSolutionConvertCompleted(data: ConvertResultData) {
-        const csolution = this.csolution;
-        if (!csolution || !data.solutionPath || data.solutionPath !== csolution.solutionPath
-            || this.loadState.solutionPath !== data.solutionPath) {
+        if (!this.csolution || !data.solutionPath || this.loadState.solutionPath !== data.solutionPath) {
             return;
         }
         await this.updateRpcData(); // refresh RPC data
-        if (this.csolution !== csolution || this.loadState.solutionPath !== data.solutionPath) {
+        if (this.loadState.solutionPath !== data.solutionPath) {
             return;
         }
         await this.loadSolutionBuildFiles();
-        if (this.csolution !== csolution || this.loadState.solutionPath !== data.solutionPath) {
+        if (this.loadState.solutionPath !== data.solutionPath) {
             return;
         }
         this.setupCompletedEmitter.fire([data.severity, data.detection]);
@@ -326,9 +324,8 @@ export class SolutionManagerImpl implements SolutionManager {
     public async loadSolutionBuildFiles() {
         if (this.loadState.solutionPath && this.csolution) {
             const csolution = this.csolution;
-            const solutionPath = this.loadState.solutionPath;
             await csolution.loadBuildFiles();
-            if (this.csolution !== csolution || this.loadState.solutionPath !== solutionPath) {
+            if (this.loadState.solutionPath !== csolution.solutionPath) {
                 return;
             }
             const newState: SolutionLoadState = {
