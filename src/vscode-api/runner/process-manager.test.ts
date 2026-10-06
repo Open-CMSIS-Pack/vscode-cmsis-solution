@@ -40,9 +40,15 @@ jest.mock('inspector', () => ({
 }));
 
 describe('process-manager.ts', () => {
+    const originalPlatform = process.platform;
+
     beforeEach(() => {
         jest.clearAllMocks();
         (inspector.url as jest.Mock).mockReturnValue(undefined);
+    });
+
+    afterEach(() => {
+        Object.defineProperty(process, 'platform', { value: originalPlatform });
     });
 
     describe('spawn', () => {
@@ -96,7 +102,54 @@ describe('process-manager.ts', () => {
             expect(onOutput).toHaveBeenNthCalledWith(2, 'stderr line\r\n');
         });
 
+        it('uses a child process when PTY is requested without dimensions on non-Windows', async () => {
+            Object.defineProperty(process, 'platform', { value: 'linux' });
+
+            const stdoutStream = {};
+            const stderrStream = {};
+            const lineCallbacks = new Map<object, (line: string) => void>();
+
+            createInterfaceMock.mockImplementation(({ input }: { input: object }) => ({
+                on: (event: string, callback: (line: string) => void) => {
+                    if (event === 'line') {
+                        lineCallbacks.set(input, callback);
+                    }
+                },
+            }));
+
+            const childProcess = new EventEmitter() as EventEmitter & {
+                stdout: object;
+                stderr: object;
+                exitCode: number | null;
+                kill: jest.Mock;
+            };
+            childProcess.stdout = stdoutStream;
+            childProcess.stderr = stderrStream;
+            childProcess.exitCode = null;
+            childProcess.kill = jest.fn();
+            spawnMock.mockReturnValue(childProcess);
+
+            const environmentManager = {
+                augmentEnv: jest.fn(() => ({ vars: { AUGMENTED: '1' } })),
+            };
+            const processManager = new ProcessManagerImpl(environmentManager as never);
+            const onOutput = jest.fn();
+
+            const resultPromise = processManager.spawn('tool', [], { usePty: true }, onOutput);
+
+            lineCallbacks.get(stdoutStream)?.('output');
+            childProcess.emit('close', 0);
+
+            await expect(resultPromise).resolves.toEqual({ code: 0 });
+            expect(spawnMock).toHaveBeenCalledWith('tool', [], {
+                env: { AUGMENTED: '1' },
+            });
+            expect(pty.spawn).not.toHaveBeenCalled();
+            expect(onOutput).toHaveBeenCalledWith('output\r\n');
+        });
+
         it('forces PTY with default dimensions while debugging on Windows', async () => {
+            Object.defineProperty(process, 'platform', { value: 'win32' });
             (inspector.url as jest.Mock).mockReturnValue('ws://debugger');
 
             let onData: ((data: string) => void) | undefined;
@@ -138,6 +191,8 @@ describe('process-manager.ts', () => {
         });
 
         it('filters PTY control sequences split across output chunks', async () => {
+            Object.defineProperty(process, 'platform', { value: 'win32' });
+
             let onData: ((data: string) => void) | undefined;
             let onExit: ((event: { exitCode: number }) => void) | undefined;
             const ptyProcess = {

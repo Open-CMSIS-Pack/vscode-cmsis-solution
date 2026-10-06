@@ -1,4 +1,4 @@
-# Principles
+# Development Principles
 
 1. Search for an existing implementation before adding code.
 2. Reuse or extend the owning abstraction when responsibilities match.
