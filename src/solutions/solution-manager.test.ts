@@ -443,6 +443,7 @@ describe('SolutionManager', () => {
         await waitTimeout(200);
 
         expect(convertMock).not.toHaveBeenCalled();
+        expect(solutionManager.loadState.dirty).toBe(false);
     });
 
     it('does not reload for a watched YAML file inside the solution directory when it is not in the active solution model', async () => {
@@ -454,9 +455,10 @@ describe('SolutionManager', () => {
         await waitTimeout(200);
 
         expect(convertMock).not.toHaveBeenCalled();
+        expect(solutionManager.loadState.dirty).toBe(false);
     });
 
-    it('marks dirty for a tracker event elsewhere in the workspace without reloading', async () => {
+    it('ignores a tracker event for an inactive solution elsewhere in the workspace', async () => {
         await activateTestSolution();
         const inactiveSolutionPath = path.join(tmpSolutionsDir, 'simple', 'test.csolution.yml');
         convertMock.mockClear();
@@ -465,7 +467,7 @@ describe('SolutionManager', () => {
         await waitTimeout(200);
 
         expect(convertMock).not.toHaveBeenCalled();
-        expect(solutionManager.loadState.dirty).toBe(true);
+        expect(solutionManager.loadState.dirty).toBe(false);
     });
 
     it('keeps dirty state when multiple active solution file changes arrive', async () => {

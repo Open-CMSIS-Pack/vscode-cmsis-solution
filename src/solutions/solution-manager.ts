@@ -27,6 +27,7 @@ import { EnvironmentManagerApiV1 } from '@arm-software/vscode-environment-manage
 import { debounce } from 'lodash';
 import { SolutionRpcData } from './solution-rpc-data';
 import { EnvironmentManager } from '../desktop/env-manager';
+import { pathsEqual } from '../utils/path-utils';
 import { workspaceFsProvider as defaultWorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { ToolsEnvironment } from './tools-environment';
 
@@ -109,7 +110,7 @@ export class SolutionManagerImpl implements SolutionManager {
     public async activate(context: vscode.ExtensionContext): Promise<void> {
         context.subscriptions.push(
             this.activeSolutionTracker.onDidChangeActiveSolution(this.handleChangeActiveSolution, this),
-            this.activeSolutionTracker.onActiveSolutionFilesChanged(this.markDirty, this),
+            this.activeSolutionTracker.onActiveSolutionFilesChanged(this.handleActiveSolutionFilesChanged, this),
             this.eventHub.onDidConvertCompleted(this.handleSolutionConvertCompleted, this),
             this.eventHub.onDidCbuildCompleted(this.handleCbuildCompleted, this),
             this.eventHub.onDidReloadPacks(() => this.markDirty()),
@@ -190,6 +191,16 @@ export class SolutionManagerImpl implements SolutionManager {
         }
         if (!this.loadState.dirty) {
             this.setLoadState({ ...this.loadState, dirty: true }, true);
+        }
+    }
+
+    private handleActiveSolutionFilesChanged(changedPath: string): void {
+        const isSolutionYmlFile = this.csolution?.getSolutionYmlFiles()
+            .some(solutionFile => pathsEqual(solutionFile, changedPath));
+        const isUsedDbgconfFile = changedPath.toLowerCase().endsWith('.dbgconf')
+            && this.csolution?.getUsedDbgconfFiles().some(dbgconfFile => pathsEqual(dbgconfFile, changedPath));
+        if (isSolutionYmlFile || isUsedDbgconfFile) {
+            this.markDirty();
         }
     }
 
