@@ -16,9 +16,7 @@
 
 import { createWriteStream } from 'fs';
 import https from 'https';
-
 export type DownloadFile = (url: string, outputPath: string, token?: string) => Promise<string>;
-
 export const downloadFile: DownloadFile = (url, outputPath, token?) => new Promise((resolve, reject) => {
     const requestOptions = {
         headers: {
