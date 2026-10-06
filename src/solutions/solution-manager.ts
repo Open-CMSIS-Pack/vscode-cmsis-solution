@@ -184,7 +184,7 @@ export class SolutionManagerImpl implements SolutionManager {
     }
 
     public markDirty(): void {
-        if (!this.isSolutionActivated()) {
+        if (!this.loadState.solutionPath || !this.loadState.loaded) {
             return;
         }
         if (!this.loadState.dirty) {
