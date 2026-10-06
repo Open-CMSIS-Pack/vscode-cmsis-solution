@@ -62,7 +62,6 @@ export const solutionManagerFactory = makeFactory<MockSolutionManager>({
     workspaceFolder: () => vscode.Uri.file('/workspace/folder'),
     refresh: () => jest.fn(),
     markDirty: () => jest.fn(),
-    refreshAfterSave: () => jest.fn(),
     onUpdatedCompileCommandsEmitter: () => new vscode.EventEmitter<void>(),
     onUpdatedCompileCommands: (r) => jest.fn(r.onUpdatedCompileCommandsEmitter!.event),
 });

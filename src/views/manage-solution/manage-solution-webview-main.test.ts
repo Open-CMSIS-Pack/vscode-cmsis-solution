@@ -286,20 +286,6 @@ describe('ContextSelectionWebviewMain', () => {
     });
 
     describe('onDidChangeLoadState callback', () => {
-        it('does not reload the editor for a dirty-only load state change', async () => {
-            const main = manageSolutionWebviewMainFactory({ webviewManager });
-            (main as any).webviewManager.isPanelActive = true;
-            const loadSolutionSpy = jest.spyOn(main as any, 'loadSolution');
-
-            await (main as any).handleSolutionLoadChange({
-                previousState: { solutionPath: '/path/to/solution.csolution.yml', loaded: true, converted: true, activated: true, dirty: false },
-                newState: { solutionPath: '/path/to/solution.csolution.yml', loaded: true, converted: true, activated: true, dirty: true },
-            });
-
-            expect(loadSolutionSpy).not.toHaveBeenCalled();
-            expect(webviewManager.sendMessage).not.toHaveBeenCalled();
-        });
-
         it('reloads solution before active target validation when external files changed', async () => {
             const solutionManager = solutionManagerFactory();
             const main = manageSolutionWebviewMainFactory({

@@ -91,9 +91,7 @@ export class ManageSolutionWebviewMain {
         const { solutionPath: newPath, converted: newConverted, loaded: newLoaded, activated: newActivated } = e.newState;
         const { solutionPath: prevPath, converted: prevConverted, loaded: prevLoaded, activated: prevActivated } = e.previousState;
 
-        const dirtyOnlyChange = newPath === prevPath && newConverted === prevConverted
-            && newLoaded === prevLoaded && newActivated === prevActivated && e.newState.dirty !== e.previousState.dirty;
-        if (!this.webviewManager.isPanelActive || dirtyOnlyChange || (newPath === prevPath && newConverted !== prevConverted)) {
+        if (!this.webviewManager.isPanelActive || (newPath === prevPath && newConverted !== prevConverted)) {
             return;
         }
 

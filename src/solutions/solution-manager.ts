@@ -76,8 +76,6 @@ export interface SolutionManager {
     refresh(): Promise<void>;
 
     markDirty(): void;
-
-    refreshAfterSave(): Promise<void>;
 }
 
 export class SolutionManagerImpl implements SolutionManager {
@@ -214,13 +212,6 @@ export class SolutionManagerImpl implements SolutionManager {
     }
 
     public async refresh() {
-        await this.reloadActiveSolutionFiles();
-    }
-
-    public async refreshAfterSave(): Promise<void> {
-        if (!this.isSolutionActivated()) {
-            return;
-        }
         await this.reloadActiveSolutionFiles();
     }
 

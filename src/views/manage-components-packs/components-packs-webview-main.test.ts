@@ -582,8 +582,8 @@ describe('ComponentsPacksWebviewMain', () => {
             const stateMessages = webviewManager.sendMessage.mock.calls.filter(c => c[0].type === 'SET_SOLUTION_STATE');
             expect(stateMessages.length).toBe(1); // Saving changes..., then clearing state
             expect(result).toBe(true);
-            expect(solutionManager.refreshAfterSave).toHaveBeenCalledTimes(1);
-            expect(solutionManager.refreshAfterSave).toHaveBeenCalledWith();
+            expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+            expect(solutionManager.refresh).toHaveBeenCalledWith();
         });
 
         it('does not convert when applying an unchanged view', async () => {
@@ -591,14 +591,14 @@ describe('ComponentsPacksWebviewMain', () => {
             updateUsedItemsMock.mockResolvedValue(true);
 
             expect(await (componentsPacksWebviewMain as any).handleApplyComponentSet()).toBe(true);
-            expect(solutionManager.refreshAfterSave).not.toHaveBeenCalled();
+            expect(solutionManager.refresh).not.toHaveBeenCalled();
         });
 
         it('does not convert when the project file updater reports no change', async () => {
             updateUsedItemsMock.mockResolvedValue(false);
 
             expect(await (componentsPacksWebviewMain as any).handleApplyComponentSet()).toBe(true);
-            expect(solutionManager.refreshAfterSave).not.toHaveBeenCalled();
+            expect(solutionManager.refresh).not.toHaveBeenCalled();
         });
 
         it('converts once after a modified pack-file-only save', async () => {
@@ -609,8 +609,8 @@ describe('ComponentsPacksWebviewMain', () => {
 
             expect(await (componentsPacksWebviewMain as any).handleApplyComponentSet()).toBe(true);
             expect(save).toHaveBeenCalledTimes(1);
-            expect(solutionManager.refreshAfterSave).toHaveBeenCalledTimes(1);
-            expect(solutionManager.refreshAfterSave).toHaveBeenCalledWith();
+            expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+            expect(solutionManager.refresh).toHaveBeenCalledWith();
         });
 
         it('does not convert after a failed pack-file save', async () => {
@@ -620,7 +620,7 @@ describe('ComponentsPacksWebviewMain', () => {
 
             expect(await (componentsPacksWebviewMain as any).handleApplyComponentSet()).toBe(false);
             expect(applyMock).not.toHaveBeenCalled();
-            expect(solutionManager.refreshAfterSave).not.toHaveBeenCalled();
+            expect(solutionManager.refresh).not.toHaveBeenCalled();
             expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'IS_DIRTY', isDirty: true });
         });
 

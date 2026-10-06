@@ -175,7 +175,7 @@ export class ManageSolutionController {
             csolution.csolutionYml.copyFrom(this.csolutionYml);
         }
         if (changed && userModified && saved) {
-            await solutionManager.refreshAfterSave();
+            await solutionManager.refresh();
         } else if (changed && !saved) {
             solutionManager.markDirty();
         }

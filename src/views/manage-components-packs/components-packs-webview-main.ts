@@ -620,7 +620,7 @@ export class ComponentsPacksWebviewMain {
             && await this.projectFileUpdater.updateUsedItems(activeContext, projectFileName, usedItemsForProjectFileUpdate);
         const saved = state.success !== false;
         if (saved && wasDirty && (packFileChanged || projectFilesChanged)) {
-            await this.solutionManager.refreshAfterSave();
+            await this.solutionManager.refresh();
         }
         if (saved) {
             this.unlinkRequests.clear();

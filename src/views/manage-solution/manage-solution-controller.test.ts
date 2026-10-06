@@ -133,7 +133,7 @@ describe('manage-solution-controller', () => {
             ).replaceAll('\\', '/'),
             activeTarget: 'TEST_TARGET',
         }));
-        expect(solutionManager.refreshAfterSave).toHaveBeenCalledTimes(1);
+        expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
     });
 
     it('converts once after a modified solution save and not after a repeated unchanged save', async () => {
@@ -143,11 +143,11 @@ describe('manage-solution-controller', () => {
         controller.csolutionYml.text = controller.csolutionYml.text + '\n';
 
         expect(await controller.saveSolution(solutionManager)).toBe(true);
-        expect(solutionManager.refreshAfterSave).toHaveBeenCalledTimes(1);
-        expect(solutionManager.refreshAfterSave).toHaveBeenCalledWith();
+        expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+        expect(solutionManager.refresh).toHaveBeenCalledWith();
 
         await controller.saveSolution(solutionManager);
-        expect(solutionManager.refreshAfterSave).toHaveBeenCalledTimes(1);
+        expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
     });
 
     it('does not write an empty active target', async () => {
@@ -186,7 +186,7 @@ describe('manage-solution-controller', () => {
         expect(await controller.saveSolution(solutionManager)).toBe(false);
 
         expect(controller.hasExternalFileChanges()).toBe(true);
-        expect(solutionManager.refreshAfterSave).not.toHaveBeenCalled();
+        expect(solutionManager.refresh).not.toHaveBeenCalled();
     });
 
     it('preserves CMake settings when selected contexts are reapplied', async () => {
