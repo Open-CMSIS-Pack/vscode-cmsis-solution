@@ -51,7 +51,7 @@
 
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { simpleGit, SimpleGit } from 'simple-git';
+import simpleGit, { SimpleGit } from 'simple-git';
 import { log } from './logger';
 
 // ============================================================================
