@@ -22,7 +22,7 @@
     },
     {
         "name": "yaml",
-        "version": "2.9.0",
+        "version": "2.9.1",
         "spdx": "ISC",
         "url": "https://github.com/eemeli/yaml",
         "license": "https://github.com/eemeli/yaml/blob/main/LICENSE"

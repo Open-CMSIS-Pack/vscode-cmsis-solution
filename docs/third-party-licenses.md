@@ -37,6 +37,6 @@ Generated for release: 1.72.0
 |vscode-messenger-common|0.6.0|https://github.com/TypeFox/vscode-messenger|https://github.com/TypeFox/vscode-messenger/blob/main/LICENSE|
 |vscode-messenger-webview|0.6.0|https://github.com/TypeFox/vscode-messenger|https://github.com/TypeFox/vscode-messenger/blob/main/LICENSE|
 |which|7.0.0|https://github.com/npm/node-which|https://github.com/npm/node-which/blob/main/LICENSE|
-|yaml|2.9.0|https://github.com/eemeli/yaml|https://github.com/eemeli/yaml/blob/main/LICENSE|
+|yaml|2.9.1|https://github.com/eemeli/yaml|https://github.com/eemeli/yaml/blob/main/LICENSE|
 |yargs-parser|21.1.1|https://github.com/yargs/yargs-parser|https://github.com/yargs/yargs-parser/blob/main/LICENSE.txt|
 |yauzl|3.4.0|https://github.com/thejoshwolfe/yauzl|https://github.com/thejoshwolfe/yauzl/blob/master/LICENSE|
