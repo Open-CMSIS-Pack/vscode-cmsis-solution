@@ -33,6 +33,7 @@ updates:
     cooldown:
       default-days: 3
     ignore:
+      - dependency-name: "cmsis-csolution"  # Ignore the workspace root package
       - dependency-name: "@types/vscode"
       - dependency-name: "react"
         update-types:
