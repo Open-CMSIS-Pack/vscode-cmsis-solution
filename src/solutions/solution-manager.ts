@@ -220,9 +220,6 @@ export class SolutionManagerImpl implements SolutionManager {
 
         // check if updateRte is forced
         updateRte = await this.hasForceUpdateRte() || updateRte;
-        if (this.csolution.solutionPath !== this.loadState.solutionPath) {
-            return;
-        }
         restartRpc = restartRpc || this.restartRpcOnConvert;
         this.restartRpcOnConvert = false;
 
@@ -258,12 +255,10 @@ export class SolutionManagerImpl implements SolutionManager {
         if (this.loadingSolution || !this.loadState.solutionPath) {
             return false;
         }
-        const solutionPath = this.loadState.solutionPath;
         try {
             this.loadingSolution = true;
-            const csolution = new CSolution();
-            await csolution.load(solutionPath);
-            this.csolution = csolution;
+            this.csolution = new CSolution();
+            await this.csolution.load(this.loadState.solutionPath);
 
             // update RPC data if requested
             if (updateRpcData) {
@@ -277,7 +272,7 @@ export class SolutionManagerImpl implements SolutionManager {
             this.setLoadState(newState, true);
             return true;
         } catch (error) {
-            console.error(`Failed to load ${solutionPath}`, error);
+            console.error(`Failed to load ${this.loadState.solutionPath}`, error);
             return false;
         } finally {
             this.loadingSolution = false;
@@ -310,7 +305,7 @@ export class SolutionManagerImpl implements SolutionManager {
     }
 
     public async loadSolutionBuildFiles() {
-        if (this.loadState.solutionPath && this.csolution) {
+        if (this.csolution) {
             await this.csolution.loadBuildFiles();
             const newState: SolutionLoadState = {
                 ...this.loadState,
