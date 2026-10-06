@@ -336,7 +336,7 @@ describe('SolutionManager', () => {
         expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: true }));
     });
 
-    it('ignores a completion for another solution and finishes an error completion', async () => {
+    it('accepts a completion for another solution and finishes an error completion', async () => {
         await activateTestSolution();
         convertMock.mockClear();
         convertMock.mockImplementationOnce(() => undefined);
@@ -348,15 +348,16 @@ describe('SolutionManager', () => {
 
         eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: 'another-solution.csolution.yml' });
         await waitTimeout(20);
-        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: false, dirty: false }));
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
+        expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(setupCount + 1);
 
         eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath, success: false, severity: 'error' });
         await waitTimeout(20);
         expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
-        expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(setupCount);
+        expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(setupCount + 1);
     });
 
-    it('does not finish a conversion after the active solution closes', async () => {
+    it('finishes a conversion after the active solution closes', async () => {
         await activateTestSolution();
         convertMock.mockClear();
         convertMock.mockImplementation(() => undefined);
@@ -378,7 +379,7 @@ describe('SolutionManager', () => {
         await waitTimeout(20);
 
         expect(solutionManager.loadState.solutionPath).toBeUndefined();
-        expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(setupCount);
+        expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(setupCount + 1);
     });
 
     it.each([

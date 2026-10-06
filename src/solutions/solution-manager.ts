@@ -263,9 +263,6 @@ export class SolutionManagerImpl implements SolutionManager {
             this.loadingSolution = true;
             const csolution = new CSolution();
             await csolution.load(solutionPath);
-            if (this.loadState.solutionPath !== solutionPath) {
-                return false;
-            }
             this.csolution = csolution;
 
             // update RPC data if requested
@@ -288,17 +285,8 @@ export class SolutionManagerImpl implements SolutionManager {
     }
 
     private async handleSolutionConvertCompleted(data: ConvertResultData) {
-        if (!this.csolution || !data.solutionPath || this.loadState.solutionPath !== data.solutionPath) {
-            return;
-        }
         await this.updateRpcData(); // refresh RPC data
-        if (this.loadState.solutionPath !== data.solutionPath) {
-            return;
-        }
         await this.loadSolutionBuildFiles();
-        if (this.loadState.solutionPath !== data.solutionPath) {
-            return;
-        }
         this.setupCompletedEmitter.fire([data.severity, data.detection]);
 
         if (data.severity != 'error' && !data.detection) {
@@ -323,11 +311,7 @@ export class SolutionManagerImpl implements SolutionManager {
 
     public async loadSolutionBuildFiles() {
         if (this.loadState.solutionPath && this.csolution) {
-            const csolution = this.csolution;
-            await csolution.loadBuildFiles();
-            if (this.loadState.solutionPath !== csolution.solutionPath) {
-                return;
-            }
+            await this.csolution.loadBuildFiles();
             const newState: SolutionLoadState = {
                 ...this.loadState,
                 activated: true,
