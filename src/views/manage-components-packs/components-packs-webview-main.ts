@@ -21,7 +21,7 @@ import path, { dirname } from 'path';
 import { ComponentInstance, CsolutionService, CtAggregate, CtRoot, Pack, PackReference, PacksInfo, Results, UsedItems } from '../../json-rpc/csolution-rpc-client';
 import { IOpenFileExternal } from '../../open-file-external-if';
 import { ProjectFileUpdater, ProjectFileUpdaterImpl } from '../../solutions/edit/project-file-updater';
-import { SolutionLoadStateChangeEvent, SolutionManager } from '../../solutions/solution-manager';
+import { isAutoConvertOnFileChangeEnabled, SolutionLoadStateChangeEvent, SolutionManager } from '../../solutions/solution-manager';
 import { backToForwardSlashes, getFileNameNoExt } from '../../utils/path-utils';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
 import { MessageProvider } from '../../vscode-api/message-provider';
@@ -39,6 +39,7 @@ import { getLatestAvailablePacksInfo, isPackIndexCurrent } from '../../packs/ind
 import { isDeepStrictEqual } from 'util';
 import { openFileWithPolicy } from '../file-open-policy';
 import { FileOpenGroupOrchestrator, FileOpenGroupOrchestratorImpl } from '../file-open-group-orchestrator';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 
 export const MANAGE_COMPONENTS_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> = {
     title: 'Software Components',
@@ -287,6 +288,13 @@ export class ComponentsPacksWebviewMain {
 
     private async handleSolutionLoadChange(e: SolutionLoadStateChangeEvent): Promise<void> {
         if (!this.webviewManager.isPanelActive) {
+            return;
+        }
+
+        if (e.newState.solutionPath === e.previousState.solutionPath
+            && e.newState.converted === e.previousState.converted
+            && e.newState.loaded === e.previousState.loaded
+            && e.newState.activated === e.previousState.activated) {
             return;
         }
 
@@ -585,10 +593,19 @@ export class ComponentsPacksWebviewMain {
     private async handleApplyComponentSet(): Promise<boolean> {
         await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Saving changes...' });
 
-        const cbuildPackModified = this.solutionManager.getCsolution()?.cbuildPackFile.isModified() ?? false;
+        const cbuildPackFile = this.solutionManager.getCsolution()?.cbuildPackFile;
+        const cbuildPackModified = cbuildPackFile?.isModified() ?? false;
+        const wasDirty = await this.isDirty();
+        let packFileChanged = false;
         if (cbuildPackModified) {
-            await this.solutionManager.getCsolution()?.cbuildPackFile.save();
-            this.unlinkRequests.clear();
+            const packResult = await cbuildPackFile!.save();
+            if (packResult === ETextFileResult.Error || packResult === ETextFileResult.NotExists) {
+                await this.webviewManager.sendMessage({ type: 'IS_DIRTY', isDirty: true });
+                return false;
+            }
+            if (packResult === ETextFileResult.Success) {
+                packFileChanged = true;
+            }
         }
 
         const activeContext = this.getActiveContext();
@@ -599,11 +616,16 @@ export class ComponentsPacksWebviewMain {
         const requestAll = this.scope === ComponentScope.All;
         this.componentTree = this.manageComponentsActions.mapComponentsFromService(await this.csolutionService.getComponentsTree({ context: activeContext, all: requestAll }));
         this.validations = await this.csolutionService.validateComponents({ context: activeContext });
-        await this.projectFileUpdater.updateUsedItems(activeContext, projectFileName, usedItemsForProjectFileUpdate);
-
-        // Trigger refresh if cbuild-pack was modified to ensure solution is properly reloaded
-        if (cbuildPackModified) {
-            await this.solutionManager.refresh();
+        const projectFilesChanged = state.success !== false
+            && await this.projectFileUpdater.updateUsedItems(activeContext, projectFileName, usedItemsForProjectFileUpdate);
+        const saved = state.success !== false;
+        if (saved && wasDirty && (packFileChanged || projectFilesChanged)) {
+            if (!isAutoConvertOnFileChangeEnabled() || (packFileChanged && !projectFilesChanged)) {
+                await this.solutionManager.refresh();
+            }
+        }
+        if (saved) {
+            this.unlinkRequests.clear();
         }
 
         await Promise.all([
@@ -613,8 +635,12 @@ export class ComponentsPacksWebviewMain {
         if (state.success === false) {
             this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: state.message ?? 'Unspecified error when writing solution information' });
         }
-        await this.sendDirtyState({ skipApply: true, usedItems: usedItemsForProjectFileUpdate });
-        return state.success !== false;
+        if (saved) {
+            await this.sendDirtyState({ skipApply: true, usedItems: usedItemsForProjectFileUpdate });
+        } else {
+            await this.webviewManager.sendMessage({ type: 'IS_DIRTY', isDirty: true });
+        }
+        return saved;
     }
 
     private async handleOpenFile(message: Messages.OutgoingMessage): Promise<void> {

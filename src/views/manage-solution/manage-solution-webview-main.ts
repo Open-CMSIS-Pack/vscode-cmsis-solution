@@ -334,10 +334,15 @@ export class ManageSolutionWebviewMain {
             return;
         }
         await this.setBusyState(true);
-        await this.controller.saveSolution(this.solutionManager);
-        this.wasDirty = false;
-        await this.setBusyState(false);
-        await this.sendContextData();
+        try {
+            const saved = await this.controller.saveSolution(this.solutionManager);
+            if (saved) {
+                this.wasDirty = false;
+                await this.sendContextData();
+            }
+        } finally {
+            await this.setBusyState(false);
+        }
     }
 
     public async revertToDisk(): Promise<void> {

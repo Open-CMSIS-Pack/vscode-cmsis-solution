@@ -22,7 +22,7 @@ import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { DebuggerWrap, ImageWrap, ProjectRefWrap, TargetSetWrap, TargetTypeWrap } from '../../solutions/files/csolution-wrap';
 import { CSolutionYamlFile } from '../../solutions/files/csolution-yaml-file';
-import { SolutionManager } from '../../solutions/solution-manager';
+import { isAutoConvertOnFileChangeEnabled, SolutionManager } from '../../solutions/solution-manager';
 import * as fsUtils from '../../utils/fs-utils';
 import { getFileNameNoExt } from '../../utils/path-utils';
 import { extractSuffix, stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
@@ -131,15 +131,18 @@ export class ManageSolutionController {
      * Saves csolution.yml and cmsis.json files
      * @returns result of saving csolution file
      */
-    async saveSolution(solutionManager: SolutionManager) {
+    async saveSolution(solutionManager: SolutionManager): Promise<boolean> {
         // remove deprecated .cbuild-set.yml file
         const cbuildSetYmlFileName = stripTwoExtensions(this.solutionPath) + '.cbuild-set.yml';
         fsUtils.deleteFileIfExists(cbuildSetYmlFileName);
 
         const csolution = solutionManager.getCsolution();
         if (!csolution) {
-            return;
+            return false;
         }
+        const userModified = this.csolutionYml.isModified() || this.cmsisJsonFile.isModified();
+        let changed = false;
+        let saved = true;
         // purge images that refer to non-existing projects (i.e. the project was renamed/deleted)
         this.csolutionYml.purgeAllProjectContexts();
 
@@ -150,19 +153,36 @@ export class ManageSolutionController {
             if (activeTargetTypeName) {
                 this.cmsisJsonFile.setActiveSelection(activeTargetTypeName, this.activeTargetSetName);
             }
-            cmsisJsonRes = csolution.cmsisJsonFile.copyFrom(this.cmsisJsonFile);
             const saveResult = await this.cmsisJsonFile.save();
             if (saveResult !== ETextFileResult.Error) {
                 this.cmsisJsonFileStamp = this.getCurrentFileStamp(this.cmsisJsonFile.fileName);
+                cmsisJsonRes = csolution.cmsisJsonFile.copyFrom(this.cmsisJsonFile);
+                if (cmsisJsonRes !== ETextFileResult.Unchanged && saveResult === ETextFileResult.Success) {
+                    changed = true;
+                }
+            } else {
+                saved = false;
             }
         }
-        const solutionRes = csolution.csolutionYml.copyFrom(this.csolutionYml);
-        if (solutionRes !== ETextFileResult.Unchanged) {
-            await this.csolutionYml.save();
+        const solutionRes = await this.csolutionYml.save();
+        if (solutionRes === ETextFileResult.Success) {
             this.csolutionFileStamp = this.getCurrentFileStamp(this.csolutionYml.fileName);
-        } else if (cmsisJsonRes !== ETextFileResult.Unchanged) {
-            await solutionManager.refresh(); // trigger reload and cbuild-setup run
+            changed = true;
+        } else if (solutionRes === ETextFileResult.Error) {
+            saved = false;
         }
+        if (solutionRes !== ETextFileResult.Error) {
+            csolution.csolutionYml.copyFrom(this.csolutionYml);
+        }
+        if (changed && userModified && saved) {
+            if (!isAutoConvertOnFileChangeEnabled()
+                || (cmsisJsonRes === ETextFileResult.Success && solutionRes === ETextFileResult.Unchanged)) {
+                await solutionManager.refresh();
+            }
+        } else if (changed && !saved) {
+            solutionManager.markDirty();
+        }
+        return saved;
     }
 
     /**

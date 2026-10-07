@@ -28,6 +28,7 @@ import * as vscodeUtils from '../../utils/vscode-utils';
 import { csolutionServiceFactory } from '../../json-rpc/csolution-rpc-client.factory';
 import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import YAML from 'yaml';
+import * as vscode from 'vscode';
 
 /**
  * Build generated (current) and reference JSON strings for a context selection state.
@@ -69,11 +70,19 @@ describe('manage-solution-controller', () => {
     const testDataHandler = new TestDataHandler();
     let tmpSolutionDir: string;
     let cmsisJsonFilePath: string;
+    let autoConvertOnFileChange: boolean | undefined;
 
     beforeAll(async () => {
         tmpSolutionDir = testDataHandler.copyTestDataToTmp('solutions');
         cmsisJsonFilePath = path.join(testDataHandler.tmpDir, '.vscode', 'cmsis.json');
         jest.spyOn(vscodeUtils, 'getWorkspaceFolder').mockReturnValue(testDataHandler.tmpDir);
+    });
+
+    beforeEach(() => {
+        autoConvertOnFileChange = undefined;
+        jest.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+            get: jest.fn((_key: string, defaultValue: unknown) => autoConvertOnFileChange ?? defaultValue),
+        } as unknown as vscode.WorkspaceConfiguration);
     });
 
     afterEach(() => {
@@ -133,6 +142,69 @@ describe('manage-solution-controller', () => {
             ).replaceAll('\\', '/'),
             activeTarget: 'TEST_TARGET',
         }));
+        expect(solutionManager.refresh).not.toHaveBeenCalled();
+    });
+
+    it('leaves modified solution conversion to the watcher in automatic mode', async () => {
+        const controller = new ManageSolutionController();
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'));
+        controller.csolutionYml.text = controller.csolutionYml.text + '\n';
+
+        expect(await controller.saveSolution(solutionManager)).toBe(true);
+        expect(solutionManager.refresh).not.toHaveBeenCalled();
+
+        await controller.saveSolution(solutionManager);
+        expect(solutionManager.refresh).not.toHaveBeenCalled();
+    });
+
+    it('refreshes after a modified solution save in dirty-only mode', async () => {
+        autoConvertOnFileChange = false;
+        const controller = new ManageSolutionController();
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'));
+        controller.csolutionYml.text += '\n';
+
+        expect(await controller.saveSolution(solutionManager)).toBe(true);
+        expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+
+        await controller.saveSolution(solutionManager);
+        expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+    });
+
+    it('refreshes when only cmsis.json changes in automatic mode', async () => {
+        const controller = new ManageSolutionController();
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'));
+        jest.spyOn(controller.csolutionYml, 'save').mockResolvedValue(ETextFileResult.Unchanged);
+        controller.cmsisJsonFile.activeTargetTypeName = 'TEST_TARGET';
+
+        expect(await controller.saveSolution(solutionManager)).toBe(true);
+        expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+        expect(fsUtils.fileExists(cmsisJsonFilePath)).toBe(true);
+    });
+
+    it('refreshes when only cmsis.json changes in dirty-only mode', async () => {
+        autoConvertOnFileChange = false;
+        const controller = new ManageSolutionController();
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'));
+        jest.spyOn(controller.csolutionYml, 'save').mockResolvedValue(ETextFileResult.Unchanged);
+        controller.cmsisJsonFile.activeTargetTypeName = 'TEST_TARGET';
+
+        expect(await controller.saveSolution(solutionManager)).toBe(true);
+        expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves mixed solution and cmsis.json saves to the watcher in automatic mode', async () => {
+        const controller = new ManageSolutionController();
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'));
+        controller.csolutionYml.text += '\n';
+        controller.cmsisJsonFile.activeTargetTypeName = 'TEST_TARGET';
+
+        expect(await controller.saveSolution(solutionManager)).toBe(true);
+        expect(solutionManager.refresh).not.toHaveBeenCalled();
     });
 
     it('does not write an empty active target', async () => {
@@ -167,9 +239,11 @@ describe('manage-solution-controller', () => {
         fsUtils.writeTextFile(cmsisJsonFilePath, '{ "external": true }');
         jest.spyOn(controller.cmsisJsonFile, 'save').mockResolvedValue(ETextFileResult.Error);
 
-        await controller.saveSolution(solutionManagerFactory());
+        const solutionManager = solutionManagerFactory();
+        expect(await controller.saveSolution(solutionManager)).toBe(false);
 
         expect(controller.hasExternalFileChanges()).toBe(true);
+        expect(solutionManager.refresh).not.toHaveBeenCalled();
     });
 
     it('preserves CMake settings when selected contexts are reapplied', async () => {

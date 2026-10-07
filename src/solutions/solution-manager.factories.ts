@@ -30,6 +30,7 @@ export const idleSolutionLoadStateFactory = makeFactory<SolutionLoadState>({
     activated: () => undefined,
     loaded: () => undefined,
     converted: () => undefined,
+    dirty: () => undefined,
 });
 
 export const activeSolutionLoadStateFactory = makeFactory<SolutionLoadState>({
@@ -37,6 +38,7 @@ export const activeSolutionLoadStateFactory = makeFactory<SolutionLoadState>({
     activated: () => true,
     loaded: () => undefined,
     converted: () => undefined,
+    dirty: () => undefined,
 });
 
 const fireOnDidChangeLoadState = (emitter: vscode.EventEmitter<SolutionLoadStateChangeEvent>) => {
@@ -59,6 +61,7 @@ export const solutionManagerFactory = makeFactory<MockSolutionManager>({
     fireOnDidChangeLoadState: (r) => fireOnDidChangeLoadState(r.onDidChangeLoadStateEmitter!),
     workspaceFolder: () => vscode.Uri.file('/workspace/folder'),
     refresh: () => jest.fn(),
+    markDirty: () => jest.fn(),
     onUpdatedCompileCommandsEmitter: () => new vscode.EventEmitter<void>(),
     onUpdatedCompileCommands: (r) => jest.fn(r.onUpdatedCompileCommandsEmitter!.event),
 });
