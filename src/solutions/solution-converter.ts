@@ -218,7 +218,6 @@ export class SolutionConverterImpl implements SolutionConverter {
         ) + '\n');
         // notify conversion result and detection status asynchronously!
         this.eventHub.fireConvertCompleted({
-            solutionPath: this.data.solutionPath,
             success: convertResult.success,
             severity: severity,
             detection: detection,
@@ -294,7 +293,6 @@ export class SolutionConverterImpl implements SolutionConverter {
         };
 
         await this.eventHub.fireConvertCompleted({
-            solutionPath: this.data.solutionPath,
             success: false,
             severity: 'error',
             detection: false,

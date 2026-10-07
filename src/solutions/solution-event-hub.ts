@@ -50,7 +50,6 @@ export interface CbuildResultData {
  * Event data for solution conversion result
  */
 export interface ConvertResultData extends CbuildResultData {
-    solutionPath?: string;
     detection: boolean;
     logMessages: LogMessages;
 }

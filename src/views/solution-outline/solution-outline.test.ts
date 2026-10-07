@@ -44,7 +44,6 @@ describe('SolutionOutlineView', () => {
             updateTree: jest.fn(),
             setDescription: jest.fn(),
             setTitle: jest.fn(),
-            setMessage: jest.fn(),
             setBadge: jest.fn(),
             registerVisibilityChangeEvent: visibilityChangeEmitter.event,
             activate: jest.fn(),

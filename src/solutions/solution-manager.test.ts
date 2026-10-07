@@ -111,9 +111,9 @@ describe('SolutionManager', () => {
         eventHub = new SolutionEventHub();
         cbuildSetupRequestedListener = jest.fn();
         eventHub.onDidCbuildSetupRequested(cbuildSetupRequestedListener);
-        convertMock = jest.fn(request => {
+        convertMock = jest.fn(() => {
             setTimeout(() => {
-                eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath });
+                eventHub.fireConvertCompleted(convertResultData);
             }, 1);
         });
         eventHub.onDidConvertRequested(convertMock);
@@ -382,33 +382,26 @@ describe('SolutionManager', () => {
         await solutionManager.refresh();
         await waitTimeout(20);
         expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: false, dirty: true }));
-        const request = convertMock.mock.calls[0][0];
         solutionManager.markDirty();
-        eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath, severity, success });
+        eventHub.fireConvertCompleted({ ...convertResultData, severity, success });
         await waitTimeout(20);
 
         expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
     });
 
-    it('accepts a completion for another solution and finishes an error completion', async () => {
+    it('does not request cbuild setup for an error completion', async () => {
         await activateTestSolution();
         convertMock.mockClear();
         convertMock.mockImplementationOnce(() => undefined);
         solutionManager.markDirty();
         await solutionManager.refresh();
         await waitTimeout(20);
-        const request = convertMock.mock.calls[0][0];
         const setupCount = cbuildSetupRequestedListener.mock.calls.length;
 
-        eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: 'another-solution.csolution.yml' });
+        eventHub.fireConvertCompleted({ ...convertResultData, success: false, severity: 'error' });
         await waitTimeout(20);
         expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
-        expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(setupCount + 1);
-
-        eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath, success: false, severity: 'error' });
-        await waitTimeout(20);
-        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
-        expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(setupCount + 1);
+        expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(setupCount);
     });
 
     it('finishes a conversion after the active solution closes', async () => {
@@ -422,9 +415,8 @@ describe('SolutionManager', () => {
         solutionManager.markDirty();
         await solutionManager.refresh();
         await waitTimeout(20);
-        const request = convertMock.mock.calls[0][0];
         const setupCount = cbuildSetupRequestedListener.mock.calls.length;
-        await eventHub.fireConvertCompleted({ ...convertResultData, solutionPath: request.solutionPath });
+        await eventHub.fireConvertCompleted(convertResultData);
         expect(updateSpy).toHaveBeenCalledTimes(1);
 
         mockActiveSolutionTracker.activeSolution = undefined;
@@ -746,10 +738,9 @@ describe('SolutionManager', () => {
     });
 
     it('writes the tools environment when conversion fails', async () => {
-        convertMock.mockImplementationOnce(request => {
+        convertMock.mockImplementationOnce(() => {
             setTimeout(() => {
                 eventHub.fireConvertCompleted({
-                    solutionPath: request.solutionPath,
                     success: false,
                     severity: 'error',
                     detection: false,
@@ -854,10 +845,9 @@ describe('SolutionManager', () => {
     });
 
     it('does not request cbuild setup when conversion completes with detection=true', async () => {
-        convertMock.mockImplementationOnce(request => {
+        convertMock.mockImplementationOnce(() => {
             setTimeout(() => {
                 eventHub.fireConvertCompleted({
-                    solutionPath: request.solutionPath,
                     success: true,
                     severity: 'success',
                     detection: true,
