@@ -18,7 +18,7 @@ import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react';
 import { ConfWiz } from './confwiz-webview-view-component';
 import {
-    ConfigWizardData,
+    ConfigWizardViewData,
     GuiTypes,
     TreeNodeElement,
     markDocumentDirty,
@@ -26,6 +26,7 @@ import {
     saveElement,
     selectAnnotationType,
     setPanelActiveType,
+    setSourceSelectionType,
     setWizardDataType
 } from './confwiz-webview-common';
 
@@ -61,20 +62,19 @@ jest.mock('vscode-messenger-webview', () => ({
 }));
 
 jest.mock('primereact/treetable', () => ({
-    TreeTable: ({ value, header, children, onRowClick }: { value: unknown[]; header: React.ReactNode; children: React.ReactNode; onRowClick?: (event: { originalEvent: React.SyntheticEvent; node: unknown }) => void }) => {
+    TreeTable: ({ value, header, children, onRowClick, expandedKeys, rowClassName }: { value: unknown[]; header: React.ReactNode; children: React.ReactNode; expandedKeys: Record<string, boolean>; rowClassName: (node: unknown) => Record<string, boolean>; onRowClick?: (event: { originalEvent: React.SyntheticEvent; node: unknown }) => void }) => {
         const columns = React.Children.toArray(children) as React.ReactElement[];
-        return (
-            <>
-                {header}
-                {value?.map((node: unknown, index: number) => (
-                    <div key={index} data-testid={`row-${index}`} onClick={(event) => onRowClick?.({ originalEvent: event, node })}>
-                        {columns.map((col, colIndex) => (
-                            <div key={colIndex}>{col.props.body(node, {})}</div>
-                        ))}
-                    </div>
-                ))}
-            </>
-        );
+        const renderNodes = (nodes: unknown[]): React.ReactNode => nodes?.map((node, index) => {
+            const treeNode = node as { key: string; children?: unknown[] };
+            const classes = Object.entries(rowClassName(node)).filter(([, enabled]) => enabled).map(([name]) => name).join(' ');
+            return <div key={index} data-testid={`row-${index}`} className={classes}>
+                <div onClick={(event) => onRowClick?.({ originalEvent: event, node })}>
+                    {columns.map((col, colIndex) => <div key={colIndex}>{col.props.body(node, {})}</div>)}
+                </div>
+                {expandedKeys[treeNode.key] && renderNodes(treeNode.children ?? [])}
+            </div>;
+        });
+        return <>{header}{renderNodes(value)}</>;
     },
 }));
 
@@ -88,7 +88,7 @@ jest.mock('./../filterTree', () => ({
     filterTree: (nodes: unknown) => nodes,
 }));
 
-const emitWizardData = (data: ConfigWizardData) => {
+const emitWizardData = (data: ConfigWizardViewData) => {
     const handler = notificationHandlers.get(getNotificationKey(setWizardDataType));
     if (!handler) {
         throw new Error('setWizardDataType handler not registered');
@@ -366,6 +366,45 @@ describe('ConfWiz functional component', () => {
             documentPath: 'config.h',
             annotationRange: notificationElement.annotationRange
         });
+    });
+
+    it('applies source selection and expansion without focus or navigation feedback, then allows GUI reselection', () => {
+        const node: TreeNodeElement = {
+            guiId: 21, name: 'Source setting', type: GuiTypes.none, group: false,
+            value: { value: '', readOnly: true }, newValue: { value: '', readOnly: true },
+            annotationRange: { start: { line: 7, character: 0 }, end: { line: 7, character: 20 } }
+        };
+        const parent: TreeNodeElement = { ...node, guiId: 20, name: 'Settings', group: true, children: [node] };
+        const { getByText, queryByText } = render(<ConfWiz />);
+        emitWizardData({ element: makeRoot([parent]), documentPath: 'config.h', noAnnotationsFound: false });
+        expect(queryByText('Source setting')).toBeNull();
+        act(() => { getByText('Settings').blur(); });
+        const originalFocus = document.activeElement;
+        sendNotificationMock.mockClear();
+        act(() => notificationHandlers.get(getNotificationKey(setSourceSelectionType))?.({
+            documentPath: 'config.h', selectedGuiId: node.guiId
+        }));
+        expect(getByText('Source setting').closest('[data-testid]')?.className).toContain('cw-row-inactive');
+        expect(document.activeElement).toBe(originalFocus);
+        expect(sendNotificationMock).not.toHaveBeenCalled();
+        emitWizardData({ element: makeRoot([parent]), documentPath: 'config.h', noAnnotationsFound: false, sourceSelection: node.guiId });
+        expect(document.activeElement).toBe(originalFocus);
+        expect(sendNotificationMock).not.toHaveBeenCalled();
+        act(() => notificationHandlers.get(getNotificationKey(setSourceSelectionType))?.({
+            documentPath: 'other.h', selectedGuiId: null
+        }));
+        expect(getByText('Source setting').closest('[data-testid]')?.className).toContain('cw-row-inactive');
+        fireEvent.click(getByText('Source setting'));
+        expect(sendNotificationMock).toHaveBeenCalledWith(selectAnnotationType, expect.anything(), {
+            documentPath: 'config.h', annotationRange: node.annotationRange
+        });
+        sendNotificationMock.mockClear();
+        emitWizardData({ element: makeRoot([parent]), documentPath: 'config.h', noAnnotationsFound: false });
+        expect(sendNotificationMock).not.toHaveBeenCalled();
+        act(() => notificationHandlers.get(getNotificationKey(setSourceSelectionType))?.({
+            documentPath: 'config.h', selectedGuiId: null
+        }));
+        expect(document.querySelector('.cw-row-inactive')).toBeNull();
     });
 
     it('reports a selected annotation only once for a mouse click', () => {
