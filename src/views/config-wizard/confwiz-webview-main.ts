@@ -369,9 +369,17 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
                     annotation = node.guiId;
                     annotationDepth = depth;
                 }
-                const rects = [node.value.editRect, ...(node.value.multiEdit ?? []).map(edit => edit.editRect)];
-                if (depth > valueDepth && rects.some(rect => rect && rect.line === position.line &&
-                    position.character >= rect.col.start && position.character <= rect.col.end)) {
+                const rects = node.value.multiEdit?.map(edit => edit.editRect) ?? [];
+                if (node.value.editRect) {
+                    rects.push(node.value.editRect);
+                }
+                const matchesValue = rects.some(rect => {
+                    if (rect.line !== position.line) return false;
+                    const afterStart = position.character >= rect.col.start;
+                    const beforeEnd = position.character <= rect.col.end;
+                    return afterStart && beforeEnd;
+                });
+                if (depth > valueDepth && matchesValue) {
                     value = node.guiId;
                     valueDepth = depth;
                 }
