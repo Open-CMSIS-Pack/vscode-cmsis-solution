@@ -87,8 +87,8 @@ export class SolutionOutlineView {
 
         if (loadState.solutionPath && csolution) {
             const targetSet = csolution.getActiveTargetSetName();
-            this.treeViewProvider.setDescription([targetSet, loadState.dirty ? 'Refresh needed' : undefined].filter(Boolean).join(' - '));
-            this.treeViewProvider.setTitle(loadState.dirty ? `${csolution.solutionName} - Refresh needed` : csolution.solutionName);
+            this.treeViewProvider.setDescription(targetSet ?? '');
+            this.treeViewProvider.setTitle(loadState.dirty ? `\u25CF ${csolution.solutionName}` : csolution.solutionName);
         } else {
             this.treeViewProvider.setDescription('');
             this.treeViewProvider.setTitle('');

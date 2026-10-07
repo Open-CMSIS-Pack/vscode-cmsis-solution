@@ -44,6 +44,7 @@ describe('SolutionOutlineView', () => {
             updateTree: jest.fn(),
             setDescription: jest.fn(),
             setTitle: jest.fn(),
+            setMessage: jest.fn(),
             setBadge: jest.fn(),
             registerVisibilityChangeEvent: visibilityChangeEmitter.event,
             activate: jest.fn(),
@@ -142,8 +143,8 @@ describe('SolutionOutlineView', () => {
 
         mockSolutionManager.onDidChangeLoadStateEmitter.fire({ previousState: cleanState, newState: dirtyState });
         await waitForPromises();
-        expect(mockTreeViewProvider.setDescription).toHaveBeenLastCalledWith('test-target - Refresh needed');
-        expect(mockTreeViewProvider.setTitle).toHaveBeenLastCalledWith('My-Solution - Refresh needed');
+        expect(mockTreeViewProvider.setDescription).toHaveBeenLastCalledWith('test-target');
+        expect(mockTreeViewProvider.setTitle).toHaveBeenLastCalledWith('\u25CF My-Solution');
 
         mockSolutionManager.onDidChangeLoadStateEmitter.fire({ previousState: dirtyState, newState: cleanState });
         await waitForPromises();

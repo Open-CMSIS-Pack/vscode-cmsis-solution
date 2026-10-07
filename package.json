@@ -466,7 +466,7 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.reloadPacks",
-        "title": "Refresh (Reload Packs)",
+        "title": "Reload Packs",
         "icon": "$(refresh)"
       },
       {
@@ -1043,6 +1043,11 @@
       ],
       "view/title": [
         {
+          "command": "cmsis-csolution.refresh",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "group": "navigation@0"
+        },
+        {
           "command": "cmsis-csolution.build",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && (cmsis-csolution.buildState == idle || cmsis-csolution.buildState == setup)",
           "group": "navigation@1"
@@ -1131,11 +1136,6 @@
           "command": "cmsis-csolution.rebuild",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
           "group": "Build@2"
-        },
-        {
-          "command": "cmsis-csolution.refresh",
-          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
-          "group": "navigation@7"
         },
         {
           "command": "cmsis-csolution.reloadPacks",

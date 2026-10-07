@@ -51,6 +51,7 @@ export interface TreeViewProvider<A extends COutlineItem> {
     updateTree(tree?: A): void;
     setDescription(description: string): void;
     setTitle(title: string): void;
+    setMessage(message?: string): void;
     setBadge(badgeSettings: ViewBadge): void;
     registerVisibilityChangeEvent(whenVisibilityChange: () => void): vscode.Disposable;
     activate(context: Pick<vscode.ExtensionContext, 'subscriptions' | 'globalState' | 'workspaceState'>): void;
@@ -161,6 +162,11 @@ export class TreeViewProviderImpl<A extends COutlineItem> implements TreeViewPro
     public setTitle(title: string): void {
         this.treeView.title = title;
     }
+
+    public setMessage(message?: string): void {
+        this.treeView.message = message;
+    }
+
 
     public updateTree(tree?: COutlineItem): void {
         this.tree = tree;
