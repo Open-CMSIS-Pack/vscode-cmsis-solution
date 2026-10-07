@@ -76,7 +76,7 @@ export class ProcessManagerImpl implements ProcessManager {
             // Augment environment
             const augmentedEnv = this.environmentManager.augmentEnv(new Environment(spawnOptions.env)).vars;
 
-            if ((usePty && process.platform === 'win32') || (dimensions && !this.debuggingOnWindows)) {
+            if (!this.debuggingOnWindows && ((usePty && process.platform === 'win32') || dimensions)) {
                 const ptyDimensions = dimensions ?? DEFAULT_PTY_DIMENSIONS;
                 const outputFilter = filterOutput ? new TerminalOutputFilter() : undefined;
                 const ptyProcess = pty.spawn(command, args, {

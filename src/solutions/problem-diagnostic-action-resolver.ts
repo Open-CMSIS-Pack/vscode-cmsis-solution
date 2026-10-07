@@ -25,7 +25,6 @@ import {
     RUN_GENERATOR_COMMAND_ID,
 } from '../manifest';
 import { stripVendor, stripVersion } from '@open-cmsis-pack/cmsis-common/string-utils';
-import { contextDescriptorFromString } from './descriptors/descriptors';
 
 
 type MergeUpdateLevel =  'recommended' | 'suggested' | 'required';
@@ -53,7 +52,7 @@ export interface ProblemDiagnosticActionResult {
 
 type ProblemActionDescriptor =
     | { kind: 'merge'; localPath: string; updateLevel: MergeUpdateLevel; componentId?: string }
-    | { kind: 'run-generator'; generator: string; activeTarget: string }
+    | { kind: 'run-generator'; generator: string; context: string }
     | { kind: 'manage-components'; query: string }
     | { kind: 'manage-pack'; packId: string }
     | { kind: 'open-environment-variables-settings' }
@@ -96,19 +95,6 @@ const queryActionPatterns: ReadonlyArray<{ pattern: RegExp; action: 'components-
 ];
 
 export class ProblemDiagnosticActionResolver {
-    /**
-     * Optional provider for the active target set name
-     * If not provided, falls back to the target type parsed from the diagnostic message.
-     *
-     * @param getActiveTargetSetName - Function returning the current active target set name,
-     *                                 or undefined if no target set is active. Called lazily
-     *                                 only when resolving generator diagnostics.
-     */
-    constructor(
-        private readonly getActiveTargetSetName?: () => string | undefined,
-    ) {
-    }
-
     public resolve(context: ProblemDiagnosticActionContext): ProblemDiagnosticActionResult | undefined {
         const descriptor = this.resolveDescriptor(context);
         if (!descriptor) {
@@ -139,10 +125,10 @@ export class ProblemDiagnosticActionResolver {
 
         if (descriptor.kind === 'run-generator') {
             return {
-                message: `Run generator '${descriptor.generator}' for target '${descriptor.activeTarget || '""'}'`,
+                message: `Run generator '${descriptor.generator}' for context '${descriptor.context}'`,
                 code: {
                     value: 'Run Generator',
-                    target: this.createRunGeneratorCommandUri(descriptor.generator, descriptor.activeTarget),
+                    target: this.createRunGeneratorCommandUri(descriptor.generator, descriptor.context),
                 },
             };
         }
@@ -214,7 +200,7 @@ export class ProblemDiagnosticActionResolver {
         return {
             kind: 'run-generator',
             generator: request.generator,
-            activeTarget: request.activeTarget,
+            context: request.context,
         };
     }
 
@@ -278,7 +264,7 @@ export class ProblemDiagnosticActionResolver {
         };
     }
 
-    private parseGeneratorRequest(message: string): { generator: string; activeTarget: string } | undefined {
+    private parseGeneratorRequest(message: string): { generator: string; context: string } | undefined {
         const normalizedMessage = this.normalizeMessageForPatternMatching(message);
 
         for (const pattern of generatorMissingPatterns) {
@@ -288,9 +274,7 @@ export class ProblemDiagnosticActionResolver {
             }
 
             const [, generator, context] = match;
-            const targetType = contextDescriptorFromString(context).targetType;
-            const activeTarget = this.getActiveTargetSetName?.() ?? targetType;
-            return { generator, activeTarget };
+            return { generator, context };
         }
 
         return undefined;
@@ -358,8 +342,8 @@ export class ProblemDiagnosticActionResolver {
         return vscode.Uri.parse(`command:${MERGE_FILE_COMMAND_ID}?${args}`);
     }
 
-    private createRunGeneratorCommandUri(generator: string, activeTarget: string): vscode.Uri {
-        const args = this.encodeCommandArgs([{ generator, activeTarget }]);
+    private createRunGeneratorCommandUri(generator: string, context: string): vscode.Uri {
+        const args = this.encodeCommandArgs([{ generator, context }]);
         return vscode.Uri.parse(`command:${RUN_GENERATOR_COMMAND_ID}?${args}`);
     }
 

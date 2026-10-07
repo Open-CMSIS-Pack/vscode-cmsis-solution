@@ -272,7 +272,7 @@ describe('CSolution', () => {
         expect(res.dump).toEqual(res.ref);
 
     });
-    it('uses the full TargetType@Set as activeTarget on component-gen nodes when a target set is active', async () => {
+    it('uses the full context on component-gen nodes when a target set is active', async () => {
         const fileName = path.join(tmpSolutionDir, 'USBD', 'USB_Device.csolution.yml');
         const csolution = new CSolution();
 
@@ -287,11 +287,12 @@ describe('CSolution', () => {
         const componentGenNodes = findComponentGenNodes(tree as COutlineItem);
         expect(componentGenNodes.length).toBeGreaterThan(0);
         for (const node of componentGenNodes) {
-            expect(node.getAttribute('activeTarget')).toBe('B-U585I-IOT02A@fvp');
+            expect(node.getAttribute('context')).toMatch(/^[^.]+\.[^+]+\+B-U585I-IOT02A$/);
+            expect(node.getAttribute('activeTarget')).toBeUndefined();
         }
     });
 
-    it('falls back to TargetType from context string as activeTarget when no target set is active', async () => {
+    it('uses the full context on component-gen nodes when no target set is active', async () => {
         const fileName = path.join(tmpSolutionDir, 'USBD', 'USB_Device.csolution.yml');
         const csolution = new CSolution();
 
@@ -306,7 +307,8 @@ describe('CSolution', () => {
         const componentGenNodes = findComponentGenNodes(tree as COutlineItem);
         expect(componentGenNodes.length).toBeGreaterThan(0);
         for (const node of componentGenNodes) {
-            expect(node.getAttribute('activeTarget')).toBe('B-U585I-IOT02A');
+            expect(node.getAttribute('context')).toMatch(/^[^.]+\.[^+]+\+B-U585I-IOT02A$/);
+            expect(node.getAttribute('activeTarget')).toBeUndefined();
         }
     });
 

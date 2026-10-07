@@ -181,9 +181,7 @@ export class SolutionProblemsImpl implements SolutionProblems {
         private readonly solutionManager: SolutionManager,
         private readonly eventHub: SolutionEventHub,
     ) {
-        this.diagnosticActionResolver = new ProblemDiagnosticActionResolver(
-            () => this.solutionManager.getCsolution()?.getActiveTargetSetName(),
-        );
+        this.diagnosticActionResolver = new ProblemDiagnosticActionResolver();
     }
 
     public async activate(context: vscode.ExtensionContext): Promise<void> {

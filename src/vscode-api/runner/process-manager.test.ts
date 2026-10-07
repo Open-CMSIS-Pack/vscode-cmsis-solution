@@ -102,8 +102,13 @@ describe('process-manager.ts', () => {
             expect(onOutput).toHaveBeenNthCalledWith(2, 'stderr line\r\n');
         });
 
-        it('uses a child process when PTY is requested without dimensions on non-Windows', async () => {
-            Object.defineProperty(process, 'platform', { value: 'linux' });
+        it.each([
+            { platform: 'linux', inspectorUrl: undefined, dimensions: undefined },
+            { platform: 'win32', inspectorUrl: 'ws://debugger', dimensions: undefined },
+            { platform: 'win32', inspectorUrl: 'ws://debugger', dimensions: { columns: 120, rows: 30 } },
+        ])('uses a child process for a PTY request on $platform with inspector $inspectorUrl and dimensions $dimensions', async ({ platform, inspectorUrl, dimensions }) => {
+            Object.defineProperty(process, 'platform', { value: platform });
+            (inspector.url as jest.Mock).mockReturnValue(inspectorUrl);
 
             const stdoutStream = {};
             const stderrStream = {};
@@ -135,22 +140,22 @@ describe('process-manager.ts', () => {
             const processManager = new ProcessManagerImpl(environmentManager as never);
             const onOutput = jest.fn();
 
-            const resultPromise = processManager.spawn('tool', [], { usePty: true }, onOutput);
+            const args = ['run', 'd:\\examples\\csolution examples\\DualCore\\HelloWorld.csolution.yml', '-g', 'MCUXpressoConfig', '-c', 'HelloWorld_cm0plus.Debug+FRDM-K32L3A6'];
+            const resultPromise = processManager.spawn('tool', args, { usePty: true }, onOutput, undefined, dimensions);
 
             lineCallbacks.get(stdoutStream)?.('output');
             childProcess.emit('close', 0);
 
             await expect(resultPromise).resolves.toEqual({ code: 0 });
-            expect(spawnMock).toHaveBeenCalledWith('tool', [], {
+            expect(spawnMock).toHaveBeenCalledWith('tool', args, {
                 env: { AUGMENTED: '1' },
             });
             expect(pty.spawn).not.toHaveBeenCalled();
             expect(onOutput).toHaveBeenCalledWith('output\r\n');
         });
 
-        it('forces PTY with default dimensions while debugging on Windows', async () => {
+        it('uses PTY with default dimensions when not debugging on Windows', async () => {
             Object.defineProperty(process, 'platform', { value: 'win32' });
-            (inspector.url as jest.Mock).mockReturnValue('ws://debugger');
 
             let onData: ((data: string) => void) | undefined;
             let onExit: ((event: { exitCode: number }) => void) | undefined;
