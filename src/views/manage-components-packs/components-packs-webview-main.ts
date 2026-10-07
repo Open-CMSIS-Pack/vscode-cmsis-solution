@@ -21,7 +21,7 @@ import path, { dirname } from 'path';
 import { ComponentInstance, CsolutionService, CtAggregate, CtRoot, Pack, PackReference, PacksInfo, Results, UsedItems } from '../../json-rpc/csolution-rpc-client';
 import { IOpenFileExternal } from '../../open-file-external-if';
 import { ProjectFileUpdater, ProjectFileUpdaterImpl } from '../../solutions/edit/project-file-updater';
-import { SolutionLoadStateChangeEvent, SolutionManager } from '../../solutions/solution-manager';
+import { isAutoConvertOnFileChangeEnabled, SolutionLoadStateChangeEvent, SolutionManager } from '../../solutions/solution-manager';
 import { backToForwardSlashes, getFileNameNoExt } from '../../utils/path-utils';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
 import { MessageProvider } from '../../vscode-api/message-provider';
@@ -620,7 +620,9 @@ export class ComponentsPacksWebviewMain {
             && await this.projectFileUpdater.updateUsedItems(activeContext, projectFileName, usedItemsForProjectFileUpdate);
         const saved = state.success !== false;
         if (saved && wasDirty && (packFileChanged || projectFilesChanged)) {
-            await this.solutionManager.refresh();
+            if (!isAutoConvertOnFileChangeEnabled() || (packFileChanged && !projectFilesChanged)) {
+                await this.solutionManager.refresh();
+            }
         }
         if (saved) {
             this.unlinkRequests.clear();

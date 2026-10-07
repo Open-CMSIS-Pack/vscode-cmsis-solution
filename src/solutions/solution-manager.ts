@@ -48,6 +48,9 @@ export const solutionLoadStatesEqual = (a: SolutionLoadState, b: SolutionLoadSta
         && a.activated === b.activated;
 };
 
+export const isAutoConvertOnFileChangeEnabled = (): boolean => vscode.workspace.getConfiguration(manifest.CONFIG_ROOT)
+    .get<boolean>(manifest.CONFIG_AUTO_CONVERT_ON_FILE_CHANGE, true);
+
 export interface SolutionLoadStateChangeEvent {
     previousState: SolutionLoadState;
     newState: SolutionLoadState;
@@ -89,6 +92,11 @@ export class SolutionManagerImpl implements SolutionManager {
     public readonly onUpdatedCompileCommands = this.updatedCompileCommandsEmitter.event;
 
     private readonly debouncedHandleEnvironmentChange = debounce(this.handleEnvironmentChange.bind(this), 500);
+    private readonly debouncedRefreshOnFileChange = debounce((solutionPath: string) => {
+        if (this.loadState.solutionPath === solutionPath && this.loadState.loaded && isAutoConvertOnFileChangeEnabled()) {
+            void this.refresh();
+        }
+    }, 100);
     private _loadState: Readonly<SolutionLoadState> = { solutionPath: undefined };
     private csolution?: CSolution;
     private loadingSolution = false;
@@ -165,6 +173,7 @@ export class SolutionManagerImpl implements SolutionManager {
     private async handleChangeActiveSolution(): Promise<void> {
         const solutionPath = this.activeSolutionTracker.activeSolution;
         this.debouncedHandleEnvironmentChange.cancel();
+        this.debouncedRefreshOnFileChange.cancel();
         this.csolution = undefined; // clear data model
         this.restartRpcOnConvert = false;
         // Create new state object
@@ -187,7 +196,7 @@ export class SolutionManagerImpl implements SolutionManager {
         if (!this.loadState.solutionPath || !this.loadState.loaded) {
             return;
         }
-        if (!this.loadState.dirty) {
+        if (!isAutoConvertOnFileChangeEnabled() && !this.loadState.dirty) {
             this.setLoadState({ ...this.loadState, dirty: true }, true);
         }
     }
@@ -199,6 +208,10 @@ export class SolutionManagerImpl implements SolutionManager {
             && this.csolution?.getUsedDbgconfFiles().some(dbgconfFile => pathsEqual(dbgconfFile, changedPath));
         if (isSolutionYmlFile || isUsedDbgconfFile) {
             this.markDirty();
+            const solutionPath = this.loadState.solutionPath;
+            if (solutionPath && isAutoConvertOnFileChangeEnabled()) {
+                this.debouncedRefreshOnFileChange(solutionPath);
+            }
         }
     }
 

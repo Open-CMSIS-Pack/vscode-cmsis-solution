@@ -72,6 +72,7 @@ describe('SolutionManager', () => {
     let cbuildSetupRequestedListener: jest.Mock;
     let workspaceFsProvider: MockWorkspaceFsProvider;
     let toolsEnvironment: ToolsEnvironment;
+    let autoConvertOnFileChange: boolean | undefined;
 
     const testDataHandler = new TestDataHandler();
 
@@ -85,6 +86,10 @@ describe('SolutionManager', () => {
     });
 
     beforeEach(async () => {
+        autoConvertOnFileChange = undefined;
+        jest.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+            get: jest.fn((_key: string, defaultValue: unknown) => autoConvertOnFileChange ?? defaultValue),
+        } as unknown as vscode.WorkspaceConfiguration);
         changeConfigurationEmitter = new EventEmitter();
         (
             vscode.workspace as {
@@ -246,6 +251,7 @@ describe('SolutionManager', () => {
     });
 
     it('marks the solution dirty when a file in the active solution is modified', async () => {
+        autoConvertOnFileChange = false;
         // Initialize solution state first
         mockActiveSolutionTracker.activeSolution = testSolutionPath;
         changeActiveSolutionEmitter.fire();
@@ -275,6 +281,7 @@ describe('SolutionManager', () => {
     });
 
     it('marks a watched solution file dirty without converting or setting up again', async () => {
+        autoConvertOnFileChange = false;
         await activateTestSolution();
         convertMock.mockClear();
         cbuildSetupRequestedListener.mockClear();
@@ -290,19 +297,52 @@ describe('SolutionManager', () => {
         expect(cbuildSetupRequestedListener).not.toHaveBeenCalled();
     });
 
-    it('marks the active solution dirty after a pack reload without converting or setting up', async () => {
+    it('automatically converts a watched solution file by default', async () => {
+        await activateTestSolution();
+        convertMock.mockClear();
+
+        changeSolutionFilesEmitter.fire(getLoadedSolutionFile('.cproject.yml'));
+        expect(solutionManager.loadState.dirty).toBe(false);
+        await waitTimeout(200);
+
+        expect(convertMock).toHaveBeenCalledTimes(1);
+        expect(convertMock).toHaveBeenCalledWith(expect.objectContaining({
+            solutionPath: testSolutionPath,
+            updateRte: true,
+        }));
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
+    });
+
+    it('automatically converts after a used dbgconf file changes', async () => {
+        await activateTestSolution();
+        const dbgconfPath = path.join(path.dirname(testSolutionPath), '.cmsis', 'Used.Debug+B-U585I-IOT02A.dbgconf');
+        jest.spyOn(solutionManager.getCsolution()!, 'getUsedDbgconfFiles').mockReturnValue([dbgconfPath]);
+        convertMock.mockClear();
+
+        changeSolutionFilesEmitter.fire(dbgconfPath);
+        await waitTimeout(200);
+
+        expect(convertMock).toHaveBeenCalledTimes(1);
+        expect(solutionManager.loadState.dirty).toBe(false);
+    });
+
+    it.each([
+        ['automatic', undefined, false],
+        ['dirty-only', false, true],
+    ] as const)('handles a pack reload in %s mode without converting or setting up', async (_mode, autoConvert, expectedDirty) => {
+        autoConvertOnFileChange = autoConvert;
         await activateTestSolution();
         convertMock.mockClear();
         cbuildSetupRequestedListener.mockClear();
 
         await eventHub.firePacksReloaded();
 
-        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: true }));
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: expectedDirty }));
         expect(convertMock).not.toHaveBeenCalled();
         expect(cbuildSetupRequestedListener).not.toHaveBeenCalled();
     });
 
-    it('marks dirty when a watcher notification arrives after a webview save', async () => {
+    it('keeps clean when a watcher notification arrives after a webview save in automatic mode', async () => {
         await activateTestSolution();
         const changedPath = getLoadedSolutionFile('.cproject.yml');
         convertMock.mockClear();
@@ -314,7 +354,7 @@ describe('SolutionManager', () => {
         changeSolutionFilesEmitter.fire(changedPath);
 
         expect(convertMock).toHaveBeenCalledTimes(1);
-        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: true }));
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
     });
 
     it('keeps a clean solution clean while conversion is pending', async () => {
@@ -334,6 +374,7 @@ describe('SolutionManager', () => {
         ['success', 'success', true],
         ['error', 'error', false],
     ] as const)('clears dirty after %s conversion completes with a newer change', async (_result, severity, success) => {
+        autoConvertOnFileChange = false;
         await activateTestSolution();
         convertMock.mockClear();
         convertMock.mockImplementationOnce(() => undefined);
@@ -400,6 +441,7 @@ describe('SolutionManager', () => {
         ['clayer', '.clayer.yml'],
         ['cgen', '.cgen.yml'],
     ])('marks the solution dirty when a changed %s file belongs to the active solution', async (_fileType, suffix) => {
+        autoConvertOnFileChange = false;
         await activateTestSolution();
         const changedPath = getLoadedSolutionFile(suffix);
         convertMock.mockClear();
@@ -414,6 +456,7 @@ describe('SolutionManager', () => {
     });
 
     it('marks the solution dirty when an outside workspace file is listed by the active solution model', async () => {
+        autoConvertOnFileChange = false;
         await activateTestSolution();
         const outsideProjectPath = path.join(tmpSolutionsDir, 'external', 'External.cproject.yml');
         jest.spyOn(solutionManager.getCsolution()!, 'getSolutionYmlFiles').mockReturnValue([
@@ -430,6 +473,7 @@ describe('SolutionManager', () => {
     });
 
     it('marks the solution dirty when a changed dbgconf file is used by the active solution', async () => {
+        autoConvertOnFileChange = false;
         await activateTestSolution();
         const dbgconfPath = path.join(path.dirname(testSolutionPath), '.cmsis', 'Used.Debug+B-U585I-IOT02A.dbgconf');
         jest.spyOn(solutionManager.getCsolution()!, 'getUsedDbgconfFiles').mockReturnValue([dbgconfPath]);
@@ -484,6 +528,7 @@ describe('SolutionManager', () => {
     });
 
     it('keeps dirty state when multiple active solution file changes arrive', async () => {
+        autoConvertOnFileChange = false;
         await activateTestSolution();
         const cprojectPath = getLoadedSolutionFile('.cproject.yml');
         const clayerPath = getLoadedSolutionFile('.clayer.yml');
@@ -495,6 +540,71 @@ describe('SolutionManager', () => {
 
         expect(convertMock).not.toHaveBeenCalled();
         expect(solutionManager.loadState.dirty).toBe(true);
+    });
+
+    it('coalesces multiple active solution file changes into one conversion', async () => {
+        await activateTestSolution();
+        convertMock.mockClear();
+
+        changeSolutionFilesEmitter.fire(getLoadedSolutionFile('.cproject.yml'));
+        changeSolutionFilesEmitter.fire(getLoadedSolutionFile('.clayer.yml'));
+        await waitTimeout(200);
+
+        expect(convertMock).toHaveBeenCalledTimes(1);
+        expect(solutionManager.loadState.dirty).toBe(false);
+    });
+
+    it('does not convert or mark dirty when automatic mode is disabled before the pending refresh', async () => {
+        await activateTestSolution();
+        convertMock.mockClear();
+
+        changeSolutionFilesEmitter.fire(getLoadedSolutionFile('.cproject.yml'));
+        autoConvertOnFileChange = false;
+        await waitTimeout(200);
+
+        expect(convertMock).not.toHaveBeenCalled();
+        expect(solutionManager.loadState.dirty).toBe(false);
+    });
+
+    it('allows manual refresh when automatic mode is disabled', async () => {
+        autoConvertOnFileChange = false;
+        await activateTestSolution();
+        convertMock.mockClear();
+
+        changeSolutionFilesEmitter.fire(getLoadedSolutionFile('.cproject.yml'));
+        await solutionManager.refresh();
+        await waitTimeout(20);
+
+        expect(convertMock).toHaveBeenCalledTimes(1);
+        expect(solutionManager.loadState.dirty).toBe(false);
+    });
+
+    it('cancels a pending refresh when the active solution closes', async () => {
+        await activateTestSolution();
+        convertMock.mockClear();
+
+        changeSolutionFilesEmitter.fire(getLoadedSolutionFile('.cproject.yml'));
+        mockActiveSolutionTracker.activeSolution = undefined;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(200);
+
+        expect(convertMock).not.toHaveBeenCalled();
+        expect(solutionManager.loadState.solutionPath).toBeUndefined();
+    });
+
+    it('cancels a pending refresh when switching solutions', async () => {
+        await activateTestSolution();
+        convertMock.mockClear();
+
+        changeSolutionFilesEmitter.fire(getLoadedSolutionFile('.cproject.yml'));
+        const nextSolutionPath = path.join(tmpSolutionsDir, 'simple', 'test.csolution.yml');
+        mockActiveSolutionTracker.activeSolution = nextSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        await waitTimeout(200);
+
+        expect(convertMock).toHaveBeenCalledTimes(1);
+        expect(convertMock).toHaveBeenCalledWith(expect.objectContaining({ solutionPath: nextSolutionPath }));
+        expect(solutionManager.loadState.solutionPath).toBe(nextSolutionPath);
     });
 
     it('loads the new solution when the active solution is changed', async () => {
@@ -548,7 +658,7 @@ describe('SolutionManager', () => {
         await waitTimeout(600);
 
         expect(convertMock).not.toHaveBeenCalled();
-        expect(solutionManager.loadState.dirty).toBe(true);
+        expect(solutionManager.loadState.dirty).toBe(false);
 
         await solutionManager.refresh();
         await waitTimeout(20);

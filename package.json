@@ -1397,6 +1397,11 @@
     "configuration": {
       "title": "CMSIS Solution",
       "properties": {
+        "cmsis-csolution.autoConvertOnFileChange": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically refresh build information when files used by the active solution change. When disabled, these file changes mark the solution as needing refresh. Manual Refresh and successful webview saves can still refresh build information."
+        },
         "cmsis-csolution.generateClangSetup": {
           "type": "boolean",
           "default": true,

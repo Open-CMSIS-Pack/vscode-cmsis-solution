@@ -22,7 +22,7 @@ import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { DebuggerWrap, ImageWrap, ProjectRefWrap, TargetSetWrap, TargetTypeWrap } from '../../solutions/files/csolution-wrap';
 import { CSolutionYamlFile } from '../../solutions/files/csolution-yaml-file';
-import { SolutionManager } from '../../solutions/solution-manager';
+import { isAutoConvertOnFileChangeEnabled, SolutionManager } from '../../solutions/solution-manager';
 import * as fsUtils from '../../utils/fs-utils';
 import { getFileNameNoExt } from '../../utils/path-utils';
 import { extractSuffix, stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
@@ -175,7 +175,10 @@ export class ManageSolutionController {
             csolution.csolutionYml.copyFrom(this.csolutionYml);
         }
         if (changed && userModified && saved) {
-            await solutionManager.refresh();
+            if (!isAutoConvertOnFileChangeEnabled()
+                || (cmsisJsonRes === ETextFileResult.Success && solutionRes === ETextFileResult.Unchanged)) {
+                await solutionManager.refresh();
+            }
         } else if (changed && !saved) {
             solutionManager.markDirty();
         }

@@ -22,6 +22,7 @@ import path from 'node:path';
 export const PACKAGE_NAME = 'cmsis-csolution';
 
 export const CONFIG_ROOT = PACKAGE_NAME;
+export const CONFIG_AUTO_CONVERT_ON_FILE_CHANGE = 'autoConvertOnFileChange';
 export const CONFIG_CLANGD_GENERATE_SETUP = 'generateClangSetup';
 export const CONFIG_EXPERIMENTAL_FEATURES = 'experimentalFeatures';
 export const CONFIG_USE_WEBSERVICES = 'useWebServices';
