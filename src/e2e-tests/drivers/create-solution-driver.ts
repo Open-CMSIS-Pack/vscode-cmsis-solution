@@ -207,12 +207,22 @@ export class CreateSolutionDriver {
         await expect(locationInput).toHaveValue(baseFolder);
     }
 
-    // Clicks the "Create Solution" button to trigger solution generation.
+    // Creates the solution and waits for the generated workspace to finish opening.
     async create(frame: FrameLocator): Promise<void> {
         const createButton = frame.locator('button[title="Create Solution"]');
         await createButton.waitFor({ state: 'visible', timeout: DEFAULT_TIMEOUT_MS });
         await expect(createButton).toBeEnabled();
-        await createButton.click();
+
+        // Register before clicking so readiness cannot match the previous workbench.
+        const page = this.vscode.page.getPage();
+        await Promise.all([
+            page.waitForEvent('framenavigated', {
+                predicate: navigatedFrame => navigatedFrame === page.mainFrame(),
+                timeout: DEFAULT_TIMEOUT_MS,
+            }),
+            createButton.click(),
+        ]);
+        await this.vscode.page.waitForVsCodeToBeReady();
     }
 
     async createSolution(options: CreateSolutionOptions): Promise<void> {
