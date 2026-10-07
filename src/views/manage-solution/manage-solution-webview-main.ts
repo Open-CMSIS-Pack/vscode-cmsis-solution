@@ -365,9 +365,9 @@ export class ManageSolutionWebviewMain {
         if (!globalSolution) { // no solution is loaded in workspace
             return ETextFileResult.NotExists;
         }
-        const defaultDebugAdapterName = await globalSolution.getDefaultDebugAdapterName();
+        const defaults = await globalSolution.getDefaultTargetConfiguration();
 
-        return this.controller.loadSolution(globalSolution.solutionPath, defaultDebugAdapterName);
+        return this.controller.loadSolution(globalSolution.solutionPath, defaults);
     }
 
     private async clearContext(): Promise<void> {

@@ -460,17 +460,21 @@ export class CSolution {
         return undefined;
     }
 
-    public async getDefaultDebugAdapterName() {
+    public async getDefaultTargetConfiguration() {
         const cbuildRunYml = this.cbuildRunYml;
         if (!cbuildRunYml?.exists()) {
-            return '';
+            return undefined;
         }
         await cbuildRunYml?.load();
         try {
-            return cbuildRunYml?.getDebugger().name ?? '';
+            return {
+                debugAdapterName: cbuildRunYml.getDebugger().name,
+                device: cbuildRunYml.getDevice(),
+                targetType: cbuildRunYml.getTargetType(),
+            };
         } catch (e) {
-            console.error('Error getting default debug adapter name:', e);
-            return '';
+            console.error('Error getting default target configuration:', e);
+            return undefined;
         }
     }
 

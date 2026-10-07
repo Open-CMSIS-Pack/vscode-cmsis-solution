@@ -563,7 +563,8 @@ describe('ContextSelectionWebviewMain', () => {
         const solutionManager = solutionManagerFactory();
         const webviewManager = getMockWebViewManager<Messages.OutgoingMessage>();
         const globalSolution = csolutionFactory({ solutionPath: path.join('new', 'solution.csolution.yml') });
-        globalSolution.getDefaultDebugAdapterName = jest.fn().mockResolvedValue('default-adapter');
+        const defaults = { debugAdapterName: 'default-adapter', device: 'Vendor::Device', targetType: 'test-target' };
+        globalSolution.getDefaultTargetConfiguration = jest.fn().mockResolvedValue(defaults);
         solutionManager.getCsolution.mockReturnValue(globalSolution);
 
         const main = manageSolutionWebviewMainFactory({ solutionManager, webviewManager });
@@ -580,7 +581,7 @@ describe('ContextSelectionWebviewMain', () => {
 
         expect(createControllerSpy).toHaveBeenCalled();
         expect((main as any)._controller).toBe(replacementController);
-        expect(replacementController.loadSolution).toHaveBeenCalledWith(globalSolution.solutionPath, 'default-adapter');
+        expect(replacementController.loadSolution).toHaveBeenCalledWith(globalSolution.solutionPath, defaults);
         expect(result).toBe(ETextFileResult.Success);
     });
 
