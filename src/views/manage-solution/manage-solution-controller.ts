@@ -115,6 +115,13 @@ export class ManageSolutionController {
     }
 
     /**
+     * Replaces build-run defaults without reloading editable solution state.
+     */
+    public updateDefaults(defaults?: TargetConfiguration): void {
+        this.defaults = defaults;
+    }
+
+    /**
      * Loads solution content and associated cmsis.json state.
      * @param csolutionPath Optional explicit path to the solution file.
      * @param defaults Optional target configuration from build-run data.
@@ -122,7 +129,7 @@ export class ManageSolutionController {
      */
     async loadSolution(csolutionPath?: string, defaults?: TargetConfiguration) {
 
-        this.defaults = defaults;
+        this.updateDefaults(defaults);
         if (!this.debugAdaptersYmlFile) {
             this.debugAdaptersYmlFile = await loadDebugAdaptersYml();
         }

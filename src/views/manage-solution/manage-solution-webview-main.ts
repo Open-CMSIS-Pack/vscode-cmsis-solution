@@ -91,13 +91,14 @@ export class ManageSolutionWebviewMain {
         const { solutionPath: newPath, converted: newConverted, loaded: newLoaded, activated: newActivated } = e.newState;
         const { solutionPath: prevPath, converted: prevConverted, loaded: prevLoaded, activated: prevActivated } = e.previousState;
 
-        if (!this.webviewManager.isPanelActive || (newPath === prevPath && newConverted !== prevConverted)) {
+        if (!this.webviewManager.isPanelActive || (newPath === prevPath && newConverted !== prevConverted && !newConverted)) {
             return;
         }
 
         this.setBusyState(true);
 
         let csolutionChanged = false;
+        let defaultsUpdated = false;
         if (newPath !== prevPath) {
             if (newPath) {
                 csolutionChanged = true;
@@ -107,13 +108,16 @@ export class ManageSolutionWebviewMain {
                 this.setBusyState(false);
                 return;
             }
+        } else if (newConverted !== prevConverted) {
+            this.controller.updateDefaults(await this.solutionManager.getCsolution()?.getDefaultTargetConfiguration());
+            defaultsUpdated = true;
         } else if (newActivated !== prevActivated) {
             csolutionChanged = true;
         } else if (newLoaded !== prevLoaded) {
             csolutionChanged = true;
         }
 
-        const externalFilesChanged = csolutionChanged ? false : this.controller.hasExternalFileChanges();
+        const externalFilesChanged = csolutionChanged || defaultsUpdated ? false : this.controller.hasExternalFileChanges();
 
         if (csolutionChanged || externalFilesChanged) {
             const result = await this.loadSolution();
@@ -123,9 +127,9 @@ export class ManageSolutionWebviewMain {
             }
         }
 
-        const activeTargetTypeUpdated = await this.controller.ensureActiveTargetTypeName();
+        const activeTargetTypeUpdated = !defaultsUpdated && await this.controller.ensureActiveTargetTypeName();
 
-        if (csolutionChanged || externalFilesChanged || activeTargetTypeUpdated) {
+        if (csolutionChanged || externalFilesChanged || activeTargetTypeUpdated || defaultsUpdated) {
             await this.sendContextDataFromControllerState();
         }
 
