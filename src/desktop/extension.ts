@@ -146,6 +146,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const csolutionService = new CsolutionService(
         envManager,
         commandsProvider,
+        eventHub,
     );
 
     const rpcData = new SolutionRpcData(csolutionService);

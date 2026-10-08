@@ -530,7 +530,7 @@ describe('ContextSelectionWebviewMain', () => {
         const main = manageSolutionWebviewMainFactory({ webviewManager });
 
         const controller = main.controller;
-        const saveSpy = jest.spyOn(controller, 'saveSolution').mockResolvedValue(undefined as any);
+        const saveSpy = jest.spyOn(controller, 'saveSolution').mockResolvedValue(true);
         const setBusyStateSpy = jest.spyOn(main as any, 'setBusyState').mockResolvedValue(undefined);
         const sendContextDataSpy = jest.spyOn(main as any, 'sendContextData').mockResolvedValue(undefined);
         jest.spyOn(main as any, 'isDirty', 'get').mockReturnValue(true);
@@ -543,6 +543,19 @@ describe('ContextSelectionWebviewMain', () => {
         expect(setBusyStateSpy).toHaveBeenNthCalledWith(2, false);
         expect(sendContextDataSpy).toHaveBeenCalled();
         expect((main as any).wasDirty).toBe(false);
+    });
+
+    it('preserves dirty state when saving fails', async () => {
+        const main = manageSolutionWebviewMainFactory({ webviewManager });
+        jest.spyOn(main.controller, 'saveSolution').mockResolvedValue(false);
+        jest.spyOn(main as any, 'isDirty', 'get').mockReturnValue(true);
+        const sendContextDataSpy = jest.spyOn(main as any, 'sendContextData');
+        (main as any).wasDirty = true;
+
+        await main.saveChanges();
+
+        expect((main as any).wasDirty).toBe(true);
+        expect(sendContextDataSpy).not.toHaveBeenCalled();
     });
 
     it('returns NotExists when no solution loaded', async () => {

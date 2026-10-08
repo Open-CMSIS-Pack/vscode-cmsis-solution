@@ -121,6 +121,36 @@ describe('SolutionOutlineView', () => {
         expect(mockTreeViewProvider.setDescription).toHaveBeenCalledWith('test-target');
     });
 
+    it('shows and clears the dirty cue in the view title', async () => {
+        const cleanState = activeSolutionLoadStateFactory({ dirty: false });
+        const dirtyState = { ...cleanState, dirty: true };
+        const mockSolutionManager = solutionManagerFactory({
+            loadState: cleanState,
+            getCsolution: jest.fn().mockReturnValue(csolutionFactory({
+                solutionPath: '/path/to/My-Solution.csolution.yml',
+                getActiveTargetSetName: jest.fn().mockReturnValue('test-target'),
+            })),
+        });
+        const view = new SolutionOutlineView(
+            mockSolutionManager,
+            mockTreeViewProvider,
+            globalStateProvider,
+            mockTreeViewFileDecorationProvider,
+            configurationProvider
+        );
+        await view.activate(extensionContextFactory());
+
+        mockSolutionManager.onDidChangeLoadStateEmitter.fire({ previousState: cleanState, newState: dirtyState });
+        await waitForPromises();
+        expect(mockTreeViewProvider.setDescription).toHaveBeenLastCalledWith('test-target');
+        expect(mockTreeViewProvider.setTitle).toHaveBeenLastCalledWith('\u25CF My-Solution');
+
+        mockSolutionManager.onDidChangeLoadStateEmitter.fire({ previousState: dirtyState, newState: cleanState });
+        await waitForPromises();
+        expect(mockTreeViewProvider.setDescription).toHaveBeenLastCalledWith('test-target');
+        expect(mockTreeViewProvider.setTitle).toHaveBeenLastCalledWith('My-Solution');
+    });
+
     it('sets the title of the outline view when csolution is loaded', async () => {
         const mockSolutionManager = solutionManagerFactory({
             getCsolution: jest.fn().mockReturnValue(csolutionFactory({

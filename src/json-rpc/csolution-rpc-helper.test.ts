@@ -13,7 +13,7 @@ import { CsolutionService } from './csolution-rpc-client';
 import { splitBoardId, splitDeviceId, splitPackId } from './csolution-rpc-helper';
 import { VcpkgManager } from '../vcpkg/vcpkg-manager';
 import { Environment, EnvironmentManager } from '../desktop/env-manager';
-import * as manifest from '../manifest';
+import { SolutionEventHub } from '../solutions/solution-event-hub';
 
 jest.mock('node:child_process', () => ({
     ...jest.requireActual('node:child_process'),
@@ -28,6 +28,7 @@ jest.mock('vscode-jsonrpc/node', () => ({
 
 describe('csolution-rpc-client', () => {
     type AnyService = Record<string, any>;
+    let eventHub: SolutionEventHub;
 
     function createService(envManager?: EnvironmentManager, commandsProvider?: AnyService): AnyService {
         // `constructor(...)` wrapper shape is repo-specific; treat as constructible in tests.
@@ -38,10 +39,11 @@ describe('csolution-rpc-client', () => {
             executeCommand: jest.fn().mockResolvedValue(undefined),
             registerCommand: jest.fn(),
         });
-        return new (CsolutionService as unknown as new (em: EnvironmentManager, cp: AnyService) => AnyService)(mockEnvManager, mockCommandsProvider);
+        return new (CsolutionService as unknown as new (em: EnvironmentManager, cp: AnyService, hub: SolutionEventHub) => AnyService)(mockEnvManager, mockCommandsProvider, eventHub);
     }
 
     beforeEach(() => {
+        eventHub = new SolutionEventHub();
         jest.spyOn(console, 'log').mockImplementation(() => undefined);
         jest.spyOn(console, 'warn').mockImplementation(() => undefined);
         jest.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -281,8 +283,10 @@ describe('csolution-rpc-client', () => {
             expect(service.commandsProvider.executeCommand).not.toHaveBeenCalled();
         });
 
-        it('does not await refresh command execution in reloadPacks', async () => {
+        it('emits a reload event without running a refresh command', async () => {
             const neverResolves = new Promise<void>(() => undefined);
+            const listener = jest.fn();
+            eventHub.onDidReloadPacks(listener);
             service = createService(undefined, {
                 executeCommand: jest.fn().mockReturnValue(neverResolves),
                 registerCommand: jest.fn(),
@@ -303,7 +307,17 @@ describe('csolution-rpc-client', () => {
             const result = await service.reloadPacks();
 
             expect(result).toEqual({ success: true });
-            expect(service.commandsProvider.executeCommand).toHaveBeenCalledWith(manifest.REFRESH_COMMAND_ID);
+            expect(listener).toHaveBeenCalledTimes(1);
+            expect(service.commandsProvider.executeCommand).not.toHaveBeenCalled();
+        });
+
+        it('does not emit a reload event when loading packs fails', async () => {
+            const listener = jest.fn();
+            eventHub.onDidReloadPacks(listener);
+            jest.spyOn(service as any, 'loadPacks').mockResolvedValue({ success: false });
+
+            expect(await service.reloadPacks()).toEqual({ success: false });
+            expect(listener).not.toHaveBeenCalled();
         });
     });
 
