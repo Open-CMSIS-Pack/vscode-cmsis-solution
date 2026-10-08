@@ -183,12 +183,18 @@ describe('SolutionManager', () => {
 
 
     it('register the command on activation', async () => {
-        expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(1);
+        expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(2);
         expect(commandsProvider.registerCommand).toHaveBeenCalledWith(
             manifest.REFRESH_COMMAND_ID,
             expect.any(Function),
             expect.anything(),
         );
+        expect(commandsProvider.registerCommand).toHaveBeenCalledWith(
+            'cmsis-csolution.refreshDirty',
+            expect.any(Function),
+            expect.anything(),
+        );
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('setContext', 'cmsis-csolution.solutionDirty', false);
     });
 
     it('reloads the active solution when the refresh command is executed', async () => {
@@ -285,6 +291,7 @@ describe('SolutionManager', () => {
         await activateTestSolution();
         convertMock.mockClear();
         cbuildSetupRequestedListener.mockClear();
+        jest.mocked(commandsProvider.executeCommand).mockClear();
 
         changeSolutionFilesEmitter.fire(getLoadedSolutionFile('.cproject.yml'));
         await waitTimeout(200);
@@ -293,6 +300,7 @@ describe('SolutionManager', () => {
             converted: true,
             dirty: true,
         }));
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('setContext', 'cmsis-csolution.solutionDirty', true);
         expect(convertMock).not.toHaveBeenCalled();
         expect(cbuildSetupRequestedListener).not.toHaveBeenCalled();
     });
@@ -564,11 +572,32 @@ describe('SolutionManager', () => {
         convertMock.mockClear();
 
         changeSolutionFilesEmitter.fire(getLoadedSolutionFile('.cproject.yml'));
-        await solutionManager.refresh();
+        expect(solutionManager.loadState.dirty).toBe(true);
+        await commandsProvider.mockRunRegistered('cmsis-csolution.refreshDirty');
         await waitTimeout(20);
 
         expect(convertMock).toHaveBeenCalledTimes(1);
         expect(solutionManager.loadState.dirty).toBe(false);
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('setContext', 'cmsis-csolution.solutionDirty', false);
+    });
+
+    it('clears the dirty indicator when the active solution closes or switches', async () => {
+        autoConvertOnFileChange = false;
+        await activateTestSolution();
+        solutionManager.markDirty();
+
+        mockActiveSolutionTracker.activeSolution = undefined;
+        changeActiveSolutionEmitter.fire();
+        expect(solutionManager.loadState.solutionPath).toBeUndefined();
+        expect(commandsProvider.executeCommand).toHaveBeenLastCalledWith('setContext', 'cmsis-csolution.solutionDirty', false);
+
+        await activateTestSolution();
+        solutionManager.markDirty();
+        const nextSolutionPath = path.join(tmpSolutionsDir, 'simple', 'test.csolution.yml');
+        mockActiveSolutionTracker.activeSolution = nextSolutionPath;
+        changeActiveSolutionEmitter.fire();
+        expect(solutionManager.loadState.solutionPath).toBe(nextSolutionPath);
+        expect(commandsProvider.executeCommand).toHaveBeenLastCalledWith('setContext', 'cmsis-csolution.solutionDirty', false);
     });
 
     it('cancels a pending refresh when the active solution closes', async () => {
