@@ -33,6 +33,7 @@ import { SolutionLoadStateChangeEvent } from '../../solutions/solution-manager';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { configurationProviderFactory } from '../../vscode-api/configuration-provider.factories';
 import { csolutionFactory } from '../../solutions/csolution.factory';
+import { csolutionServiceFactory } from '../../json-rpc/csolution-rpc-client.factory';
 
 // Helper for firing a message and waiting (now inside describe, uses local webviewManager)
 describe('ContextSelectionWebviewMain', () => {
@@ -286,6 +287,57 @@ describe('ContextSelectionWebviewMain', () => {
     });
 
     describe('onDidChangeLoadState callback', () => {
+        it('publishes cores after conversion without reloading unsaved edits', async () => {
+            const solutionManager = solutionManagerFactory();
+            const solutionPath = path.resolve('solution.csolution.yml');
+            const globalSolution = csolutionFactory({ solutionPath });
+            const getDefaults = jest.spyOn(globalSolution, 'getDefaultTargetConfiguration').mockResolvedValue(undefined);
+            solutionManager.getCsolution.mockReturnValue(globalSolution);
+            const main = manageSolutionWebviewMainFactory({ solutionManager, webviewManager });
+            delete (main as any).loadSolution;
+            (main as any).webviewManager.isPanelActive = true;
+            const controller = main.controller;
+            controller.csolutionYml.fileName = solutionPath;
+            controller.csolutionService = csolutionServiceFactory({
+                getDeviceInfo: jest.fn().mockResolvedValue({
+                    device: { processors: [
+                        { name: 'C0', core: 'Cortex-M0' },
+                        { name: 'C1', core: 'Cortex-M1' },
+                    ] },
+                }),
+            });
+            const loadSolution = jest.spyOn(controller, 'loadSolution').mockResolvedValue(ETextFileResult.Success);
+
+            await main.sendContextData();
+            expect(getDefaults).toHaveBeenCalledTimes(1);
+            expect(controller.solutionData.usedCoreNames).toEqual([]);
+            controller.activeTargetSetWrap.addImage('unsaved.axf');
+            const editedSolution = structuredClone(controller.csolutionYml.object);
+            expect(controller.csolutionYml.isModified()).toBe(true);
+            webviewManager.sendMessage.mockClear();
+            getDefaults.mockResolvedValue({
+                debugAdapterName: 'CMSIS-DAP',
+                device: 'Vendor::Device',
+                targetType: controller.activeTargetTypeName,
+            });
+
+            await (main as any).handleSolutionLoadChange({
+                previousState: { solutionPath, loaded: true, converted: false, activated: false },
+                newState: { solutionPath, loaded: true, converted: true, activated: true },
+            });
+
+            expect(getDefaults).toHaveBeenCalledTimes(2);
+            expect(loadSolution).toHaveBeenCalledTimes(1);
+            expect(controller.csolutionService.getDeviceInfo).toHaveBeenCalledWith({ id: 'Vendor::Device' });
+            expect(webviewManager.sendMessage).toHaveBeenCalledWith({
+                type: 'DATA_CONTEXT_SELECTION',
+                data: expect.objectContaining({ usedCoreNames: ['C0', 'C1'] }),
+            });
+            expect(controller.csolutionYml.object).toEqual(editedSolution);
+            expect(controller.csolutionYml.isModified()).toBe(true);
+            expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'IS_DIRTY', data: true });
+        });
+
         it('reloads solution before active target validation when external files changed', async () => {
             const solutionManager = solutionManagerFactory();
             const main = manageSolutionWebviewMainFactory({
@@ -576,7 +628,8 @@ describe('ContextSelectionWebviewMain', () => {
         const solutionManager = solutionManagerFactory();
         const webviewManager = getMockWebViewManager<Messages.OutgoingMessage>();
         const globalSolution = csolutionFactory({ solutionPath: path.join('new', 'solution.csolution.yml') });
-        globalSolution.getDefaultDebugAdapterName = jest.fn().mockResolvedValue('default-adapter');
+        const defaults = { debugAdapterName: 'default-adapter', device: 'Vendor::Device', targetType: 'test-target' };
+        globalSolution.getDefaultTargetConfiguration = jest.fn().mockResolvedValue(defaults);
         solutionManager.getCsolution.mockReturnValue(globalSolution);
 
         const main = manageSolutionWebviewMainFactory({ solutionManager, webviewManager });
@@ -593,7 +646,7 @@ describe('ContextSelectionWebviewMain', () => {
 
         expect(createControllerSpy).toHaveBeenCalled();
         expect((main as any)._controller).toBe(replacementController);
-        expect(replacementController.loadSolution).toHaveBeenCalledWith(globalSolution.solutionPath, 'default-adapter');
+        expect(replacementController.loadSolution).toHaveBeenCalledWith(globalSolution.solutionPath, defaults);
         expect(result).toBe(ETextFileResult.Success);
     });
 

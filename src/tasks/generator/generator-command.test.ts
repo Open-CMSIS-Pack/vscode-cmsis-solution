@@ -97,7 +97,7 @@ describe('GeneratorCommand', () => {
         await generatorCommand.handleRunGenerator('my-gen', 'debug');
 
         expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
-            'Starting generator my-gen for project debug...'
+            'Starting generator my-gen for context debug...'
         );
         expect(cmsisToolboxManager.runCmsisTool).toHaveBeenCalledWith(
             'csolution',
@@ -110,55 +110,17 @@ describe('GeneratorCommand', () => {
         );
     });
 
-    it('passes activeTarget when provided', async () => {
+    it('omits context when provided as an empty string', async () => {
         solutionManager.getCsolution.mockReturnValue(createSolution());
 
-        await generatorCommand.handleRunGenerator('my-gen', undefined, 'Release@TargetSet');
+        await generatorCommand.handleRunGenerator('my-gen', '');
 
         expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
-            'Starting generator my-gen for target Release@TargetSet...'
+            'Starting generator my-gen...'
         );
         expect(cmsisToolboxManager.runCmsisTool).toHaveBeenCalledWith(
             'csolution',
-            ['run', 'mock/path.csolution.yml', '-g', 'my-gen', '-a', 'Release@TargetSet'],
-            expect.any(Function),
-            undefined,
-            undefined,
-            true,
-            { usePty: true, filterOutput: true }
-        );
-    });
-
-    it('passes quoted empty activeTarget when provided as an empty string', async () => {
-        solutionManager.getCsolution.mockReturnValue(createSolution());
-
-        await generatorCommand.handleRunGenerator('my-gen', undefined, '');
-
-        expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
-            'Starting generator my-gen for target ""...'
-        );
-        expect(cmsisToolboxManager.runCmsisTool).toHaveBeenCalledWith(
-            'csolution',
-            ['run', 'mock/path.csolution.yml', '-g', 'my-gen', '-a', '""'],
-            expect.any(Function),
-            undefined,
-            undefined,
-            true,
-            { usePty: true, filterOutput: true }
-        );
-    });
-
-    it('passes both context and activeTarget when provided', async () => {
-        solutionManager.getCsolution.mockReturnValue(createSolution());
-
-        await generatorCommand.handleRunGenerator('my-gen', 'debug', 'Release@TargetSet');
-
-        expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
-            'Starting generator my-gen for project debug and target Release@TargetSet...'
-        );
-        expect(cmsisToolboxManager.runCmsisTool).toHaveBeenCalledWith(
-            'csolution',
-            ['run', 'mock/path.csolution.yml', '-g', 'my-gen', '-c', 'debug', '-a', 'Release@TargetSet'],
+            ['run', 'mock/path.csolution.yml', '-g', 'my-gen'],
             expect.any(Function),
             undefined,
             undefined,
@@ -241,14 +203,14 @@ describe('GeneratorCommand', () => {
 
         it('dispatches handleRunGenerator when input is a component-gen COutlineItem-like node', async () => {
             const node = {
-                getAttribute: (name: string) => ({ type: 'component-gen', generator: 'STM32CubeMX', activeTarget: 'TargetOnly' }[name]),
+                getAttribute: (name: string) => ({ type: 'component-gen', generator: 'STM32CubeMX', context: 'Project.Debug+Board' }[name]),
             };
 
             await commandsProvider.mockRunRegistered(GeneratorCommand.runGeneratorCommandType, node);
 
             expect(cmsisToolboxManager.runCmsisTool).toHaveBeenCalledWith(
                 'csolution',
-                expect.arrayContaining(['-g', 'STM32CubeMX', '-a', 'TargetOnly']),
+                ['run', 'mock/path.csolution.yml', '-g', 'STM32CubeMX', '-c', 'Project.Debug+Board'],
                 expect.any(Function),
                 undefined,
                 undefined,
@@ -260,7 +222,7 @@ describe('GeneratorCommand', () => {
         it('does not dispatch when input is a COutlineItem-like node with wrong type', async () => {
             const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
             const node = {
-                getAttribute: (name: string) => ({ type: 'component', generator: 'STM32CubeMX', activeTarget: 'TargetOnly' }[name]),
+                getAttribute: (name: string) => ({ type: 'component', generator: 'STM32CubeMX', context: 'Project.Debug+Board' }[name]),
             };
 
             await commandsProvider.mockRunRegistered(GeneratorCommand.runGeneratorCommandType, node);
@@ -273,12 +235,12 @@ describe('GeneratorCommand', () => {
         it('dispatches handleRunGenerator when input is a plain RunGeneratorRequest object', async () => {
             await commandsProvider.mockRunRegistered(GeneratorCommand.runGeneratorCommandType, {
                 generator: 'plain-gen',
-                activeTarget: 'Plain@Target',
+                context: 'Plain.Debug+Target',
             });
 
             expect(cmsisToolboxManager.runCmsisTool).toHaveBeenCalledWith(
                 'csolution',
-                expect.arrayContaining(['-g', 'plain-gen', '-a', 'Plain@Target']),
+                ['run', 'mock/path.csolution.yml', '-g', 'plain-gen', '-c', 'Plain.Debug+Target'],
                 expect.any(Function),
                 undefined,
                 undefined,
@@ -287,15 +249,15 @@ describe('GeneratorCommand', () => {
             );
         });
 
-        it('dispatches handleRunGenerator with quoted empty activeTarget when request carries an empty string', async () => {
+        it('dispatches without context when request carries an empty string', async () => {
             await commandsProvider.mockRunRegistered(GeneratorCommand.runGeneratorCommandType, {
                 generator: 'empty-target-gen',
-                activeTarget: '',
+                context: '',
             });
 
             expect(cmsisToolboxManager.runCmsisTool).toHaveBeenCalledWith(
                 'csolution',
-                expect.arrayContaining(['-g', 'empty-target-gen', '-a', '""']),
+                ['run', 'mock/path.csolution.yml', '-g', 'empty-target-gen'],
                 expect.any(Function),
                 undefined,
                 undefined,
@@ -304,24 +266,7 @@ describe('GeneratorCommand', () => {
             );
         });
 
-        it('accepts a legacy RunGeneratorRequest object with context', async () => {
-            await commandsProvider.mockRunRegistered(GeneratorCommand.runGeneratorCommandType, {
-                generator: 'legacy-gen',
-                context: 'Legacy.Debug+Board',
-            });
-
-            expect(cmsisToolboxManager.runCmsisTool).toHaveBeenCalledWith(
-                'csolution',
-                expect.arrayContaining(['-g', 'legacy-gen', '-c', 'Legacy.Debug+Board']),
-                expect.any(Function),
-                undefined,
-                undefined,
-                true,
-                { usePty: true, filterOutput: true }
-            );
-        });
-
-        it('accepts a request object with both context and activeTarget', async () => {
+        it('uses only context when a request also contains an obsolete activeTarget', async () => {
             await commandsProvider.mockRunRegistered(GeneratorCommand.runGeneratorCommandType, {
                 generator: 'hybrid-gen',
                 context: 'Hybrid.Debug+Board',
@@ -330,7 +275,7 @@ describe('GeneratorCommand', () => {
 
             expect(cmsisToolboxManager.runCmsisTool).toHaveBeenCalledWith(
                 'csolution',
-                expect.arrayContaining(['-g', 'hybrid-gen', '-c', 'Hybrid.Debug+Board', '-a', 'Hybrid@TargetSet']),
+                ['run', 'mock/path.csolution.yml', '-g', 'hybrid-gen', '-c', 'Hybrid.Debug+Board'],
                 expect.any(Function),
                 undefined,
                 undefined,

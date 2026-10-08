@@ -24,6 +24,8 @@ import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
 import { CProjectYamlFile } from './files/cproject-yaml-file';
 import { CbuildFile } from './files/cbuild-file';
+import { CbuildRunYamlFile } from './files/cbuild-run-yaml-file';
+import { YamlFile } from '@open-cmsis-pack/cmsis-common/yaml-file';
 
 describe('CSolution', () => {
     const testDataHandler = new TestDataHandler();
@@ -41,6 +43,32 @@ describe('CSolution', () => {
         const loadResult = await csolution.load('./dummy.csolution.yml');
         expect(loadResult).toEqual(ETextFileResult.NotExists);
         expect(csolution.csolutionYml.text).toEqual('');
+    });
+
+    it.each(['Vendor::Device', undefined])('reads target defaults from build-run with device %s', async (device) => {
+        const fileName = path.join(testDataHandler.tmpDir, 'defaults.cbuild-run.yml');
+        const fixture = new YamlFile(fileName);
+        fixture.content = {
+            'cbuild-run': {
+                'target-type': 'test-target',
+                device,
+                output: [],
+                debugger: { name: 'CMSIS-DAP' },
+            },
+        };
+        expect(await fixture.save()).toBe(ETextFileResult.Success);
+        const csolution = new CSolution();
+        jest.spyOn(csolution, 'cbuildRunYml', 'get').mockReturnValue(new CbuildRunYamlFile(fileName));
+
+        expect(await csolution.getDefaultTargetConfiguration()).toEqual({
+            debugAdapterName: 'CMSIS-DAP',
+            device,
+            targetType: 'test-target',
+        });
+    });
+
+    it('returns no target defaults without a build-run file', async () => {
+        expect(await new CSolution().getDefaultTargetConfiguration()).toBeUndefined();
     });
 
     // Utility function to verify projects

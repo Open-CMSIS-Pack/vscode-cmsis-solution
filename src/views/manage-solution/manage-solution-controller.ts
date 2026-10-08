@@ -32,6 +32,12 @@ import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
 
 export type CustomDebugAdapterDefaults = { [adapterName: string]: { [propertyName: string]: string | number } };
 
+type TargetConfiguration = {
+    debugAdapterName?: string;
+    device?: string;
+    targetType?: string;
+};
+
 type FileStamp = {
     mtimeMs: number;
     size: number;
@@ -44,9 +50,9 @@ export class ManageSolutionController {
     private readonly _csolutionYml = new CSolutionYamlFile();
     private readonly _cmsisJsonFile = new CmsisSettingsJsonFile();
     private debugAdaptersYmlFile?: DebugAdaptersYamlFile = undefined;
-    private defaultDebugAdapterName: string = '';
     private debugAdaptersCache: DebugAdapter[] = [];
     private availableCoreNamesCache: string[] = [];
+    private defaults?: TargetConfiguration;
     public customDebugAdapterDefaults: CustomDebugAdapterDefaults = {};
     private _csolutionService?: CsolutionService;
     private csolutionFileStamp?: FileStamp | null;
@@ -109,14 +115,21 @@ export class ManageSolutionController {
     }
 
     /**
+     * Replaces build-run defaults without reloading editable solution state.
+     */
+    public updateDefaults(defaults?: TargetConfiguration): void {
+        this.defaults = defaults;
+    }
+
+    /**
      * Loads solution content and associated cmsis.json state.
      * @param csolutionPath Optional explicit path to the solution file.
-     * @param defaultDebugAdapterName Optional default debugger adapter name.
+     * @param defaults Optional target configuration from build-run data.
      * @returns Result of loading the csolution file.
      */
-    async loadSolution(csolutionPath?: string, defaultDebugAdapterName?: string) {
+    async loadSolution(csolutionPath?: string, defaults?: TargetConfiguration) {
 
-        this.defaultDebugAdapterName = defaultDebugAdapterName ?? '';
+        this.updateDefaults(defaults);
         if (!this.debugAdaptersYmlFile) {
             this.debugAdaptersYmlFile = await loadDebugAdaptersYml();
         }
@@ -429,7 +442,7 @@ export class ManageSolutionController {
      * Gets the default debugger adapter name.
      */
     private get defaultDebuggerName() {
-        return this.defaultDebugAdapterName ||
+        return this.defaults?.debugAdapterName ||
             this.debugAdaptersYmlFile?.debugAdapters[0]?.name || '';
     }
 
@@ -437,8 +450,10 @@ export class ManageSolutionController {
      * Queries available processor core names for the active target device.
      */
     public async getAvailableCoreNames(): Promise<string[]> {
-        const availableCores = this.activeTargetTypeWrap?.device
-            ? (await this.csolutionService.getDeviceInfo({ id: this.activeTargetTypeWrap?.device || '' })).device?.processors?.flatMap((processor: { name?: string; core: string }) => processor.name ? [processor.name] : []) || []
+        const device = this.activeTargetTypeWrap?.device ||
+            (this.defaults?.targetType === this.activeTargetTypeName ? this.defaults?.device : undefined);
+        const availableCores = device
+            ? (await this.csolutionService.getDeviceInfo({ id: device })).device?.processors?.flatMap((processor: { name?: string; core: string }) => processor.name ? [processor.name] : []) || []
             : [];
         this.availableCoreNamesCache = availableCores;
         return availableCores;
