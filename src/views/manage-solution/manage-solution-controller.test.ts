@@ -419,7 +419,7 @@ describe('manage-solution-controller', () => {
 
     it('should get active debugger', async () => {
         const controller = new ManageSolutionController();
-        await controller.loadSolution('test-resources/solutions/solution-with-debuggers.csolution', 'Keil uVision');
+        await controller.loadSolution('test-resources/solutions/solution-with-debuggers.csolution', { debugAdapterName: 'Keil uVision' });
 
         controller.enableDebugger(true, 'Keil uVision');
         const debuggerInstance = controller.activeDebugger;
@@ -460,6 +460,33 @@ describe('manage-solution-controller', () => {
         await controller.getAvailableCoreNames();
         const coreNames = controller.availableCoreNames;
         expect(Array.isArray(coreNames)).toBe(true);
+    });
+
+    it.each([
+        { targetDevice: undefined, buildTarget: 'TEST_TARGET', buildDevice: 'BuildVendor::BuildDevice', expectedDevice: 'BuildVendor::BuildDevice' },
+        { targetDevice: 'TargetVendor::TargetDevice', buildTarget: 'TEST_TARGET', buildDevice: 'BuildVendor::BuildDevice', expectedDevice: 'TargetVendor::TargetDevice' },
+        { targetDevice: undefined, buildTarget: 'OTHER_TARGET', buildDevice: 'BuildVendor::BuildDevice', expectedDevice: undefined },
+        { targetDevice: undefined, buildTarget: undefined, buildDevice: 'BuildVendor::BuildDevice', expectedDevice: undefined },
+        { targetDevice: undefined, buildTarget: 'TEST_TARGET', buildDevice: undefined, expectedDevice: undefined },
+    ])('resolves available cores with build-run fallback: $targetDevice, $buildTarget, $buildDevice', async ({ targetDevice, buildTarget, buildDevice, expectedDevice }) => {
+        const controller = new ManageSolutionController();
+        await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'), { device: buildDevice, targetType: buildTarget });
+        controller.activeTargetTypeName = 'TEST_TARGET';
+        controller.activeTargetTypeWrap!.device = targetDevice;
+        const service = csolutionServiceFactory({
+            getDeviceInfo: jest.fn().mockResolvedValue({
+                device: { processors: [{ name: 'C0', core: 'Cortex-M0' }, { name: 'C1', core: 'Cortex-M1' }] },
+            }),
+        });
+        controller.csolutionService = service;
+
+        expect(await controller.getAvailableCoreNames()).toEqual(expectedDevice ? ['C0', 'C1'] : []);
+        expect(controller.solutionData.usedCoreNames).toEqual(expectedDevice ? ['C0', 'C1'] : []);
+        if (expectedDevice) {
+            expect(service.getDeviceInfo).toHaveBeenCalledWith({ id: expectedDevice });
+        } else {
+            expect(service.getDeviceInfo).not.toHaveBeenCalled();
+        }
     });
 
     it('gets distinct cores used by selected projects and active images', () => {
