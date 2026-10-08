@@ -466,7 +466,7 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.refreshDirty",
-        "title": "Refresh Build Information",
+        "title": "Refresh Build Information (Refresh Required)",
         "icon": {
           "light": "./media/refresh-dirty.svg",
           "dark": "./media/refresh-dirty.svg"
