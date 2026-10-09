@@ -22,7 +22,7 @@ import { HOST_EXTENSION } from 'vscode-messenger-common';
 import { Messenger } from 'vscode-messenger-webview';
 import { ConfWizKeyboardNavigation } from './confwiz-webview-keyboard-navigation';
 import {
-    ConfigWizardData,
+    ConfigWizardViewData,
     GuiTypes,
     TreeNodeElement,
     markDocumentDirty,
@@ -31,6 +31,7 @@ import {
     saveElement,
     selectAnnotationType,
     setPanelActiveType,
+    setSourceSelectionType,
     setWizardDataType
 } from './confwiz-webview-common';
 import { Input, Checkbox, ConfigProvider, theme } from 'antd';
@@ -74,6 +75,8 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
 
     private _messenger: Messenger | undefined;
     private readonly keyboardNav = new ConfWizKeyboardNavigation((key) => this.setActiveKey(key));
+    private sourceAuthoritative = false;
+    private restoringFocus = false;
     private pendingRefocus = false;
     private pendingRefocusKey?: string;
     private isMouseSelectionInteraction = false;
@@ -119,11 +122,12 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
 
     public async componentDidMount(): Promise<void> {
         window.addEventListener('blur', this.handleWindowBlur);
-        this.messenger.onNotification<ConfigWizardData>(
+        this.messenger.onNotification<ConfigWizardViewData>(
             setWizardDataType,
             wizardData => {
                 // Clear edited field when new data arrives to prevent race conditions
                 this.editedFieldId = undefined;
+                this.sourceAuthoritative = wizardData.sourceSelection !== undefined;
                 const isDocumentChanged = this.state.documentPath !== wizardData.documentPath;
                 const expandedKeys = isDocumentChanged ? {} : this.state.expandedKeys;
                 const activeKey = isDocumentChanged ? undefined : this.state.activeKey;
@@ -140,13 +144,18 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     expandedKeys,
                     isIssuesVisible,
                 }, () => {
-                    const selectedKey = this.state.lastTouchedKey ?? this.state.activeKey;
-                    if (selectedKey) {
-                        this.reportAnnotationSelection(selectedKey);
+                    if (wizardData.sourceSelection !== undefined) {
+                        this.applySourceSelection(wizardData.sourceSelection);
                     }
                 });
             }
         );
+        this.messenger.onNotification(setSourceSelectionType, data => {
+            if (data.documentPath === this.state.documentPath) {
+                this.sourceAuthoritative = true;
+                this.applySourceSelection(data.selectedGuiId);
+            }
+        });
         this.messenger.onNotification<{ active: boolean }>(
             setPanelActiveType,
             ({ active }) => {
@@ -161,6 +170,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
     }
 
     public componentDidUpdate(_prevProps: Record<string, unknown>, prevState: State): void {
+        if (this.sourceAuthoritative) return;
         const visibleKeys = this.keyboardNav.getVisibleKeys();
         if (visibleKeys.length === 0) {
             return;
@@ -176,7 +186,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
             if (activeKey !== nearestVisible) {
                 this.setState({ activeKey: nearestVisible });
             }
-            this.keyboardNav.focusRowByKey(nearestVisible);
+            this.restoreRowFocus(nearestVisible);
             return;
         }
 
@@ -188,7 +198,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         }
 
         if (prevState.activeKey !== activeKey && activeKey !== undefined) {
-            this.keyboardNav.focusRowByKey(activeKey);
+            this.restoreRowFocus(activeKey);
         }
     }
 
@@ -197,6 +207,24 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         // Cleanup to prevent memory leaks
         this.editedFieldId = undefined;
         this.keyboardNav.reset();
+    }
+
+    private restoreRowFocus(key: string): void {
+        this.restoringFocus = true;
+        try {
+            this.keyboardNav.focusRowByKey(key);
+        } finally {
+            this.restoringFocus = false;
+        }
+    }
+
+    private applySourceSelection(guiId: number | null): void {
+        const key = guiId === null ? undefined : guiId.toString();
+        const path = key && this.state.annotations ? this.findPathToKey(this.state.annotations, key, []) : undefined;
+        const expandedKeys = { ...this.state.expandedKeys };
+        path?.slice(0, -1).forEach(ancestor => { expandedKeys[ancestor] = true; });
+        this.pendingRefocus = false;
+        this.setState({ activeKey: key, lastTouchedKey: key, expandedKeys, hasUserFocus: false });
     }
 
     private getElementKey(element: TreeNodeElement): string {
@@ -258,6 +286,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
     }
 
     private reportAnnotationSelection(key: string): void {
+        this.sourceAuthoritative = false;
         const documentPath = this.state.documentPath;
         const annotationRange = this.state.annotations
             ? this.findElementByKey(this.state.annotations, key)?.annotationRange
@@ -736,7 +765,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     this.handleRowPointerActivate(key);
                 }}
                 onFocus={() => {
-                    if (this.pendingRefocus) {
+                    if (this.pendingRefocus || this.restoringFocus) {
                         return;
                     }
                     this.handleUserFocus(key);

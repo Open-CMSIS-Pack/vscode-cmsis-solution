@@ -194,6 +194,7 @@ const window = {
     registerCustomEditorProvider: jest.fn(() => ({ dispose: jest.fn() })),
     visibleTextEditors: [],
     onDidChangeActiveTextEditor: jest.fn(() => ({ dispose: jest.fn() })),
+    onDidChangeTextEditorSelection: jest.fn(() => ({ dispose: jest.fn() })),
     onDidChangeVisibleTextEditors: jest.fn(() => ({ dispose: jest.fn() })),
     showTextDocument: jest.fn(),
     showOpenDialog: jest.fn(),
@@ -263,6 +264,7 @@ const EnvironmentVariableMutatorType = {
 }
 
 module.exports = {
+    TextEditorSelectionChangeKind: { Keyboard: 1, Mouse: 2, Command: 3 },
     MarkdownString,
     CodeAction,
     ColorThemeKind,
