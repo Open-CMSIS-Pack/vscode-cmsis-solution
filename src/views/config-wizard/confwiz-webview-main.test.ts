@@ -1277,6 +1277,27 @@ describe('ConfWizWebview', () => {
             });
         });
 
+        it('restores a GUI selection when its hidden source editor becomes visible, only once', () => {
+            vscode.window.visibleTextEditors = [];
+            selectGui(y);
+            expect(editor.selection.active.line).toBe(2);
+            const changeVisibleEditors = (vscode.window.onDidChangeVisibleTextEditors as jest.Mock).mock.calls[0][0];
+            const otherEditor = { ...editor, document: { ...mockDocument, uri: vscode.Uri.file('/other.dbgconf') }, revealRange: jest.fn() };
+            changeVisibleEditors([otherEditor]);
+            expect(otherEditor.revealRange).not.toHaveBeenCalled();
+            changeVisibleEditors([editor]);
+            expect(editor.selection).toEqual(expect.objectContaining({
+                start: y.annotationRange!.start,
+                end: y.annotationRange!.end
+            }));
+            expect(editor.revealRange).toHaveBeenCalledTimes(1);
+            (editor.revealRange as jest.Mock).mockClear();
+            editor.selection = new vscode.Selection(new vscode.Position(2, 0), new vscode.Position(2, 0));
+            changeVisibleEditors([editor]);
+            expect(editor.selection.active.line).toBe(2);
+            expect(editor.revealRange).not.toHaveBeenCalled();
+        });
+
         it('maps associated values and clears selection outside annotations', () => {
             const rect = y.value.editRect!;
             move(rect.line, rect.col.start);
