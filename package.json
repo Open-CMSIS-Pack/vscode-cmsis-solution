@@ -461,7 +461,10 @@
         "category": "CMSIS",
         "command": "cmsis-csolution.refresh",
         "title": "Refresh Build Information",
-        "icon": "$(refresh)"
+        "icon": {
+          "light": "./media/refresh-normal.svg",
+          "dark": "./media/refresh-normal.svg"
+        }
       },
       {
         "category": "CMSIS",
