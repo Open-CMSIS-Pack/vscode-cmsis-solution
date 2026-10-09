@@ -26,7 +26,8 @@ import { CONFIG_CLANGD_ARGUMENTS, CONFIG_CLANGD_EXTNAME, CONFIG_CLANGD_GENERATE_
 import { MockCommandsProvider, commandsProviderFactory } from '../vscode-api/commands-provider.factories';
 import { MockSolutionManager, solutionManagerFactory } from './solution-manager.factories';
 import { CompileCommandsParser } from './intellisense/compile-commands-parser';
-import { ExtensionContext, Memento } from 'vscode';
+import { ExtensionContext, Memento, WorkspaceFolder, workspace } from 'vscode';
+import { URI } from 'vscode-uri';
 import { mementoFactory } from '../vscode-api/memento.factories';
 import { faker } from '@faker-js/faker';
 import { ContextDescriptor } from './descriptors/descriptors';
@@ -68,9 +69,11 @@ describe('ClangdManager', () => {
         }
     ];
 
-    const compileCommandsDirFlag = (projectPath: string | undefined) => `--compile-commands-dir=${path.join(path.dirname(projectPath!), 'out')}`;
+    const compileCommandsDirFlag = (projectPath: string | undefined) => '--compile-commands-dir=${workspaceFolder}'
+        + '/' + path.relative(rootPath, path.join(path.dirname(projectPath!), 'out')).split(path.sep).join('/');
 
     beforeEach(async () => {
+        (workspace as { workspaceFolders?: WorkspaceFolder[] }).workspaceFolders = [{ uri: URI.file(rootPath), name: 'path', index: 0 }];
         mockConfigurationProvider = configurationProviderFactory({
             [CONFIG_CLANGD_GENERATE_SETUP]: true,
             [CONFIG_CLANGD_ARGUMENTS]: [],
@@ -118,6 +121,46 @@ describe('ClangdManager', () => {
         jest.clearAllMocks();
         stubWorkspaceState = mementoFactory();
         await clangdManager.activate({ workspaceState: stubWorkspaceState, subscriptions: [] } as unknown as ExtensionContext);
+    });
+
+    afterEach(() => {
+        (workspace as { workspaceFolders?: WorkspaceFolder[] }).workspaceFolders = undefined;
+    });
+
+    it('uses the workspace folder without a suffix for a database at the workspace root', async () => {
+        await (clangdManager as unknown as {
+            updateWorkspaceClangdConfig: (compileCommands: URI) => Promise<void>;
+        }).updateWorkspaceClangdConfig(URI.file(path.join(rootPath, 'compile_commands.json')));
+
+        expect(mockConfigurationProvider.setConfigVariable).toHaveBeenCalledWith(
+            CONFIG_CLANGD_ARGUMENTS, ['--compile-commands-dir=${workspaceFolder}'], CONFIG_CLANGD_EXTNAME, true,
+        );
+    });
+
+    it.each([
+        ['outside', path.join(path.dirname(rootPath), 'outside', 'out')],
+        ['sibling', `${rootPath}-other${path.sep}out`],
+    ])('uses an absolute database directory for %s paths', async (_, directory) => {
+        await (clangdManager as unknown as {
+            updateWorkspaceClangdConfig: (compileCommands: URI) => Promise<void>;
+        }).updateWorkspaceClangdConfig(URI.file(path.join(directory, 'compile_commands.json')));
+
+        expect(mockConfigurationProvider.setConfigVariable).toHaveBeenCalledWith(
+            CONFIG_CLANGD_ARGUMENTS, [expect.lowercaseEquals(`--compile-commands-dir=${directory}`)], CONFIG_CLANGD_EXTNAME, true,
+        );
+    });
+
+    it('uses an absolute database directory when no workspace folder is available', async () => {
+        (workspace as { workspaceFolders?: WorkspaceFolder[] }).workspaceFolders = undefined;
+        const directory = path.join(rootPath, 'Project1', 'out');
+
+        await (clangdManager as unknown as {
+            updateWorkspaceClangdConfig: (compileCommands: URI) => Promise<void>;
+        }).updateWorkspaceClangdConfig(URI.file(path.join(directory, 'compile_commands.json')));
+
+        expect(mockConfigurationProvider.setConfigVariable).toHaveBeenCalledWith(
+            CONFIG_CLANGD_ARGUMENTS, [expect.lowercaseEquals(`--compile-commands-dir=${directory}`)], CONFIG_CLANGD_EXTNAME, true,
+        );
     });
 
     it('generates a clangd file for each context when the context list changes and the auto generate configuration is true', async () => {

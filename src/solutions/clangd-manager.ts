@@ -139,12 +139,24 @@ export class ClangdManager {
     }
 
     private async updateWorkspaceClangdConfig(compileCommands: URI | undefined) {
-        const clangd_arguments = [];
-        if (compileCommands) {
-            clangd_arguments.push(`--compile-commands-dir=${path.dirname(compileCommands.fsPath)}`);
-        }
+        const clangd_arguments = this.getCompileCommandsDirArguments(compileCommands);
         await this.configurationProvider.setConfigVariable(CONFIG_CLANGD_ARGUMENTS, clangd_arguments, CONFIG_CLANGD_EXTNAME, true);
         await this.restartClangd();
+    }
+
+    private getCompileCommandsDirArguments(compileCommands: URI | undefined): string[] {
+        if (!compileCommands) {
+            return [];
+        }
+        const compileCommandsDirectory = path.dirname(compileCommands.fsPath);
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const relativeDirectory = workspaceRoot ? path.relative(workspaceRoot, compileCommandsDirectory) : undefined;
+        const isWithinWorkspace = relativeDirectory !== undefined && !path.isAbsolute(relativeDirectory)
+            && relativeDirectory !== '..' && !relativeDirectory.startsWith(`..${path.sep}`);
+        const directory = isWithinWorkspace
+            ? '${workspaceFolder}' + (relativeDirectory ? `/${relativeDirectory.split(path.sep).join('/')}` : '')
+            : compileCommandsDirectory;
+        return [`--compile-commands-dir=${directory}`];
     }
 
     private updateWorkspaceState(projectPath: string) {
