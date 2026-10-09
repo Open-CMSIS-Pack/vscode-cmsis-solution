@@ -461,7 +461,19 @@
         "category": "CMSIS",
         "command": "cmsis-csolution.refresh",
         "title": "Refresh Build Information",
-        "icon": "$(refresh)"
+        "icon": {
+          "light": "./media/refresh-normal.svg",
+          "dark": "./media/refresh-normal.svg"
+        }
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.refreshDirty",
+        "title": "Refresh Build Information (Refresh Required)",
+        "icon": {
+          "light": "./media/refresh-dirty.svg",
+          "dark": "./media/refresh-dirty.svg"
+        }
       },
       {
         "category": "CMSIS",
@@ -874,6 +886,10 @@
           "command": "cmsis-csolution.refresh"
         },
         {
+          "command": "cmsis-csolution.refreshDirty",
+          "when": "false"
+        },
+        {
           "command": "cmsis-csolution.build"
         },
         {
@@ -1044,7 +1060,12 @@
       "view/title": [
         {
           "command": "cmsis-csolution.refresh",
-          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && !cmsis-csolution.solutionDirty",
+          "group": "navigation@0"
+        },
+        {
+          "command": "cmsis-csolution.refreshDirty",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && cmsis-csolution.solutionDirty",
           "group": "navigation@0"
         },
         {
