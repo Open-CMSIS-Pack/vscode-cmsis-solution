@@ -88,7 +88,7 @@ export class SolutionOutlineView {
         if (loadState.solutionPath && csolution) {
             const targetSet = csolution.getActiveTargetSetName();
             this.treeViewProvider.setDescription(targetSet ?? '');
-            this.treeViewProvider.setTitle(loadState.dirty ? `\u25CF ${csolution.solutionName}` : csolution.solutionName);
+            this.treeViewProvider.setTitle(csolution.solutionName);
         } else {
             this.treeViewProvider.setDescription('');
             this.treeViewProvider.setTitle('');

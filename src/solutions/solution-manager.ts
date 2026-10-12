@@ -31,6 +31,8 @@ import { pathsEqual } from '../utils/path-utils';
 import { workspaceFsProvider as defaultWorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { ToolsEnvironment } from './tools-environment';
 
+const solutionDirtyContextKey = `${manifest.PACKAGE_NAME}.solutionDirty`;
+const refreshDirtyCommandId = `${manifest.PACKAGE_NAME}.refreshDirty`;
 
 export interface SolutionLoadState {
     solutionPath?: string;
@@ -114,6 +116,7 @@ export class SolutionManagerImpl implements SolutionManager {
     ) { }
 
     public async activate(context: vscode.ExtensionContext): Promise<void> {
+        this.publishSolutionDirty(false);
         context.subscriptions.push(
             this.activeSolutionTracker.onDidChangeActiveSolution(this.handleChangeActiveSolution, this),
             this.activeSolutionTracker.onActiveSolutionFilesChanged(this.handleActiveSolutionFilesChanged, this),
@@ -121,6 +124,7 @@ export class SolutionManagerImpl implements SolutionManager {
             this.eventHub.onDidCbuildCompleted(this.handleCbuildCompleted, this),
             this.eventHub.onDidReloadPacks(() => this.markDirty()),
             this.commandsProvider.registerCommand(manifest.REFRESH_COMMAND_ID, this.refresh, this),
+            this.commandsProvider.registerCommand(refreshDirtyCommandId, this.refresh, this),
             this.environmentManagerApiProvider.onActivate(environmentManagerApi => {
                 environmentManagerApi.onDidActivate(results => {
                     this.toolsEnvironment.updateVcpkgResults(results);
@@ -337,9 +341,16 @@ export class SolutionManagerImpl implements SolutionManager {
     private setLoadState(newState: SolutionLoadState, emit: boolean) {
         const previousState: SolutionLoadState = { ...this.loadState, };
         this._loadState = newState;
+        if (!!previousState.dirty !== !!newState.dirty) {
+            this.publishSolutionDirty(!!newState.dirty);
+        }
         if (emit) {
             this.loadStateChangeEmitter.fire({ previousState, newState });
         }
+    }
+
+    private publishSolutionDirty(dirty: boolean): void {
+        this.commandsProvider.executeCommand('setContext', solutionDirtyContextKey, dirty);
     }
 
     private async hasForceUpdateRte(): Promise<boolean> {

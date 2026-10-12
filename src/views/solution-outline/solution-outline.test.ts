@@ -121,7 +121,7 @@ describe('SolutionOutlineView', () => {
         expect(mockTreeViewProvider.setDescription).toHaveBeenCalledWith('test-target');
     });
 
-    it('shows and clears the dirty cue in the view title', async () => {
+    it('keeps the solution name in the view title when dirty', async () => {
         const cleanState = activeSolutionLoadStateFactory({ dirty: false });
         const dirtyState = { ...cleanState, dirty: true };
         const mockSolutionManager = solutionManagerFactory({
@@ -142,12 +142,6 @@ describe('SolutionOutlineView', () => {
 
         mockSolutionManager.onDidChangeLoadStateEmitter.fire({ previousState: cleanState, newState: dirtyState });
         await waitForPromises();
-        expect(mockTreeViewProvider.setDescription).toHaveBeenLastCalledWith('test-target');
-        expect(mockTreeViewProvider.setTitle).toHaveBeenLastCalledWith('\u25CF My-Solution');
-
-        mockSolutionManager.onDidChangeLoadStateEmitter.fire({ previousState: dirtyState, newState: cleanState });
-        await waitForPromises();
-        expect(mockTreeViewProvider.setDescription).toHaveBeenLastCalledWith('test-target');
         expect(mockTreeViewProvider.setTitle).toHaveBeenLastCalledWith('My-Solution');
     });
 
