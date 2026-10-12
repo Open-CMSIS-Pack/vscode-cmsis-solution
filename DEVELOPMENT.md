@@ -115,6 +115,28 @@ Both formats can be found under the `e2e-reports/` directory at the project root
  ┗ 📜results.xml
 ```
 
+## AI Agent Skills
+
+[AGENTS.md](./AGENTS.md) tells AI agents to discover repository guidance in `.agents/` and
+`.agents-local/` at the start of a conversation. Skills in `.agents/` are public and included in
+the repository. Skills in `.agents-local/` are local, not included in the repository, and can
+contribute additional guidance or override a public skill at the same relative path. Agents read
+applicable skills when needed and follow the relevant skill for the task, such as `plan` for
+proposed changes or `change` for implementation.
+
+```text
+               AGENTS.md
+                  │
+        ┌─────────┴─────────┐
+     .agents/          .agents-local/
+     └─ skills/        └─ skills/
+       ├─ change/       ├─ change/
+       │  └─ SKILL.md   │  └─ SKILL.md  ← overrides
+       ├─ plan/         ├─ prompt-log/
+       │  └─ SKILL.md   │  └─ SKILL.md  ← contributes
+       └─ ...           └─ ...
+```
+
 ## Development Guidelines
 
 ### Logging
