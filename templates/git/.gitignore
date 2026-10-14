@@ -51,6 +51,9 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
+# Backup files
+*.bak
+
 # Clangd
 .clangd
 
