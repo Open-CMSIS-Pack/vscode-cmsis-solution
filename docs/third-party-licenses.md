@@ -32,7 +32,7 @@ Generated for release: 1.72.0
 |semver|7.8.5|https://github.com/npm/node-semver|https://github.com/npm/node-semver/blob/main/LICENSE|
 |tcp-port-used|1.0.2|https://github.com/stdarg/tcp-port-used|https://raw.githubusercontent.com/stdarg/tcp-port-used/refs/heads/master/LICENSE|
 |tmp|0.2.7|https://github.com/raszi/node-tmp|https://github.com/raszi/node-tmp/blob/master/LICENSE|
-|vscode-jsonrpc|8.2.1|https://github.com/Microsoft/vscode-languageserver-node|https://github.com/Microsoft/vscode-languageserver-node/blob/main/License.txt|
+|vscode-jsonrpc|9.0.3|https://github.com/Microsoft/vscode-languageserver-node|https://github.com/Microsoft/vscode-languageserver-node/blob/main/License.txt|
 |vscode-messenger|0.6.0|https://github.com/TypeFox/vscode-messenger|https://github.com/TypeFox/vscode-messenger/blob/main/LICENSE|
 |vscode-messenger-common|0.6.0|https://github.com/TypeFox/vscode-messenger|https://github.com/TypeFox/vscode-messenger/blob/main/LICENSE|
 |vscode-messenger-webview|0.6.0|https://github.com/TypeFox/vscode-messenger|https://github.com/TypeFox/vscode-messenger/blob/main/LICENSE|
