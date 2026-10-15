@@ -29,4 +29,3 @@ workflows:
         - generated solution and project artifacts
         - CMSIS view loading
         - Problems view dependency validation check
-

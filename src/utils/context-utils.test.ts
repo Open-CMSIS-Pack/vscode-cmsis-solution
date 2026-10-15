@@ -84,4 +84,3 @@ describe('matchesContext (CMSIS context forms)', () => {
         expect(matchesContext(makeItem(['\\.*D.*']), 'Hello.Release+CS300')).toBe(false);
     });
 });
-

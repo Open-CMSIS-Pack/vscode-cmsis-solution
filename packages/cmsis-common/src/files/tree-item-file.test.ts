@@ -349,4 +349,3 @@ describe('CTreeItemXmlFile', () => {
         expect(options2?.getValue('foo')).toEqual('bar');
     });
 });
-
