@@ -153,7 +153,14 @@ npm run fmtlf:check -- --include=src/example.ts,README.md
 ```
 
 Run these commands from the repository root. Both modes support comma-separated
-`--include` and `--exclude` globs. By default, the script checks tracked and non-ignored
+`--include` and `--exclude` globs. Commas inside brace patterns are preserved, including
+nested braces. Quote glob arguments to prevent shell expansion, for example:
+
+```sh
+npm run fmtlf:check -- --include="**/*.{ts,tsx},README.md" --exclude="**/{generated,vendor}/**"
+```
+
+By default, the script checks tracked and non-ignored
 untracked files with recognized text extensions or standard extensionless text names.
 Dependencies, generated output, test-data fixtures, binaries, symlinks, and submodules
 are excluded. Unsupported text encodings are reported and never rewritten.

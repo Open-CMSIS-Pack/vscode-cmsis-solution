@@ -36,6 +36,34 @@ const textExtensions = new Set([
     '.s', '.sh', '.snap', '.svg', '.toml', '.ts', '.tsx', '.txt', '.xml', '.yaml', '.yml',
 ]);
 
+function splitGlobList(value: string): string[] {
+    const patterns: string[] = [];
+    let start = 0;
+    let braceDepth = 0;
+    let inCharacterClass = false;
+    for (let index = 0; index < value.length; index++) {
+        const character = value[index];
+        if (character === '\\') {
+            index++;
+        } else if (character === '[') {
+            inCharacterClass = true;
+        } else if (character === ']') {
+            inCharacterClass = false;
+        } else if (!inCharacterClass) {
+            if (character === '{') {
+                braceDepth++;
+            } else if (character === '}') {
+                braceDepth = Math.max(0, braceDepth - 1);
+            } else if (character === ',' && braceDepth === 0) {
+                patterns.push(value.slice(start, index));
+                start = index + 1;
+            }
+        }
+    }
+    patterns.push(value.slice(start));
+    return patterns;
+}
+
 function main(): void {
     const args = minimist(process.argv.slice(2), { string: ['mode', 'include', 'exclude'] });
     const mode = args.mode ?? 'check';
@@ -45,8 +73,8 @@ function main(): void {
     const inventory = new Set(execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
         encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
     }).split('\0').filter(Boolean));
-    const patterns: string[] = args.include ? args.include.split(',') : ['**/*'];
-    const ignore = [...excluded, ...(args.exclude ? args.exclude.split(',') : [])];
+    const patterns = args.include ? splitGlobList(args.include) : ['**/*'];
+    const ignore = [...excluded, ...(args.exclude ? splitGlobList(args.exclude) : [])];
     const files = new Set(patterns.flatMap(pattern => globSync(pattern, { dot: true, nodir: true, ignore }))
         .map(file => file.split(path.sep).join('/'))
         .filter(file => inventory.has(file)));

@@ -83,6 +83,33 @@ describe('fmtlf', () => {
         files.forEach(file => expect(fs.readFileSync(file, 'utf8')).toBe('unchanged'));
     });
 
+    it.each(['**/*.{ts,tsx}', '**/*.{ts,{tsx,js}}'])('preserves brace glob %s in comma-separated includes', pattern => {
+        const selected = ['src/source.ts', 'src/view.tsx', 'README.md'].map(file => writeFile(file, 'selected'));
+        const other = writeFile('theme.css', 'unchanged');
+        const args = [`--include=${pattern},README.md`];
+
+        const result = run(...args);
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('src/source.ts: missing final newline');
+        expect(result.stderr).toContain('src/view.tsx: missing final newline');
+        selected.forEach(file => expect(fs.readFileSync(file, 'utf8')).toBe('selected'));
+        expect(run('--mode=fix', ...args).status).toBe(0);
+        selected.forEach(file => expect(fs.readFileSync(file, 'utf8')).toBe('selected\n'));
+        expect(fs.readFileSync(other, 'utf8')).toBe('unchanged');
+        expect(run(...args).status).toBe(0);
+    });
+
+    it.each(['**/*.{ts,tsx}', '**/*.{ts,{tsx,js}}'])('preserves brace glob %s in comma-separated excludes', pattern => {
+        const excludedFiles = ['src/source.ts', 'src/view.tsx', 'README.md'].map(file => writeFile(file, 'unchanged'));
+        const selected = writeFile('theme.css', 'selected');
+        const args = [`--exclude=${pattern},README.md`];
+
+        expect(run('--mode=fix', ...args).status).toBe(0);
+        excludedFiles.forEach(file => expect(fs.readFileSync(file, 'utf8')).toBe('unchanged'));
+        expect(fs.readFileSync(selected, 'utf8')).toBe('selected\n');
+        expect(run(...args).status).toBe(0);
+    });
+
     it('skips binary files and reports unsupported encodings without rewriting', () => {
         const binary = writeFile('binary.png', Buffer.from([0x89, 0x50, 0x0D, 0x0A]));
         const nul = writeFile('binary.txt', Buffer.from([0, 0x0D, 0x0A]));
