@@ -165,7 +165,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         commandsProvider,
         environmentManagerApiProvider,
         envManager,
-        docManager);
+        docManager,
         toolsEnvironment);
 
     initUtils(configurationProvider, solutionManager);
