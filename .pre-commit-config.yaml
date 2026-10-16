@@ -1,0 +1,7 @@
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v6.0.0
+  hooks:
+    # Ensure files end with exactly one newline
+    - id: end-of-file-fixer
+      exclude: '^test-data/|.*\.(png|jpg)$'

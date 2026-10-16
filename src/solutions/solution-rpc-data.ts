@@ -158,4 +158,3 @@ export class SolutionRpcDataImpl implements SolutionRpcData {
 }
 
 export const SolutionRpcData = constructor<typeof SolutionRpcDataImpl, SolutionRpcData>(SolutionRpcDataImpl);
-

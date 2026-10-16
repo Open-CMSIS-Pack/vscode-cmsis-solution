@@ -130,4 +130,3 @@ export function getSelectedTargetSet(tt?: TargetType): TargetSet | undefined {
     }
     return undefined;
 }
-
