@@ -426,4 +426,3 @@ describe('CSolutionYamlFile.getTargetSet', () => {
     });
 
 });
-
