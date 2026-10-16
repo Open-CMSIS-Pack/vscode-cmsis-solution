@@ -1707,6 +1707,7 @@
       "!src/**/*.factories.{ts,tsx}",
       "!src/vscode-api/**",
       "!src/e2e-tests/**",
+      "!src/api/extension-host-v3-smoke.ts",
       "!src/desktop/extension.ts",
       "!src/solar-search/graphql/client"
     ],

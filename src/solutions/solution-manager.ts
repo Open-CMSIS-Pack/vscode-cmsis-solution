@@ -28,7 +28,6 @@ import { debounce } from 'lodash';
 import { SolutionRpcData } from './solution-rpc-data';
 import { EnvironmentManager } from '../desktop/env-manager';
 import { pathsEqual } from '../utils/path-utils';
-import { workspaceFsProvider as defaultWorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { ToolsEnvironment } from './tools-environment';
 
 const solutionDirtyContextKey = `${manifest.PACKAGE_NAME}.solutionDirty`;
@@ -112,7 +111,7 @@ export class SolutionManagerImpl implements SolutionManager {
         private readonly environmentManagerApiProvider: ExtensionApiProvider<Pick<EnvironmentManagerApiV1,
             'onDidActivate' | 'onDidFailActivation' | 'getActiveTools' | 'isActivating'>>,
         private readonly environmentManager: EnvironmentManager,
-        private readonly toolsEnvironment = new ToolsEnvironment(environmentManager, environmentManagerApiProvider, defaultWorkspaceFsProvider),
+        private readonly toolsEnvironment = new ToolsEnvironment(environmentManager, environmentManagerApiProvider),
     ) { }
 
     public async activate(context: vscode.ExtensionContext): Promise<void> {

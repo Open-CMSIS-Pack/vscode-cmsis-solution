@@ -5,6 +5,26 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "API V3 Smoke Tests (Real VS Code)",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": [
+                "${workspaceFolder}/.vscode-test/api-v3-smoke/smoke.code-workspace",
+                "--new-window",
+                "--skip-welcome",
+                "--skip-release-notes",
+                "--disable-workspace-trust",
+                "--user-data-dir=${workspaceFolder}/.vscode-test/api-v3-smoke-user-data",
+                "--extensionDevelopmentPath=${workspaceFolder}",
+                "--extensionTestsPath=${workspaceFolder}/out/api/extension-host-v3-smoke.js"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/out/api/**/*.js",
+                "${workspaceFolder}/dist/**/*.js"
+            ],
+            "preLaunchTask": "Prepare API Smoke Test"
+        },
+        {
             "name": "Desktop Extension",
             "type": "extensionHost",
             "request": "launch",

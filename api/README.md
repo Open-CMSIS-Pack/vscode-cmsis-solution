@@ -15,6 +15,54 @@ if (csolutionExtension) {
 }
 ```
 
+## API version 3 (in development)
+
+V3 is available through `getApi(3)`. It retains `getBoards`, `getDevices`,
+`getDraftProjects`, `createNewSolution`, and `build` with their V2 behavior.
+V2 is unchanged and does not expose `getToolsEnvironment`.
+
+### Tools Environment
+
+```typescript
+const api = (await csolutionExtension.activate()).getApi(3);
+const yaml = await api.getToolsEnvironment();
+```
+
+Returns fresh YAML in the [tools-environment format](../schemas/tools-environment.md)
+without requiring a loaded solution or reading/writing the generated workspace
+file. The getter and conversion writer share the same environment owner and
+serializer. A loaded solution supplies optional relative `solution` metadata.
+
+This is the current **VS Code window environment**, including configured variables,
+built-in tools and currently available Arm Tools contributions. Multi-root windows
+share that environment: selecting an Explorer folder does not select an isolated
+tool environment. The getter waits for an in-progress Arm Tools activation through
+the existing provider, but does not guarantee that every workspace root has been
+activated. Missing or disabled Arm Tools leaves the available built-in/configured
+environment; activation failure follows the existing writer's available-state behavior.
+
+Arm Tools owns activation, download permissions and prompts. The getter may activate
+the enabled extension, but does not invoke vcpkg, acquire tools independently, or
+accept folder/download-consent options.
+
+### API V3 Smoke Tests
+
+[The extension-host fixture](../src/api/extension-host-v3-smoke.ts) runs against the
+real extension in a multi-root window. It checks configured variables, built-in
+tools, nonempty PATH, repeatable output, V2 compatibility, unchanged solution
+selection and absence of generated files in both roots. It restores the workspace
+setting and disposes the API in `finally`.
+
+Select **API V3 Smoke Tests (Real VS Code)** and press **F5**. The preparation task
+builds the extension, compiles the fixture, and creates a workspace with two fresh
+empty folders under the ignored `.vscode-test/api-v3-smoke` directory on each run.
+No manual workspace setup or path input is needed. Previous run folders are retained
+for inspection. The launch uses an isolated user-data directory
+and requires the repository's bundled tools and the extension's normal dependencies.
+Arm Tools remains responsible for any activation prompts. No installed packs or
+loaded solution are required. Activation waiting/failure and loaded-solution YAML
+parity are covered by the focused unit tests.
+
 ## API version 2
 
 The API version 2 provides a more streamlined and efficient way to interact with the CMSIS components, making it easier

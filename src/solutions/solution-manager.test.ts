@@ -34,7 +34,7 @@ import { SolutionRpcData } from './solution-rpc-data';
 import { configurationProviderFactory, MockConfigurationProvider } from '../vscode-api/configuration-provider.factories';
 import { EnvironmentManager } from '../desktop/env-manager';
 import { CONFIG_ENVIRONMENT_VARIABLES } from '../manifest';
-import { workspaceFsProviderFactory, MockWorkspaceFsProvider } from '../vscode-api/workspace-fs-provider.factories';
+import { ETextFileResult, YamlFile } from '@open-cmsis-pack/cmsis-common';
 import { ToolsEnvironment } from './tools-environment';
 
 
@@ -70,7 +70,8 @@ describe('SolutionManager', () => {
     let csolutionService: jest.Mocked<ReturnType<typeof csolutionServiceFactory>>;
     let rpcData: SolutionRpcData;
     let cbuildSetupRequestedListener: jest.Mock;
-    let workspaceFsProvider: MockWorkspaceFsProvider;
+    let writeFile: jest.Mock<void, [string, string]>;
+    let saveSpy: jest.SpyInstance;
     let toolsEnvironment: ToolsEnvironment;
     let autoConvertOnFileChange: boolean | undefined;
 
@@ -83,6 +84,10 @@ describe('SolutionManager', () => {
     afterAll(async () => {
         testDataHandler.dispose();
         jest.restoreAllMocks();
+    });
+
+    afterEach(() => {
+        saveSpy.mockRestore();
     });
 
     beforeEach(async () => {
@@ -139,7 +144,15 @@ describe('SolutionManager', () => {
         csolutionService.getVariables.mockResolvedValue({ success: true, variables: {} });
         rpcData = new SolutionRpcData(csolutionService);
         environmentManager = new EnvironmentManager(configurationProviderMock);
-        workspaceFsProvider = workspaceFsProviderFactory();
+        writeFile = jest.fn();
+        const save = YamlFile.prototype.save;
+        saveSpy = jest.spyOn(YamlFile.prototype, 'save').mockImplementation(async function (this: YamlFile, fileName?: string) {
+            if (path.basename(this.fileName) === 'tools-environment.yml') {
+                writeFile(this.fileName, this.stringify());
+                return ETextFileResult.Success;
+            }
+            return save.call(this, fileName);
+        });
         jest.spyOn(environmentManager, 'getEnvironmentVariables').mockReturnValue({
             PATH: ['/tools/pyocd', '/tools/toolbox'].join(path.delimiter),
             CMSIS_PACK_ROOT: '/packs',
@@ -149,7 +162,6 @@ describe('SolutionManager', () => {
         toolsEnvironment = new ToolsEnvironment(
             environmentManager,
             extensionApiProviderFactory(environmentManagerApi),
-            workspaceFsProvider,
         );
         solutionManager = new SolutionManagerImpl(
             mockActiveSolutionTracker as unknown as ActiveSolutionTracker,
@@ -782,7 +794,7 @@ describe('SolutionManager', () => {
         changeActiveSolutionEmitter.fire();
         await waitTimeout(200);
 
-        expect(workspaceFsProvider.writeUtf8File).toHaveBeenCalledWith(
+        expect(writeFile).toHaveBeenCalledWith(
             path.join(path.dirname(testSolutionPath), '.cmsis', 'tools-environment.yml'),
             expect.any(String),
         );
@@ -790,7 +802,7 @@ describe('SolutionManager', () => {
 
     it('continues conversion completion when writing the tools environment fails', async () => {
         const writeError = new Error('write failed');
-        workspaceFsProvider.writeUtf8File.mockRejectedValueOnce(writeError);
+        writeFile.mockImplementationOnce(() => { throw writeError; });
         const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 
         await activateTestSolution();
@@ -799,7 +811,7 @@ describe('SolutionManager', () => {
         expect(cbuildSetupRequestedListener).toHaveBeenCalledTimes(1);
         expect(consoleErrorSpy).toHaveBeenCalledWith(
             `Failed to write tools environment for '${testSolutionPath}'`,
-            writeError,
+            expect.objectContaining({ message: expect.stringContaining('write failed') }),
         );
         consoleErrorSpy.mockRestore();
     });
@@ -835,7 +847,7 @@ describe('SolutionManager', () => {
         await activateTestSolution();
 
         expect(convertMock).toHaveBeenCalledTimes(1);
-        expect(workspaceFsProvider.writeUtf8File).not.toHaveBeenCalled();
+        expect(writeFile).not.toHaveBeenCalled();
 
         isActivating = false;
         vcpkgActivateEmitter.fire({
@@ -852,7 +864,7 @@ describe('SolutionManager', () => {
         });
         await waitTimeout(10);
 
-        const content = workspaceFsProvider.writeUtf8File.mock.calls[0][1];
+        const content = writeFile.mock.calls[0][1];
         expect(yaml.parse(content)).toMatchObject({
             'cmsis-tools-environment': {
                 environment: {
@@ -890,7 +902,7 @@ describe('SolutionManager', () => {
         await waitTimeout(200);
 
         expect(cbuildSetupRequestedListener).not.toHaveBeenCalled();
-        expect(workspaceFsProvider.writeUtf8File).toHaveBeenCalledWith(
+        expect(writeFile).toHaveBeenCalledWith(
             path.join(path.dirname(testSolutionPath), '.cmsis', 'tools-environment.yml'),
             expect.any(String),
         );
