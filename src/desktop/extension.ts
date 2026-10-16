@@ -15,11 +15,14 @@
  */
 
 import type { EnvironmentManagerApiV1, EnvironmentManagerExtension } from '@arm-software/vscode-environment-manager';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { ExtensionContext, window, workspace } from 'vscode';
 import { CsolutionExtension } from '../../api/csolution';
 import { CsolutionExtensionImpl } from '../api/csolution-extension';
 import { DataManager } from '../data-manager/data-manager';
 import { CsolutionDataSource, SolarDataSource } from '../data-manager/data-source';
+import { DocManager } from '../doc-manager/doc-manager';
 import * as manifest from '../manifest';
 import { OpenFileExternal } from '../open-file-external';
 import { PackInstallCommands } from '../packs/pack-install-commands';
@@ -106,6 +109,8 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     TextFile.setErrorReporter(vscodeUtils.showErrorMessage);
     context.subscriptions.push({ dispose: () => TextFile.setErrorReporter() });
 
+    const docManager = new DocManager(path.join(os.homedir(), '.cmsis', 'docs'));
+
     // Companion Extensions
     type SerialMonitorExtension = {
         getApi: (version: Version, context: ExtensionContext) => SerialMonitorApi;
@@ -160,6 +165,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         commandsProvider,
         environmentManagerApiProvider,
         envManager,
+        docManager,
         toolsEnvironment);
 
     initUtils(configurationProvider, solutionManager);
@@ -283,6 +289,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const openArmExamplesCommand = new OpenArmExamplesCommand(commandsProvider, externalFileOpener);
 
     const activations = [
+        docManager.initialize(),
         eventHub.activate(context),
         csolutionService.activate(context),
         solutionManager.activate(context),

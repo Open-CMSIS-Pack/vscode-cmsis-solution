@@ -22,15 +22,17 @@ import { setContextMenuAttributes, setHeaderContext, setMergeFileContext } from 
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 import { CSolution } from '../../../solutions/csolution';
 import { SolutionRpcData } from '../../../solutions/solution-rpc-data';
+import { DocManager } from '../../../doc-manager/doc-manager';
 
 export class FileItemBuilder extends SolutionOutlineItemBuilder {
     constructor(
         csolution?: CSolution,
         rpcData?: SolutionRpcData,
+        docManager?: DocManager,
         context?: string,
         public readonly topTag?: string,
     ) {
-        super(csolution, rpcData, context);
+        super(csolution, rpcData, docManager, context);
     }
 
     public createFileNodes(cgroupItem: COutlineItem, files: ITreeItem<CTreeItem>[], docs?: ITreeItem<CTreeItem>[], isApi?: boolean, addContextMenu?: boolean) {

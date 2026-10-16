@@ -101,7 +101,9 @@ export class SolutionOutlineView {
             if (this.treeUpdateCount !== thisTreeUpdateNumber) {
                 return;
             }
-            const solutionOutlineTree = new SolutionOutlineTree(this.solutionManager.getCsolution(), this.solutionManager.getRpcData());
+            const solutionOutlineTree = new SolutionOutlineTree(
+                this.solutionManager.getCsolution(), this.solutionManager.getRpcData(), this.solutionManager.getDocManager(),
+            );
             const tree = solutionOutlineTree.createTree();
             this.treeViewProvider.updateTree(tree);
             this.treeViewFileDecorationProvider.setTreeRoot(tree);

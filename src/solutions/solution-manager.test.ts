@@ -36,6 +36,7 @@ import { EnvironmentManager } from '../desktop/env-manager';
 import { CONFIG_ENVIRONMENT_VARIABLES } from '../manifest';
 import { ETextFileResult, YamlFile } from '@open-cmsis-pack/cmsis-common';
 import { ToolsEnvironment } from './tools-environment';
+import { DocManager } from '../doc-manager/doc-manager';
 
 
 const convertResultData: ConvertResultData = {
@@ -73,6 +74,7 @@ describe('SolutionManager', () => {
     let writeFile: jest.Mock<void, [string, string]>;
     let saveSpy: jest.SpyInstance;
     let toolsEnvironment: ToolsEnvironment;
+    let docManager: DocManager;
     let autoConvertOnFileChange: boolean | undefined;
 
     const testDataHandler = new TestDataHandler();
@@ -163,6 +165,7 @@ describe('SolutionManager', () => {
             environmentManager,
             extensionApiProviderFactory(environmentManagerApi),
         );
+        docManager = new DocManager(path.join(tmpSolutionsDir, 'inventory'));
         solutionManager = new SolutionManagerImpl(
             mockActiveSolutionTracker as unknown as ActiveSolutionTracker,
             eventHub,
@@ -170,6 +173,7 @@ describe('SolutionManager', () => {
             commandsProvider,
             extensionApiProviderFactory(environmentManagerApi),
             environmentManager,
+            docManager,
             toolsEnvironment,
         );
         loadStateChangeListener = jest.fn();
@@ -193,6 +197,10 @@ describe('SolutionManager', () => {
         return file!;
     };
 
+
+    it('exposes the injected document manager', () => {
+        expect(solutionManager.getDocManager()).toBe(docManager);
+    });
 
     it('register the command on activation', async () => {
         expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(2);
