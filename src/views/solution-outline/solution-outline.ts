@@ -102,7 +102,7 @@ export class SolutionOutlineView {
                 return;
             }
             const solutionOutlineTree = new SolutionOutlineTree(
-                this.solutionManager.getCsolution(), this.solutionManager.getRpcData(), undefined, this.solutionManager.getDocManager(),
+                this.solutionManager.getCsolution(), this.solutionManager.getRpcData(), this.solutionManager.getDocManager(),
             );
             const tree = solutionOutlineTree.createTree();
             this.treeViewProvider.updateTree(tree);

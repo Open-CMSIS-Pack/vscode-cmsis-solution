@@ -26,8 +26,8 @@ export class SolutionOutlineItemBuilder {
     constructor(
         protected csolution?: CSolution,
         protected rpcData?: SolutionRpcData,
-        protected context?: string,
         protected docManager?: DocManager,
+        protected context?: string,
     ) { }
 
     /**

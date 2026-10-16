@@ -21,15 +21,21 @@ import { CSolution } from '../../../solutions/csolution';
 import { HardwareItemBuilder } from './solution-outline-hardware-item';
 import { TestDataHandler } from '../../../__test__/test-data';
 import path from 'node:path';
+import { DocManager } from '../../../doc-manager/doc-manager';
 
 describe('HardwareItemBuilder', () => {
     let cSolFile: string;
     let tmpSolutionDir: string;
+    let docManager: DocManager;
     const testDataHandler = new TestDataHandler();
 
     beforeAll(async () => {
         tmpSolutionDir = testDataHandler.copyTestDataToTmp('solutions');
         cSolFile = path.join(tmpSolutionDir, 'USBD', 'USB_Device.csolution.yml');
+    });
+
+    beforeEach(() => {
+        docManager = new DocManager(path.join(testDataHandler.tmpDir, '.docs'));
     });
 
     afterAll(async () => {
@@ -52,7 +58,7 @@ describe('HardwareItemBuilder', () => {
         expect(loadResult).toEqual(ETextFileResult.Success);
 
         const want = 'Hello+CS300.dbgconf';
-        const hwItemBuilder = new HardwareItemBuilder(csolution);
+        const hwItemBuilder = new HardwareItemBuilder(csolution, undefined, docManager);
         const hwNodes = hwItemBuilder.createHardwareNodes(csolution, topChild as CTreeItem);
         const node = hwNodes.get('STM32U585AIIx');
 
@@ -83,7 +89,7 @@ describe('HardwareItemBuilder', () => {
         const loadResult = await csolution.load(cSolFile);
         expect(loadResult).toEqual(ETextFileResult.Success);
 
-        const hwItemBuilder = new HardwareItemBuilder(csolution);
+        const hwItemBuilder = new HardwareItemBuilder(csolution, undefined, docManager);
         const hwNodes = hwItemBuilder.createHardwareNodes(csolution, topChild as CTreeItem);
         const node = hwNodes.get('STM32U585AIIx');
 

@@ -24,7 +24,7 @@ import { textFileSystemFactory } from '../../../__test__/text-file-system';
 
 class TestSolutionOutlineItemBuilder extends SolutionOutlineItemBuilder {
     constructor(context?: string, docManager?: DocManager) {
-        super(undefined, undefined, context, docManager);
+        super(undefined, undefined, docManager, context);
     }
 
     public get documentManager(): DocManager | undefined {

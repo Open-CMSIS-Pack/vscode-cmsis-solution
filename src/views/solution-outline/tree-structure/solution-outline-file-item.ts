@@ -28,11 +28,11 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
     constructor(
         csolution?: CSolution,
         rpcData?: SolutionRpcData,
+        docManager?: DocManager,
         context?: string,
         public readonly topTag?: string,
-        docManager?: DocManager,
     ) {
-        super(csolution, rpcData, context, docManager);
+        super(csolution, rpcData, docManager, context);
     }
 
     public createFileNodes(cgroupItem: COutlineItem, files: ITreeItem<CTreeItem>[], docs?: ITreeItem<CTreeItem>[], isApi?: boolean, addContextMenu?: boolean) {
