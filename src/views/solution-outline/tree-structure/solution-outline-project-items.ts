@@ -134,7 +134,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
 
     private createGroupChildren(cgroupItem: COutlineItem, group: CTreeItem, topTag: string): void {
         const isRegularGroup = !group.getTag() || group.getTag() === '-';
-        const fileTreeItem = new FileItemBuilder(this.csolution, this.rpcData, this.context, topTag);
+        const fileTreeItem = new FileItemBuilder(this.csolution, this.rpcData, this.context, topTag, this.docManager);
 
         if (isRegularGroup) {
             this.createGroupTree(cgroupItem, group, cgroupItem.getAttribute('groupPath') ?? '');
@@ -291,7 +291,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         const docs: ITreeItem<CTreeItem>[] = [];
         const apiFiles = apiChild.getGrandChildren('files');
 
-        const fileTreeItem = new FileItemBuilder(this.csolution, this.rpcData, this.context);
+        const fileTreeItem = new FileItemBuilder(this.csolution, this.rpcData, this.context, undefined, this.docManager);
         fileTreeItem.createFileNodes(node, apiFiles, docs, true);
 
         const fileNodes = node.getChildren();
@@ -303,7 +303,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
     private addComponentData(node: COutlineItem, component: ITreeItem<CTreeItem>, cbuild: CTreeItem): void {
         // add files
         const docs: ITreeItem<CTreeItem>[] = [];
-        const fileTreeItem = new FileItemBuilder(this.csolution, this.rpcData, this.context);
+        const fileTreeItem = new FileItemBuilder(this.csolution, this.rpcData, this.context, undefined, this.docManager);
         const componentFiles = component.getGrandChildren('files');
         fileTreeItem.createFileNodes(node, componentFiles, docs);
 

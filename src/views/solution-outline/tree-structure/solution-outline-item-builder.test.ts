@@ -17,10 +17,18 @@
 import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 import { COutlineItem } from './solution-outline-item';
+import * as path from 'node:path';
+import { ETextFileResult, TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
+import { DocManager } from '../../../doc-manager/doc-manager';
+import { textFileSystemFactory } from '../../../__test__/text-file-system';
 
 class TestSolutionOutlineItemBuilder extends SolutionOutlineItemBuilder {
-    constructor(context?: string) {
-        super(undefined, undefined, context);
+    constructor(context?: string, docManager?: DocManager) {
+        super(undefined, undefined, context, docManager);
+    }
+
+    public get documentManager(): DocManager | undefined {
+        return this.docManager;
     }
 
     public applyContextExclusion(outlineItem: COutlineItem, sourceItem?: ITreeItem<CTreeItem>): void {
@@ -30,6 +38,27 @@ class TestSolutionOutlineItemBuilder extends SolutionOutlineItemBuilder {
 
 describe('SolutionOutlineItemBuilder', () => {
     const context = 'Project.Debug+Target';
+
+    afterEach(() => {
+        TextFile.setFileSystem();
+    });
+
+    it('retains the injected real document manager and its loaded inventory', async () => {
+        const docsDirectory = path.resolve('inventory');
+        const fileSystem = textFileSystemFactory(new Map([[
+            path.join(docsDirectory, 'docs.yml'),
+            'docs: {boards: [{board: Vendor::Board, docs: [{name: manual, title: Board manual}]}]}\n',
+        ]]));
+        TextFile.setFileSystem(fileSystem);
+        const docManager = new DocManager(docsDirectory);
+        expect(await docManager.initialize()).toBe(ETextFileResult.Success);
+
+        const builder = new TestSolutionOutlineItemBuilder(context, docManager);
+
+        expect(builder.documentManager).toBe(docManager);
+        expect(builder.documentManager?.file.getDoc('manual', 'Vendor::Board', 'board')?.title).toBe('Board manual');
+        expect(fileSystem.write).not.toHaveBeenCalled();
+    });
 
     function makeSourceItem(forContext: string[]): ITreeItem<CTreeItem> {
         return {

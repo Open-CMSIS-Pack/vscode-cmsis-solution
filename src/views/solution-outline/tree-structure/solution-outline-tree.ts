@@ -82,7 +82,7 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
         const hardwareTreeNode: Map<string, COutlineItem> = new Map();
         let treeNodes: COutlineItem[] = [];
         const projectsTreeNode: COutlineItem[] = [];
-        const hardwareTreeItem = new HardwareItemBuilder(csolution, this.rpcData);
+        const hardwareTreeItem = new HardwareItemBuilder(csolution, this.rpcData, undefined, this.docManager);
 
         for (const cbuildYml of csolution.cbuildYmlRoot) {
             const cbuild = cbuildYml[1].getChildItem();
@@ -122,7 +122,7 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
 
         // add children
         if (cproject) {
-            const projectItems = new ProjectItemsBuilder(this.csolution, this.rpcData, context);
+            const projectItems = new ProjectItemsBuilder(this.csolution, this.rpcData, context, this.docManager);
             projectItems.addProjectChildren(this.csolution, cprojectItem, cprojectFile, cbuild);
         } else {
             cprojectItem.setAttribute('description', 'error loading project');

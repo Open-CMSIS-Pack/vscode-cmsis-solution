@@ -30,6 +30,7 @@ import { EnvironmentManager } from '../desktop/env-manager';
 import { pathsEqual } from '../utils/path-utils';
 import { workspaceFsProvider as defaultWorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { ToolsEnvironment } from './tools-environment';
+import { DocManager } from '../doc-manager/doc-manager';
 
 const solutionDirtyContextKey = `${manifest.PACKAGE_NAME}.solutionDirty`;
 const refreshDirtyCommandId = `${manifest.PACKAGE_NAME}.refreshDirty`;
@@ -68,6 +69,8 @@ export interface SolutionManager {
     readonly getCsolution: () => CSolution | undefined;
 
     readonly getRpcData: () => SolutionRpcData | undefined;
+
+    readonly getDocManager: () => DocManager;
 
     readonly onDidChangeLoadState: vscode.Event<SolutionLoadStateChangeEvent>;
 
@@ -112,6 +115,7 @@ export class SolutionManagerImpl implements SolutionManager {
         private readonly environmentManagerApiProvider: ExtensionApiProvider<Pick<EnvironmentManagerApiV1,
             'onDidActivate' | 'onDidFailActivation' | 'getActiveTools' | 'isActivating'>>,
         private readonly environmentManager: EnvironmentManager,
+        private readonly docManager: DocManager,
         private readonly toolsEnvironment = new ToolsEnvironment(environmentManager, environmentManagerApiProvider, defaultWorkspaceFsProvider),
     ) { }
 
@@ -151,6 +155,9 @@ export class SolutionManagerImpl implements SolutionManager {
         return this.rpcData;
     }
 
+    public getDocManager(): DocManager {
+        return this.docManager;
+    }
 
     public get loadState(): SolutionLoadState {
         return this._loadState;
