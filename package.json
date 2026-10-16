@@ -82,6 +82,8 @@
     "lint:md": "markdownlint **/*.md -c ./.github/markdownlint.jsonc -i ./node_modules -i ./dist -i ./coverage -i ./tools -i ./test-data -i ./src/e2e-tests/data -i CHANGELOG.md",
     "copyright:check": "tsx scripts/copyright-manager.ts --mode=check",
     "copyright:fix": "tsx scripts/copyright-manager.ts --mode=fix",
+    "fmtlf:check": "tsx scripts/fmtlf.ts --mode=check",
+    "fmtlf:fix": "tsx scripts/fmtlf.ts --mode=fix",
     "check:links": "tsx scripts/check-links.ts -i ./node_modules/** -i ./.github/** -c ./.github/markdown-link-check.jsonc"
   },
   "dependencies": {
