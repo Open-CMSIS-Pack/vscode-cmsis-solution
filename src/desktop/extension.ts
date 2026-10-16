@@ -39,6 +39,7 @@ import { ConvertMdkToCsolutionCommand } from '../solutions/mdk-conversion/conver
 import { SolutionCreatorImp } from '../solutions/solution-creator';
 import { SolutionInitialiserImp } from '../solutions/solution-initialiser';
 import { SolutionManagerImpl } from '../solutions/solution-manager';
+import { ToolsEnvironment } from '../solutions/tools-environment';
 import { SolutionRootsWatcher } from '../solutions/solution-roots-watcher';
 import { StatusBar } from '../status-bar';
 import { BuildCommand } from '../tasks/build/build-command';
@@ -151,13 +152,15 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
 
     const rpcData = new SolutionRpcData(csolutionService);
 
+    const toolsEnvironment = new ToolsEnvironment(envManager, environmentManagerApiProvider);
     const solutionManager = new SolutionManagerImpl(
         activeSolutionTracker,
         eventHub,
         rpcData,
         commandsProvider,
         environmentManagerApiProvider,
-        envManager);
+        envManager,
+        toolsEnvironment);
 
     initUtils(configurationProvider, solutionManager);
 
@@ -269,7 +272,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const clangdManager = new ClangdManager(solutionManager, configurationProvider, armclangDefineGetter, compileCommandsParser, workspaceFsProvider, commandsProvider);
     const targetPackCommand = new TargetPackCommandImpl(commandsProvider, solutionManager);
     const debugHardwareCommands = new DebugHardwareCommands(commandsProvider, solutionManager);
-    const csolutionExtension = new CsolutionExtensionImpl(solutionCreator, buildTaskProvider, dataManager);
+    const csolutionExtension = new CsolutionExtensionImpl(solutionCreator, buildTaskProvider, dataManager, solutionManager, toolsEnvironment);
     const solutionOutline = new SolutionOutlineView(solutionManager, treeViewProviderImpl, globalStateProvider, treeViewFileDecorationProvider, configurationProvider);
     const cmsisCommands = new CmsisCommands(configurationProvider, commandsProvider, solutionManager, debugProvider, serialMonitorExtension);
     const buildStopCommand = new BuildStopCommand(commandsProvider, buildTaskProvider);

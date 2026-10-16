@@ -9,7 +9,7 @@
       "type": "object",
       "properties": {
         "version": {
-          "const": "1.0.0",
+          "const": "1.1.0",
           "description": "Version of the tools environment document format."
         },
         "solution": {
@@ -44,7 +44,7 @@
           "items": { "$ref": "#/definitions/tool" }
         }
       },
-      "required": [ "version", "generated-by", "solution", "environment", "tools" ],
+      "required": [ "version", "generated-by", "environment", "tools" ],
       "additionalProperties": false
     }
   },

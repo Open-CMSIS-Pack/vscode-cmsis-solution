@@ -20,12 +20,12 @@ import * as vscode from 'vscode';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import yaml from 'yaml';
+import { ITextFileSystem, TextFile, YamlFile } from '@open-cmsis-pack/cmsis-common';
 import { ActiveTool, VcpkgResults } from '@arm-software/vscode-environment-manager';
 import { TestDataHandler } from '../__test__/test-data';
 import { EnvironmentManager } from '../desktop/env-manager';
 import { CMSIS_TOOLBOX_FOLDER } from '../manifest';
 import { extensionApiProviderFactory } from '../vscode-api/extension-api-provider.factories';
-import { workspaceFsProviderFactory } from '../vscode-api/workspace-fs-provider.factories';
 import { ToolsEnvironment } from './tools-environment';
 
 describe('ToolsEnvironment', () => {
@@ -39,13 +39,65 @@ describe('ToolsEnvironment', () => {
     addFormats(ajv);
     const validateToolsEnvironment = ajv.compile(toolsEnvironmentSchema);
     const toPortablePath = (value: string): string => value.replace(/\\/g, '/');
+    let fileSystem: jest.Mocked<ITextFileSystem>;
 
     beforeEach(() => {
+        fileSystem = {
+            exists: jest.fn().mockReturnValue(false),
+            read: jest.fn(),
+            write: jest.fn(),
+            unlink: jest.fn(),
+            dirname: jest.fn(path.dirname),
+            resolve: jest.fn(path.resolve),
+        };
+        TextFile.setFileSystem(fileSystem);
         (vscode.extensions.getExtension as jest.Mock).mockReturnValue(undefined);
+    });
+
+    afterEach(() => {
+        TextFile.setFileSystem();
+        jest.restoreAllMocks();
     });
 
     afterAll(() => {
         testDataHandler.dispose();
+    });
+
+    it('renders a solution-free snapshot without global activation state or writes', () => {
+        const toolsEnvironment = new ToolsEnvironment(
+            {} as EnvironmentManager,
+            extensionApiProviderFactory({ getActiveTools: jest.fn() }),
+            { version: 1, variables: { OTHER_FOLDER: 'secret' }, paths: { PATH: [] }, tools: {} },
+        );
+        const content = toolsEnvironment.render({
+            folder: tempDir,
+            environment: { OTHER_FOLDER: 'secret' },
+            configuredVariables: {},
+            installedTools: [],
+        });
+        expect(validateToolsEnvironment(yaml.parse(content))).toBe(true);
+        const document = yaml.parse(content)['cmsis-tools-environment'];
+        expect(document.version).toBe('1.1.0');
+        expect(document).not.toHaveProperty('solution');
+        expect(document.environment.variables).toEqual({});
+        expect(document.tools[0].name).toBe('CMSIS-Toolbox');
+        expect(fileSystem.write).not.toHaveBeenCalled();
+    });
+
+    it('exports the current environment without a solution or file writes', async () => {
+        const environmentManager = {
+            getEnvironmentVariables: jest.fn().mockReturnValue({ WINDOW_VALUE: 'current' }),
+            getConfiguredEnvironmentVariables: jest.fn().mockReturnValue({ WINDOW_VALUE: 'current' }),
+        } as unknown as EnvironmentManager;
+        const owner = new ToolsEnvironment(environmentManager, extensionApiProviderFactory());
+        const content = await owner.getToolsEnvironment();
+        const document = yaml.parse(content);
+        expect(validateToolsEnvironment(document)).toBe(true);
+        expect(document['cmsis-tools-environment'].version).toBe('1.1.0');
+        expect(document['cmsis-tools-environment']).not.toHaveProperty('solution');
+        expect(document['cmsis-tools-environment'].environment.variables.WINDOW_VALUE).toBe('current');
+        expect(fileSystem.write).not.toHaveBeenCalled();
+        expect(fileSystem.read).not.toHaveBeenCalled();
     });
 
     it('writes the resolved environment next to the solution', async () => {
@@ -134,26 +186,29 @@ describe('ToolsEnvironment', () => {
         const environmentManagerApiProvider = extensionApiProviderFactory({
             getActiveTools: jest.fn().mockReturnValue(installedTools),
         });
-        const workspaceFsProvider = workspaceFsProviderFactory();
         const toolsEnvironment = new ToolsEnvironment(
             environmentManager,
             environmentManagerApiProvider,
-            workspaceFsProvider,
             vcpkgResults,
         );
         const solutionPath = path.join('/workspace', 'project.csolution.yml');
 
         await toolsEnvironment.write(solutionPath);
 
-        expect(workspaceFsProvider.createDirectory).toHaveBeenCalledWith(path.join('/workspace', '.cmsis'));
-        expect(workspaceFsProvider.writeUtf8File).toHaveBeenCalledWith(
+        expect(fileSystem.write).toHaveBeenCalledWith(
             path.join('/workspace', '.cmsis', 'tools-environment.yml'),
             expect.any(String),
         );
-        const content = workspaceFsProvider.writeUtf8File.mock.calls[0][1];
+        const content = fileSystem.write.mock.calls[0][1];
+        expect(await toolsEnvironment.getToolsEnvironment(solutionPath)).toBe(content);
+        expect(content).toBe(toolsEnvironment.render({
+            folder: path.dirname(solutionPath), solutionPath, installedTools, vcpkgResults,
+            environment: environmentManager.getEnvironmentVariables(),
+            configuredVariables: environmentManager.getConfiguredEnvironmentVariables(),
+        }));
         expect(yaml.parse(content)).toEqual({
             'cmsis-tools-environment': {
-                version: '1.0.0',
+                version: '1.1.0',
                 'generated-by': 'arm.cmsis-csolution version 1.70.1-41-20260902',
                 solution: '../project.csolution.yml',
                 environment: {
@@ -234,14 +289,13 @@ describe('ToolsEnvironment', () => {
             },
         });
 
-        workspaceFsProvider.readUtf8File.mockResolvedValue(content);
-        workspaceFsProvider.createDirectory.mockClear();
-        workspaceFsProvider.writeUtf8File.mockClear();
+        fileSystem.exists.mockReturnValue(true);
+        fileSystem.read.mockReturnValue(content);
+        fileSystem.write.mockClear();
 
         await toolsEnvironment.write(solutionPath);
 
-        expect(workspaceFsProvider.createDirectory).not.toHaveBeenCalled();
-        expect(workspaceFsProvider.writeUtf8File).not.toHaveBeenCalled();
+        expect(fileSystem.write).not.toHaveBeenCalled();
     });
 
     it('writes a minimal environment when Environment Manager is unavailable and replaces unreadable output', async () => {
@@ -254,17 +308,17 @@ describe('ToolsEnvironment', () => {
                 PATH: '/configured/bin',
             }),
         } as unknown as EnvironmentManager;
-        const workspaceFsProvider = workspaceFsProviderFactory();
-        workspaceFsProvider.readUtf8File.mockRejectedValue(new Error('unreadable'));
+        fileSystem.exists.mockReturnValue(true);
+        fileSystem.read.mockImplementation(() => { throw new Error('unreadable'); });
+        jest.spyOn(console, 'error').mockImplementation(() => undefined);
         const toolsEnvironment = new ToolsEnvironment(
             environmentManager,
             extensionApiProviderFactory(),
-            workspaceFsProvider,
         );
 
         await toolsEnvironment.write(path.join('/workspace', 'project.csolution.yml'));
 
-        const content = workspaceFsProvider.writeUtf8File.mock.calls[0][1];
+        const content = fileSystem.write.mock.calls[0][1];
         expect(yaml.parse(content)).toMatchObject({
             'cmsis-tools-environment': {
                 environment: {
@@ -292,7 +346,6 @@ describe('ToolsEnvironment', () => {
                 onDidActivate: activateEmitter.event,
                 onDidFailActivation: failEmitter.event,
             }),
-            workspaceFsProviderFactory(),
         );
 
         const scheduling = toolsEnvironment.captureAndQueueWrite(path.join('/workspace', 'project.csolution.yml'));
@@ -314,10 +367,9 @@ describe('ToolsEnvironment', () => {
         const activateEmitter = new vscode.EventEmitter<VcpkgResults>();
         const failEmitter = new vscode.EventEmitter<vscode.Uri>();
         let isActivating = true;
-        const workspaceFsProvider = workspaceFsProviderFactory();
         let markWriteFinished!: () => void;
         const writeFinished = new Promise<void>(resolve => { markWriteFinished = resolve; });
-        workspaceFsProvider.writeUtf8File.mockImplementation(async () => { markWriteFinished(); });
+        fileSystem.write.mockImplementation(() => { markWriteFinished(); });
         const toolsEnvironment = new ToolsEnvironment(
             environmentManager,
             extensionApiProviderFactory({
@@ -326,7 +378,6 @@ describe('ToolsEnvironment', () => {
                 onDidActivate: activateEmitter.event,
                 onDidFailActivation: failEmitter.event,
             }),
-            workspaceFsProvider,
         );
 
         const scheduling = toolsEnvironment.captureAndQueueWrite(path.join('/workspace', 'project.csolution.yml'));
@@ -339,7 +390,7 @@ describe('ToolsEnvironment', () => {
         await writeFinished;
 
         expect(environmentManager.getEnvironmentVariables).toHaveBeenCalledTimes(1);
-        expect(workspaceFsProvider.writeUtf8File).toHaveBeenCalledTimes(1);
+        expect(fileSystem.write).toHaveBeenCalledTimes(1);
     });
 
     it('captures immediately when Environment Manager activation is idle', async () => {
@@ -349,10 +400,9 @@ describe('ToolsEnvironment', () => {
         } as unknown as EnvironmentManager;
         const activateEmitter = new vscode.EventEmitter<VcpkgResults>();
         const failEmitter = new vscode.EventEmitter<vscode.Uri>();
-        const workspaceFsProvider = workspaceFsProviderFactory();
         let markWriteFinished!: () => void;
         const writeFinished = new Promise<void>(resolve => { markWriteFinished = resolve; });
-        workspaceFsProvider.writeUtf8File.mockImplementation(async () => { markWriteFinished(); });
+        fileSystem.write.mockImplementation(() => { markWriteFinished(); });
         const toolsEnvironment = new ToolsEnvironment(
             environmentManager,
             extensionApiProviderFactory({
@@ -361,14 +411,13 @@ describe('ToolsEnvironment', () => {
                 onDidActivate: activateEmitter.event,
                 onDidFailActivation: failEmitter.event,
             }),
-            workspaceFsProvider,
         );
 
         await toolsEnvironment.captureAndQueueWrite(path.join('/workspace', 'project.csolution.yml'));
         await writeFinished;
 
         expect(environmentManager.getEnvironmentVariables).toHaveBeenCalledTimes(1);
-        expect(workspaceFsProvider.writeUtf8File).toHaveBeenCalledTimes(1);
+        expect(fileSystem.write).toHaveBeenCalledTimes(1);
     });
 
     it('keeps queued writes in snapshot order', async () => {
@@ -377,22 +426,22 @@ describe('ToolsEnvironment', () => {
             getEnvironmentVariables: jest.fn(() => ({ CONFIGURED_VALUE: configuredValue })),
             getConfiguredEnvironmentVariables: jest.fn(() => ({ CONFIGURED_VALUE: configuredValue })),
         } as unknown as EnvironmentManager;
-        const workspaceFsProvider = workspaceFsProviderFactory();
         let finishFirstWrite!: () => void;
         let markFirstWriteStarted!: () => void;
         const firstWriteStarted = new Promise<void>(resolve => { markFirstWriteStarted = resolve; });
         let markSecondWriteFinished!: () => void;
         const secondWriteFinished = new Promise<void>(resolve => { markSecondWriteFinished = resolve; });
-        workspaceFsProvider.writeUtf8File
-            .mockImplementationOnce(() => {
-                markFirstWriteStarted();
-                return new Promise<void>(resolve => { finishFirstWrite = resolve; });
-            })
-            .mockImplementationOnce(async () => { markSecondWriteFinished(); });
+        const save = YamlFile.prototype.save;
+        jest.spyOn(YamlFile.prototype, 'save').mockImplementationOnce(async function (this: YamlFile) {
+            markFirstWriteStarted();
+            await new Promise<void>(resolve => { finishFirstWrite = resolve; });
+            return save.call(this);
+        });
+        fileSystem.write.mockImplementationOnce(() => undefined)
+            .mockImplementationOnce(() => { markSecondWriteFinished(); });
         const toolsEnvironment = new ToolsEnvironment(
             environmentManager,
             extensionApiProviderFactory(),
-            workspaceFsProvider,
         );
         const solutionPath = path.join('/workspace', 'project.csolution.yml');
 
@@ -400,14 +449,14 @@ describe('ToolsEnvironment', () => {
         await firstWriteStarted;
         configuredValue = 'second';
         await toolsEnvironment.captureAndQueueWrite(solutionPath);
-        expect(workspaceFsProvider.writeUtf8File).toHaveBeenCalledTimes(1);
+        expect(fileSystem.write).not.toHaveBeenCalled();
 
         finishFirstWrite();
         await secondWriteFinished;
 
-        expect(workspaceFsProvider.writeUtf8File).toHaveBeenCalledTimes(2);
-        const firstContent = workspaceFsProvider.writeUtf8File.mock.calls[0][1];
-        const secondContent = workspaceFsProvider.writeUtf8File.mock.calls[1][1];
+        expect(fileSystem.write).toHaveBeenCalledTimes(2);
+        const firstContent = fileSystem.write.mock.calls[0][1];
+        const secondContent = fileSystem.write.mock.calls[1][1];
         expect(firstContent).toContain('CONFIGURED_VALUE: first');
         expect(secondContent).toContain('CONFIGURED_VALUE: second');
     });
@@ -418,24 +467,24 @@ describe('ToolsEnvironment', () => {
             getEnvironmentVariables: jest.fn(() => ({ CONFIGURED_VALUE: configuredValue })),
             getConfiguredEnvironmentVariables: jest.fn(() => ({ CONFIGURED_VALUE: configuredValue })),
         } as unknown as EnvironmentManager;
-        const workspaceFsProvider = workspaceFsProviderFactory();
         const writeError = new Error('write failed');
         const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
-        let rejectFirstWrite!: (error: Error) => void;
+        let finishFirstWrite!: () => void;
         let markFirstWriteStarted!: () => void;
         const firstWriteStarted = new Promise<void>(resolve => { markFirstWriteStarted = resolve; });
         let markSecondWriteFinished!: () => void;
         const secondWriteFinished = new Promise<void>(resolve => { markSecondWriteFinished = resolve; });
-        workspaceFsProvider.writeUtf8File
-            .mockImplementationOnce(() => {
-                markFirstWriteStarted();
-                return new Promise<void>((_resolve, reject) => { rejectFirstWrite = reject; });
-            })
-            .mockImplementationOnce(async () => { markSecondWriteFinished(); });
+        const save = YamlFile.prototype.save;
+        jest.spyOn(YamlFile.prototype, 'save').mockImplementationOnce(async function (this: YamlFile) {
+            markFirstWriteStarted();
+            await new Promise<void>(resolve => { finishFirstWrite = resolve; });
+            return save.call(this);
+        });
+        fileSystem.write.mockImplementationOnce(() => { throw writeError; })
+            .mockImplementationOnce(() => { markSecondWriteFinished(); });
         const toolsEnvironment = new ToolsEnvironment(
             environmentManager,
             extensionApiProviderFactory(),
-            workspaceFsProvider,
         );
         const solutionPath = path.join('/workspace', 'project.csolution.yml');
 
@@ -444,17 +493,17 @@ describe('ToolsEnvironment', () => {
             await firstWriteStarted;
             configuredValue = 'second';
             await toolsEnvironment.captureAndQueueWrite(solutionPath);
-            expect(workspaceFsProvider.writeUtf8File).toHaveBeenCalledTimes(1);
+            expect(fileSystem.write).not.toHaveBeenCalled();
 
-            rejectFirstWrite(writeError);
+            finishFirstWrite();
             await secondWriteFinished;
 
             expect(consoleErrorSpy).toHaveBeenCalledWith(
                 `Failed to write tools environment for '${solutionPath}'`,
-                writeError,
+                expect.objectContaining({ message: expect.stringContaining('write failed') }),
             );
-            expect(workspaceFsProvider.writeUtf8File).toHaveBeenCalledTimes(2);
-            expect(workspaceFsProvider.writeUtf8File.mock.calls[1][1]).toContain('CONFIGURED_VALUE: second');
+            expect(fileSystem.write).toHaveBeenCalledTimes(2);
+            expect(fileSystem.write.mock.calls[1][1]).toContain('CONFIGURED_VALUE: second');
         } finally {
             consoleErrorSpy.mockRestore();
         }
@@ -469,11 +518,9 @@ describe('ToolsEnvironment', () => {
             getConfiguredEnvironmentVariables: jest.fn().mockReturnValue({}),
         } as unknown as EnvironmentManager;
         const vcpkgPath = path.join('/vcpkg', 'tool', 'bin');
-        const workspaceFsProvider = workspaceFsProviderFactory();
         const toolsEnvironment = new ToolsEnvironment(
             environmentManager,
             extensionApiProviderFactory(),
-            workspaceFsProvider,
             {
                 version: 1,
                 variables: { Path: vcpkgPath },
@@ -484,7 +531,7 @@ describe('ToolsEnvironment', () => {
 
         await toolsEnvironment.write(path.join('/workspace', 'project.csolution.yml'));
 
-        const content = workspaceFsProvider.writeUtf8File.mock.calls[0][1];
+        const content = fileSystem.write.mock.calls[0][1];
         expect(yaml.parse(content)['cmsis-tools-environment'].environment).toEqual({
             path: [builtInToolboxBin, vcpkgPath].map(toPortablePath),
             variables: {},
@@ -501,7 +548,6 @@ describe('ToolsEnvironment', () => {
                 PATH: '/configured/bin',
             }),
         } as unknown as EnvironmentManager;
-        const workspaceFsProvider = workspaceFsProviderFactory();
         const toolsEnvironment = new ToolsEnvironment(
             environmentManager,
             extensionApiProviderFactory({
@@ -511,12 +557,11 @@ describe('ToolsEnvironment', () => {
                     fullPath: '/configured/bin/configured-tool',
                 }]),
             }),
-            workspaceFsProvider,
         );
 
         await toolsEnvironment.write(path.join('/workspace', 'project.csolution.yml'));
 
-        const document = yaml.parse(workspaceFsProvider.writeUtf8File.mock.calls[0][1]);
+        const document = yaml.parse(fileSystem.write.mock.calls[0][1]);
         expect(validateToolsEnvironment(document)).toBe(true);
         expect(validateToolsEnvironment.errors).toBeNull();
     });
@@ -537,16 +582,14 @@ describe('ToolsEnvironment', () => {
             }),
             getConfiguredEnvironmentVariables: jest.fn().mockReturnValue({}),
         } as unknown as EnvironmentManager;
-        const workspaceFsProvider = workspaceFsProviderFactory();
         const toolsEnvironment = new ToolsEnvironment(
             environmentManager,
             extensionApiProviderFactory(),
-            workspaceFsProvider,
         );
 
         await toolsEnvironment.write(path.join('/workspace', 'project.csolution.yml'));
 
-        const document = yaml.parse(workspaceFsProvider.writeUtf8File.mock.calls[0][1]);
+        const document = yaml.parse(fileSystem.write.mock.calls[0][1]);
         expect(document['cmsis-tools-environment']['generated-by']).toBe('arm.cmsis-csolution version unknown');
         expect(document['cmsis-tools-environment'].tools).toEqual(expect.arrayContaining([
             expect.objectContaining({
@@ -562,10 +605,31 @@ describe('ToolsEnvironment', () => {
         ]));
     });
 
+    it('creates missing directories and replaces existing content using the common filesystem', async () => {
+        TextFile.setFileSystem();
+        const environmentManager = {
+            getEnvironmentVariables: jest.fn().mockReturnValue({ VALUE: 'first' }),
+            getConfiguredEnvironmentVariables: jest.fn().mockReturnValue({ VALUE: 'first' }),
+        } as unknown as EnvironmentManager;
+        const owner = new ToolsEnvironment(environmentManager, extensionApiProviderFactory());
+        const solutionPath = path.join(tempDir, 'generated', 'project.csolution.yml');
+        const document = new YamlFile(path.join(tempDir, 'generated', '.cmsis', 'tools-environment.yml'));
+
+        await owner.write(solutionPath);
+        await document.load();
+        expect(document.text).toContain('VALUE: first');
+
+        jest.mocked(environmentManager.getEnvironmentVariables).mockReturnValue({ VALUE: 'second' });
+        await owner.write(solutionPath);
+        await document.load();
+        expect(document.text).toContain('VALUE: second');
+        expect(document.text).not.toContain('VALUE: first');
+    });
+
     it('requires directory as the installed tool location', () => {
         const baseDocument = {
             'cmsis-tools-environment': {
-                version: '1.0.0',
+                version: '1.1.0',
                 'generated-by': 'arm.cmsis-csolution version 1.70.0',
                 solution: '../project.csolution.yml',
                 environment: { path: [], variables: {} },
