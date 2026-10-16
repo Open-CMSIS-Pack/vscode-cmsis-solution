@@ -21,12 +21,6 @@ updates:
       codeql-actions:
         patterns:
           - "github/codeql-action/*"
-      github-actions-minor-patch:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
 
   # Maintain dependencies for the JavaScript package
   - package-ecosystem: "npm"
@@ -38,25 +32,6 @@ updates:
       time: "02:00"
     cooldown:
       default-days: 3
-    groups:
-      npm-security:
-        applies-to: security-updates
-        patterns:
-          - "*"
-      npm-production-minor-patch:
-        dependency-type: production
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-      npm-development-minor-patch:
-        dependency-type: development
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
     ignore:
       - dependency-name: "cmsis-csolution"  # Ignore the workspace root package
       - dependency-name: "@types/vscode"

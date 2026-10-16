@@ -122,9 +122,9 @@
   "devDependencies": {
     "@babel/plugin-transform-modules-commonjs": "^7.28.6",
     "@eslint/compat": "^2.0.2",
-    "@eslint/eslintrc": "^3.3.4",
+    "@eslint/eslintrc": "^3.3.7",
     "@eslint/js": "^9.39.3",
-    "@faker-js/faker": "^10.5.0",
+    "@faker-js/faker": "^10.6.0",
     "@graphql-codegen/cli": "^6.1.2",
     "@graphql-codegen/typescript-graphql-request": "^7.1.0",
     "@graphql-codegen/typescript-operations": "^6.1.6",
@@ -197,13 +197,16 @@
     "js-yaml": "^4.3.0",
     "lodash": "^4.18.1",
     "serialize-javascript@<=7.0.3": "^7.0.3",
-    "brace-expansion@^5.0.0": "^5.0.11",
+    "brace-expansion@^1.0.0": "^1.1.21",
+    "brace-expansion@^2.0.0": "^2.1.7",
+    "brace-expansion@^5.0.0": "^5.0.12",
     "@twbs/fantasticon": {
       "ttf2woff2": "^8.0.1"
     },
     "markdownlint-cli": {
       "js-yaml": "^5.2.2",
-      "minimatch": "^10.2.4"
+      "minimatch": "^10.2.4",
+      "smol-toml": "^1.9.0"
     },
     "serve-handler": {
       "minimatch": "^3.1.5"
@@ -212,7 +215,7 @@
     "immutable@<=4.3.8": "^4.3.8",
     "@tootallnate/once@<=3.0.1": "^3.0.1",
     "handlebars@<=4.7.8": "^4.7.9",
-    "shell-quote@<=1.8.4": "1.9.0",
+    "shell-quote": "^1.11.0",
     "@fastify/busboy": "^3.2.1",
     "@graphql-tools/executor-legacy-ws": "^1.1.35",
     "@graphql-tools/utils": "^12.0.1",
@@ -463,7 +466,7 @@
         "title": "Refresh Build Information",
         "icon": {
           "light": "./media/refresh-normal.svg",
-          "dark": "./media/refresh-normal.svg"
+          "dark": "./media/refresh-normal-dark.svg"
         }
       },
       {
@@ -472,7 +475,7 @@
         "title": "Refresh Build Information (Refresh Required)",
         "icon": {
           "light": "./media/refresh-dirty.svg",
-          "dark": "./media/refresh-dirty.svg"
+          "dark": "./media/refresh-dirty-dark.svg"
         }
       },
       {
@@ -1061,12 +1064,12 @@
         {
           "command": "cmsis-csolution.refresh",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && !cmsis-csolution.solutionDirty",
-          "group": "navigation@0"
+          "group": "navigation@4"
         },
         {
           "command": "cmsis-csolution.refreshDirty",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && cmsis-csolution.solutionDirty",
-          "group": "navigation@0"
+          "group": "navigation@4"
         },
         {
           "command": "cmsis-csolution.build",
@@ -1106,17 +1109,17 @@
         {
           "command": "cmsis-csolution.openSolutionFile",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
-          "group": "navigation@4"
+          "group": "navigation@5"
         },
         {
           "command": "cmsis-csolution.searchSolutionSources",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
-          "group": "navigation@5"
+          "group": "navigation@6"
         },
         {
           "command": "cmsis-csolution.manageSolution",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
-          "group": "navigation@6"
+          "group": "navigation@7"
         },
         {
           "command": "cmsis-csolution.openSolution",
