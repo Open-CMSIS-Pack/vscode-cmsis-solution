@@ -32,6 +32,8 @@ describe('CsolutionExtension', () => {
             {} as SolutionCreator,
             {} as BuildTaskProvider,
             {} as DataManager,
+            { loadState: {} },
+            { getToolsEnvironment: jest.fn() },
         );
 
         await extension.activate(context as unknown as ExtensionContext);
@@ -40,9 +42,30 @@ describe('CsolutionExtension', () => {
     it('returns the APIv2', () => {
         const api = extension.getApi(2);
         expect(api.getBoards).toBeDefined();
+        expect(api).not.toHaveProperty('getToolsEnvironment');
+    });
+
+    it('returns independent V3 instances with the established operations', () => {
+        const api = extension.getApi(3);
+        expect(api).not.toBe(extension.getApi(3));
+        expect(api).not.toBe(extension.getApi(2));
+        for (const method of ['getBoards', 'getDevices', 'getDraftProjects', 'createNewSolution', 'build', 'getToolsEnvironment']) {
+            expect(api).toHaveProperty(method, expect.any(Function));
+        }
+    });
+
+    it.each([1, 4, 0])('rejects unsupported version %s', version => {
+        expect(() => (extension.getApi as (version: number) => unknown)(version))
+            .toThrow(`No API version ${version} found`);
     });
 
     it('disposes', () => {
+        const apiV2 = extension.getApi(2);
+        const apiV3 = extension.getApi(3);
+        const disposeV2 = jest.spyOn(apiV2 as typeof apiV2 & Disposable, 'dispose');
+        const disposeV3 = jest.spyOn(apiV3, 'dispose');
         context.subscriptions.forEach(({ dispose }) => dispose());
+        expect(disposeV2).toHaveBeenCalledTimes(1);
+        expect(disposeV3).toHaveBeenCalledTimes(1);
     });
 });

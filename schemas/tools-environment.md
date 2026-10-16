@@ -21,7 +21,7 @@ slashes on every platform.
 
 ```yaml
 cmsis-tools-environment:
-  version: 1.0.0
+  version: 1.1.0
   generated-by: arm.cmsis-csolution version 1.70.1
   solution: ../example.csolution.yml
   environment:
@@ -76,7 +76,7 @@ The semantic `version` field allows the document to evolve without requiring con
 
 - `version` is the semantic version of this document format. It is defined by the CMSIS Solution extension and validated by the extension-owned JSON schema.
 - `generated-by` identifies the CMSIS Solution extension and its installed manifest version. This preserves build-specific versions from packaged releases, such as `arm.cmsis-csolution version 1.70.1-41-20260902` for a nightly VSIX.
-- `solution` is the forward-slash path to the converted `*.csolution.yml` file, relative to `.cmsis/tools-environment.yml`.
+- optional `solution` is the forward-slash path to the converted `*.csolution.yml` file, relative to `.cmsis/tools-environment.yml`.
 
 ### Resolved Environment
 

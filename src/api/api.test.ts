@@ -96,6 +96,8 @@ describe('Csolution Extension APIv2', () => {
             solutionCreator,
             buildTaskProvider,
             dataManager,
+            { loadState: {} },
+            { getToolsEnvironment: jest.fn() },
         );
     });
 
