@@ -5,19 +5,16 @@
 # to native line endings on checkout.
 
 # Declare files that will always have LF line endings on checkout.
-*.css text eol=lf
 *.htm text eol=lf
 *.html text eol=lf
 *.js text eol=lf
 *.json text eol=lf
 *.lock text eol=lf
 *.md text eol=lf
-*.snap text eol=lf
-*.svg text eol=lf
 *.ts text eol=lf
-*.tsx text eol=lf
-*.xml text eol=lf
 *.yml text eol=lf
+*.tsx text eol=lf
+*.snap text eol=lf
 
 # Declare files that will always have CRLF line endings on checkout.
 *.bat text eol=crlf
