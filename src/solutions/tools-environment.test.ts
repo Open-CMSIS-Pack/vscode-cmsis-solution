@@ -56,6 +56,7 @@ describe('ToolsEnvironment', () => {
 
     afterEach(() => {
         TextFile.setFileSystem();
+        TextFile.setErrorReporter();
         jest.restoreAllMocks();
     });
 
@@ -96,6 +97,35 @@ describe('ToolsEnvironment', () => {
         expect(document['cmsis-tools-environment'].version).toBe('1.1.0');
         expect(document['cmsis-tools-environment']).not.toHaveProperty('solution');
         expect(document['cmsis-tools-environment'].environment.variables.WINDOW_VALUE).toBe('current');
+        expect(fileSystem.write).not.toHaveBeenCalled();
+        expect(fileSystem.read).not.toHaveBeenCalled();
+    });
+
+    it('exports an already-active environment without cached activation results', async () => {
+        const compilerBin = path.join(tempDir, 'compiler', 'bin');
+        const environmentManager = {
+            getEnvironmentVariables: jest.fn().mockReturnValue({
+                PATH: ['/unrelated/bin', compilerBin].join(path.delimiter),
+                GCC_TOOLCHAIN_14_3_1: compilerBin,
+                UNRELATED_VALUE: 'private',
+            }),
+            getConfiguredEnvironmentVariables: jest.fn().mockReturnValue({}),
+        } as unknown as EnvironmentManager;
+        const owner = new ToolsEnvironment(environmentManager, extensionApiProviderFactory({
+            isActivating: jest.fn().mockReturnValue(false),
+            getActiveTools: jest.fn().mockReturnValue([{
+                name: 'gcc', path: 'bin/gcc', fullPath: path.join(compilerBin, 'gcc'),
+            }]),
+        }));
+
+        const document = yaml.parse(await owner.getToolsEnvironment())['cmsis-tools-environment'];
+
+        expect(document.environment.path).toContain(toPortablePath(compilerBin));
+        expect(document.environment.path).not.toContain('/unrelated/bin');
+        expect(document.environment.variables).toEqual({ GCC_TOOLCHAIN_14_3_1: toPortablePath(compilerBin) });
+        expect(document.tools).toContainEqual(expect.objectContaining({
+            name: 'gcc', directory: toPortablePath(compilerBin),
+        }));
         expect(fileSystem.write).not.toHaveBeenCalled();
         expect(fileSystem.read).not.toHaveBeenCalled();
     });
@@ -298,7 +328,7 @@ describe('ToolsEnvironment', () => {
         expect(fileSystem.write).not.toHaveBeenCalled();
     });
 
-    it('writes a minimal environment when Environment Manager is unavailable and replaces unreadable output', async () => {
+    it.each(['unreadable', 'malformed'])('silently replaces %s output when Environment Manager is unavailable', async failure => {
         const environmentManager = {
             getEnvironmentVariables: jest.fn().mockReturnValue({
                 PATH: '/configured/bin',
@@ -309,7 +339,14 @@ describe('ToolsEnvironment', () => {
             }),
         } as unknown as EnvironmentManager;
         fileSystem.exists.mockReturnValue(true);
-        fileSystem.read.mockImplementation(() => { throw new Error('unreadable'); });
+        fileSystem.read.mockImplementation(() => {
+            if (failure === 'unreadable') {
+                throw new Error('unreadable');
+            }
+            return 'invalid: [unterminated';
+        });
+        const errorReporter = jest.fn();
+        TextFile.setErrorReporter(errorReporter);
         jest.spyOn(console, 'error').mockImplementation(() => undefined);
         const toolsEnvironment = new ToolsEnvironment(
             environmentManager,
@@ -318,6 +355,7 @@ describe('ToolsEnvironment', () => {
 
         await toolsEnvironment.write(path.join('/workspace', 'project.csolution.yml'));
 
+        expect(errorReporter).not.toHaveBeenCalled();
         const content = fileSystem.write.mock.calls[0][1];
         expect(yaml.parse(content)).toMatchObject({
             'cmsis-tools-environment': {

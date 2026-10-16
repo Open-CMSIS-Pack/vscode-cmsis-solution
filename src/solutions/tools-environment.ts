@@ -75,6 +75,12 @@ export interface ToolsEnvironmentSnapshot {
     vcpkgResults?: VcpkgResults;
 }
 
+class ToolsEnvironmentFile extends YamlFile {
+    protected override showErrorMessage(): void {
+        return;
+    }
+}
+
 export class ToolsEnvironment {
     private readonly pendingWrites = new Map<string, Promise<void>>();
 
@@ -144,7 +150,8 @@ export class ToolsEnvironment {
         ]);
         const pathEntries = this.selectPathEntries(
             this.uniquePaths([...localPathEntries, ...contributedPathEntries])
-                .filter(entry => contributedPathEntries.some(contributed => this.pathsEqual(entry, contributed))),
+                .filter(entry => contributedPathEntries.some(contributed => this.pathsEqual(entry, contributed))
+                    || snapshot.installedTools.some(tool => this.pathsEqual(entry, path.dirname(tool.fullPath)))),
             builtInTools,
         );
         const installedPackages = this.findVcpkgPackages([
@@ -184,7 +191,7 @@ export class ToolsEnvironment {
     }
 
     private async writeContent(solutionPath: string, content: string): Promise<void> {
-        const document = new YamlFile(path.join(path.dirname(solutionPath), '.cmsis', 'tools-environment.yml'));
+        const document = new ToolsEnvironmentFile(path.join(path.dirname(solutionPath), '.cmsis', 'tools-environment.yml'));
         if (document.exists()) {
             await document.load();
             if (document.text === content) {
@@ -428,6 +435,7 @@ export class ToolsEnvironment {
             ...CMSIS_ENVIRONMENT_VARIABLES,
             ...Object.keys(configuredVariables),
             ...Object.keys(vcpkgResults?.variables ?? {}),
+            ...Object.keys(variables).filter(name => /^[A-Z][A-Z0-9]*_TOOLCHAIN_\d+_\d+_\d+$/i.test(name)),
         ].map(name => name.toLowerCase()));
         return Object.fromEntries(
             Object.entries(variables).filter(([name]) => name.toLowerCase() !== 'path' && selectedNames.has(name.toLowerCase())),
