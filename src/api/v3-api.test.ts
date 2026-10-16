@@ -16,6 +16,7 @@
 
 import { Disposable } from 'vscode';
 import { CsolutionApiV2 } from '../../api/csolution';
+import { draftProjectDataFactory } from '../data-manager/data-manager.factories';
 import { SolutionManager } from '../solutions/solution-manager';
 import { CsolutionApiV3Impl } from './v3-api';
 
@@ -58,6 +59,55 @@ describe('CsolutionApiV3Impl', () => {
     it('propagates environment export failures', async () => {
         toolsEnvironment.getToolsEnvironment.mockRejectedValue(new Error('export failed'));
         await expect(api.getToolsEnvironment()).rejects.toThrow('export failed');
+    });
+
+    it('delegates board queries', () => {
+        const filter = { vendor: 'Arm', name: 'board' };
+        const result = Promise.resolve([]);
+        existingApi.getBoards.mockReturnValue(result);
+
+        expect(api.getBoards(filter)).toBe(result);
+        expect(existingApi.getBoards).toHaveBeenCalledWith(filter);
+    });
+
+    it('delegates device queries', () => {
+        const filter = { vendor: 'Arm', name: 'device' };
+        const result = Promise.resolve([]);
+        existingApi.getDevices.mockReturnValue(result);
+
+        expect(api.getDevices(filter)).toBe(result);
+        expect(existingApi.getDevices).toHaveBeenCalledWith(filter);
+    });
+
+    it('delegates draft project queries', () => {
+        const board = { key: 'Arm::board', vendor: 'Arm', name: 'board', revision: undefined };
+        const device = { key: 'Arm::device', vendor: 'Arm', name: 'device' };
+        const result = Promise.resolve([]);
+        existingApi.getDraftProjects.mockReturnValue(result);
+
+        expect(api.getDraftProjects(board, device)).toBe(result);
+        expect(existingApi.getDraftProjects).toHaveBeenCalledWith(board, device);
+    });
+
+    it('delegates solution creation', () => {
+        const options: CsolutionApiV2.CreateNewSolutionOptions = {
+            draft: draftProjectDataFactory() as CsolutionApiV2.DraftProjectData,
+            folder: '/workspace',
+        };
+        const result = Promise.resolve();
+        existingApi.createNewSolution.mockReturnValue(result);
+
+        expect(api.createNewSolution(options)).toBe(result);
+        expect(existingApi.createNewSolution).toHaveBeenCalledWith(options);
+    });
+
+    it('delegates builds', () => {
+        const options = { rebuild: true };
+        const result = Promise.resolve({ task: {} as import('vscode').Task, terminate: jest.fn() });
+        existingApi.build.mockReturnValue(result);
+
+        expect(api.build(options)).toBe(result);
+        expect(existingApi.build).toHaveBeenCalledWith(options);
     });
 
     it('disposes the wrapped API', () => {
