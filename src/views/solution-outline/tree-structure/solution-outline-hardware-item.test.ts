@@ -42,6 +42,44 @@ describe('HardwareItemBuilder', () => {
         testDataHandler.dispose();
     });
 
+    it.each(['board', 'device'] as const)('includes inventory-only documents in %s books', async parentTag => {
+        const csolution = new CSolution();
+        const loadResult = await csolution.load(cSolFile);
+        expect(loadResult).toEqual(ETextFileResult.Success);
+
+        const parentId = parentTag === 'board' ? csolution.getBoardName() : csolution.getDeviceNameWithVendor();
+        const guidePath = path.join(testDataHandler.tmpDir, 'guide.pdf');
+        const referencePath = path.join(testDataHandler.tmpDir, 'reference.pdf');
+        const guide = docManager.file.ensureDoc(guidePath, parentId, parentTag);
+        guide.title = 'Inventory guide';
+        guide.path = guidePath;
+        const reference = docManager.file.ensureDoc(referencePath, parentId, parentTag);
+        reference.title = 'Inventory reference';
+        reference.path = referencePath;
+
+        const root = parseYamlToCTreeItem(`
+            build:
+              ${parentTag}: ${parentId}
+              ${parentTag}-books:
+                - name: reported.pdf
+                  title: Cbuild manual`);
+        root!.rootFileName = cSolFile;
+
+        const hwItemBuilder = new HardwareItemBuilder(csolution, undefined, docManager);
+        const hwNodes = hwItemBuilder.createHardwareNodes(csolution, root?.getChild() as CTreeItem);
+        const books = hwNodes.get(parentId)?.getChildren().map(book => ({
+            tag: book.getTag(),
+            label: book.getAttribute('label'),
+            docPath: book.getAttribute('docPath'),
+        }));
+
+        expect(books).toEqual([
+            { tag: 'book', label: 'Inventory guide', docPath: guidePath },
+            { tag: 'book', label: 'Inventory reference', docPath: referencePath },
+            { tag: 'book', label: 'Cbuild manual', docPath: path.join(path.dirname(cSolFile), 'reported.pdf') },
+        ]);
+    });
+
     it('create dbgconf file node', async () => {
         const cbuildContent = `
             build:
