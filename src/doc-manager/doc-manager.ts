@@ -15,20 +15,18 @@
  */
 
 import * as path from 'node:path';
-import { fileURLToPath, URL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
-import { CTreeItem, ETreeItemKind, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
-import { isWebAddress } from '../util';
-import { expandRootVars } from '../utils/path-utils';
-import { DocsYamlFile } from './docs-yaml-file';
+import { CTreeItem, ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { expandRootVars, getCmsisPackRoot } from '../utils/path-utils';
+import { DocsYamlFile, getWebLocationType } from './docs-yaml-file';
 
 export interface DocManager {
     readonly file: DocsYamlFile;
     initialize(): Promise<ETextFileResult>;
-    addBooks(cbuild: CTreeItem, parentTag: string): void;
-    addBooksFromCbuild(cbuild: CTreeItem): void;
-    addBook(book: ITreeItem<CTreeItem>, parentId: string | undefined, parentTag: string): void;
+    addCbuildBooks(cbuild: CTreeItem, parentTag: string): void;
+    addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): void;
 }
 
 class DocManagerImpl implements DocManager {
@@ -56,38 +54,55 @@ class DocManagerImpl implements DocManager {
         return this.file.save();
     }
 
-    addBooks(cbuild: CTreeItem, parentTag: string): void {
+    addCbuildBooks(cbuild: CTreeItem, parentTag: string): void {
         const parentId = cbuild.getValue(parentTag);
         for (const book of cbuild.getGrandChildren(`${parentTag}-books`)) {
-            this.addBook(book, parentId, parentTag);
+            const name = book.getValue('name');
+            const locationType = getWebLocationType(name ?? '');
+            const docPath = name && !locationType
+                ? book.resolvePath(expandRootVars(name.startsWith('file://') ? fileURLToPath(name) : name))
+                : undefined;
+            this.addBook(parentId, parentTag, name, book.getValue('title'), book.getValue('category'),
+                docPath, locationType ?? 'L');
         }
     }
 
-    addBooksFromCbuild(cbuild: CTreeItem): void {
-        this.addBooks(cbuild, 'board');
-        this.addBooks(cbuild, 'device');
+    addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): void {
+        const docPath = name && !getWebLocationType(name)
+            ? path.resolve(expandRootVars(name.startsWith('file://') ? fileURLToPath(name) : name))
+            : undefined;
+        this.addBook(parentId, parentTag, name, title, category, docPath);
     }
 
-    addBook(book: ITreeItem<CTreeItem>, parentId: string | undefined, parentTag: string): void {
-        let name = book.getValue('name');
+    private addBook(
+        parentId: string | undefined,
+        parentTag: string,
+        name: string | undefined,
+        title: string | undefined,
+        category?: string,
+        docPath?: string,
+        locationType = 'U',
+    ): void {
         if (!parentId || !name || this.file.getDoc(name, parentId, parentTag)) {
             return;
         }
-        let docPath: string | undefined;
-        if (!isWebAddress(name)) {
-            const fileUrl = name.startsWith('file://') ? new URL(name) : undefined;
-            if (!fileUrl || !fileUrl.hostname || fileUrl.hostname === 'localhost') {
-                name = book.resolvePath(expandRootVars(fileUrl ? fileURLToPath(fileUrl) : name));
-                docPath = name;
+        if (docPath !== undefined) {
+            const packRootPrefix = /^\$\{CMSIS_PACK_ROOT\}(?:[/\\]|$)/.test(name);
+            name = docPath;
+            const relativeToPackRoot = path.relative(getCmsisPackRoot(), name);
+            if (packRootPrefix || (relativeToPackRoot !== '..'
+                && !relativeToPackRoot.startsWith(`..${path.sep}`) && !path.isAbsolute(relativeToPackRoot))) {
+                locationType = 'P';
             }
         }
         if (this.file.getDoc(name, parentId, parentTag)) {
             return;
         }
         const doc = this.file.ensureDoc(name, parentId, parentTag);
-        doc.title = book.getValue('title');
-        doc.category = book.getValue('category');
+        doc.title = title;
+        doc.category = category;
         doc.path = docPath;
+        doc.locationType = locationType;
     }
 }
 

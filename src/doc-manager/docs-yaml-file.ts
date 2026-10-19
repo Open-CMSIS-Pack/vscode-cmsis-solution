@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
+import * as path from 'node:path';
+import { URL } from 'node:url';
 import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { CTreeItem, ETreeItemKind, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { CTreeItemWrap, ITreeItemWrap } from '@open-cmsis-pack/cmsis-common/tree-item-wrapper';
+import { isWebAddress } from '../util';
 
 export interface IDocRef extends ITreeItemWrap {
     get name(): string;
@@ -26,6 +29,11 @@ export interface IDocRef extends ITreeItemWrap {
     get title(): string;
     set title(value: string | undefined);
     category: string | undefined;
+    locationType: string | undefined;
+    error: string | undefined;
+    isWebDoc(): boolean;
+    isWeb(): boolean;
+    isDownloaded(): boolean;
 }
 
 export interface IDocParent extends ITreeItemWrap {
@@ -51,6 +59,23 @@ export interface DocsYamlFile extends ITreeItemFile {
     removeDoc(name: string, parentId: string, parentTag?: string): boolean;
 }
 
+export function getWebLocationType(name: string): 'W' | 'H' | undefined {
+    const isFileUrl = name.startsWith('file://');
+    if (!isWebAddress(name) && !isFileUrl) {
+        return undefined;
+    }
+    try {
+        const url = new URL(name.startsWith('www.') ? `https://${name}` : name);
+        if (isFileUrl && (!url.hostname || url.hostname === 'localhost')) {
+            return undefined;
+        }
+        const extension = url.pathname.endsWith('/') ? '' : path.posix.extname(url.pathname).toLowerCase();
+        return extension && extension !== '.' && extension !== '.html' && extension !== '.htm' ? 'W' : 'H';
+    } catch {
+        return 'H';
+    }
+}
+
 class DocRefWrap extends CTreeItemWrap implements IDocRef {
     override get nameKey(): string { return 'name'; }
     get path(): string | undefined { return this.getValue('path'); }
@@ -59,6 +84,13 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
     set title(value: string | undefined) { this.setValue('title', value); }
     get category(): string | undefined { return this.getValue('category'); }
     set category(value: string | undefined) { this.setValue('category', value); }
+    get locationType(): string | undefined { return this.getValue('locationType'); }
+    set locationType(value: string | undefined) { this.setValue('locationType', value); }
+    get error(): string | undefined { return this.getValue('error'); }
+    set error(value: string | undefined) { this.setValue('error', value); }
+    isWebDoc(): boolean { return getWebLocationType(this.name) === 'W'; }
+    isWeb(): boolean { return getWebLocationType(this.name) !== undefined; }
+    isDownloaded(): boolean { return this.locationType === 'W' && this.path !== undefined; }
 }
 
 class DocParentWrap extends CTreeItemWrap implements IDocParent {

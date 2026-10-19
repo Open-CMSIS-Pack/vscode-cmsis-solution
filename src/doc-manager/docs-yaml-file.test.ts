@@ -63,6 +63,106 @@ describe('DocsYamlFile', () => {
         jest.restoreAllMocks();
     });
 
+    it.each([
+        ['http://example.com/manual.pdf', true, true],
+        ['https://example.com/manual.PDF?format=.html#section', true, true],
+        ['www.example.com/manual.pdf', true, true],
+        ['https://example.com/manual.html?download=.pdf', true, false],
+        ['https://example.com/manual.HTM#manual.pdf', true, false],
+        ['https://example.com/manual.HTML', true, false],
+        ['https://example.com/manual', true, false],
+        ['https://example.com/manual.pdf/', true, false],
+        ['https://example.com/.hidden', true, false],
+        ['https://example.com/manual.', true, false],
+        ['https://', true, false],
+        ['file://server/share/manual.pdf', true, true],
+        ['file://server/share/manual.htm', true, false],
+        ['file:///books/manual.pdf', false, false],
+        ['file://localhost/books/manual.pdf', false, false],
+        ['/books/manual.pdf', false, false],
+        ['custom:manual.pdf', false, false],
+    ])('detects web references independently of provenance: %s', (name, isWeb, isWebDoc) => {
+        const file = new DocsYamlFile(fileName);
+        const doc = file.ensureDoc(name, 'Vendor::Board', 'board');
+        for (const locationType of [undefined, 'U', 'W', 'H', 'P', 'L', 'future']) {
+            doc.locationType = locationType;
+            doc.path = '/downloaded/manual.pdf';
+            const beforeRead = file.stringify();
+
+            expect(doc.isWeb()).toBe(isWeb);
+            expect(doc.isWebDoc()).toBe(isWebDoc);
+            expect(file.stringify()).toBe(beforeRead);
+        }
+        expect(fileSystem.exists).not.toHaveBeenCalled();
+        expect(fileSystem.read).not.toHaveBeenCalled();
+        expect(fileSystem.write).not.toHaveBeenCalled();
+    });
+
+    it.each([undefined, 'W', 'H', 'P', 'L', 'U', 'future'])('detects downloads using only location type %s and a defined path', locationType => {
+        const file = new DocsYamlFile(fileName);
+        const doc = file.ensureDoc('https://example.com/manual.pdf', 'Vendor::Board', 'board');
+        doc.locationType = locationType;
+        for (const docPath of [undefined, '', '/downloaded/manual.pdf']) {
+            doc.path = docPath;
+            const beforeRead = file.stringify();
+
+            expect(doc.isDownloaded()).toBe(locationType === 'W' && docPath !== undefined);
+            expect(file.stringify()).toBe(beforeRead);
+        }
+        expect(fileSystem.exists).not.toHaveBeenCalled();
+        expect(fileSystem.read).not.toHaveBeenCalled();
+        expect(fileSystem.write).not.toHaveBeenCalled();
+    });
+
+    it.each(['W', 'H', 'P', 'L', 'U', 'future'])('round-trips and clears live location type %s and errors', async locationType => {
+        const file = new DocsYamlFile(fileName);
+        const doc = file.ensureDoc('https://example.com/manual.pdf', 'Vendor::Board', 'board');
+        doc.locationType = locationType;
+        doc.error = 'Download failed';
+        expect(doc.item!.getValue('locationType')).toBe(locationType);
+        expect(doc.item!.getValue('error')).toBe('Download failed');
+        doc.item!.setValue('error', 'Retry failed');
+        expect(doc.error).toBe('Retry failed');
+        doc.path = '/downloaded/manual.pdf';
+        doc.title = 'Manual';
+        doc.category = 'reference';
+        expect(doc.locationType).toBe(locationType);
+        expect(await file.save()).toBe(ETextFileResult.Success);
+
+        const reloaded = new DocsYamlFile(fileName);
+        expect(await reloaded.load()).toBe(ETextFileResult.Success);
+        const saved = reloaded.getDoc(doc.name, 'Vendor::Board', 'board')!;
+        expect(saved.locationType).toBe(locationType);
+        expect(saved.error).toBe('Retry failed');
+        saved.locationType = undefined;
+        saved.error = undefined;
+        expect(saved.locationType).toBeUndefined();
+        expect(saved.error).toBeUndefined();
+        expect(saved.item!.getChild('locationType')).toBeUndefined();
+        expect(saved.item!.getChild('error')).toBeUndefined();
+        expect(await reloaded.save()).toBe(ETextFileResult.Success);
+        const cleared = new DocsYamlFile(fileName);
+        expect(await cleared.load()).toBe(ETextFileResult.Success);
+        expect(cleared.getDoc(doc.name, 'Vendor::Board', 'board')?.locationType).toBeUndefined();
+        expect(cleared.getDoc(doc.name, 'Vendor::Board', 'board')?.error).toBeUndefined();
+    });
+
+    it('leaves legacy entries unclassified when reading location and error state', async () => {
+        const file = new DocsYamlFile(fileName);
+        expect(await file.load()).toBe(ETextFileResult.Success);
+        const beforeRead = file.stringify();
+        const doc = file.getDocs('NXP::LPC4300', 'device')[0];
+
+        expect(doc.locationType).toBeUndefined();
+        expect(doc.error).toBeUndefined();
+        expect(doc.isWeb()).toBe(false);
+        expect(doc.isWebDoc()).toBe(false);
+        expect(doc.isDownloaded()).toBe(false);
+        expect(file.stringify()).toBe(beforeRead);
+        expect(await file.save()).toBe(ETextFileResult.Unchanged);
+        expect(fileSystem.write).not.toHaveBeenCalled();
+    });
+
     it('round-trips live documents without storing fallback titles or losing future nodes', async () => {
         const file = new DocsYamlFile(fileName);
         expect(await file.load()).toBe(ETextFileResult.Success);
