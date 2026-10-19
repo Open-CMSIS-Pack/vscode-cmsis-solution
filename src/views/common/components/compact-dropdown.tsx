@@ -116,7 +116,10 @@ export const CompactDropdown = (props: CompactDropdownProps) => {
             <div className='compact-dropdown-inner'>
                 {props.addonBefore && <div className="compact-dropdown-addon-before">{props.addonBefore}</div>}
                 <div className={`compact-dropdown-trigger ${props.disabled ? ' disabled' : ''}`} onClick={toggleDropdown} ref={triggerRef} title={toolTip(props.selected)} tabIndex={0} role='combobox' aria-haspopup='listbox' aria-expanded={expanded} aria-controls='compact-dropdown-popover'>
-                    {props.displayText ? props.displayText(props.selected) : props.selected || props.unselectedLabel} {props.tag}
+                    <span className='compact-dropdown-value'>
+                        {props.displayText ? props.displayText(props.selected) : props.selected || props.unselectedLabel}
+                    </span>
+                    {props.tag && <span className='compact-dropdown-tag'>{props.tag}</span>}
                     {props.warning && <span className="codicon codicon-warning compact-dropdown-warn" title={typeof props.warning === 'string' ? props.warning : ''} />}
                     {props.available.length > 1 && <span className="fa-solid fa-angle-down compact-dropdown-caret" />}
                 </div>

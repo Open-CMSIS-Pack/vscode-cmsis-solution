@@ -19,6 +19,7 @@ export const PROJECT_SUFFIX = '.cproject.yml';
 export const CBUILD_SUFFIX = '.cbuild.yml';
 export const FILE_TAGS = ['file','script','regions'];
 export const PROJECT_WEST_SUFFIX = '.cproject-west.yml';
+export const PROJECT_CMAKE_SUFFIX = '.cproject-cmake.yml';
 
 export const BUILD_TYPES = [
     'cmsis-csolution.build',

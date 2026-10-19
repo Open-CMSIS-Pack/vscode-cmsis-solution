@@ -16,24 +16,23 @@
 
 import * as React from 'react';
 import './project-configuration.css';
-import { DeviceHardwareOption, NewProject, ProcessorInfo, Trustzone, validTrustZone } from '../../cmsis-solution-types';
+import { Trustzone } from '../../cmsis-solution-types';
 import { CreateSolutionAction } from '../state/reducer';
 import { validationError } from './validation-message';
-import { FieldAndInteraction } from '../state/field-and-interaction';
 import { Button } from 'antd';
 import { CompactDropdown } from '../../../common/components/compact-dropdown';
 import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
+import { ProjectConfigurationRow } from '../create-solution-view-model';
 
 type ProjectConfigurationProps = {
-    device: DeviceHardwareOption;
-    projects: FieldAndInteraction<NewProject>[];
+    rows: ProjectConfigurationRow[];
+    showTrustzoneInfo: boolean;
     errors: string[];
     dispatch: React.Dispatch<CreateSolutionAction>;
 }
 
 export const ProjectConfiguration = (props: ProjectConfigurationProps) => {
-    const { projects, device, dispatch, errors } = props;
-    const showTrustZoneText: boolean = device.processors.some(validTrustZone);
+    const { rows, showTrustzoneInfo, dispatch, errors } = props;
 
     return (
         <React.Fragment>
@@ -42,7 +41,7 @@ export const ProjectConfiguration = (props: ProjectConfigurationProps) => {
                 <div>Core</div>
                 <div>TrustZone</div>
             </div>
-            {projects.map((project, index) => <ProjectConfigurationRow key={index} index={index} rowInfo={project.value} error={errors[index]} device={device} dispatch={dispatch} removeDisabled={projects.length === 1} />)}
+            {rows.map((row, index) => <ProjectConfigurationRowComponent key={index} index={index} row={row} error={errors[index]} dispatch={dispatch} removeDisabled={rows.length === 1} />)}
             <Button
                 className='add-project-config-row button'
                 title='Add a new project configuration row'
@@ -50,7 +49,7 @@ export const ProjectConfiguration = (props: ProjectConfigurationProps) => {
             >
                 Add Project
             </Button>
-            {showTrustZoneText && (
+            {showTrustzoneInfo && (
                 <div className='trustzone-info'>
                     <span className="codicon codicon-info"></span>
                     Some TrustZone devices will be shipped with secure firmware by the manufacturer.<br />Please check your device&apos;s specification before adding your own secure project.
@@ -62,23 +61,16 @@ export const ProjectConfiguration = (props: ProjectConfigurationProps) => {
 
 type ProjectConfigurationRowProps = {
     index: number;
-    rowInfo: NewProject;
+    row: ProjectConfigurationRow;
     error: string;
     removeDisabled: boolean;
     dispatch: React.Dispatch<CreateSolutionAction>;
-    device: DeviceHardwareOption;
 };
 
-const ProjectConfigurationRow = (props: ProjectConfigurationRowProps) => {
-    const { index, rowInfo, device, error, removeDisabled, dispatch } = props;
-
-    const processor: ProcessorInfo | undefined = device.processors.find(processor => processor.name === rowInfo.processorName);
-
-    const trustzoneOptions = processor && validTrustZone(processor)
-        ? ['secure', 'non-secure', 'off']
-        : ['off'];
-
-    const coreDropdownOptions = device.processors.map(p => p.name);
+const ProjectConfigurationRowComponent = (props: ProjectConfigurationRowProps) => {
+    const { index, row, error, removeDisabled, dispatch } = props;
+    const { coreOptions, project, selectedCore, trustzoneOptions } = row;
+    const rowInfo = project.value;
 
     return (
         <div className='project-config-row layout-config-info'>
@@ -94,10 +86,10 @@ const ProjectConfigurationRow = (props: ProjectConfigurationRowProps) => {
             >
             </input>
             <CompactDropdown
-                disabled={coreDropdownOptions.length > 1 ? false : true}
-                title={coreDropdownOptions.length > 1 ? 'The Arm core that the project will run on, as determined by the cores on the selected microcontroller (MCU) device' : 'No additional core options to select from the dropdown'}
-                selected={coreDropdownOptions.length === 1 ? processor?.core || '' : rowInfo.processorName}
-                available={coreDropdownOptions}
+                disabled={coreOptions.length <= 1}
+                title={coreOptions.length > 1 ? 'The Arm core that the project will run on, as determined by the cores on the selected microcontroller (MCU) device' : 'No additional core options to select from the dropdown'}
+                selected={selectedCore}
+                available={coreOptions}
                 style={{ width: 'auto' }}
                 className='dropdownCore'
                 onChange={(option) => {

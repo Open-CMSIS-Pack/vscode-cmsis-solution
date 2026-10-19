@@ -75,13 +75,73 @@ vscode-text-field {
 }
 
 .tree-table-header {
-    display: flex;
-    flex-direction: row;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
+    align-items: center;
 }
 
 .tree-table-filter {
     width: 100%;
+}
+
+.annotation-issues-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--vscode-editorWarning-foreground);
+    cursor: pointer;
+    white-space: nowrap;
+    font: inherit;
+}
+
+.annotation-issues-toggle:hover {
+    text-decoration: underline;
+}
+
+.annotation-issues-toggle:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
+}
+
+.annotation-issues-panel {
+    grid-column: 1 / -1;
+    padding: 8px 12px;
+    border: 1px solid var(--vscode-editorWarning-foreground);
+    background: var(--vscode-textBlockQuote-background);
+    color: var(--vscode-foreground);
+}
+
+.annotation-issues-panel h3 {
+    margin: 0 0 6px;
+}
+
+.annotation-issues-list {
+    max-height: 12rem;
+    overflow-y: auto;
+}
+
+.annotation-issue-link {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--vscode-textLink-foreground);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+}
+
+.annotation-issue-link:hover {
+    color: var(--vscode-textLink-activeForeground);
+    text-decoration: underline;
+}
+
+.annotation-issue-link:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 2px;
 }
 
 .tree-table-column-name {
@@ -91,11 +151,23 @@ vscode-text-field {
 }
 
 .cw-row-focus {
-    display: inline-flex;
-    align-items: center;
-    flex: 1;
-    min-width: 0;
+    display: inline;
     outline: none;
+}
+
+.cw-value-text {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.tree-dropdown {
+    min-width: 0;
+    margin-right: 0;
 }
 
 .cw-row-focus:focus-visible {

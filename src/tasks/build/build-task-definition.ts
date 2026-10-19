@@ -36,7 +36,7 @@ export type BuildTaskDefinition = {
     downloadPacks?: boolean;
     schemaCheck?: boolean;
     setup?: boolean;
-    west?: boolean;
+    virtualProject?: boolean;
 };
 
 export type BuildOutputVerbosity = 'quiet' | 'normal' | 'verbose' | 'debug';

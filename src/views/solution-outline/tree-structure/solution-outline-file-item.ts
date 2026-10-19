@@ -15,11 +15,10 @@
  */
 
 import path from 'path';
-import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
+import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { FILE_TAGS } from '../../../solutions/constants';
 import { COutlineItem } from './solution-outline-item';
 import { setContextMenuAttributes, setHeaderContext, setMergeFileContext } from './solution-outline-utils';
-import { matchesContext } from '../../../utils/context-utils';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 import { CSolution } from '../../../solutions/csolution';
 import { SolutionRpcData } from '../../../solutions/solution-rpc-data';
@@ -63,16 +62,14 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
         const cfileItem = this.createFileItem(cgroupItem, label, resourcePath, description);
 
         // Check if file is excluded based on context restrictions
-        if (this.context && !matchesContext(f, this.context)) {
-            cfileItem.setAttribute('excluded', '1');
-        }
+        this.applyContextExclusion(cfileItem, f);
 
         if (addContextMenu) {
             setContextMenuAttributes(cfileItem, fileValue, rootFileName, this.topTag);
         }
 
         // add copy header button for header files
-        if (expandedFilePath.endsWith('.h')) {
+        if (f.getValue('category') === 'header' || expandedFilePath.endsWith('.h') || expandedFilePath.endsWith('.hpp')) {
             setHeaderContext(cfileItem);
         }
 

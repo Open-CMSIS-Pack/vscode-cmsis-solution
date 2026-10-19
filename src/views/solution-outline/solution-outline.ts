@@ -59,7 +59,7 @@ export class SolutionOutlineView {
 
     private async handleUpdatedCompileCommands() {
         const csolution = this.solutionManager.getCsolution();
-        if (!csolution?.hasWestProject()) {
+        if (!csolution?.hasVirtualProject()) {
             return;
         }
 
@@ -86,7 +86,8 @@ export class SolutionOutlineView {
         const csolution = this.solutionManager.getCsolution();
 
         if (loadState.solutionPath && csolution) {
-            this.treeViewProvider.setDescription(csolution.getActiveTargetSetName() ?? '');
+            const targetSet = csolution.getActiveTargetSetName();
+            this.treeViewProvider.setDescription(targetSet ?? '');
             this.treeViewProvider.setTitle(csolution.solutionName);
         } else {
             this.treeViewProvider.setDescription('');

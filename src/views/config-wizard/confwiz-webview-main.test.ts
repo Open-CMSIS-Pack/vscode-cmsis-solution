@@ -18,18 +18,19 @@ import * as vscode from 'vscode';
 import { WebviewIdMessageParticipant } from 'vscode-messenger-common';
 import { ConfWizWebview } from './confwiz-webview-main';
 import { GuiTree } from './parser/gui-tree';
-import { CwOption } from './parser/cw-option';
-import { CwOptionAssign } from './parser/cw-option-assign';
-import { NumberType } from './parser/number-type';
-import { TextType } from './parser/text-type';
-import { TreeNodeElement, GuiTypes, setWizardDataType } from './confwiz-webview-common';
+import { TreeNodeElement, GuiTypes, openIssueLocationType, selectAnnotationType, setSourceSelectionType, setWizardDataType } from './confwiz-webview-common';
+
+const mockMessengerNotificationHandlers = new Map<string, (data: unknown) => unknown>();
 
 // Mock vscode-messenger
 jest.mock('vscode-messenger', () => ({
     Messenger: jest.fn().mockImplementation(() => ({
         registerWebviewPanel: jest.fn(),
         sendNotification: jest.fn(),
-        onNotification: jest.fn(),
+        onNotification: jest.fn((type: { method: string }, handler: (data: unknown) => void) => {
+            mockMessengerNotificationHandlers.set(type.method, handler);
+            return { dispose: jest.fn() };
+        }),
     })),
 }));
 
@@ -42,6 +43,12 @@ describe('ConfWizWebview', () => {
     let mockDocument: vscode.TextDocument;
 
     beforeEach(() => {
+        mockMessengerNotificationHandlers.clear();
+        (vscode.window.visibleTextEditors as unknown as vscode.TextEditor[]) = [];
+        (vscode.window.onDidChangeActiveTextEditor as jest.Mock).mockClear();
+        (vscode.window.onDidChangeVisibleTextEditors as jest.Mock).mockClear();
+        (vscode.window.onDidChangeTextEditorSelection as jest.Mock).mockClear();
+        (vscode.workspace.onDidChangeTextDocument as jest.Mock).mockClear();
         // Setup mock context
         mockContext = {
             subscriptions: [],
@@ -593,7 +600,7 @@ describe('ConfWizWebview', () => {
     });
 
     describe('pending overflow tracking', () => {
-        it('should store pending overflow when selection exceeds bitfield max', () => {
+        it('should store pending overflow metadata produced by the parser', () => {
             const element: TreeNodeElement = {
                 guiId: 1,
                 name: 'Mode',
@@ -607,24 +614,15 @@ describe('ConfWizWebview', () => {
                 newValue: {
                     value: 'Overflow',
                     readOnly: false,
+                    overflow: true,
+                    overflowValue: 5,
+                    extractedValue: 5,
+                    bitWidth: 2,
                 },
             };
 
-            const optionItem = new CwOption();
-            optionItem.bitfield.lsb = new NumberType(0);
-            optionItem.bitfield.msb = new NumberType(1);
-            optionItem.bitfield.validate();
-
-            const optionAssign = new CwOptionAssign(optionItem);
-            optionAssign.description = new TextType('Overflow');
-            optionAssign.value = new NumberType(5);
-
-            const mockGuiTree = {
-                getFromItemMap: jest.fn().mockReturnValue(optionItem),
-            } as unknown as GuiTree;
-
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (confWizWebview as any).updatePendingOverflow(mockDocument.uri.fsPath, mockGuiTree, element);
+            (confWizWebview as any).updatePendingOverflow(mockDocument.uri.fsPath, element);
 
             const expectedKey = 'Mode:3:5:12';
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1076,6 +1074,437 @@ describe('ConfWizWebview', () => {
             await (confWizWebview as any).source();
 
             expect(showTextDocumentSpy).toHaveBeenCalledWith(mockDocument);
+        });
+    });
+
+    describe('annotation highlighting', () => {
+        const annotationRange = {
+            start: { line: 3, character: 2 },
+            end: { line: 3, character: 28 }
+        };
+
+        const createEditor = (): vscode.TextEditor => ({
+            document: mockDocument,
+            selection: undefined,
+            revealRange: jest.fn(),
+        } as unknown as vscode.TextEditor);
+
+        const connectWebview = (): void => {
+            const webviewPanel = {
+                onDidDispose: jest.fn(),
+                onDidChangeViewState: jest.fn(),
+            } as unknown as vscode.WebviewPanel;
+            const participant = {} as WebviewIdMessageParticipant;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (confWizWebview as any)._setWebviewMessageListener(webviewPanel, participant, mockDocument);
+        };
+
+        beforeEach(() => {
+            mockDocument.validateRange = jest.fn(range => range);
+        });
+
+        it('highlights a selected annotation in an already visible text editor', () => {
+            const editor = createEditor();
+            (vscode.window.visibleTextEditors as unknown as vscode.TextEditor[]) = [editor];
+            connectWebview();
+
+            mockMessengerNotificationHandlers.get(selectAnnotationType.method)?.({
+                documentPath: mockDocument.uri.fsPath,
+                annotationRange
+            });
+
+            expect(editor.selection).toEqual(expect.objectContaining({
+                start: annotationRange.start,
+                end: annotationRange.end
+            }));
+            expect(editor.revealRange).toHaveBeenCalledWith(
+                expect.objectContaining({ start: annotationRange.start, end: annotationRange.end }),
+                vscode.TextEditorRevealType.InCenterIfOutsideViewport
+            );
+        });
+
+        it('highlights the last selected annotation when Show Source opens its text editor', async () => {
+            await confWizWebview.activate();
+            connectWebview();
+            mockMessengerNotificationHandlers.get(selectAnnotationType.method)?.({
+                documentPath: mockDocument.uri.fsPath,
+                annotationRange
+            });
+
+            const editor = createEditor();
+            jest.spyOn(vscode.window, 'showTextDocument').mockResolvedValue(editor);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (confWizWebview as any).activeDocument = mockDocument;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (confWizWebview as any).source();
+
+            expect(editor.selection).toEqual(expect.objectContaining({
+                start: annotationRange.start,
+                end: annotationRange.end
+            }));
+            expect(editor.revealRange).toHaveBeenCalled();
+        });
+
+        it('does not highlight the last selected annotation after the webview is disposed', async () => {
+            await confWizWebview.activate();
+            let disposeCallback: (() => void) | undefined;
+            const webviewPanel = {
+                onDidDispose: jest.fn((callback) => {
+                    disposeCallback = callback;
+                    return { dispose: jest.fn() };
+                }),
+                onDidChangeViewState: jest.fn(),
+            } as unknown as vscode.WebviewPanel;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (confWizWebview as any)._setWebviewMessageListener(webviewPanel, {} as WebviewIdMessageParticipant, mockDocument);
+            mockMessengerNotificationHandlers.get(selectAnnotationType.method)?.({
+                documentPath: mockDocument.uri.fsPath,
+                annotationRange
+            });
+
+            expect(disposeCallback).toBeDefined();
+            disposeCallback!();
+
+            const editor = createEditor();
+            jest.spyOn(vscode.window, 'showTextDocument').mockResolvedValue(editor);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (confWizWebview as any).activeDocument = mockDocument;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (confWizWebview as any).source();
+
+            expect(editor.selection).toBeUndefined();
+            expect(editor.revealRange).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('bidirectional selection', () => {
+        const text = `// <<< Use Configuration Wizard in Context Menu >>>
+// <h> Settings
+// <o> X
+#define X 1
+// <o> Y
+#define Y 2
+// </h>
+// <<< end of configuration section >>>`;
+        let editor: vscode.TextEditor;
+        let root: TreeNodeElement;
+        let x: TreeNodeElement;
+        let y: TreeNodeElement;
+        let changeSelection: (event: vscode.TextEditorSelectionChangeEvent) => void;
+        let changeDocument: (event: vscode.TextDocumentChangeEvent) => Promise<void>;
+        let refresh: () => Promise<void>;
+        let selectGui: (node: TreeNodeElement) => void;
+        let notify: jest.SpyInstance;
+        let dispose: () => void;
+
+        beforeEach(async () => {
+            jest.useFakeTimers();
+            const RealGuiTree = jest.requireActual<typeof import('./parser/gui-tree')>('./parser/gui-tree').GuiTree;
+            const tree = new RealGuiTree();
+            mockDocument.getText = jest.fn().mockReturnValue(text);
+            mockDocument.validateRange = jest.fn(range => range);
+            editor = {
+                document: mockDocument,
+                selection: new vscode.Selection(new vscode.Position(2, 0), new vscode.Position(2, 0)),
+                revealRange: jest.fn()
+            } as unknown as vscode.TextEditor;
+            vscode.window.visibleTextEditors = [editor];
+            await confWizWebview.activate();
+            // Access the adapter's existing test seams; parsing itself stays real.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const host = confWizWebview as any;
+            host.documents.set(mockDocument.uri.fsPath, { document: mockDocument, participant: {} });
+            host.guiTrees.set(mockDocument.uri.fsPath, tree);
+            host._setWebviewMessageListener({
+                onDidDispose: (callback: () => void) => { dispose = callback; },
+                onDidChangeViewState: jest.fn()
+            }, {}, mockDocument);
+            root = host.getAnnotations(text, mockDocument.uri.fsPath, mockDocument.version);
+            [x, y] = root.children![0].children!;
+            refresh = () => host.refresh();
+            selectGui = node => mockMessengerNotificationHandlers.get(selectAnnotationType.method)?.({
+                documentPath: mockDocument.uri.fsPath, annotationRange: node.annotationRange
+            });
+            changeSelection = (vscode.window.onDidChangeTextEditorSelection as jest.Mock).mock.calls[0][0];
+            changeDocument = (vscode.workspace.onDidChangeTextDocument as jest.Mock).mock.calls[0][0];
+            notify = jest.spyOn(host.messenger, 'sendNotification');
+            notify.mockClear();
+        });
+
+        afterEach(() => {
+            jest.clearAllTimers();
+            jest.useRealTimers();
+        });
+
+        const move = (line: number, character = 0, kind = vscode.TextEditorSelectionChangeKind.Mouse): void => {
+            editor.selection = new vscode.Selection(new vscode.Position(line, character), new vscode.Position(line, character));
+            changeSelection({ textEditor: editor, selections: [editor.selection], kind });
+        };
+
+        it.each([vscode.TextEditorSelectionChangeKind.Mouse, vscode.TextEditorSelectionChangeKind.Keyboard])(
+            'syncs source to GUI without saving for interaction kind %s and allows GUI reselection', async kind => {
+                selectGui(x);
+                expect(editor.selection.start.line).toBe(2);
+                move(4, 0, kind);
+                expect(notify).toHaveBeenLastCalledWith(setSourceSelectionType, {}, {
+                    documentPath: mockDocument.uri.fsPath, selectedGuiId: y.guiId
+                });
+                (editor.revealRange as jest.Mock).mockClear();
+                await refresh();
+                (vscode.window.onDidChangeActiveTextEditor as jest.Mock).mock.calls[0]?.[0](editor);
+                (vscode.window.onDidChangeVisibleTextEditors as jest.Mock).mock.calls[0]?.[0]([editor]);
+                expect(editor.selection.start.line).toBe(4);
+                expect(editor.revealRange).not.toHaveBeenCalled();
+                selectGui(x);
+                expect(editor.selection.start.line).toBe(2);
+                expect(editor.revealRange).toHaveBeenCalled();
+            }
+        );
+
+        it('does not replay X when the first source click activates the editor before selecting Y', () => {
+            selectGui(x);
+            (editor.revealRange as jest.Mock).mockClear();
+            editor.selection = new vscode.Selection(new vscode.Position(4, 0), new vscode.Position(4, 0));
+            // VS Code can emit editor activation/visibility before the mouse selection event.
+            (vscode.window.onDidChangeActiveTextEditor as jest.Mock).mock.calls[0]?.[0](editor);
+            (vscode.window.onDidChangeVisibleTextEditors as jest.Mock).mock.calls[0]?.[0]([editor]);
+            expect(editor.selection.active.line).toBe(4);
+            changeSelection({ textEditor: editor, selections: [editor.selection], kind: vscode.TextEditorSelectionChangeKind.Mouse });
+            expect(editor.selection.active.line).toBe(4);
+            expect(editor.revealRange).not.toHaveBeenCalled();
+            expect(notify).toHaveBeenLastCalledWith(setSourceSelectionType, {}, {
+                documentPath: mockDocument.uri.fsPath, selectedGuiId: y.guiId
+            });
+        });
+
+        it('restores a GUI selection when its hidden source editor becomes visible, only once', () => {
+            vscode.window.visibleTextEditors = [];
+            selectGui(y);
+            expect(editor.selection.active.line).toBe(2);
+            const changeVisibleEditors = (vscode.window.onDidChangeVisibleTextEditors as jest.Mock).mock.calls[0][0];
+            const otherEditor = { ...editor, document: { ...mockDocument, uri: vscode.Uri.file('/other.dbgconf') }, revealRange: jest.fn() };
+            changeVisibleEditors([otherEditor]);
+            expect(otherEditor.revealRange).not.toHaveBeenCalled();
+            changeVisibleEditors([editor]);
+            expect(editor.selection).toEqual(expect.objectContaining({
+                start: y.annotationRange!.start,
+                end: y.annotationRange!.end
+            }));
+            expect(editor.revealRange).toHaveBeenCalledTimes(1);
+            (editor.revealRange as jest.Mock).mockClear();
+            editor.selection = new vscode.Selection(new vscode.Position(2, 0), new vscode.Position(2, 0));
+            changeVisibleEditors([editor]);
+            expect(editor.selection.active.line).toBe(2);
+            expect(editor.revealRange).not.toHaveBeenCalled();
+        });
+
+        it('maps associated values and clears selection outside annotations', () => {
+            const rect = y.value.editRect!;
+            move(rect.line, rect.col.start);
+            expect(notify).toHaveBeenLastCalledWith(setSourceSelectionType, {}, {
+                documentPath: mockDocument.uri.fsPath, selectedGuiId: y.guiId
+            });
+            move(9);
+            expect(notify).toHaveBeenLastCalledWith(setSourceSelectionType, {}, {
+                documentPath: mockDocument.uri.fsPath, selectedGuiId: null
+            });
+        });
+
+        it('prefers annotation matches and the deepest associated value, including multi-edit ranges', () => {
+            const rect = { line: 8, col: { start: 0, end: 10 } };
+            root.children![0].value.editRect = rect;
+            x.value.editRect = rect;
+            y.value.editRect = undefined;
+            y.value.multiEdit = [{ editRect: { line: 9, col: { start: 0, end: 10 } }, text: '' }];
+            move(8, 1);
+            expect(notify).toHaveBeenLastCalledWith(setSourceSelectionType, {}, {
+                documentPath: mockDocument.uri.fsPath, selectedGuiId: x.guiId
+            });
+            move(9, 1);
+            expect(notify).toHaveBeenLastCalledWith(setSourceSelectionType, {}, {
+                documentPath: mockDocument.uri.fsPath, selectedGuiId: y.guiId
+            });
+            x.value.editRect = { line: 4, col: { start: 0, end: 20 } };
+            move(4, 1);
+            expect(notify).toHaveBeenLastCalledWith(setSourceSelectionType, {}, {
+                documentPath: mockDocument.uri.fsPath, selectedGuiId: y.guiId
+            });
+        });
+
+        it('resolves an existing annotation against shifted unsaved source locations after reparse', async () => {
+            selectGui(x);
+            const updated = '\n' + text;
+            mockDocument.getText = jest.fn().mockReturnValue(updated);
+            Object.assign(mockDocument, { version: 2 });
+            await changeDocument({ document: mockDocument, contentChanges: [{ text: '\n' }] } as unknown as vscode.TextDocumentChangeEvent);
+            move(5, 0, vscode.TextEditorSelectionChangeKind.Keyboard);
+            await jest.advanceTimersByTimeAsync(500);
+            expect(notify).toHaveBeenLastCalledWith(setWizardDataType, {}, expect.objectContaining({ sourceSelection: y.guiId }));
+            expect(editor.selection.start.line).toBe(5);
+        });
+
+        it('ignores programmatic selections and preserves initial Show Source navigation', async () => {
+            selectGui(x);
+            move(4, 0, vscode.TextEditorSelectionChangeKind.Command);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (confWizWebview as any).activeDocument = mockDocument;
+            jest.spyOn(vscode.window, 'showTextDocument').mockResolvedValue(editor);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (confWizWebview as any).source();
+            expect(editor.selection.start.line).toBe(2);
+            expect(notify.mock.calls.some(call => call[0] === setSourceSelectionType)).toBe(false);
+        });
+
+        it('selects a new unsaved annotation after the edit debounce and keeps saves stable', async () => {
+            selectGui(x);
+            const updated = text.replace('// </h>', '// <o> New annotation\n#define NEW 3\n// </h>');
+            mockDocument.getText = jest.fn().mockReturnValue(updated);
+            Object.assign(mockDocument, { version: 2, lineCount: 10 });
+            await changeDocument({ document: mockDocument, contentChanges: [{ text: updated }] } as unknown as vscode.TextDocumentChangeEvent);
+            move(6, 0, vscode.TextEditorSelectionChangeKind.Keyboard);
+            expect(notify).not.toHaveBeenCalledWith(setSourceSelectionType, expect.anything(), expect.anything());
+            (editor.revealRange as jest.Mock).mockClear();
+            await jest.advanceTimersByTimeAsync(500);
+            const data = notify.mock.calls.find(call => call[0] === setWizardDataType)![2];
+            const created = data.element.children[0].children.find((node: TreeNodeElement) => node.name === 'New annotation');
+            expect(created).toBeDefined();
+            expect(data.sourceSelection).toBe(created.guiId);
+            await changeDocument({ document: mockDocument, contentChanges: [] } as unknown as vscode.TextDocumentChangeEvent);
+            await jest.advanceTimersByTimeAsync(500);
+            expect(editor.selection.start.line).toBe(6);
+            expect(editor.revealRange).not.toHaveBeenCalled();
+        });
+
+        it('keeps two tracked documents independent through refresh and GUI selection', async () => {
+            const otherDocument = { ...mockDocument, uri: vscode.Uri.file('/other.h') };
+            const otherEditor = { ...editor, document: otherDocument, revealRange: jest.fn() };
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const host = confWizWebview as any;
+            host.documents.set(otherDocument.uri.fsPath, { document: otherDocument, participant: { webviewId: 'other' } });
+            host.selectedAnnotationRanges.set(otherDocument.uri.fsPath, x.annotationRange);
+            const RealGuiTree = jest.requireActual<typeof import('./parser/gui-tree')>('./parser/gui-tree').GuiTree;
+            host.guiTrees.set(otherDocument.uri.fsPath, new RealGuiTree());
+            host.getAnnotations(text, otherDocument.uri.fsPath, otherDocument.version);
+            vscode.window.visibleTextEditors = [editor, otherEditor];
+            move(4);
+            selectGui(x);
+            changeSelection({ textEditor: otherEditor, selections: [otherEditor.selection], kind: vscode.TextEditorSelectionChangeKind.Keyboard });
+            await refresh();
+            const refreshCalls = notify.mock.calls.filter(call => call[0] === setWizardDataType);
+            expect(refreshCalls.find(call => call[2].documentPath === mockDocument.uri.fsPath)![2].sourceSelection).toBeUndefined();
+            expect(refreshCalls.find(call => call[2].documentPath === otherDocument.uri.fsPath)![2].sourceSelection).toBe(x.guiId);
+            (editor.revealRange as jest.Mock).mockClear();
+            selectGui(x);
+            expect(editor.revealRange).toHaveBeenCalled();
+            expect(otherEditor.revealRange).not.toHaveBeenCalled();
+        });
+
+        it('keeps source authority isolated and clears it on disposal', () => {
+            selectGui(x);
+            const otherEditor = { ...editor, document: { ...mockDocument, uri: vscode.Uri.file('/other.h') } };
+            changeSelection({ textEditor: otherEditor, selections: [otherEditor.selection], kind: vscode.TextEditorSelectionChangeKind.Mouse });
+            (editor.revealRange as jest.Mock).mockClear();
+            selectGui(x);
+            expect(editor.revealRange).toHaveBeenCalled();
+            move(4);
+            dispose();
+            notify.mockClear();
+            move(2);
+            expect(notify).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('annotation issue navigation', () => {
+        it('opens the source editor with the issue line selected', async () => {
+            const issueRange = new vscode.Range(4, 0, 4, 32);
+            mockDocument.lineAt = jest.fn().mockReturnValue({ text: '// invalid annotation', range: issueRange });
+            const showTextDocumentSpy = jest.spyOn(vscode.window, 'showTextDocument').mockResolvedValue(undefined as unknown as vscode.TextEditor);
+            const webviewPanel = {
+                onDidDispose: jest.fn(),
+                onDidChangeViewState: jest.fn(),
+            } as unknown as vscode.WebviewPanel;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (confWizWebview as any)._setWebviewMessageListener(webviewPanel, {} as WebviewIdMessageParticipant, mockDocument);
+
+            await mockMessengerNotificationHandlers.get(openIssueLocationType.method)?.({
+                documentPath: mockDocument.uri.fsPath,
+                line: 4
+            });
+
+            expect(showTextDocumentSpy).toHaveBeenCalledWith(mockDocument, {
+                selection: issueRange,
+                preview: false
+            });
+        });
+
+        it('opens an issue in the already visible source editor column', async () => {
+            const issueRange = new vscode.Range(4, 0, 4, 32);
+            mockDocument.lineAt = jest.fn().mockReturnValue({ text: '// invalid annotation', range: issueRange });
+            (vscode.window.visibleTextEditors as unknown as vscode.TextEditor[]) = [{
+                document: mockDocument,
+                viewColumn: vscode.ViewColumn.Two
+            } as vscode.TextEditor];
+            const showTextDocumentSpy = jest.spyOn(vscode.window, 'showTextDocument').mockResolvedValue(undefined as unknown as vscode.TextEditor);
+            const webviewPanel = {
+                onDidDispose: jest.fn(),
+                onDidChangeViewState: jest.fn(),
+            } as unknown as vscode.WebviewPanel;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (confWizWebview as any)._setWebviewMessageListener(webviewPanel, {} as WebviewIdMessageParticipant, mockDocument);
+
+            await mockMessengerNotificationHandlers.get(openIssueLocationType.method)?.({
+                documentPath: mockDocument.uri.fsPath,
+                line: 4
+            });
+
+            expect(showTextDocumentSpy).toHaveBeenCalledWith(mockDocument, {
+                selection: issueRange,
+                preview: false,
+                viewColumn: vscode.ViewColumn.Two
+            });
+        });
+
+        it('does not restore a previously selected annotation after opening an issue', async () => {
+            await confWizWebview.activate();
+            const annotationRange = {
+                start: { line: 3, character: 2 },
+                end: { line: 3, character: 28 }
+            };
+            const issueRange = new vscode.Range(4, 0, 4, 32);
+            mockDocument.lineAt = jest.fn().mockReturnValue({ text: '// invalid annotation', range: issueRange });
+            const webviewPanel = {
+                onDidDispose: jest.fn(),
+                onDidChangeViewState: jest.fn(),
+            } as unknown as vscode.WebviewPanel;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (confWizWebview as any)._setWebviewMessageListener(webviewPanel, {} as WebviewIdMessageParticipant, mockDocument);
+            mockMessengerNotificationHandlers.get(selectAnnotationType.method)?.({
+                documentPath: mockDocument.uri.fsPath,
+                annotationRange
+            });
+            jest.spyOn(vscode.window, 'showTextDocument').mockResolvedValue(undefined as unknown as vscode.TextEditor);
+
+            await mockMessengerNotificationHandlers.get(openIssueLocationType.method)?.({
+                documentPath: mockDocument.uri.fsPath,
+                line: 4
+            });
+
+            const editor = {
+                document: mockDocument,
+                selection: new vscode.Selection(issueRange.start, issueRange.end),
+                revealRange: jest.fn(),
+            } as unknown as vscode.TextEditor;
+            jest.spyOn(vscode.window, 'showTextDocument').mockResolvedValue(editor);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (confWizWebview as any).activeDocument = mockDocument;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (confWizWebview as any).source();
+
+            expect(editor.selection).toEqual(expect.objectContaining({
+                start: issueRange.start,
+                end: issueRange.end
+            }));
+            expect(editor.revealRange).not.toHaveBeenCalled();
         });
     });
 

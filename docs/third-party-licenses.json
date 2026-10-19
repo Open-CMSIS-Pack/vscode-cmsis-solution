@@ -1,12 +1,5 @@
 [
     {
-        "name": "google-protobuf",
-        "version": "4.0.2",
-        "spdx": "(BSD-3-Clause AND Apache-2.0)",
-        "url": "https://github.com/protocolbuffers/protobuf",
-        "license": "https://github.com/protocolbuffers/protobuf/blob/main/LICENSE"
-    },
-    {
         "name": "@eclipse-cdt-cloud/clangd-contexts",
         "version": "0.9.0-next.c7c35a6.0",
         "spdx": "EPL-2.0",
@@ -22,7 +15,7 @@
     },
     {
         "name": "@vscode/codicons",
-        "version": "0.0.44",
+        "version": "0.0.45",
         "spdx": "CC-BY-4.0",
         "url": "https://github.com/microsoft/vscode-codicons",
         "license": "https://github.com/microsoft/vscode-codicons/blob/main/LICENSE"
@@ -70,6 +63,13 @@
         "license": "https://github.com/microsoft/node-jsonc-parser/blob/main/LICENSE.md"
     },
     {
+        "name": "lodash",
+        "version": "4.18.1",
+        "spdx": "MIT",
+        "url": "https://github.com/lodash/lodash",
+        "license": "https://github.com/lodash/lodash/blob/master/LICENSE"
+    },
+    {
         "name": "lodash.debounce",
         "version": "4.0.8",
         "spdx": "MIT",
@@ -82,6 +82,13 @@
         "spdx": "MIT",
         "url": "https://github.com/node-fetch/node-fetch",
         "license": "https://github.com/node-fetch/node-fetch/blob/master/LICENSE.md"
+    },
+    {
+        "name": "pend",
+        "version": "1.2.0",
+        "spdx": "MIT",
+        "url": "https://github.com/andrewrk/node-pend",
+        "license": "https://github.com/andrewrk/node-pend/blob/master/LICENSE"
     },
     {
         "name": "primereact",
@@ -120,7 +127,7 @@
     },
     {
         "name": "semver",
-        "version": "7.7.4",
+        "version": "7.8.5",
         "spdx": "ISC",
         "url": "https://github.com/npm/node-semver",
         "license": "https://github.com/npm/node-semver/blob/main/LICENSE"
@@ -148,7 +155,7 @@
     },
     {
         "name": "yaml",
-        "version": "2.9.0",
+        "version": "2.9.1",
         "spdx": "ISC",
         "url": "https://github.com/eemeli/yaml",
         "license": "https://github.com/eemeli/yaml/blob/main/LICENSE"
@@ -159,6 +166,13 @@
         "spdx": "ISC",
         "url": "https://github.com/yargs/yargs-parser",
         "license": "https://github.com/yargs/yargs-parser/blob/main/LICENSE.txt"
+    },
+    {
+        "name": "yauzl",
+        "version": "3.4.0",
+        "spdx": "MIT",
+        "url": "https://github.com/thejoshwolfe/yauzl",
+        "license": "https://github.com/thejoshwolfe/yauzl/blob/master/LICENSE"
     },
     {
         "name": "@ant-design/icons",
@@ -183,14 +197,14 @@
     },
     {
         "name": "eta",
-        "version": "4.5.1",
+        "version": "4.6.0",
         "spdx": "MIT",
         "url": "https://github.com/eta-dev/eta",
         "license": "https://github.com/eta-dev/eta/blob/main/LICENSE"
     },
     {
         "name": "which",
-        "version": "6.0.1",
+        "version": "7.0.0",
         "spdx": "ISC",
         "url": "https://github.com/npm/node-which",
         "license": "https://github.com/npm/node-which/blob/main/LICENSE"

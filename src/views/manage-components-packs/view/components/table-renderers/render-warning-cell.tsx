@@ -16,23 +16,25 @@
 
 import React, { ComponentState } from 'react';
 import { componentNiceName, ComponentRowDataType } from '../../../data/component-tools';
+import { getRowValidationSeverity, selectDominantValidations } from '../../../data/validation-severity';
 import { getValidationMessage, warningIcon } from '../../helpers/components-packs-helpers';
 import { Tooltip } from 'antd';
+import { Result } from '../../../../../json-rpc/csolution-rpc-client';
 
 /**
  * Entry for validation tooltip: id and result.
  */
-type ValidationTooltipEntry = { id: string; result?: string };
+type ValidationTooltipEntry = { validation: Result; result?: string };
 
 /**
  * Recursively collect all validation IDs and results from a node and its descendants.
  * Returns an array of ValidationTooltipEntry objects.
  */
-const collectValidationIds = (node: ComponentRowDataType, state: ComponentState): ValidationTooltipEntry[] => {
-    const ids: ValidationTooltipEntry[] = [];
-    if (node.validation?.id) ids.push({ id: node.validation.id, result: getValidationMessage(node, state) });
-    node.children?.forEach(child => ids.push(...collectValidationIds(child, state)));
-    return ids;
+const collectValidations = (node: ComponentRowDataType, state: ComponentState): ValidationTooltipEntry[] => {
+    const validations: ValidationTooltipEntry[] = [];
+    if (node.validation?.id) validations.push({ validation: node.validation, result: getValidationMessage(node, state) });
+    node.children?.forEach(child => validations.push(...collectValidations(child, state)));
+    return validations;
 };
 
 /**
@@ -40,10 +42,12 @@ const collectValidationIds = (node: ComponentRowDataType, state: ComponentState)
  * Uses a composite key for React list rendering to ensure uniqueness across columns.
  */
 export const validationIds = (record: ComponentRowDataType, state: ComponentState, columnKey?: string): React.ReactNode[] => {
-    const ids = collectValidationIds(record, state);
-    return ids
-        .filter((entry, index, self) => self.findIndex(e => e.id === entry.id) === index)
-        .map(({ id, result }, idx) => {
+    const validations = collectValidations(record, state);
+    const dominantValidations = new Set(selectDominantValidations(validations.map(entry => entry.validation)));
+    return validations
+        .filter(entry => dominantValidations.has(entry.validation))
+        .filter((entry, index, self) => self.findIndex(e => e.validation.id === entry.validation.id) === index)
+        .map(({ validation: { id }, result }, idx) => {
             const compId = id.indexOf('/') > 0 ? id.split('/')[1] : id;
             return (
                 <li key={`${id}-${columnKey ?? 'no-col'}-${record.data.id}-${idx}`}>
@@ -54,12 +58,6 @@ export const validationIds = (record: ComponentRowDataType, state: ComponentStat
 };
 
 /**
- * Returns true if the record or any descendant has a validation ID.
- */
-export const hasValidation = (record: ComponentRowDataType): boolean =>
-    (!!record.validation?.id && record.validation.id.indexOf(record.key) >= 0) || (record.children?.some(hasValidation) ?? false);
-
-/**
  * Renders a warning icon with a tooltip if the record or its descendants have validation issues.
  * @param record The component row data
  * @returns The rendered warning cell or null
@@ -68,9 +66,11 @@ export const renderWarningCell = (
     record: ComponentRowDataType,
     state: ComponentState
 ): React.ReactNode => {
+    const severity = getRowValidationSeverity(record);
+    if (!severity) return null;
+
     // Use a unique columnKey for this column
     const vids = validationIds(record, state, 'warning-col');
-    if (!hasValidation(record)) return null;
     const tooltTipContent = (
         <div>
             <ul style={{ paddingLeft: '30px' }}>
@@ -84,7 +84,7 @@ export const renderWarningCell = (
     );
     return (
         <Tooltip placement='right' title={tooltTipContent} mouseEnterDelay={1.0} mouseLeaveDelay={0.3} trigger={['hover']}>
-            {warningIcon('error')}
+            {warningIcon(severity)}
         </Tooltip>
     );
 };

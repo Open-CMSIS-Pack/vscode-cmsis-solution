@@ -36,6 +36,7 @@ import { csolutionServiceFactory } from '../../json-rpc/csolution-rpc-client.fac
 import { TargetSetData } from './components-data';
 import path from 'path';
 import { ComponentScope } from './data/component-tools';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 
 const testSolutionPath = 'path/to/solution.csolution';
 
@@ -54,9 +55,14 @@ describe('ComponentsPacksWebviewMain', () => {
     let extensionContext: { subscriptions: vscode.Disposable[] };
     let messageProvider: MockMessageProvider;
     let csolutionService: CsolutionService;
+    let autoConvertOnFileChange: boolean | undefined;
     const usedItemsReturn = { packs: [{ pack: 'ARM::CMSIS@1.0.0', origin: '/tmp/file1.yml' }, { pack: 'Keil::MDK-Middleware@8.0.0', origin: '/tmp/file2.yml' }], components: [{ id: 'CMSIS Driver:I2C' }, { id: 'MDK Middleware Component' }] };
 
     beforeEach(async () => {
+        autoConvertOnFileChange = undefined;
+        jest.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+            get: jest.fn((_key: string, defaultValue: unknown) => autoConvertOnFileChange ?? defaultValue),
+        } as unknown as vscode.WorkspaceConfiguration);
         messageProvider = messageProviderFactory();
 
         solutionManager = solutionManagerFactory({
@@ -299,8 +305,8 @@ describe('ComponentsPacksWebviewMain', () => {
 
     describe('handleSolutionLoadChange', () => {
         const makeEvent = (prev: string, next: string) => ({
-            previousState: { type: prev },
-            newState: { type: next },
+            previousState: { solutionPath: prev === 'active' ? 'sol' : undefined },
+            newState: { solutionPath: next === 'active' ? 'sol' : undefined },
         });
 
         let debounceSpy: jest.SpyInstance;
@@ -332,25 +338,31 @@ describe('ComponentsPacksWebviewMain', () => {
             expect(debounceSpy).not.toHaveBeenCalled();
         });
 
-        it('clears components when solution not active', async () => {
+        it('clears solution data when solution not active', async () => {
             webviewManager.isPanelActive = true;
             jest.spyOn(solutionManager, 'getCsolution').mockReturnValue(solutionManager.getCsolution());
-            const clearSpy = jest.spyOn(componentsPacksWebviewMain as any, 'clearComponents').mockResolvedValue(undefined);
+            (componentsPacksWebviewMain as any).currentProject = { solutionPath: 'sol', project: { projectId: 'proj1', projectName: 'proj1' } };
+            (componentsPacksWebviewMain as any).selectedContext = { path: 'layer.clayer.yml' };
+            (componentsPacksWebviewMain as any).cachedTargetSetData = [{ path: 'proj1' }];
+            webviewManager.sendMessage.mockClear();
 
             await (componentsPacksWebviewMain as any).handleSolutionLoadChange(makeEvent('active', 'idle'));
 
-            expect(clearSpy).toHaveBeenCalledTimes(1);
+            expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'CLEAR_SOLUTION_DATA' });
+            expect((componentsPacksWebviewMain as any).currentProject).toBeUndefined();
+            expect((componentsPacksWebviewMain as any).selectedContext).toBeUndefined();
+            expect((componentsPacksWebviewMain as any).cachedTargetSetData).toBeUndefined();
             expect(debounceSpy).not.toHaveBeenCalled();
         });
 
-        it('clears components when csolution undefined', async () => {
+        it('clears solution data when csolution undefined', async () => {
             webviewManager.isPanelActive = true;
             jest.spyOn(solutionManager, 'getCsolution').mockReturnValue(undefined);
-            const clearSpy = jest.spyOn(componentsPacksWebviewMain as any, 'clearComponents').mockResolvedValue(undefined);
+            webviewManager.sendMessage.mockClear();
 
             await (componentsPacksWebviewMain as any).handleSolutionLoadChange(makeEvent('idle', 'active'));
 
-            expect(clearSpy).toHaveBeenCalledTimes(1);
+            expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'CLEAR_SOLUTION_DATA' });
             expect(debounceSpy).not.toHaveBeenCalled();
         });
     });
@@ -505,19 +517,13 @@ describe('ComponentsPacksWebviewMain', () => {
             expect(spy).not.toHaveBeenCalled();
         });
 
-        it('clears components when no csolution exists', async () => {
-            // Arrange: ensure componentTree exists so clearComponents will attempt to send
-            (componentsPacksWebviewMain as any).componentTree = { success: true, classes: [{}] };
+        it('clears solution data when no csolution exists', async () => {
             webviewManager.sendMessage.mockClear();
             jest.spyOn(solutionManager, 'getCsolution').mockReturnValue(undefined as any);
 
             await (componentsPacksWebviewMain as any).handleMessage({ type: 'REQUEST_INITIAL_DATA' });
 
-            expect(webviewManager.sendMessage).toHaveBeenCalledWith({
-                type: 'SET_COMPONENT_TREE',
-                tree: { success: false, classes: [] },
-                validations: []
-            });
+            expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'CLEAR_SOLUTION_DATA' });
         });
     });
     describe('handleApplyComponentSet', () => {
@@ -581,6 +587,83 @@ describe('ComponentsPacksWebviewMain', () => {
             const stateMessages = webviewManager.sendMessage.mock.calls.filter(c => c[0].type === 'SET_SOLUTION_STATE');
             expect(stateMessages.length).toBe(1); // Saving changes..., then clearing state
             expect(result).toBe(true);
+            expect(solutionManager.refresh).not.toHaveBeenCalled();
+        });
+
+        it('does not convert when applying an unchanged view', async () => {
+            jest.spyOn(componentsPacksWebviewMain as any, 'isDirty').mockResolvedValue(false);
+            updateUsedItemsMock.mockResolvedValue(true);
+
+            expect(await (componentsPacksWebviewMain as any).handleApplyComponentSet()).toBe(true);
+            expect(solutionManager.refresh).not.toHaveBeenCalled();
+        });
+
+        it('does not convert when the project file updater reports no change', async () => {
+            updateUsedItemsMock.mockResolvedValue(false);
+
+            expect(await (componentsPacksWebviewMain as any).handleApplyComponentSet()).toBe(true);
+            expect(solutionManager.refresh).not.toHaveBeenCalled();
+        });
+
+        it('converts once after a modified pack-file-only save', async () => {
+            const csolution = solutionManager.getCsolution()!;
+            const save = jest.spyOn(csolution.cbuildPackFile, 'save').mockResolvedValue(ETextFileResult.Success);
+            jest.spyOn(csolution.cbuildPackFile, 'isModified').mockReturnValue(true);
+            updateUsedItemsMock.mockResolvedValue(false);
+
+            expect(await (componentsPacksWebviewMain as any).handleApplyComponentSet()).toBe(true);
+            expect(save).toHaveBeenCalledTimes(1);
+            expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+            expect(solutionManager.refresh).toHaveBeenCalledWith();
+        });
+
+        it('refreshes after a tracked project save in dirty-only mode', async () => {
+            autoConvertOnFileChange = false;
+
+            expect(await (componentsPacksWebviewMain as any).handleApplyComponentSet()).toBe(true);
+            expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+        });
+
+        it('refreshes after a pack-only save in dirty-only mode', async () => {
+            autoConvertOnFileChange = false;
+            const csolution = solutionManager.getCsolution()!;
+            jest.spyOn(csolution.cbuildPackFile, 'save').mockResolvedValue(ETextFileResult.Success);
+            jest.spyOn(csolution.cbuildPackFile, 'isModified').mockReturnValue(true);
+            updateUsedItemsMock.mockResolvedValue(false);
+
+            expect(await (componentsPacksWebviewMain as any).handleApplyComponentSet()).toBe(true);
+            expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+        });
+
+        it('leaves mixed pack and project saves to the watcher in automatic mode', async () => {
+            const csolution = solutionManager.getCsolution()!;
+            jest.spyOn(csolution.cbuildPackFile, 'save').mockResolvedValue(ETextFileResult.Success);
+            jest.spyOn(csolution.cbuildPackFile, 'isModified').mockReturnValue(true);
+
+            expect(await (componentsPacksWebviewMain as any).handleApplyComponentSet()).toBe(true);
+            expect(solutionManager.refresh).not.toHaveBeenCalled();
+        });
+
+        it('does not refresh when applying a pack-only save fails', async () => {
+            const csolution = solutionManager.getCsolution()!;
+            jest.spyOn(csolution.cbuildPackFile, 'save').mockResolvedValue(ETextFileResult.Success);
+            jest.spyOn(csolution.cbuildPackFile, 'isModified').mockReturnValue(true);
+            applyMock.mockResolvedValue({ success: false });
+            updateUsedItemsMock.mockResolvedValue(false);
+
+            expect(await (componentsPacksWebviewMain as any).handleApplyComponentSet()).toBe(false);
+            expect(solutionManager.refresh).not.toHaveBeenCalled();
+        });
+
+        it('does not convert after a failed pack-file save', async () => {
+            const csolution = solutionManager.getCsolution()!;
+            jest.spyOn(csolution.cbuildPackFile, 'save').mockResolvedValue(ETextFileResult.Error);
+            jest.spyOn(csolution.cbuildPackFile, 'isModified').mockReturnValue(true);
+
+            expect(await (componentsPacksWebviewMain as any).handleApplyComponentSet()).toBe(false);
+            expect(applyMock).not.toHaveBeenCalled();
+            expect(solutionManager.refresh).not.toHaveBeenCalled();
+            expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'IS_DIRTY', isDirty: true });
         });
 
         it('sends error state message when apply fails', async () => {
@@ -1192,6 +1275,18 @@ describe('ComponentsPacksWebviewMain', () => {
     });
 
     describe('handleSolutionLoadChange active reload', () => {
+        it('preserves pending webview edits on a dirty-only change', async () => {
+            webviewManager.isPanelActive = true;
+            const debounceSpy = jest.spyOn(componentsPacksWebviewMain as any, 'debounce_load').mockResolvedValue(undefined);
+            await (componentsPacksWebviewMain as any).handleSolutionLoadChange({
+                previousState: { solutionPath: 'solution.csolution.yml', converted: true, loaded: true, activated: true, dirty: false },
+                newState: { solutionPath: 'solution.csolution.yml', converted: true, loaded: true, activated: true, dirty: true }
+            });
+
+            expect(debounceSpy).not.toHaveBeenCalled();
+            expect(webviewManager.sendMessage).not.toHaveBeenCalled();
+        });
+
         it('reloads when the same solution stays active', async () => {
             webviewManager.isPanelActive = true;
             const debounceSpy = jest.spyOn(componentsPacksWebviewMain as any, 'debounce_load').mockResolvedValue(undefined);
@@ -1271,14 +1366,14 @@ describe('ComponentsPacksWebviewMain', () => {
             webviewManager.isPanelActive = true;
             jest.spyOn(solutionManager, 'getCsolution').mockReturnValue({ solutionPath: 'solution.csolution.yml' } as any);
             jest.spyOn(componentsPacksWebviewMain as any, 'getValidProjectId').mockReturnValue(undefined);
-            const clearSpy = jest.spyOn(componentsPacksWebviewMain as any, 'clearComponents').mockResolvedValue(undefined);
+            webviewManager.sendMessage.mockClear();
 
             await (componentsPacksWebviewMain as any).handleSolutionLoadChange({
                 previousState: { solutionPath: undefined },
                 newState: { solutionPath: 'solution.csolution.yml' }
             });
 
-            expect(clearSpy).toHaveBeenCalledTimes(1);
+            expect(webviewManager.sendMessage).toHaveBeenNthCalledWith(1, { type: 'CLEAR_SOLUTION_DATA' });
             expect(webviewManager.sendMessage).toHaveBeenCalledWith({
                 type: 'SET_ERROR_MESSAGES',
                 messages: [{ type: 'ERROR', message: 'No valid project found in the loaded solution' }]

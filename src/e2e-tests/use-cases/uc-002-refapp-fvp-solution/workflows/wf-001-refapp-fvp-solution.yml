@@ -1,0 +1,60 @@
+id: UC-002
+title:  Create CMSIS Solution from Reference Application with FVP
+issue: https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/issues/353
+
+workflows:
+  - id: WF-001
+    title: Create CMSIS Solution from Reference Application with FVP
+    automation:
+      test: src/e2e-tests/use-cases/uc-002-refapp-fvp-solution/uc-002-refapp-fvp-solution.test.ts
+      fixture: src/e2e-tests/use-cases/uc-002-refapp-fvp-solution/fixtures/wf-001-refapp-fvp-solution.yml
+    steps:
+      - Open the Create Solution wizard from the CMSIS extension.
+      - Select the board V2M-MPS3-SSE-300-FVP.
+      - Under the Reference Applications category, select the Blinky example.
+      - Select the solution base folder.
+      - Click Create.
+      - Open the generated Blinky.csolution.yml file located in the Blinky project folder (./Blinky.csolution.yml).
+      - Under the 'packs' node, add pack 'ARM::AVH_FVP'
+      - Configure Solution view will be opened. Click on 'OK' button
+      - Open 'Manage Solution Settings' view.
+      - Select Debug Adapter 'Arm-FVP'
+      - Select model 'FVP_Corstone_SSE-300'
+      - Set the Config File to ./board/Corstone-300/fvp_config.txt by browsing to the file in the project folder.
+      - Set the Misc field to --simlimit 25.
+      - Save (CRTL + S)
+      - Click on 'Arm Tools'
+      - Select 'Configure Arm Tools Environment'
+      - Select 'Arm Virtual Hardware for Cortex®-M based on Fast Models'
+      - Select version '11.31.28'
+      - Save changes in vcpkg-configuration.json file
+      - Build the solution.
+      - Verify that the build completes successfully
+      - Run the application using Load and Run Application (Play button).
+      - Verify that the CMSIS extension launches the configured FVP and loads the generated image.
+    validates:
+      - Reference application solution creation
+      - Generated project and build artifacts
+      - CMSIS solution configuration
+      - FVP debug adapter configuration
+      - Arm tools environment configuration
+      - FVP launch and application execution
+    coverage:
+      includes:
+        - Create Solution UI workflow
+        - Fixture board and reference application selection
+        - Generated solution and project artifacts
+        - CMSIS solution configuration update
+        - Manage Solution Settings FVP configuration
+        - Arm Tools environment configuration
+        - Solution build
+        - Load and Run Application workflow
+    acceptance_criteria:
+      - The solution is created without dependency validation errors.
+      - The expected solution, project, build, and image files are generated.
+      - The build completes successfully.
+      - The terminal executes FVP_Corstone_SSE-300.
+      - The command includes board/Corstone-300/fvp_config.txt.
+      - The command includes --simlimit 25.
+      - The command loads out/Blinky/SSE-300-MPS3/Debug/Blinky.hex.
+      - The terminal output contains Blinky example.

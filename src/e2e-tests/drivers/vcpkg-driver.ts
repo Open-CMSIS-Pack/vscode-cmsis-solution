@@ -154,7 +154,7 @@ export class VcpkgDriver {
         }
 
         for (const item of items) {
-            const label = await item.getAttribute('aria-label');
+            const label = await item.getAttribute('aria-label') ?? await item.textContent();
             if (!label) {
                 continue;
             }

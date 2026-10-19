@@ -15,13 +15,17 @@
  */
 
 import * as YAML from 'yaml';
+import fs from 'fs';
 import { TestDataHandler } from '../__test__/test-data';
 import path from 'node:path';
 import { CSolution } from './csolution';
-import { ETextFileResult } from '../generic/text-file';
-import { CTreeItem } from '../generic/tree-item';
-import { parseYamlToCTreeItem } from '../generic/tree-item-yaml-parser';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
 import { CProjectYamlFile } from './files/cproject-yaml-file';
+import { CbuildFile } from './files/cbuild-file';
+import { CbuildRunYamlFile } from './files/cbuild-run-yaml-file';
+import { YamlFile } from '@open-cmsis-pack/cmsis-common/yaml-file';
 
 describe('CSolution', () => {
     const testDataHandler = new TestDataHandler();
@@ -39,6 +43,32 @@ describe('CSolution', () => {
         const loadResult = await csolution.load('./dummy.csolution.yml');
         expect(loadResult).toEqual(ETextFileResult.NotExists);
         expect(csolution.csolutionYml.text).toEqual('');
+    });
+
+    it.each(['Vendor::Device', undefined])('reads target defaults from build-run with device %s', async (device) => {
+        const fileName = path.join(testDataHandler.tmpDir, 'defaults.cbuild-run.yml');
+        const fixture = new YamlFile(fileName);
+        fixture.content = {
+            'cbuild-run': {
+                'target-type': 'test-target',
+                device,
+                output: [],
+                debugger: { name: 'CMSIS-DAP' },
+            },
+        };
+        expect(await fixture.save()).toBe(ETextFileResult.Success);
+        const csolution = new CSolution();
+        jest.spyOn(csolution, 'cbuildRunYml', 'get').mockReturnValue(new CbuildRunYamlFile(fileName));
+
+        expect(await csolution.getDefaultTargetConfiguration()).toEqual({
+            debugAdapterName: 'CMSIS-DAP',
+            device,
+            targetType: 'test-target',
+        });
+    });
+
+    it('returns no target defaults without a build-run file', async () => {
+        expect(await new CSolution().getDefaultTargetConfiguration()).toBeUndefined();
     });
 
     // Utility function to verify projects
@@ -64,6 +94,50 @@ describe('CSolution', () => {
             expect(csolution.solutionPath).toEqual(fullPath);
 
             verifyProjects(csolution, expectedProjects);
+        });
+
+        it('persists the default target type and named target set selection', async () => {
+            const csolution = new CSolution();
+            const fullPath = path.join(testDataHandler.tmpDir, 'solutions', 'targetSet', 'TargetSets.csolution.yml');
+            csolution.cmsisJsonFile.unlink();
+
+            expect(await csolution.load(fullPath)).toEqual(ETextFileResult.Success);
+
+            expect(csolution.cmsisJsonFile.targetSetMap).toEqual({
+                activeTargetType: csolution.getActiveTargetType(),
+                [csolution.getActiveTargetType()!]: 0,
+            });
+            expect(csolution.cmsisJsonFile.getSettings()).toEqual(expect.objectContaining({
+                activeSolution: path.relative(
+                    path.dirname(csolution.cmsisJsonFile.fileName),
+                    csolution.solutionPath
+                ).replaceAll('\\', '/'),
+                activeTarget: `${csolution.getActiveTargetType()}@${csolution.getActiveTargetSetWrap()?.name}`,
+            }));
+        });
+
+        it('does not overwrite cmsis.json when loading it fails', async () => {
+            const csolution = new CSolution();
+            const fullPath = path.join(testDataHandler.tmpDir, 'solutions', 'simple', 'test.csolution.yml');
+            const invalidSettings = '{ invalid json';
+            fs.mkdirSync(path.dirname(csolution.cmsisJsonFile.fileName), { recursive: true });
+            fs.writeFileSync(csolution.cmsisJsonFile.fileName, invalidSettings, 'utf8');
+            const writeFileSpy = jest.spyOn(csolution.cmsisJsonFile, 'save');
+
+            expect(await csolution.load(fullPath)).toEqual(ETextFileResult.Success);
+            expect(writeFileSpy).not.toHaveBeenCalled();
+            expect(fs.readFileSync(csolution.cmsisJsonFile.fileName, 'utf8')).toBe(invalidSettings);
+        });
+
+        it('returns an error when saving cmsis.json fails', async () => {
+            const csolution = new CSolution();
+            const fullPath = path.join(testDataHandler.tmpDir, 'solutions', 'simple', 'test.csolution.yml');
+            csolution.cmsisJsonFile.unlink();
+            jest.spyOn(csolution.cmsisJsonFile, 'save').mockResolvedValue(ETextFileResult.Error);
+
+            expect(await csolution.load(fullPath)).toEqual(ETextFileResult.Error);
+            expect(csolution.solutionPath).toEqual(fullPath);
+            verifyProjects(csolution, 1);
         });
     });
 
@@ -110,6 +184,13 @@ describe('CSolution', () => {
         expect(csolution.projects.size).toEqual(3);
         expect(csolution.cbuildYmlRoot.size).toEqual(2);
         expect(csolution.clayerYmlRoot.size).toEqual(2);
+
+        const layerPath = csolution.clayerYmlRoot.keys().next().value as string;
+        const layerFile = csolution.getClayerYamlFile(layerPath);
+        expect(layerFile).toBeDefined();
+        expect(layerFile?.fileName).toEqual(layerPath);
+        expect(csolution.getClayer(layerPath)).toBe(layerFile?.rootItem);
+        expect(csolution.getClayerYamlFile(path.relative(csolution.solutionDir, layerPath))).toBe(layerFile);
 
         const content = csolution.csolutionYml.text.trim(); // avoid whitespace noise
         expect(content).toContain('target-types');
@@ -455,6 +536,34 @@ describe('CSolution', () => {
             });
         });
 
+        describe('getSourceFiles', () => {
+            it('returns a deterministic union across all selected contexts', () => {
+                const csolution = new CSolution();
+                const firstContext = {
+                    getSourceFiles: jest.fn().mockReturnValue([
+                        path.normalize('/workspace/zeta.c'),
+                        path.normalize('/packs/shared.h'),
+                    ]),
+                } as unknown as CbuildFile;
+                const secondContext = {
+                    getSourceFiles: jest.fn().mockReturnValue([
+                        path.normalize('/workspace/alpha.c'),
+                        path.normalize('/packs/shared.h'),
+                    ]),
+                } as unknown as CbuildFile;
+                csolution.cbuildIdxFile.cbuildFiles.set('Project.Debug+Target', firstContext);
+                csolution.cbuildIdxFile.cbuildFiles.set('Project.Release+Target', secondContext);
+
+                expect(csolution.getSourceFiles()).toEqual([
+                    path.normalize('/packs/shared.h'),
+                    path.normalize('/workspace/alpha.c'),
+                    path.normalize('/workspace/zeta.c'),
+                ]);
+                expect(firstContext.getSourceFiles).toHaveBeenCalledTimes(1);
+                expect(secondContext.getSourceFiles).toHaveBeenCalledTimes(1);
+            });
+        });
+
         describe('getContextDescriptors', () => {
             let csolution: CSolution;
 
@@ -654,6 +763,39 @@ describe('CSolution', () => {
         });
     });
 
+    describe('hasVirtualProject', () => {
+        let csolution: CSolution;
+
+        beforeEach(() => {
+            csolution = new CSolution();
+            csolution.projects.clear();
+        });
+
+        it.each(['West', 'CMake'] as const)('returns true for a read-only %s project', projectType => {
+            csolution.projects.set('virtual', { projectType, readOnly: true } as CProjectYamlFile);
+
+            expect(csolution.hasVirtualProject()).toBe(true);
+        });
+
+        it('returns true when a virtual project follows a physical project', () => {
+            csolution.projects.set('physical', { projectType: 'executable', readOnly: false } as CProjectYamlFile);
+            csolution.projects.set('virtual', { projectType: 'CMake', readOnly: true } as CProjectYamlFile);
+
+            expect(csolution.hasVirtualProject()).toBe(true);
+        });
+
+        it('returns false for writable projects regardless of project type', () => {
+            csolution.projects.set('cmake', { projectType: 'CMake', readOnly: false } as CProjectYamlFile);
+            csolution.projects.set('physical', { projectType: 'library', readOnly: false } as CProjectYamlFile);
+
+            expect(csolution.hasVirtualProject()).toBe(false);
+        });
+
+        it('returns false when there are no projects', () => {
+            expect(csolution.hasVirtualProject()).toBe(false);
+        });
+    });
+
     describe('getSolutionYmlFiles', () => {
         it('returns empty list when no solution is loaded', () => {
             const csolution = new CSolution();
@@ -716,6 +858,35 @@ describe('CSolution', () => {
             });
 
             expect(files).toHaveLength(1 + projectPaths.length + layerPaths.length);
+        });
+
+        it('includes expected layer paths that were not loaded', () => {
+            const csolution = new CSolution();
+            const missingLayerPath = path.join(testDataHandler.tmpDir, 'generated', 'missing.cgen.yml');
+            jest.spyOn(csolution.cbuildIdxFile, 'activeContexts', 'get').mockReturnValue([{
+                displayName: 'Project.Debug+Target',
+                projectName: 'Project',
+                buildType: 'Debug',
+                targetType: 'Target',
+                layers: [{ displayName: 'missing', absolutePath: missingLayerPath }],
+            }]);
+
+            expect(csolution.getSolutionYmlFiles()).toContain(missingLayerPath);
+        });
+
+        it('deduplicates loaded and expected layer paths', () => {
+            const csolution = new CSolution();
+            const layerPath = path.join(testDataHandler.tmpDir, 'generated', 'shared.cgen.yml');
+            csolution.clayerYmlRoot.set(layerPath, {} as CTreeItem);
+            jest.spyOn(csolution.cbuildIdxFile, 'activeContexts', 'get').mockReturnValue([{
+                displayName: 'Project.Debug+Target',
+                projectName: 'Project',
+                buildType: 'Debug',
+                targetType: 'Target',
+                layers: [{ displayName: 'shared', absolutePath: layerPath }],
+            }]);
+
+            expect(csolution.getSolutionYmlFiles()).toEqual([layerPath]);
         });
     });
 

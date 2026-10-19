@@ -21,9 +21,9 @@ import {
     setHeaderContext,
     setLinkerContext,
 } from './solution-outline-utils';
-import { CTreeItem } from '../../../generic/tree-item';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import path from 'path';
-import { parseYamlToCTreeItem } from '../../../generic/tree-item-yaml-parser';
+import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
 import { COutlineItem } from './solution-outline-item';
 import * as manifest from '../../../manifest';
 import { TestDataHandler } from '../../../__test__/test-data';
@@ -108,6 +108,13 @@ describe('Context utilities', () => {
         expect(node.getAttribute('header')).toBe('MyHeaderFile.h');
     });
 
+    it('sets an explicit component header', () => {
+        node.setAttribute('label', 'Component');
+        setHeaderContext(node, 'public-api.h');
+
+        expect(node.getAttribute('header')).toBe('public-api.h');
+    });
+
     it('should add DOC_CONTEXT feature and set type to docFile', () => {
         setDocContext(node);
 
@@ -129,4 +136,3 @@ describe('Context utilities', () => {
     });
 
 });
-

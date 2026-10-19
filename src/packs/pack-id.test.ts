@@ -15,8 +15,7 @@
  */
 
 import 'jest';
-import { PackId, generatePackId, packIdsEqual, serialisePackId } from './pack-id';
-import { PackReference } from '../solutions/deserialising/solution-data';
+import { PackId, PackReference, generatePackId, packIdsEqual, serialisePackId } from './pack-id';
 
 describe('PackId', () => {
     describe('packIdsEqual', () => {

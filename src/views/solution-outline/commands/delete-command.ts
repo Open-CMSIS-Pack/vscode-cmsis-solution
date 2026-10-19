@@ -19,20 +19,18 @@ import * as vscode from 'vscode';
 import * as manifest from '../../../manifest';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
 import * as fs from 'fs';
-import { Document as YamlDocument } from 'yaml';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 import { collectGroupFiles, getGroupPathArray } from '../utils';
 import { deleteItemFromExistingGroup } from '../../../solutions/edit/manage-group-items';
-import { editYamlFile as defaultEditYamlFile } from '../../../solutions/edit/edit-yaml-file';
-import { WorkspaceFsProvider } from '../../../vscode-api/workspace-fs-provider';
 import { getFileNameFromPath } from '../../../utils/path-utils';
+import { SolutionManager } from '../../../solutions/solution-manager';
+import { mutateAndSaveOutlineYamlFile } from './outline-yaml-file';
 
 export class DeleteCommand {
     public static readonly removeCommandId = `${manifest.PACKAGE_NAME}.remove`;
     constructor(
         private readonly commandsProvider: CommandsProvider,
-        private readonly workspaceFsProvider: WorkspaceFsProvider,
-        private readonly editYamlFile = defaultEditYamlFile,
+        private readonly solutionManager: Pick<SolutionManager, 'getCsolution'>,
     ) { }
 
     public async activate(context: Pick<ExtensionContext, 'subscriptions'>) {
@@ -60,13 +58,11 @@ export class DeleteCommand {
     }
 
     public async delete(isFile: boolean, node: COutlineItem, name: string, isDelete: boolean): Promise<void> {
-        const projectUriAtt = node.getAttribute('projectUri') ?? '';
-        const projectUri = Uri.file(projectUriAtt);
         const fileName = node.getAttribute('fileUri') ?? '';
 
         const deleted = isFile
-            ? await this.deleteFile(projectUri, fileName, isDelete, node)
-            : await this.deleteGroup(node, projectUri, name, isDelete);
+            ? await this.deleteFile(fileName, isDelete, node)
+            : await this.deleteGroup(node, name, isDelete);
 
         if (deleted) {
             if (isDelete) {
@@ -77,7 +73,7 @@ export class DeleteCommand {
         }
     }
 
-    private async deleteGroup(node: COutlineItem, projectUri: Uri, item: string, isDelete: boolean): Promise<boolean> {
+    private async deleteGroup(node: COutlineItem, item: string, isDelete: boolean): Promise<boolean> {
         try {
             // If deleting from filesystem, recursively delete physical files
             if (isDelete) {
@@ -85,7 +81,7 @@ export class DeleteCommand {
             }
 
             // Remove group from YAML file (this will handle all nested content automatically)
-            await this.removeFromYamlFile(projectUri.fsPath, 'group', item, node);
+            await this.removeFromYamlFile('group', item, node);
 
             return true;
         } catch (error) {
@@ -109,7 +105,7 @@ export class DeleteCommand {
         }
     }
 
-    private async deleteFile(projectUri: Uri, name: string, isDelete: boolean, node: COutlineItem): Promise<boolean> {
+    private async deleteFile(name: string, isDelete: boolean, node: COutlineItem): Promise<boolean> {
         try {
             const filePath = node.getAttribute('resourcePath') ?? '';
             const fileUri = Uri.file(filePath);
@@ -119,7 +115,7 @@ export class DeleteCommand {
                     await vscode.workspace.fs.delete(fileUri, { useTrash: true });
                 }
             }
-            await this.removeFromYamlFile(projectUri.fsPath, 'file', name, node);
+            await this.removeFromYamlFile('file', name, node);
             return true;
         } catch (error) {
             this.reportError('file', name, error);
@@ -157,10 +153,7 @@ export class DeleteCommand {
         );
     }
 
-    private async removeFromYamlFile(filePath: string, type: 'group' | 'file', name: string, node: COutlineItem) {
-        const parentUri = Uri.file(filePath);
-        const parentType = this.getParentTypeFromNode(node);
-
+    private async removeFromYamlFile(type: 'group' | 'file', name: string, node: COutlineItem) {
         // Calculate the parent group path (where the item to be deleted resides)
         let groupPath: string[] = [];
 
@@ -176,24 +169,13 @@ export class DeleteCommand {
             }
         }
 
-        const modifications = [(yamlDocument: YamlDocument) => {
-            this.removeItem(yamlDocument, type, name, groupPath, parentType);
-        }];
-
-        await this.editYamlFile(this.workspaceFsProvider, parentUri, modifications);
-    }
-
-    private removeItem(yamlDocument: YamlDocument, type: 'group' | 'file', name: string, groupPath: string[], parentType: 'project' | 'layer'): void {
-        const deleted = deleteItemFromExistingGroup(yamlDocument, parentType, groupPath, type, name);
-
-        if (!deleted) {
-            console.warn(`Failed to remove ${type}: '${name}' from group path: ${groupPath.join('/')}`);
-        }
-    }
-
-    private getParentTypeFromNode(node: COutlineItem): 'project' | 'layer' {
-        const layerUri = node.getAttribute('layerUri');
-        return layerUri ? 'layer' : 'project';
+        await mutateAndSaveOutlineYamlFile(this.solutionManager, node, topItem => {
+            const result = deleteItemFromExistingGroup(topItem, groupPath, type, name);
+            if (result !== 'changed') {
+                throw new Error(`Unable to remove ${type} '${name}' from group path '${groupPath.join('/')}'`);
+            }
+            return true;
+        });
     }
 
 }

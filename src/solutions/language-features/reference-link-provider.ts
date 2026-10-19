@@ -15,8 +15,8 @@
  */
 
 import { CancellationToken, DocumentLink, DocumentLinkProvider, Range, TextDocument, Uri } from 'vscode';
-import { parseYamlToCTreeItem } from '../../generic/tree-item-yaml-parser';
-import { CTreeItem, ETreeItemKind, ITreeItem } from '../../generic/tree-item';
+import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
+import { CTreeItem, ETreeItemKind, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import type { SolutionManager } from '../solution-manager';
 import { expandRootVars } from '../../utils/path-utils';
 

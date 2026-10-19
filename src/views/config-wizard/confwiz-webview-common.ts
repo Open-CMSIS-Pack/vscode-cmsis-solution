@@ -47,10 +47,41 @@ export interface GuiValue {
     bitWidth?: number;
 }
 
+export interface SourcePosition {
+    line: number;
+    character: number;
+}
+
+export interface SourceRange {
+    start: SourcePosition;
+    end: SourcePosition;
+}
+
+export interface AnnotationSelectionData {
+    documentPath: string;
+    annotationRange: SourceRange;
+}
+
+export interface SourceSelectionData {
+    documentPath: string;
+    selectedGuiId: number | null;
+}
+
+export interface IssueLocationData {
+    documentPath: string;
+    line: number;
+}
+
 export interface ConfigWizardData {
     element: TreeNodeElement,
     documentPath: string;
     noAnnotationsFound: boolean;
+}
+
+export interface ConfigWizardViewData extends Omit<ConfigWizardData, 'element'> {
+    element: TreeNodeElement | undefined;
+    // Present only when source is authoritative; null clears the graphical selection.
+    sourceSelection?: number | null;
 }
 
 export interface TreeNodeElement {
@@ -62,16 +93,21 @@ export interface TreeNodeElement {
     newValue: GuiValue;
     infoItems?: string[];
     dropItems?: string[];
+    annotationRange?: SourceRange;
     children?: TreeNodeElement[];
     errors?: string[];
 }
 
 // Host to Webview
-export const setWizardDataType: NotificationType<ConfigWizardData> = { method: 'setWizardData' };
+export const setWizardDataType: NotificationType<ConfigWizardViewData> = { method: 'setWizardData' };
 export const setPanelActiveType: NotificationType<{ active: boolean }> = { method: 'setPanelActive' };
+
+export const setSourceSelectionType: NotificationType<SourceSelectionData> = { method: 'setSourceSelection' };
 
 // Webview to Host
 export const readyType: NotificationType<void> = { method: 'ready' };
 export const logMessageType: NotificationType<string> = { method: 'logMessage' };
 export const saveElement: NotificationType<ConfigWizardData> = { method: 'saveElement' };
 export const markDocumentDirty: NotificationType<{ documentPath: string }> = { method: 'markDocumentDirty' };
+export const selectAnnotationType: NotificationType<AnnotationSelectionData> = { method: 'selectAnnotation' };
+export const openIssueLocationType: NotificationType<IssueLocationData> = { method: 'openIssueLocation' };

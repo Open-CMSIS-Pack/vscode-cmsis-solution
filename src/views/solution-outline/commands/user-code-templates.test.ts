@@ -16,7 +16,7 @@
 
 import { TestDataHandler } from '../../../__test__/test-data';
 import { CSolution } from '../../../solutions/csolution';
-import { ETextFileResult } from '../../../generic/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import path from 'node:path';
 import { buildTemplatesFromCbuild } from './user-code-templates';
 

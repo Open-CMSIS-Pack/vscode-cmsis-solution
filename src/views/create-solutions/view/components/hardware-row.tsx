@@ -19,9 +19,8 @@ import { AsyncStatus, switchAsyncStatus } from '../../../async-status';
 import { DropdownSelect } from '../../../common/components/dropdown-select';
 import { SearchableTreeView } from '../../../common/components/searchable-tree-view';
 import { TreeViewCategory, TreeViewItem } from '../../../common/components/tree-view';
-import { MessageHandler } from '../../../message-handler';
 import { BoardHardwareOption, DeviceHardwareOption, compareDeviceId, labelForHardwareOption } from '../../cmsis-solution-types';
-import { HardwareLists, IncomingMessage, OutgoingMessage } from '../../messages';
+import { HardwareLists } from '../../create-solution-dto';
 import { HardwareSelection } from '../state/hardware-selection';
 import { CreateSolutionAction, CreateSolutionState, emptyHardwareLists } from '../state/reducer';
 import { ValidationErrors, validate } from '../state/validation';
@@ -33,7 +32,6 @@ import { validationError } from './validation-message';
 export type HardwareRowProps = {
     state: CreateSolutionState;
     disabled: boolean;
-    messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>;
     dispatch: React.Dispatch<CreateSolutionAction>;
     validationErrors: Pick<ValidationErrors, 'deviceSelection' | 'targetType'>;
     webServicesEnabled: boolean;
@@ -43,9 +41,9 @@ export type HardwareRowProps = {
 }
 
 export const HardwareRow = (props: HardwareRowProps) => {
-    const { state, disabled, webServicesEnabled, targetTypeFieldEnabled, messageHandler, dispatch } = props;
+    const { state, disabled, webServicesEnabled, targetTypeFieldEnabled, dispatch } = props;
     const validationErrors = validate(state, state.solutionExists, false);
-    const dropdownProps = { dispatch, messageHandler, hardwareInfo: state.hardwareInfo, disabled, };
+    const dropdownProps = { dispatch, hardwareInfo: state.hardwareInfo, disabled, };
     const targetBoardMsg = 'Target selection includes microcontroller (MCU) devices, development boards and virtual platforms. The target for your solution is used to determine appropriate startup software and configure the build system';
     const targetDeviceMsg = 'The microcontroller (MCU) device that is present on the development board, or a standalone microcontroller device, for example on a custom PCB';
 
@@ -190,7 +188,7 @@ export const HardwareRow = (props: HardwareRowProps) => {
 };
 
 type HardwareDropdownProps<A extends BoardHardwareOption | DeviceHardwareOption> = {
-    rowProps: Pick<HardwareRowProps['state'], 'hardwareInfo'> & Pick<HardwareRowProps, 'messageHandler' | 'dispatch'> & { disabled: boolean }
+    rowProps: Pick<HardwareRowProps['state'], 'hardwareInfo'> & Pick<HardwareRowProps, 'dispatch'> & { disabled: boolean }
     info: { dropdownId: string, label: string, text: string },
     hardwareSelection: HardwareSelection | undefined;
     hardwarePreview: HardwareSelection | undefined;
@@ -226,7 +224,6 @@ const HardwareDropdown = <A extends BoardHardwareOption | DeviceHardwareOption>(
                 <HardwarePanel
                     hardwareSelection={hardwareSelection}
                     hardwareInfo={state.hardwareInfo}
-                    messageHandler={state.messageHandler}
                     onClick={closeDropdown}
                     previewHardware={hardwarePreview}
                     dispatch={state.dispatch} />

@@ -22,7 +22,7 @@ import { DebugLaunchProvider } from '../../debug/debug-launch-provider';
 import { SolutionManager } from '../../solutions/solution-manager';
 import { IExtensionApiWrapper } from '../../vscode-api/extension-api-wrapper';
 import { SerialMonitorApi } from '@microsoft/vscode-serial-monitor-api';
-import { TCPPortMonitor } from '../../generic/tcp-port-monitor';
+import { TCPPortMonitor } from '../../tcp-port-monitor/tcp-port-monitor';
 import { ConfigurationProvider } from '../../vscode-api/configuration-provider';
 
 

@@ -19,18 +19,23 @@ import { Messenger } from 'vscode-messenger';
 import { WebviewIdMessageParticipant } from 'vscode-messenger-common';
 import * as manifest from '../../manifest';
 import {
+    AnnotationSelectionData,
     ConfigWizardData,
+    IssueLocationData,
     logMessageType,
     markDocumentDirty,
+    openIssueLocationType,
     readyType,
     saveElement,
+    selectAnnotationType,
     setPanelActiveType,
+    setSourceSelectionType,
     setWizardDataType,
+    SourcePosition,
+    SourceRange,
     TreeNodeElement
 } from './confwiz-webview-common';
 import { GuiTree } from './parser/gui-tree';
-import { CwOption } from './parser/cw-option';
-import { NumberType } from './parser/number-type';
 
 interface ConfigWizDocument {
     document: vscode.TextDocument;
@@ -59,6 +64,11 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
     private refreshTimeout: NodeJS.Timeout | undefined;
     private readonly guiTrees: Map<string, GuiTree> = new Map<string, GuiTree>();
     private readonly pendingOverflowByDocument: Map<string, Map<string, PendingOverflow>> = new Map<string, Map<string, PendingOverflow>>();
+    private readonly selectedAnnotationRanges: Map<string, SourceRange> = new Map<string, SourceRange>();
+    private readonly pendingSourceSelections = new Set<string>();
+
+    private readonly sourceEditors = new Map<string, vscode.TextEditor>();
+    private readonly parsedAnnotations = new Map<string, { root: TreeNodeElement | undefined; version: number | undefined }>();
 
     public constructor(
         protected context: vscode.ExtensionContext,
@@ -72,11 +82,37 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
             vscode.commands.registerCommand(ConfWizWebview.previewCommandType, async (uri: vscode.Uri | undefined) => this.preview(uri)),
             vscode.commands.registerCommand(ConfWizWebview.sourceCommandType, () => this.source()),
             vscode.workspace.onDidChangeWorkspaceFolders(this.refresh, this),
+            vscode.window.onDidChangeVisibleTextEditors(editors => {
+                for (const editor of editors) {
+                    if (this.pendingSourceSelections.has(editor.document.uri.fsPath)) {
+                        this.applySelectedAnnotation(editor);
+                    }
+                }
+            }),
+            vscode.window.onDidChangeTextEditorSelection(event => {
+                const documentPath = event.textEditor.document.uri.fsPath;
+                if (!this.documents.has(documentPath)) return;
+                if (event.kind === vscode.TextEditorSelectionChangeKind.Mouse ||
+                    event.kind === vscode.TextEditorSelectionChangeKind.Keyboard) {
+                    this.selectedAnnotationRanges.delete(documentPath);
+                    this.pendingSourceSelections.delete(documentPath);
+                    this.sourceEditors.set(documentPath, event.textEditor);
+                    this.syncSourceSelection(event.textEditor);
+                }
+            }),
             vscode.workspace.onDidChangeTextDocument(async event => {
                 if (this.documents.has(event.document.uri.fsPath)) {
                     if (this.isGuiEdit) {
                         // GUI edit: skip refresh entirely (webview already has correct state)
                         return;
+                    }
+
+                    if (event.contentChanges.length > 0) {
+                        const documentPath = event.document.uri.fsPath;
+                        this.selectedAnnotationRanges.delete(documentPath);
+                        this.pendingSourceSelections.delete(documentPath);
+                        const editor = vscode.window.visibleTextEditors.find(editor => editor.document.uri.fsPath === documentPath);
+                        if (editor) this.sourceEditors.set(documentPath, editor);
                     }
 
                     // External change: clear pending overflow state for this document
@@ -147,7 +183,8 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
 
     protected async source(): Promise<void> {
         if (this.activeDocument) {
-            vscode.window.showTextDocument(this.activeDocument);
+            const editor = await vscode.window.showTextDocument(this.activeDocument);
+            if (editor) this.applySelectedAnnotation(editor);
         }
     }
 
@@ -214,10 +251,14 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
         const text = document.getText();
         const documentPath = document.uri.fsPath;
         const annotations = this.getAnnotations(text, documentPath, document.version);
+        const sourceEditor = this.sourceEditors.get(documentPath);
         this.messenger.sendNotification(setWizardDataType, configWizDocument.participant, {
             element: annotations,
             documentPath: documentPath,
-            noAnnotationsFound: !annotations
+            noAnnotationsFound: !annotations,
+            ...(sourceEditor && {
+                sourceSelection: this.findSourceSelection(annotations, sourceEditor.selection.active)
+            })
         });
     }
 
@@ -226,6 +267,8 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
             this.messenger.onNotification(readyType, () => this.refresh(), { sender: participant }),
             this.messenger.onNotification(saveElement, this.saveElement.bind(this), { sender: participant }),
             this.messenger.onNotification(markDocumentDirty, this.markDocumentDirty.bind(this), { sender: participant }),
+            this.messenger.onNotification(selectAnnotationType, data => this.selectAnnotation(data, document), { sender: participant }),
+            this.messenger.onNotification(openIssueLocationType, data => this.openIssueLocation(data, document), { sender: participant }),
             this.messenger.onNotification(logMessageType, message => console.info(message), { sender: participant }),
         ];
 
@@ -240,6 +283,10 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
             if (this.pendingOverflowByDocument.has(document.uri.fsPath)) {
                 this.pendingOverflowByDocument.delete(document.uri.fsPath);
             }
+            this.selectedAnnotationRanges.delete(document.uri.fsPath);
+            this.pendingSourceSelections.delete(document.uri.fsPath);
+            this.sourceEditors.delete(document.uri.fsPath);
+            this.parsedAnnotations.delete(document.uri.fsPath);
             disposables.forEach(disposible => disposible.dispose());
 
             // Clear pending refresh timeout to prevent memory leaks
@@ -296,6 +343,126 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
         });
     }
 
+    private selectAnnotation(data: AnnotationSelectionData, document: vscode.TextDocument): void {
+        if (data.documentPath !== document.uri.fsPath || !this.isSourceRangeValid(data.annotationRange, document)) {
+            return;
+        }
+
+        this.sourceEditors.delete(document.uri.fsPath);
+        this.selectedAnnotationRanges.set(document.uri.fsPath, data.annotationRange);
+        const editors = vscode.window.visibleTextEditors.filter(editor => editor.document.uri.fsPath === document.uri.fsPath);
+        if (editors.length === 0) {
+            this.pendingSourceSelections.add(document.uri.fsPath);
+        }
+        editors.forEach(editor => this.applySelectedAnnotation(editor));
+    }
+
+    private syncSourceSelection(editor: vscode.TextEditor): void {
+        const documentPath = editor.document.uri.fsPath;
+        const parsed = this.parsedAnnotations.get(documentPath);
+        // Selection events during typing must wait for the existing reparse debounce.
+        if (!parsed || parsed.version !== editor.document.version) return;
+        const configDocument = this.documents.get(documentPath);
+        if (configDocument) {
+            this.messenger.sendNotification(setSourceSelectionType, configDocument.participant, {
+                documentPath,
+                selectedGuiId: this.findSourceSelection(parsed.root, editor.selection.active)
+            });
+        }
+    }
+
+    private findSourceSelection(root: TreeNodeElement | undefined, position: SourcePosition): number | null {
+        let annotation: number | null = null;
+        let value: number | null = null;
+        let annotationDepth = -1;
+        let valueDepth = -1;
+        const visit = (node: TreeNodeElement, depth: number): void => {
+            if (node !== root) {
+                if (node.annotationRange?.start.line === position.line && depth > annotationDepth) {
+                    annotation = node.guiId;
+                    annotationDepth = depth;
+                }
+                const rects = node.value.multiEdit?.map(edit => edit.editRect) ?? [];
+                if (node.value.editRect) {
+                    rects.push(node.value.editRect);
+                }
+                const matchesValue = rects.some(rect => {
+                    if (rect.line !== position.line) return false;
+                    const afterStart = position.character >= rect.col.start;
+                    const beforeEnd = position.character <= rect.col.end;
+                    return afterStart && beforeEnd;
+                });
+                if (depth > valueDepth && matchesValue) {
+                    value = node.guiId;
+                    valueDepth = depth;
+                }
+            }
+            node.children?.forEach(child => visit(child, depth + 1));
+        };
+        if (root) visit(root, 0);
+        return annotation ?? value;
+    }
+
+    private applySelectedAnnotation(editor: vscode.TextEditor): void {
+        this.pendingSourceSelections.delete(editor.document.uri.fsPath);
+        const annotationRange = this.selectedAnnotationRanges.get(editor.document.uri.fsPath);
+        if (!annotationRange || !this.isSourceRangeValid(annotationRange, editor.document)) {
+            return;
+        }
+
+        const range = editor.document.validateRange(new vscode.Range(
+            annotationRange.start.line,
+            annotationRange.start.character,
+            annotationRange.end.line,
+            annotationRange.end.character
+        ));
+        editor.selection = new vscode.Selection(range.start, range.end);
+        editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+    }
+
+    private isSourceRangeValid(sourceRange: SourceRange, document: vscode.TextDocument): boolean {
+        const positions = [sourceRange.start, sourceRange.end];
+        const arePositionsValid = positions.every(position => this.isSourcePositionValid(position, document));
+
+        if (!arePositionsValid) {
+            return false;
+        }
+
+        return sourceRange.start.line < sourceRange.end.line ||
+            (sourceRange.start.line === sourceRange.end.line && sourceRange.start.character <= sourceRange.end.character);
+    }
+
+    private isSourcePositionValid(position: SourcePosition, document: vscode.TextDocument): boolean {
+        if (!Number.isInteger(position.line) || !Number.isInteger(position.character)) {
+            return false;
+        }
+
+        if (position.line < 0 || position.character < 0) {
+            return false;
+        }
+
+        return position.line < document.lineCount;
+    }
+
+    private async openIssueLocation(data: IssueLocationData, document: vscode.TextDocument): Promise<void> {
+        if (data.documentPath !== document.uri.fsPath || !this.isIssueLineValid(data.line, document)) {
+            return;
+        }
+
+        this.selectedAnnotationRanges.delete(document.uri.fsPath);
+        this.pendingSourceSelections.delete(document.uri.fsPath);
+        const visibleEditor = vscode.window.visibleTextEditors.find(editor => editor.document.uri.fsPath === document.uri.fsPath);
+        await vscode.window.showTextDocument(document, {
+            selection: document.lineAt(data.line).range,
+            preview: false,
+            ...(visibleEditor?.viewColumn !== undefined && { viewColumn: visibleEditor.viewColumn })
+        });
+    }
+
+    private isIssueLineValid(line: number, document: vscode.TextDocument): boolean {
+        return Number.isInteger(line) && line >= 0 && line < document.lineCount;
+    }
+
     private async saveElement(configWizardData: ConfigWizardData) {
         if (!this.documents.has(configWizardData.documentPath)) {
             console.error(`[ConfigWizard] Cannot save element: document not found for path ${configWizardData.documentPath}`);
@@ -319,7 +486,7 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
 
         const docText = configWizDocument.document.getText();
         if (guiTree.saveElement(docText, configWizardData.element, configWizDocument.document.version)) { // must update
-            this.updatePendingOverflow(configWizardData.documentPath, guiTree, configWizardData.element);
+            this.updatePendingOverflow(configWizardData.documentPath, configWizardData.element);
             await this.save(configWizardData.element, configWizDocument.document);
             // BUGFIX #476: Refresh after GUI edit to update editRect and all cached state from file
             // Without this, editRect points to stale positions, causing incorrect replacements
@@ -338,31 +505,13 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
         if (root) {
             this.applyPendingOverflow(documentPath, root);
         }
+        this.parsedAnnotations.set(documentPath, { root, version: docVersion });
         return root;
     }
 
-    private updatePendingOverflow(documentPath: string, guiTree: GuiTree, element: TreeNodeElement): void {
-        const item = guiTree.getFromItemMap(element.guiId);
-        if (!(item instanceof CwOption) || !item.isDropdown || !item.bitfield.isValid()) {
-            this.clearPendingOverflow(documentPath, element);
-            return;
-        }
-
-        const selectedLabel = element.newValue?.value ?? element.value?.value;
-        if (!selectedLabel) {
-            this.clearPendingOverflow(documentPath, element);
-            return;
-        }
-
-        const option = item.getOptionFromGui(selectedLabel);
-        if (!option || !(option.value instanceof NumberType)) {
-            this.clearPendingOverflow(documentPath, element);
-            return;
-        }
-
-        const selectedValue = option.value.val;
-        const maxValue = item.bitfield.getMaxValue();
-        if (selectedValue <= maxValue) {
+    private updatePendingOverflow(documentPath: string, element: TreeNodeElement): void {
+        const selectedValue = element.newValue;
+        if (selectedValue.overflow !== true || selectedValue.overflowValue === undefined || selectedValue.bitWidth === undefined) {
             this.clearPendingOverflow(documentPath, element);
             return;
         }
@@ -374,10 +523,10 @@ export class ConfWizWebview implements vscode.CustomTextEditorProvider {
         }
 
         const pending: PendingOverflow = {
-            selectedLabel,
-            overflowValue: selectedValue,
-            extractedValue: selectedValue,
-            bitWidth: item.bitfield.getBitWidth()
+            selectedLabel: selectedValue.value,
+            overflowValue: selectedValue.overflowValue,
+            extractedValue: selectedValue.extractedValue ?? selectedValue.overflowValue,
+            bitWidth: selectedValue.bitWidth
         };
 
         let pendingMap = this.pendingOverflowByDocument.get(documentPath);

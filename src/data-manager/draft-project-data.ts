@@ -19,10 +19,10 @@ import { ExampleProject } from '../solar-search/solar-search-client';
 import { PackId } from './pack-data';
 import { tmpdir } from 'os';
 
-import extractZip from 'extract-zip';
 import { downloadFile } from '../file-download';
 import { workspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 import { copyFolderRecursive, copyFilesOnly, copyFolderRecursiveDeferred } from '../utils/fs-utils';
+import { extractZip } from '@open-cmsis-pack/cmsis-common/extract-zip';
 
 import { ExampleProject as CsolutionExampleProject, ExampleEnvironment as CsolutionExampleEnvironment, SolutionTemplate as CsolutionTemplate } from '../json-rpc/csolution-rpc-client';
 import { splitPackId } from '../json-rpc/csolution-rpc-helper';
@@ -81,6 +81,7 @@ export enum DraftProjectSource {
 export interface DraftProjectData {
     get id(): DraftProjectId;
     get name(): string;
+    get solutionFileName(): string | undefined;
     get description(): string;
     get format(): DraftProjectFormat;
     get draftType(): DraftProjectType;
@@ -96,6 +97,9 @@ abstract class BaseDraftProjectData implements DraftProjectData {
     }
 
     abstract get name(): string;
+    public get solutionFileName(): string | undefined {
+        return undefined;
+    }
     abstract get description(): string;
     abstract get format(): DraftProjectFormat;
     abstract get draftType(): DraftProjectType;
@@ -107,7 +111,7 @@ abstract class BaseDraftProjectData implements DraftProjectData {
     protected static async downloadAndExtract(url: string, dest: string) {
         const exampleZipPath = path.join(tmpdir(), 'example.zip');
         await downloadFile(url, exampleZipPath);
-        await extractZip(exampleZipPath, { dir: dest });
+        await extractZip(exampleZipPath, dest);
         await workspaceFsProvider.delete(exampleZipPath, true, false);
     }
 }
@@ -187,6 +191,12 @@ export class CsolutionExampleData extends BaseDraftProjectData {
         return this.data.name;
     }
 
+    public get solutionFileName() {
+        return this.format === DraftProjectFormat.Csolution && this.selectedEnvironment?.file
+            ? path.basename(this.selectedEnvironment.file)
+            : undefined;
+    }
+
     public get description() {
         return this.data.description;
     }
@@ -212,7 +222,7 @@ export class CsolutionExampleData extends BaseDraftProjectData {
 
     public async copyTo(dest: string) {
         if (this.data.archive) {
-            return extractZip(this.data.archive, { dir: dest });
+            return extractZip(this.data.archive, dest);
         } else if (this.selectedEnvironment) {
             return copyFolderRecursive(this.selectedEnvironment?.folder, dest);
         }
@@ -237,6 +247,10 @@ export class CsolutionTemplateData extends BaseDraftProjectData {
 
     public get name() {
         return this.data.name;
+    }
+
+    public get solutionFileName() {
+        return path.basename(this.data.file);
     }
 
     public get description() {

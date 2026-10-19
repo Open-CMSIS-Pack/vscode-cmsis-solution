@@ -16,8 +16,8 @@
 
 import { PackageRequirement } from './configure-vcpkg';
 
-export const toolboxRequirement: PackageRequirement = { registry: 'arm', id: 'tools/open-cmsis-pack/cmsis-toolbox', version: '^2.12.0' };
-export const cmakeRequirement: PackageRequirement = { registry: 'arm', id: 'tools/kitware/cmake', version: '^3.31.5' };
-export const ninjaRequirement: PackageRequirement = { registry: 'arm', id: 'tools/ninja-build/ninja', version: '^1.12.1' };
+export const toolboxRequirement: PackageRequirement = { registry: 'arm', id: 'tools/open-cmsis-pack/cmsis-toolbox', version: '^2.14.1' };
+export const cmakeRequirement: PackageRequirement = { registry: 'arm', id: 'tools/kitware/cmake', version: '^4.3.3' };
+export const ninjaRequirement: PackageRequirement = { registry: 'arm', id: 'tools/ninja-build/ninja', version: '^1.13.2' };
 export const mdkToolboxRequirement: PackageRequirement = { registry: 'arm', id: 'tools/arm/mdk-toolbox', version: '^1.1.0' };
 export const armClangRequirement: PackageRequirement = { registry: 'arm', id: 'compilers/arm/armclang', version: '^6.24.0' };

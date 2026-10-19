@@ -15,13 +15,16 @@
  */
 
 import { CsolutionApiV2 } from './csolution-api-v2';
+import { CsolutionApiV3 } from './csolution-api-v3';
 
 export * from './csolution-api-v1';
 export * from './csolution-api-v2';
+export * from './csolution-api-v3';
 
 export interface CsolutionExtension {
     /**
      * Get given API version. Throws if the installed extension doesn't support the requested version.
      */
     getApi(version: 2): CsolutionApiV2;
+    getApi(version: 3): CsolutionApiV3;
 }

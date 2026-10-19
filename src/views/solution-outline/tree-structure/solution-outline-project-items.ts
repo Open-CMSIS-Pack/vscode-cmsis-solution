@@ -15,7 +15,7 @@
  */
 
 import path from 'path';
-import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
+import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { buildDocFilePath } from '../../../util';
 import { FileItemBuilder } from './solution-outline-file-item';
 import { COutlineItem } from './solution-outline-item';
@@ -25,7 +25,6 @@ import { getMapFilePath, setDocContext, setHeaderContext, setLinkerContext } fro
 import { CProjectYamlFile } from '../../../solutions/files/cproject-yaml-file';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 import { buildPackOverviewLink } from './pack-tooltip';
-import { contextDescriptorFromString } from '../../../solutions/descriptors/descriptors';
 
 export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
     private readonly _lastPrioritizedComponentList: COutlineItem[] = [];
@@ -42,9 +41,11 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         if (!cproject) {
             return;
         }
-        if (cbuild && cprojectFile.projectType === 'West') {
-            this.createGroupTree(cprojectItem, cbuild, '');
-            return; // there is nothing else available for West for now
+        if (cprojectFile.readOnly) {
+            if (cbuild) {
+                this.createGroupTree(cprojectItem, cbuild, '');
+            }
+            return;
         }
         this.createGroupTree(cprojectItem, cproject, '');
 
@@ -75,7 +76,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         const topTag = group.getRoot()?.getChild()?.getTag() ?? '';
 
         const cgroupItem = this.createGroupTreeItem(cprojectItem, group, parentGroupPath, topTag, mapFilePath);
-
+        this.applyContextExclusion(cgroupItem, group);
         this.createGroupChildren(cgroupItem, group, topTag);
 
         this.setExpandableAttribute(cgroupItem);
@@ -223,34 +224,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
             this.addComponentDataFromCbuild(componentNodes, cbuild);
         }
 
-        this.addComponentOptions(componentNodes);
         return true; // do have components to edit
-    }
-
-    private addComponentOptions(componentNodes: Map<string, COutlineItem>) {
-        const components = componentNodes.values();
-
-        for (const component of components) {
-            // add copy header (if it applies) to component nodes
-            const header = this.getHeaderFile(component);
-            // set context
-            if (header) {
-                setHeaderContext(component);
-                const label = header.getAttribute('label');
-                component.setAttribute('header', label);
-            }
-        }
-    }
-
-    private getHeaderFile(component: COutlineItem): COutlineItem | undefined {
-        // look for api files and header files
-        for (const child of component.getChildren()) {
-            const fileName = child.getAttribute('label');
-            if (fileName?.endsWith('.h')) {
-                return child as COutlineItem;
-            }
-        }
-        return undefined;
     }
 
     private createComponentNodes(componentsItem: COutlineItem, projectComponents: ITreeItem<CTreeItem>[], topTag: string, rootFileName: string): Map<string, COutlineItem> {
@@ -268,6 +242,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
             componentItem.setAttribute('label', refId);
             componentItem.setAttribute('expandable', '0');
             componentItem.setAttribute('iconPath', 'csolution-software-component');
+            this.applyContextExclusion(componentItem, component);
             if (editable) {
                 componentItem.addFeature('component');
                 componentItem.setAttribute('projectUri', topTag === 'project' ? rootFileName : undefined);
@@ -299,9 +274,16 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
 
             this.addComponentData(node, component, cbuild);
         }
+
+        for (const node of componentNodes.values()) {
+            const preferredHeader = node.getHeaders()[0];
+            if (preferredHeader) {
+                setHeaderContext(node, preferredHeader.getHeader());
+            }
+        }
     }
 
-    private addApiData(apiChild: ITreeItem<CTreeItem> | undefined, node: COutlineItem) {
+    private addApiData(apiChild: ITreeItem<CTreeItem> | undefined, node: COutlineItem): void {
         if (apiChild == undefined) {
             return;
         }
@@ -318,7 +300,7 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
         }
     }
 
-    private addComponentData(node: COutlineItem, component: ITreeItem<CTreeItem>, cbuild: CTreeItem) {
+    private addComponentData(node: COutlineItem, component: ITreeItem<CTreeItem>, cbuild: CTreeItem): void {
         // add files
         const docs: ITreeItem<CTreeItem>[] = [];
         const fileTreeItem = new FileItemBuilder(this.csolution, this.rpcData, this.context);
@@ -355,12 +337,10 @@ export class ProjectItemsBuilder extends SolutionOutlineItemBuilder {
 
         if (generator) {
             const id = generator.getValueAsString('id');
-            const targetType = contextDescriptorFromString(cbuild.getValueAsString('context')).targetType;
-            const activeTarget = this.csolution?.getActiveTargetSetName() ?? targetType;
             node.addFeature('component-gen');
             node.setAttribute('type', 'component-gen');
             node.setAttribute('generator', id);
-            node.setAttribute('activeTarget', activeTarget);
+            node.setAttribute('context', cbuild.getValueAsString('context'));
 
             tooltip += '\n' + '- generator: ` ' + id + ' `';
             const fileName = component.resolvePath(generator.getValueAsString('path'));

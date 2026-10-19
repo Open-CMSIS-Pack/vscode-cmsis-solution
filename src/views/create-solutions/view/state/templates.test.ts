@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { Tz } from '../../../../core-tools/client/packs_pb';
 import { deviceHardwareOptionFactory, processorInfoFactory } from '../../cmsis-solution-types.factories';
 import { blankTemplate, createProjectsForTemplateAndHardware, hardwareTemplateOptions, toValidProjectName, trustZoneTemplate } from './templates';
 import { NewProject } from '../../cmsis-solution-types';
@@ -24,21 +23,21 @@ describe('Create solution templates', () => {
     describe('hardwareTemplateOptions', () => {
         it('return Blank and TrustZone Solution options for device with processor that has a trustzone', () => {
             const selectedDevice = deviceHardwareOptionFactory(
-                { processors: [{ name: '', core: 'Cortex-M-1', tz: Tz.TZ }, { name: '', core: 'Cortex-M-2', tz: Tz.TZ_NO }] });
+                { processors: [{ name: '', core: 'Cortex-M-1', supportsTrustZone: true }, { name: '', core: 'Cortex-M-2', supportsTrustZone: false }] });
             const result = hardwareTemplateOptions(selectedDevice);
             expect(result).toEqual([blankTemplate, trustZoneTemplate]);
         });
 
         it('return Blank options for device with processor pairing of empty string and NO_TZ', () => {
             const selectedDevice = deviceHardwareOptionFactory(
-                { processors: [{ name: '', core: 'Cortex-M-1', tz: Tz.TZ_UNSPECIFIED }, { name: '', core: 'Cortex-M-2', tz: Tz.TZ_NO }] });
+                { processors: [{ name: '', core: 'Cortex-M-1', supportsTrustZone: false }, { name: '', core: 'Cortex-M-2', supportsTrustZone: false }] });
             const result = hardwareTemplateOptions(selectedDevice);
             expect(result).toEqual([blankTemplate]);
         });
 
         it('return Blank option for device with processor with blank trustzone', () => {
             const selectedDevice = deviceHardwareOptionFactory(
-                { processors: [{ name: '', core: 'Cortex-M-1', tz: Tz.TZ_UNSPECIFIED }, { name: '', core: 'Cortex-M-2', tz: Tz.TZ_UNSPECIFIED }] }
+                { processors: [{ name: '', core: 'Cortex-M-1', supportsTrustZone: false }, { name: '', core: 'Cortex-M-2', supportsTrustZone: false }] }
             );
             const result = hardwareTemplateOptions(selectedDevice);
             expect(result).toEqual([blankTemplate]);
@@ -47,8 +46,8 @@ describe('Create solution templates', () => {
 
     describe('createProjectsForTemplateAndHardware', () => {
         it('creates projects for the blank template with a selected device with multiple processors', () => {
-            const processor1 = processorInfoFactory({ tz: Tz.TZ });
-            const processor2 = processorInfoFactory({ tz: Tz.TZ_UNSPECIFIED });
+            const processor1 = processorInfoFactory({ supportsTrustZone: true });
+            const processor2 = processorInfoFactory({ supportsTrustZone: false });
 
             const selectedDevice = deviceHardwareOptionFactory({ processors: [processor1, processor2] });
 
@@ -63,7 +62,7 @@ describe('Create solution templates', () => {
         });
 
         it('creates projects for the blank template with a selected device with one processor', () => {
-            const processor = processorInfoFactory({ name: '', tz: Tz.TZ });
+            const processor = processorInfoFactory({ name: '', supportsTrustZone: true });
             const selectedDevice = deviceHardwareOptionFactory({ processors: [processor] });
 
             const projects = createProjectsForTemplateAndHardware(selectedDevice, blankTemplate);
@@ -74,8 +73,8 @@ describe('Create solution templates', () => {
         });
 
         it('creates projects for the trustzone template for a selected device with multiple processors', () => {
-            const processor1 = processorInfoFactory({ tz: Tz.TZ });
-            const processor2 = processorInfoFactory({ tz: Tz.TZ_UNSPECIFIED });
+            const processor1 = processorInfoFactory({ supportsTrustZone: true });
+            const processor2 = processorInfoFactory({ supportsTrustZone: false });
 
             const selectedDevice = deviceHardwareOptionFactory({ processors: [processor1, processor2] });
 
@@ -89,7 +88,7 @@ describe('Create solution templates', () => {
         });
 
         it('creates projects for the trustzone template for a selected device with one processor', () => {
-            const processor = processorInfoFactory({ name: '', tz: Tz.TZ });
+            const processor = processorInfoFactory({ name: '', supportsTrustZone: true });
             const selectedDevice = deviceHardwareOptionFactory({ processors: [processor] });
             const projects = createProjectsForTemplateAndHardware(selectedDevice, trustZoneTemplate);
             const expected: FieldAndInteraction<NewProject>[] = [

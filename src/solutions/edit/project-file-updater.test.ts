@@ -17,13 +17,13 @@
 import * as fs from 'fs-extra';
 import * as path from 'node:path';
 import { ProjectFileUpdaterImpl } from './project-file-updater';
-import { CTreeItemYamlFile } from '../../generic/tree-item-file';
-import { ETextFileResult } from '../../generic/text-file';
+import { CTreeItemYamlFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { TestDataHandler } from '../../__test__/test-data';
 import { UsedItems } from '../../json-rpc/csolution-rpc-client';
 import { MockSolutionManager, solutionManagerFactory } from '../../solutions/solution-manager.factories';
 import { CSolution } from '../csolution';
-import { CTreeItem } from '../../generic/tree-item';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 
 
 describe('ProjectFileUpdaterImpl', () => {

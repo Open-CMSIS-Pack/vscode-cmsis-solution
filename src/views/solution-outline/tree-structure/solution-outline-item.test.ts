@@ -59,6 +59,25 @@ describe('COutlineItem', () => {
         expect(childItem.getFeatures()).toEqual('');
     });
 
+    it('returns a header file as its own header item', () => {
+        childItem.setAttribute('header', 'header.h');
+
+        expect(childItem.getHeaders()).toEqual([childItem]);
+    });
+
+    it('returns current component headers with API headers first', () => {
+        const component = new COutlineItem('component');
+        const componentHeader = component.createChild('file');
+        componentHeader.setAttribute('header', 'component.h');
+        const source = component.createChild('file');
+        source.setAttribute('label', 'source.c');
+        const apiHeader = component.createChild('file');
+        apiHeader.setAttribute('header', 'api.h');
+        apiHeader.setAttribute('description', ' (API)');
+
+        expect(component.getHeaders()).toEqual([apiHeader, componentHeader]);
+    });
+
     it('sorts groups before files and keeps labels alphabetical', () => {
         rootItem.createChild('group').setAttribute('label', 'Z_subfolder3');
 

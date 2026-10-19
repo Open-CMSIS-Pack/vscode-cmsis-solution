@@ -14,22 +14,17 @@
  * limitations under the License.
  */
 
-import { BoardId, DebugInterface, DeviceReference, PackId, Tz, TzMap } from '../../core-tools/client/packs_pb';
+import { BoardHardwareOption, BoardReference, DebugAdapter, DeviceHardwareOption, DeviceReference, ProcessorInfo } from './create-solution-dto';
 
-export type DeviceHardwareOption = {
-    id: DeviceReference.AsObject;
-    key: string;
-    pack?: PackId.AsObject,
-    processors: ProcessorInfo[];
-}
-
-export type BoardHardwareOption = {
-    id: BoardId.AsObject;
-    key: string;
-    pack?: PackId.AsObject,
-    mountedDevices: DeviceHardwareOption[];
-    unresolvedDevices: DeviceReference.AsObject[];
-}
+export type {
+    BoardHardwareOption,
+    DeviceHardwareOption,
+    HardwareInfo,
+    MemoryInfo,
+    NewProject,
+    ProcessorInfo,
+    Trustzone,
+} from './create-solution-dto';
 
 export const labelForHardwareOption = (hardwareOption: BoardHardwareOption | DeviceHardwareOption): string => {
     const hardwareId: { name: string, revision?: string } = hardwareOption.id;
@@ -37,44 +32,18 @@ export const labelForHardwareOption = (hardwareOption: BoardHardwareOption | Dev
     return `${hardwareId.name}${revisionString}`;
 };
 
-export type HardwareInfo = {
-    memoryInfo: MemoryInfo;
-    image: string;
-    debugInterfacesList: DebugInterface.AsObject[];
-    deviceInfo?: DeviceHardwareOption;
-    boardInfo?: BoardHardwareOption;
-}
-
-export type ProcessorInfo = {
-    tz: TzMap[keyof TzMap];
-    core: string;
-    name: string;
-}
-
-export type MemoryInfo = {
-    [key: string]: { size: number, count: number }
-}
-
-export const compareDeviceId = (ref1: DeviceReference.AsObject | undefined) => (ref2: DeviceReference.AsObject | undefined): boolean => {
+export const compareDeviceId = (ref1: DeviceReference | undefined) => (ref2: DeviceReference | undefined): boolean => {
     if (!ref1 || !ref2) { return false; }
     return ref1.name === ref2.name && ref1.vendor === ref2.vendor;
 };
 
-export const compareBoardId = (id1: BoardId.AsObject) => (id2: BoardId.AsObject): boolean => {
+export const compareBoardId = (id1: BoardReference) => (id2: BoardReference): boolean => {
     return id1.vendor === id2.vendor && id1.name === id2.name && id1.revision === id2.revision;
 };
 
-export type NewProject = {
-    name: string;
-    processorName: string;
-    trustzone: Trustzone
-}
-
-export type Trustzone = 'off' | 'secure' | 'non-secure'
-
-export const debugInterfaceAdaptersAreEqual = (interface1: DebugInterface.AsObject | undefined) => (interface2: DebugInterface.AsObject | undefined): boolean => {
+export const debugInterfaceAdaptersAreEqual = (interface1: DebugAdapter | undefined) => (interface2: DebugAdapter | undefined): boolean => {
     if (!interface1 || !interface2) { return false; }
     return interface1.adapter === interface2.adapter;
 };
 
-export const validTrustZone = (processor: ProcessorInfo): boolean => processor.tz === Tz.TZ;
+export const validTrustZone = (processor: ProcessorInfo): boolean => processor.supportsTrustZone;

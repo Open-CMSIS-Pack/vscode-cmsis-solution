@@ -133,18 +133,30 @@ export class ClangdManager {
         }
 
         const context = csolution.getContextDescriptor(globalContextProjectPath);
-        const outDir = context ? csolution.cbuildIdxFile?.cbuildFiles?.get(context.projectName)?.outDir : undefined;
+        const outDir = context ? csolution.cbuildIdxFile?.cbuildFiles?.get(context.displayName)?.outDir : undefined;
 
         return outDir ?? '';
     }
 
     private async updateWorkspaceClangdConfig(compileCommands: URI | undefined) {
-        const clangd_arguments = [];
-        if (compileCommands) {
-            clangd_arguments.push(`--compile-commands-dir=${path.dirname(compileCommands.fsPath)}`);
-        }
+        const clangd_arguments = this.getCompileCommandsDirArguments(compileCommands);
         await this.configurationProvider.setConfigVariable(CONFIG_CLANGD_ARGUMENTS, clangd_arguments, CONFIG_CLANGD_EXTNAME, true);
         await this.restartClangd();
+    }
+
+    private getCompileCommandsDirArguments(compileCommands: URI | undefined): string[] {
+        if (!compileCommands) {
+            return [];
+        }
+        const compileCommandsDirectory = path.dirname(compileCommands.fsPath);
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const relativeDirectory = workspaceRoot ? path.relative(workspaceRoot, compileCommandsDirectory) : undefined;
+        const isWithinWorkspace = relativeDirectory !== undefined && !path.isAbsolute(relativeDirectory)
+            && relativeDirectory !== '..' && !relativeDirectory.startsWith(`..${path.sep}`);
+        const directory = isWithinWorkspace
+            ? '${workspaceFolder}' + (relativeDirectory ? `/${relativeDirectory.split(path.sep).join('/')}` : '')
+            : compileCommandsDirectory;
+        return [`--compile-commands-dir=${directory}`];
     }
 
     private updateWorkspaceState(projectPath: string) {
@@ -212,7 +224,7 @@ export class ClangdManager {
         const csolution = this.solutionManager.getCsolution();
         const updatePromises: Promise<unknown>[] = [];
 
-        const cbuild = csolution?.cbuildIdxFile?.cbuildFiles?.get(context.projectName);
+        const cbuild = csolution?.cbuildIdxFile?.cbuildFiles?.get(context.displayName);
         const compilerInContext = cbuild?.compiler;
         const clangdFilePath = context.projectPath ? `${path.dirname(context.projectPath)}/.clangd` : undefined;
 
@@ -383,7 +395,7 @@ export class ClangdManager {
      */
     private async setClangdConfigDiagnosticsSuppress(context: ContextDescriptor) {
         const csolution = this.solutionManager.getCsolution();
-        const outDir = csolution?.cbuildIdxFile?.cbuildFiles?.get(context.projectName)?.outDir;
+        const outDir = csolution?.cbuildIdxFile?.cbuildFiles?.get(context.displayName)?.outDir;
         const clangdFilePath = outDir ? path.join(outDir, '.clangd') : undefined;
         if (clangdFilePath) {
             const exists = await this.workspaceFsProvider.exists(clangdFilePath);

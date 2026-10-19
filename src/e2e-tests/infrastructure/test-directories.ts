@@ -86,6 +86,11 @@ export type WorkspaceOptions = {
 }
 
 export const createWorkspace = async ({ sourceDir, testDirectories }: Omit<WorkspaceOptions, 'settings'>): Promise<void> => {
+    const workspaceEntries = await fs.readdir(testDirectories.workspace);
+    await Promise.all(workspaceEntries.map(entry =>
+        fs.rm(path.join(testDirectories.workspace, entry), { recursive: true, force: true })
+    ));
+
     if (sourceDir) {
         await promisify(ncp)(sourceDir, testDirectories.workspace);
     }

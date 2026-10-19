@@ -30,7 +30,7 @@ export type ValidationErrors = {
 }
 
 export const hasErrors = (validationErrors: ValidationErrors): boolean =>
-    validationErrors.layerValidation?.some(layerValidation => !!layerValidation?.pathError);
+    validationErrors.layerValidation.some(layerValidation => !!layerValidation.pathError);
 
 const validateRequiredField = <A>(value: A): string => {
     return !value ? 'This field is required.' : '';
@@ -83,6 +83,6 @@ export const validate = (
 ): ValidationErrors => {
     return {
         layerValidation: fieldState.layers[fieldState.currentLayerNumber]
-            ?.variables.map((variable, index) => validateConfigurationVariable(variable, index, fieldState.layerPathError[index])),
+            ?.variables.map((variable, index) => validateConfigurationVariable(variable, index, fieldState.layerPathError[index])) ?? [],
     };
 };

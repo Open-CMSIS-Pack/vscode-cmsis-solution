@@ -16,6 +16,7 @@
 
 import { AsyncStatus } from '../../../async-status';
 import { DeviceHardwareOption, NewProject } from '../../cmsis-solution-types';
+import { SolutionDirectoryConflict } from '../../messages';
 import { CreateSolutionState } from './reducer';
 import { FieldAndInteraction } from './field-and-interaction';
 
@@ -80,36 +81,25 @@ const validateFolderField = (name: string): string => {
     return validateRequiredField(name) || validateName(name);
 };
 
-const validateSolutionLocation = (solutionExistsCheck: AsyncStatus<boolean>, solutionName: string) => (solutionLocation: string): string => {
-    let error = validateRequiredField(solutionLocation);
-    if (solutionLocation && solutionName && solutionExistsCheck.type === 'loaded') {
-        if (solutionExistsCheck.result) {
-            error = `A solution with the chosen name "${solutionName}" already exists at this location.`;
-        }
-    }
-    return error;
-};
-
 const validateTargetTypeField = (targetType: string): string => {
     return validateRequiredField(targetType) || validateTargetType(targetType);
 };
 
 export const validate = (
     fieldState: Pick<CreateSolutionState, keyof ValidationErrors>,
-    solutionExistsCheck: AsyncStatus<boolean>,
+    solutionExistsCheck: AsyncStatus<SolutionDirectoryConflict | null>,
     validateUnmodifiedFields: boolean,
 ): ValidationErrors => {
+    const solutionConflict = solutionExistsCheck.type === 'loaded' ? solutionExistsCheck.result : null;
     return {
         deviceSelection: checkModified(fieldState.deviceSelection, validateUnmodifiedFields, validateDeviceSelection),
         projects: fieldState.projects.map((project) => checkModified(project, validateUnmodifiedFields, validateProjectName, fieldState.projects.map((proj) => proj.value))),
         solutionName: checkModified(fieldState.solutionName, validateUnmodifiedFields, validateNameField),
         solutionFolder: checkModified(fieldState.solutionFolder, validateUnmodifiedFields, validateFolderField),
         targetType: checkModified(fieldState.targetType, validateUnmodifiedFields, validateTargetTypeField),
-        solutionLocation: checkModified(
-            fieldState.solutionLocation,
-            validateUnmodifiedFields,
-            validateSolutionLocation(solutionExistsCheck, fieldState.solutionFolder.value),
-        ),
+        solutionLocation: solutionConflict
+            ? `Selected solution directory ${solutionConflict.solutionFolder} already contains ${solutionConflict.fileName}`
+            : checkModified(fieldState.solutionLocation, validateUnmodifiedFields, validateRequiredField),
         selectedTemplate: checkModified(fieldState.selectedTemplate, validateUnmodifiedFields, validateRequiredField)
     };
 };

@@ -16,7 +16,7 @@
 
 import 'jest';
 import { CbuildPackFile } from './cbuild-pack-file';
-import { ETextFileResult } from '../../generic/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import * as fsUtils from '../../utils/fs-utils';
 
 const initialYaml = `cbuild-pack:

@@ -20,10 +20,15 @@ import { ManageSolutionController } from './manage-solution-controller';
 import { ProjectSelection } from './view/state/manage-solution-state';
 import { TestDataHandler, TmpDirReplacer } from '../../__test__/test-data';
 import path from 'path';
-import { ETextFileResult, TextFile } from '../../generic/text-file';
-import { stripTwoExtensions } from '../../utils/string-utils';
+import { ETextFileResult, TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
+import { stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { solutionManagerFactory } from '../../solutions/solution-manager.factories';
+import * as fsUtils from '../../utils/fs-utils';
 import * as vscodeUtils from '../../utils/vscode-utils';
+import { csolutionServiceFactory } from '../../json-rpc/csolution-rpc-client.factory';
+import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
+import YAML from 'yaml';
+import * as vscode from 'vscode';
 
 /**
  * Build generated (current) and reference JSON strings for a context selection state.
@@ -41,7 +46,7 @@ async function getSolutionDataStrings(solutionDir: string, solutionName: string)
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars, unused-imports/no-unused-vars
-    const { availableCoreNames, ...selectionState } = controller.solutionData;
+    const { availableCoreNames, usedCoreNames, ...selectionState } = controller.solutionData;
     const generated = JSON.stringify(selectionState, TmpDirReplacer(solutionDir), 4);
 
     const genFile = new TextFile(stripTwoExtensions(solutionPath) + 'Gen.json');
@@ -65,11 +70,19 @@ describe('manage-solution-controller', () => {
     const testDataHandler = new TestDataHandler();
     let tmpSolutionDir: string;
     let cmsisJsonFilePath: string;
+    let autoConvertOnFileChange: boolean | undefined;
 
     beforeAll(async () => {
         tmpSolutionDir = testDataHandler.copyTestDataToTmp('solutions');
         cmsisJsonFilePath = path.join(testDataHandler.tmpDir, '.vscode', 'cmsis.json');
         jest.spyOn(vscodeUtils, 'getWorkspaceFolder').mockReturnValue(testDataHandler.tmpDir);
+    });
+
+    beforeEach(() => {
+        autoConvertOnFileChange = undefined;
+        jest.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+            get: jest.fn((_key: string, defaultValue: unknown) => autoConvertOnFileChange ?? defaultValue),
+        } as unknown as vscode.WorkspaceConfiguration);
     });
 
     afterEach(() => {
@@ -103,7 +116,181 @@ describe('manage-solution-controller', () => {
 
     it('creates solution data for West solution', async () => {
         const { generated, reference } = await getSolutionDataStrings(tmpSolutionDir, 'WestSupport/solution.csolution.yml');
-        expect(generated).toEqual(reference);
+        expect(JSON.parse(generated)).toEqual(JSON.parse(reference));
+    });
+
+    it('creates solution data for a CMake project', async () => {
+        const { generated, reference } = await getSolutionDataStrings(tmpSolutionDir, 'CMakeSupport/solution.csolution.yml');
+        expect(JSON.parse(generated)).toEqual(JSON.parse(reference));
+    });
+
+    it('creates cmsis.json when the target selections are unchanged defaults', async () => {
+        const controller = new ManageSolutionController();
+        const solutionPath = path.join(tmpSolutionDir, 'simple/test.csolution.yml');
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(solutionPath);
+
+        expect(fsUtils.fileExists(cmsisJsonFilePath)).toBe(false);
+
+        await controller.saveSolution(solutionManager);
+
+        expect(fsUtils.fileExists(cmsisJsonFilePath)).toBe(true);
+        expect(controller.cmsisJsonFile.getSettings()).toEqual(expect.objectContaining({
+            activeSolution: path.relative(
+                path.dirname(controller.cmsisJsonFile.fileName),
+                solutionPath
+            ).replaceAll('\\', '/'),
+            activeTarget: 'TEST_TARGET',
+        }));
+        expect(solutionManager.refresh).not.toHaveBeenCalled();
+    });
+
+    it('leaves modified solution conversion to the watcher in automatic mode', async () => {
+        const controller = new ManageSolutionController();
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'));
+        controller.csolutionYml.text = controller.csolutionYml.text + '\n';
+
+        expect(await controller.saveSolution(solutionManager)).toBe(true);
+        expect(solutionManager.refresh).not.toHaveBeenCalled();
+
+        await controller.saveSolution(solutionManager);
+        expect(solutionManager.refresh).not.toHaveBeenCalled();
+    });
+
+    it('refreshes after a modified solution save in dirty-only mode', async () => {
+        autoConvertOnFileChange = false;
+        const controller = new ManageSolutionController();
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'));
+        controller.csolutionYml.text += '\n';
+
+        expect(await controller.saveSolution(solutionManager)).toBe(true);
+        expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+
+        await controller.saveSolution(solutionManager);
+        expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+    });
+
+    it('refreshes when only cmsis.json changes in automatic mode', async () => {
+        const controller = new ManageSolutionController();
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'));
+        jest.spyOn(controller.csolutionYml, 'save').mockResolvedValue(ETextFileResult.Unchanged);
+        controller.cmsisJsonFile.activeTargetTypeName = 'TEST_TARGET';
+
+        expect(await controller.saveSolution(solutionManager)).toBe(true);
+        expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+        expect(fsUtils.fileExists(cmsisJsonFilePath)).toBe(true);
+    });
+
+    it('refreshes when only cmsis.json changes in dirty-only mode', async () => {
+        autoConvertOnFileChange = false;
+        const controller = new ManageSolutionController();
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'));
+        jest.spyOn(controller.csolutionYml, 'save').mockResolvedValue(ETextFileResult.Unchanged);
+        controller.cmsisJsonFile.activeTargetTypeName = 'TEST_TARGET';
+
+        expect(await controller.saveSolution(solutionManager)).toBe(true);
+        expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves mixed solution and cmsis.json saves to the watcher in automatic mode', async () => {
+        const controller = new ManageSolutionController();
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'));
+        controller.csolutionYml.text += '\n';
+        controller.cmsisJsonFile.activeTargetTypeName = 'TEST_TARGET';
+
+        expect(await controller.saveSolution(solutionManager)).toBe(true);
+        expect(solutionManager.refresh).not.toHaveBeenCalled();
+    });
+
+    it('does not write an empty active target', async () => {
+        const controller = new ManageSolutionController();
+        const solutionPath = path.join(tmpSolutionDir, 'simple/test.csolution.yml');
+        const solutionManager = solutionManagerFactory();
+        await controller.loadSolution(solutionPath);
+        jest.spyOn(controller, 'activeTargetTypeName', 'get').mockReturnValue(undefined);
+
+        await controller.saveSolution(solutionManager);
+
+        expect(controller.cmsisJsonFile.get('activeTarget')).toBeUndefined();
+    });
+
+    it('does not overwrite cmsis.json after it fails to load', async () => {
+        const invalidSettings = '{ invalid json';
+        fsUtils.writeTextFile(cmsisJsonFilePath, invalidSettings);
+        const controller = new ManageSolutionController();
+        const solutionPath = path.join(tmpSolutionDir, 'simple/test.csolution.yml');
+
+        await controller.loadSolution(solutionPath);
+        await controller.saveSolution(solutionManagerFactory());
+
+        expect(fsUtils.readTextFile(cmsisJsonFilePath)).toBe(invalidSettings);
+    });
+
+    it('does not update the cmsis.json stamp when saving fails', async () => {
+        fsUtils.writeTextFile(cmsisJsonFilePath, '{}');
+        const controller = new ManageSolutionController();
+        const solutionPath = path.join(tmpSolutionDir, 'simple/test.csolution.yml');
+        await controller.loadSolution(solutionPath);
+        fsUtils.writeTextFile(cmsisJsonFilePath, '{ "external": true }');
+        jest.spyOn(controller.cmsisJsonFile, 'save').mockResolvedValue(ETextFileResult.Error);
+
+        const solutionManager = solutionManagerFactory();
+        expect(await controller.saveSolution(solutionManager)).toBe(false);
+
+        expect(controller.hasExternalFileChanges()).toBe(true);
+        expect(solutionManager.refresh).not.toHaveBeenCalled();
+    });
+
+    it('preserves CMake settings when selected contexts are reapplied', async () => {
+        const controller = new ManageSolutionController();
+        const solutionPath = path.join(tmpSolutionDir, 'CMakeSupport', 'solution.csolution.yml');
+        expect(await controller.loadSolution(solutionPath)).toBe(ETextFileResult.Success);
+
+        const solutionData = controller.solutionData;
+        expect(solutionData.projects).toEqual([expect.objectContaining({
+            name: 'firmware',
+            selected: true,
+            selectedBuildType: 'Debug',
+            device: 'CM0',
+            projectType: 'CMake',
+            readOnly: true,
+        })]);
+
+        controller.solutionData = solutionData;
+
+        const roundTripPath = path.join(tmpSolutionDir, 'CMakeSupport', 'round-trip.csolution.yml');
+        expect(await controller.csolutionYml.save(roundTripPath)).toBe(ETextFileResult.Success);
+
+        const reloadedController = new ManageSolutionController();
+        expect(await reloadedController.loadSolution(roundTripPath)).toBe(ETextFileResult.Success);
+        const output = YAML.parse(reloadedController.csolutionYml.stringify());
+        expect(output.solution.projects[0].cmake).toEqual({
+            source: './app.v2',
+            'project-id': 'firmware',
+            device: ':CM0',
+            generator: 'Ninja',
+            configure: ['-DCMAKE_BUILD_TYPE=Debug'],
+            target: 'firmware',
+            images: [{
+                image: 'build/core0.axf',
+                type: 'elf',
+            }],
+        });
+        expect(output.solution['target-types'][0]['target-set'][0].images).toEqual([
+            { 'project-context': 'firmware.Debug' },
+        ]);
+        expect(reloadedController.solutionData.projects[0]).toEqual(expect.objectContaining({
+            name: 'firmware',
+            selected: true,
+            selectedBuildType: 'Debug',
+            projectType: 'CMake',
+            readOnly: true,
+        }));
     });
 
     it('Returns customized debug adapters', async () => {
@@ -133,6 +320,25 @@ describe('manage-solution-controller', () => {
         const controller = new ManageSolutionController();
         expect(controller.solutionPath).toEqual('');
         expect(controller.customDebugAdapterDefaults).toEqual({});
+    });
+
+    it('detects external file changes and re-baselines both monitored files', async () => {
+        const solutionPath = path.join(tmpSolutionDir, 'simple/test.csolution.yml');
+        const originalSolution = fsUtils.readTextFile(solutionPath);
+        const controller = new ManageSolutionController();
+
+        await controller.loadSolution(solutionPath);
+        expect(controller.hasExternalFileChanges()).toBe(false);
+
+        try {
+            fsUtils.writeTextFile(solutionPath, `${originalSolution}\n# external change`);
+            fsUtils.writeTextFile(cmsisJsonFilePath, '{ "external": true }');
+
+            expect(controller.hasExternalFileChanges()).toBe(true);
+            expect(controller.hasExternalFileChanges()).toBe(false);
+        } finally {
+            fsUtils.writeTextFile(solutionPath, originalSolution);
+        }
     });
 
     it('should get active target type wrap', async () => {
@@ -213,7 +419,7 @@ describe('manage-solution-controller', () => {
 
     it('should get active debugger', async () => {
         const controller = new ManageSolutionController();
-        await controller.loadSolution('test-resources/solutions/solution-with-debuggers.csolution', 'Keil uVision');
+        await controller.loadSolution('test-resources/solutions/solution-with-debuggers.csolution', { debugAdapterName: 'Keil uVision' });
 
         controller.enableDebugger(true, 'Keil uVision');
         const debuggerInstance = controller.activeDebugger;
@@ -256,6 +462,128 @@ describe('manage-solution-controller', () => {
         expect(Array.isArray(coreNames)).toBe(true);
     });
 
+    it.each([
+        { targetDevice: undefined, buildTarget: 'TEST_TARGET', buildDevice: 'BuildVendor::BuildDevice', expectedDevice: 'BuildVendor::BuildDevice' },
+        { targetDevice: 'TargetVendor::TargetDevice', buildTarget: 'TEST_TARGET', buildDevice: 'BuildVendor::BuildDevice', expectedDevice: 'TargetVendor::TargetDevice' },
+        { targetDevice: undefined, buildTarget: 'OTHER_TARGET', buildDevice: 'BuildVendor::BuildDevice', expectedDevice: undefined },
+        { targetDevice: undefined, buildTarget: undefined, buildDevice: 'BuildVendor::BuildDevice', expectedDevice: undefined },
+        { targetDevice: undefined, buildTarget: 'TEST_TARGET', buildDevice: undefined, expectedDevice: undefined },
+    ])('resolves available cores with build-run fallback: $targetDevice, $buildTarget, $buildDevice', async ({ targetDevice, buildTarget, buildDevice, expectedDevice }) => {
+        const controller = new ManageSolutionController();
+        await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'), { device: buildDevice, targetType: buildTarget });
+        controller.activeTargetTypeName = 'TEST_TARGET';
+        controller.activeTargetTypeWrap!.device = targetDevice;
+        const service = csolutionServiceFactory({
+            getDeviceInfo: jest.fn().mockResolvedValue({
+                device: { processors: [{ name: 'C0', core: 'Cortex-M0' }, { name: 'C1', core: 'Cortex-M1' }] },
+            }),
+        });
+        controller.csolutionService = service;
+
+        expect(await controller.getAvailableCoreNames()).toEqual(expectedDevice ? ['C0', 'C1'] : []);
+        expect(controller.solutionData.usedCoreNames).toEqual(expectedDevice ? ['C0', 'C1'] : []);
+        if (expectedDevice) {
+            expect(service.getDeviceInfo).toHaveBeenCalledWith({ id: expectedDevice });
+        } else {
+            expect(service.getDeviceInfo).not.toHaveBeenCalled();
+        }
+    });
+
+    it('gets distinct cores used by selected projects and active images', () => {
+        const controller = new ManageSolutionController();
+        controller['availableCoreNamesCache'] = ['M55_HE', 'M55_HP'];
+        jest.spyOn(controller as unknown as { collectProjects(): ProjectSelection[] }, 'collectProjects').mockReturnValue([
+            { device: 'M55_HE', selected: true },
+            { device: 'M55_HP', selected: false },
+            { device: 'M55_HE', selected: true },
+        ] as ProjectSelection[]);
+        controller.activeTargetSetWrap.addImage('app.axf').device = 'M55_HE';
+
+        expect(controller.usedCoreNames).toEqual(['M55_HE']);
+    });
+
+    it('falls back to available cores when selected items have no processor', () => {
+        const controller = new ManageSolutionController();
+        controller['availableCoreNamesCache'] = ['M55_HE', 'M55_HP'];
+        jest.spyOn(controller as unknown as { collectProjects(): ProjectSelection[] }, 'collectProjects').mockReturnValue([
+            { selected: true },
+        ] as ProjectSelection[]);
+
+        expect(controller.usedCoreNames).toEqual(['M55_HE', 'M55_HP']);
+    });
+
+    it.each([
+        { configuredStart: 'C1', expectedStart: 'C1' },
+        { configuredStart: undefined, expectedStart: 'C0' },
+        { configuredStart: 'stale-core', expectedStart: 'C0' },
+    ])('adds an image for the effective start processor $expectedStart', async ({ configuredStart, expectedStart }) => {
+        const controller = new ManageSolutionController();
+        const targetSet = controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
+        controller.activeTargetTypeName = 'test-target';
+        controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
+        targetSet.ensureDebugger('Test Debugger').startPname = configuredStart;
+        controller.csolutionService = csolutionServiceFactory({
+            getDeviceInfo: jest.fn().mockResolvedValue({
+                result: 'success',
+                device: {
+                    id: 'TestVendor::TestDevice',
+                    name: 'TestDevice',
+                    processors: [
+                        { name: 'C0', core: 'Cortex-M0' },
+                        { name: 'C1', core: 'Cortex-M1' },
+                    ],
+                },
+            }),
+        });
+
+        expect(await controller.getEffectiveStartProcessor()).toBe(expectedStart);
+        const image = await controller.addImage('images/application.axf');
+
+        expect(image.device).toBe(expectedStart);
+        expect(image.getValue('device')).toBe(`:${expectedStart}`);
+    });
+
+    it('adds an image without a processor when no debugger is configured', async () => {
+        const controller = new ManageSolutionController();
+        controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
+        controller.activeTargetTypeName = 'test-target';
+        controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
+        const csolutionService = csolutionServiceFactory();
+        controller.csolutionService = csolutionService;
+
+        const image = await controller.addImage('images/application.axf');
+
+        expect(image.device).toBeUndefined();
+        expect(csolutionService.getDeviceInfo).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        { processors: [{ name: 'C0', core: 'Cortex-M0' }], expectedStart: 'C0' },
+        { processors: [{ name: '', core: 'Cortex-M0' }], expectedStart: undefined },
+        { processors: [], expectedStart: undefined },
+    ])('resolves $expectedStart for processor metadata', async ({ processors, expectedStart }) => {
+        const controller = new ManageSolutionController();
+        const targetSet = controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
+        controller.activeTargetTypeName = 'test-target';
+        controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
+        targetSet.ensureDebugger('Test Debugger');
+        controller.csolutionService = csolutionServiceFactory({
+            getDeviceInfo: jest.fn().mockResolvedValue({
+                result: 'success',
+                device: {
+                    id: 'TestVendor::TestDevice',
+                    name: 'TestDevice',
+                    processors,
+                },
+            }),
+        });
+
+        const image = await controller.addImage('images/application.axf');
+
+        expect(image.device).toBe(expectedStart);
+        expect(controller.availableCoreNames).toEqual(expectedStart ? [expectedStart] : []);
+    });
+
     it('should get debug adapters with customized defaults', async () => {
         const controller = new ManageSolutionController();
         await controller.loadSolution('test-resources/solutions/solution-with-debuggers.csolution');
@@ -278,6 +606,39 @@ describe('manage-solution-controller', () => {
         controller.setDebuggerParameter('section1', 'param1', 'value1');
 
         expect(controller.activeDebugger).toBeDefined();
+    });
+
+    it('creates a missing processor entry when setting a pname parameter', async () => {
+        const controller = new ManageSolutionController();
+        const targetSet = controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
+        controller.activeTargetTypeName = 'test-target';
+        controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
+        const telnet = targetSet.ensureDebugger('Test Debugger').item
+            ?.createChild('telnet', true)
+            ?.setKind(ETreeItemKind.Sequence);
+        const hpEntry = telnet?.createChild('-');
+        hpEntry?.setKind(ETreeItemKind.Map).setText(undefined);
+        hpEntry?.setValue('pname', 'M55_HP');
+        hpEntry?.setValue('mode', 'console');
+        controller.csolutionService = csolutionServiceFactory({
+            getDeviceInfo: jest.fn().mockResolvedValue({
+                result: 'success',
+                device: {
+                    id: 'TestVendor::TestDevice',
+                    name: 'TestDevice',
+                    processors: [
+                        { name: 'M55_HP', core: 'Cortex-M55' },
+                        { name: 'M55_HE', core: 'Cortex-M55' },
+                    ],
+                },
+            }),
+        });
+
+        await controller.setDebuggerParameterWithPname('telnet', 'M55_HE', 'mode', 'off');
+
+        expect(telnet?.getChildren()).toHaveLength(2);
+        expect(telnet?.getChildByValue('pname', 'M55_HP')?.getValue('mode')).toBe('console');
+        expect(telnet?.getChildByValue('pname', 'M55_HE')?.getValue('mode')).toBe('off');
     });
 
     it('should get solution data', async () => {

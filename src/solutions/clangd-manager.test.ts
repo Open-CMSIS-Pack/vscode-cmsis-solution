@@ -26,13 +26,14 @@ import { CONFIG_CLANGD_ARGUMENTS, CONFIG_CLANGD_EXTNAME, CONFIG_CLANGD_GENERATE_
 import { MockCommandsProvider, commandsProviderFactory } from '../vscode-api/commands-provider.factories';
 import { MockSolutionManager, solutionManagerFactory } from './solution-manager.factories';
 import { CompileCommandsParser } from './intellisense/compile-commands-parser';
-import { ExtensionContext, Memento } from 'vscode';
+import { ExtensionContext, Memento, WorkspaceFolder, workspace } from 'vscode';
+import { URI } from 'vscode-uri';
 import { mementoFactory } from '../vscode-api/memento.factories';
 import { faker } from '@faker-js/faker';
 import { ContextDescriptor } from './descriptors/descriptors';
 import { CSolution } from './csolution';
-import { cbuildIdxFileFactory } from './files/cbuild-idx-file.factory';
-import { cbuildFileFactory } from './files/cbuild-file.factory';
+import { CbuildIdxFile } from './files/cbuild-idx-file';
+import { CbuildFile } from './files/cbuild-file';
 
 type MockArmclangDefineGetter = jest.Mocked<ArmclangDefineGetter>;
 type MockCompileCommandsParser = jest.Mocked<Pick<CompileCommandsParser, 'getAllIncludeCommands'>>;
@@ -68,9 +69,11 @@ describe('ClangdManager', () => {
         }
     ];
 
-    const compileCommandsDirFlag = (projectPath: string | undefined) => `--compile-commands-dir=${path.join(path.dirname(projectPath!), 'out')}`;
+    const compileCommandsDirFlag = (projectPath: string | undefined) => '--compile-commands-dir=${workspaceFolder}'
+        + '/' + path.relative(rootPath, path.join(path.dirname(projectPath!), 'out')).split(path.sep).join('/');
 
     beforeEach(async () => {
+        (workspace as { workspaceFolders?: WorkspaceFolder[] }).workspaceFolders = [{ uri: URI.file(rootPath), name: 'path', index: 0 }];
         mockConfigurationProvider = configurationProviderFactory({
             [CONFIG_CLANGD_GENERATE_SETUP]: true,
             [CONFIG_CLANGD_ARGUMENTS]: [],
@@ -80,7 +83,15 @@ describe('ClangdManager', () => {
         mockCSolution.solutionPath = solutionPath;
         mockCSolution.getContextDescriptors = jest.fn().mockReturnValue(activeContexts);
         mockCSolution.getContextDescriptor = jest.fn().mockReturnValue(activeContexts[0]);
-        mockCSolution.cbuildIdxFile = cbuildIdxFileFactory({ activeContexts });
+        mockCSolution.cbuildIdxFile = new CbuildIdxFile();
+        mockCSolution.cbuildIdxFile.activeContexts.push(...activeContexts);
+        for (const context of activeContexts) {
+            if (context.projectPath) {
+                const cbuildFile = new CbuildFile(path.join(path.dirname(context.projectPath), `${context.displayName}.cbuild.yml`));
+                cbuildFile.ensureTopItem('build').createChild('output-dirs').setValue('outdir', 'out');
+                mockCSolution.cbuildIdxFile.cbuildFiles.set(context.displayName, cbuildFile);
+            }
+        }
 
         mockSolutionManager = solutionManagerFactory({
             getCsolution: jest.fn(() => mockCSolution),
@@ -110,6 +121,46 @@ describe('ClangdManager', () => {
         jest.clearAllMocks();
         stubWorkspaceState = mementoFactory();
         await clangdManager.activate({ workspaceState: stubWorkspaceState, subscriptions: [] } as unknown as ExtensionContext);
+    });
+
+    afterEach(() => {
+        (workspace as { workspaceFolders?: WorkspaceFolder[] }).workspaceFolders = undefined;
+    });
+
+    it('uses the workspace folder without a suffix for a database at the workspace root', async () => {
+        await (clangdManager as unknown as {
+            updateWorkspaceClangdConfig: (compileCommands: URI) => Promise<void>;
+        }).updateWorkspaceClangdConfig(URI.file(path.join(rootPath, 'compile_commands.json')));
+
+        expect(mockConfigurationProvider.setConfigVariable).toHaveBeenCalledWith(
+            CONFIG_CLANGD_ARGUMENTS, ['--compile-commands-dir=${workspaceFolder}'], CONFIG_CLANGD_EXTNAME, true,
+        );
+    });
+
+    it.each([
+        ['outside', path.join(path.dirname(rootPath), 'outside', 'out')],
+        ['sibling', `${rootPath}-other${path.sep}out`],
+    ])('uses an absolute database directory for %s paths', async (_, directory) => {
+        await (clangdManager as unknown as {
+            updateWorkspaceClangdConfig: (compileCommands: URI) => Promise<void>;
+        }).updateWorkspaceClangdConfig(URI.file(path.join(directory, 'compile_commands.json')));
+
+        expect(mockConfigurationProvider.setConfigVariable).toHaveBeenCalledWith(
+            CONFIG_CLANGD_ARGUMENTS, [expect.lowercaseEquals(`--compile-commands-dir=${directory}`)], CONFIG_CLANGD_EXTNAME, true,
+        );
+    });
+
+    it('uses an absolute database directory when no workspace folder is available', async () => {
+        (workspace as { workspaceFolders?: WorkspaceFolder[] }).workspaceFolders = undefined;
+        const directory = path.join(rootPath, 'Project1', 'out');
+
+        await (clangdManager as unknown as {
+            updateWorkspaceClangdConfig: (compileCommands: URI) => Promise<void>;
+        }).updateWorkspaceClangdConfig(URI.file(path.join(directory, 'compile_commands.json')));
+
+        expect(mockConfigurationProvider.setConfigVariable).toHaveBeenCalledWith(
+            CONFIG_CLANGD_ARGUMENTS, [expect.lowercaseEquals(`--compile-commands-dir=${directory}`)], CONFIG_CLANGD_EXTNAME, true,
+        );
     });
 
     it('generates a clangd file for each context when the context list changes and the auto generate configuration is true', async () => {
@@ -163,8 +214,8 @@ describe('ClangdManager', () => {
         expect(state![solutionPath]).toEqual(activeContexts[1].projectPath);
 
         const diagnosticsSuppress = 'Diagnostics:\n  Suppress: [\'*\']';
-        const expectedOutDir1 = mockSolutionManager.getCsolution()?.cbuildIdxFile?.cbuildFiles?.get(activeContexts[0].projectName)?.outDir;
-        const expectedOutDir2 = mockSolutionManager.getCsolution()?.cbuildIdxFile?.cbuildFiles?.get(activeContexts[1].projectName)?.outDir;
+        const expectedOutDir1 = mockSolutionManager.getCsolution()?.cbuildIdxFile?.cbuildFiles?.get(activeContexts[0].displayName)?.outDir;
+        const expectedOutDir2 = mockSolutionManager.getCsolution()?.cbuildIdxFile?.cbuildFiles?.get(activeContexts[1].displayName)?.outDir;
         expect(mockFs.writeUtf8File).toHaveBeenCalledWith(
             expect.lowercaseEquals(path.join(expectedOutDir1!, '.clangd')),
             diagnosticsSuppress,
@@ -289,11 +340,8 @@ describe('ClangdManager', () => {
         const csolution = mockSolutionManager.getCsolution();
         csolution!.getContextDescriptors = jest.fn().mockReturnValue([activeContexts[0]]);
         const cbuildFiles = csolution!.cbuildIdxFile!.cbuildFiles;
-        const cbuild = cbuildFiles.get(activeContexts[0].projectName)!;
-        cbuildFiles.set(activeContexts[0].projectName, cbuildFileFactory({
-            compiler: 'CLANG',
-            outDir: cbuild.outDir,
-        }));
+        const cbuild = cbuildFiles.get(activeContexts[0].displayName)!;
+        cbuild.ensureTopItem('build').setValue('compiler', 'CLANG');
         mockFs.exists.mockResolvedValue(true);
 
         mockSolutionManager.onUpdatedCompileCommandsEmitter.fire();
@@ -308,7 +356,7 @@ describe('ClangdManager', () => {
     it('writes diagnostics suppress .clangd in outDir when missing', async () => {
         const csolution = mockSolutionManager.getCsolution();
         const context = activeContexts[0];
-        const outDir = csolution?.cbuildIdxFile?.cbuildFiles?.get(context.projectName)?.outDir;
+        const outDir = csolution?.cbuildIdxFile?.cbuildFiles?.get(context.displayName)?.outDir;
         const expectedClangdPath = path.join(outDir!, '.clangd');
 
         mockFs.exists.mockResolvedValue(false);

@@ -28,7 +28,7 @@
 
 import type * as playwright from '@playwright/test';
 import { VsCodeDriver } from '../infrastructure/vscode-driver';
-import { UI_STABILITY_DELAY_MS, TASK_TIMEOUT_MS } from '../constants';
+import { TASK_TIMEOUT_MS } from '../constants';
 
 export function getTargetFromContext(context: string): string {
     const match = /\+(.+)$/.exec(context);
@@ -42,13 +42,11 @@ export function escapeRegExp(value: string): string {
 export async function copyTerminalText(vscode: VsCodeDriver): Promise<string> {
     const page = vscode.page.getPage();
 
-    await page.context().grantPermissions(['clipboard-read']);
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.evaluate(() => navigator.clipboard.writeText(''));
 
     await vscode.page.getCommands().runCommandFromPalette('Terminal: Select All');
-    await vscode.page.getCommands().runCommandFromPalette('Terminal: Copy Last Command and Output');
-
-    await page.click('.terminal', { button: 'right' });
-    await page.waitForTimeout(UI_STABILITY_DELAY_MS);
+    await vscode.page.getCommands().runCommandFromPalette('Terminal: Copy Selection');
 
     const copiedText = await page.evaluate(() =>
         navigator.clipboard.readText(),

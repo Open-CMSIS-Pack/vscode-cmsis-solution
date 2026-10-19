@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-import { CTreeItemYamlFile, ITreeItemFile } from '../../generic/tree-item-file';
-import { CTreeItem, ETreeItemKind } from '../../generic/tree-item';
-import { constructor } from '../../generic/constructor';
-import { extractPname } from '../../utils/string-utils';
+import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
+import { CTreeItem, ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
+import { extractPname } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { ProjectRefWrap } from './csolution-wrap';
-import { ETextFileResult } from '../../generic/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { appendSequenceMapEntry, setContextRestrictions } from './yaml-creation-helpers';
 
 
 /**
@@ -30,6 +31,11 @@ import { ETextFileResult } from '../../generic/text-file';
 
  */
 export interface CProjectYamlFile extends ITreeItemFile {
+    /**
+     * Loads a project template and rebases the parsed tree onto a destination file.
+     */
+    loadTemplate(templateFileName: string, destinationFileName: string): Promise<ETextFileResult>;
+
     /**
      * Gets and returns device processor in the format :Pname
      * @returns processor string as Pname or undefined
@@ -48,9 +54,14 @@ export interface CProjectYamlFile extends ITreeItemFile {
     get projectType(): string | undefined;
 
     /**
-     * Set project type, e.g. 'West'
+     * Set project type, e.g. 'West', 'CMake', 'cmsis' (default)
      */
     set projectType(type: string | undefined);
+
+    /**
+     * Appends a component requirement while preserving request order.
+     */
+    addComponent(reference: string, forContext?: readonly string[], notForContext?: readonly string[]): CTreeItem;
 }
 
 
@@ -62,6 +73,17 @@ class CProjectYamlFileImpl extends CTreeItemYamlFile implements CProjectYamlFile
         const topItem = super.ensureTopItem(tag ?? 'project');
         topItem.setKind(ETreeItemKind.Map);
         return topItem;
+    }
+
+    async loadTemplate(templateFileName: string, destinationFileName: string): Promise<ETextFileResult> {
+        const result = await super.load(templateFileName);
+        if (result === ETextFileResult.Success || result === ETextFileResult.Unchanged) {
+            this.fileName = destinationFileName;
+            if (this.rootItem) {
+                this.rootItem.rootFileName = destinationFileName;
+            }
+        }
+        return result;
     }
 
     get deviceProcessor(): string | undefined {
@@ -82,6 +104,12 @@ class CProjectYamlFileImpl extends CTreeItemYamlFile implements CProjectYamlFile
     set projectType(type: string | undefined) {
         this._projectType = type;
     }
+
+    addComponent(reference: string, forContext: readonly string[] = [], notForContext: readonly string[] = []): CTreeItem {
+        const component = appendSequenceMapEntry(this.ensureTopItem(), 'components', 'component', reference);
+        setContextRestrictions(component, forContext, notForContext);
+        return component;
+    }
 }
 
 class CVirtualProjectYamlFileImpl extends CProjectYamlFileImpl {
@@ -100,14 +128,14 @@ export const CProjectYamlFile = constructor<typeof CProjectYamlFileImpl, CProjec
 
 export function constructProjectYamlFile(projectRef?: ProjectRefWrap): CProjectYamlFile {
 
-    if (projectRef && projectRef.west) {
+    if (projectRef?.projectType) {
         // create a dummy read-only project
-        const zephyrProject = new CVirtualProjectYamlFileImpl(projectRef.projectPath);
-        zephyrProject.readOnly = true;
-        zephyrProject.ensureRootItem().rootFileName = projectRef.projectPath;
-        zephyrProject.deviceProcessor = projectRef.deviceProcessor;
-        zephyrProject.projectType = projectRef.projectType;
-        return zephyrProject;
+        const virtualProject = new CVirtualProjectYamlFileImpl(projectRef.projectPath);
+        virtualProject.readOnly = true;
+        virtualProject.ensureRootItem().rootFileName = projectRef.projectPath;
+        virtualProject.deviceProcessor = projectRef.deviceProcessor;
+        virtualProject.projectType = projectRef.projectType;
+        return virtualProject;
     }
     return new CProjectYamlFile(projectRef?.projectPath);
 }

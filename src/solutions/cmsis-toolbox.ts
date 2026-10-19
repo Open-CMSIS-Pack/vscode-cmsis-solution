@@ -20,19 +20,25 @@ import path from 'path';
 import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import { HandleBuildEnoent } from '../../src/tasks/build/handle-enoent';
-import { CTreeItem, ITreeItem } from '../generic/tree-item';
+import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { ProcessManager, isProcessResult } from '../vscode-api/runner/process-manager';
 import { CancellationToken } from '../vscode-api/runner/runner';
 import which from 'which';
 import { SemVer } from 'semver';
 import { MIN_TOOLBOX_VERSION } from '../manifest';
-import { Optional } from '../generic/type-helper';
+import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { CsolutionService } from '../json-rpc/csolution-rpc-client';
 import type * as rpc from '../json-rpc/csolution-rpc-client';
 
 type RpcMethod = 'ConvertSolution' | 'ListMissingPacks' | 'DiscoverLayers' | 'GetLogMessages' | 'Shutdown' | 'LoadPacks';
 type ToolboxTool = 'csolution' | 'cbuild' | 'cpackget';
 type ToolboxCall = { tool: ToolboxTool | RpcMethod; args: string[]; }
+
+export interface CmsisToolRunOptions {
+    emitExecuteLine?: boolean;
+    usePty?: boolean;
+    filterOutput?: boolean;
+}
 
 const MIN_TOOL_VERSIONS : Record<ToolboxTool, Optional<SemVer>> = {
     csolution: new SemVer(MIN_TOOLBOX_VERSION),
@@ -63,7 +69,7 @@ export interface CmsisToolboxManager {
         cancellationToken?: CancellationToken,
         dimensions?: vscode.TerminalDimensions,
         useEmbeddedToolbox?: boolean,
-        emitExecuteLine?: boolean
+        options?: CmsisToolRunOptions,
     ): Promise<[number, string?]>
 
     /** Run csolution RPC method
@@ -145,7 +151,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
         cancellationToken?: CancellationToken,
         dimensions?: vscode.TerminalDimensions,
         useEmbeddedToolbox?: boolean,
-        emitExecuteLine: boolean = true
+        options: CmsisToolRunOptions = {},
     ): Promise<[number, string?]> {
         let msg: string;
         if (this.toolboxQueue.find((q) => _.isEqual(q.tool, tool) && _.isEqual(q.args, args))) {
@@ -174,7 +180,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
                 cancellationToken
             );
             const version = versionOutput.match(/(\d+\.\d+(\.\d+)?)/)?.[0];
-            if (versionReturnCode !== 0 || !version) {
+            if (versionReturnCode !== 0 || !version || version === '0.0.0') {
                 console.warn(`Could not determine version of ${toolCmd}`);
                 console.warn(versionMsg);
             } else if (MIN_TOOL_VERSIONS[tool].compare(version) === 1) {
@@ -187,7 +193,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
             }
         }
         // execute call
-        if (emitExecuteLine) {
+        if (options.emitExecuteLine !== false) {
             msg = `${tool} ${args.join(' ')}\r\n`;
             console.log(msg);
             onOutput(msg);
@@ -208,7 +214,9 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
             args,
             onOutput,
             cancellationToken,
-            dimensions
+            dimensions,
+            options.usePty,
+            options.filterOutput,
         );
         // Print messages
         msg = `${returnCode === 0 ? '✅' : '🟥'} Completed: ${tool} ${cmdMsg}\r\n`;
@@ -225,6 +233,8 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
         onOutput: (line: string) => void,
         cancellationToken?: CancellationToken,
         dimensions?: vscode.TerminalDimensions,
+        usePty?: boolean,
+        filterOutput?: boolean,
     ) : Promise<[string, number]> {
         const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? './';
         let returnCode;
@@ -233,7 +243,12 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
             const result = await this.processManager.spawn(
                 toolCmd,
                 args,
-                { env: process.env, cwd: cwd },
+                {
+                    env: process.env,
+                    cwd: cwd,
+                    ...(usePty !== undefined ? { usePty } : {}),
+                    ...(filterOutput !== undefined ? { filterOutput } : {}),
+                },
                 onOutput,
                 cancellationToken,
                 dimensions

@@ -29,6 +29,10 @@ solution:
     - type: Debug
       debug: on
       optimize: none
+      misc:
+        - for-compiler: AC6
+          C:
+            - -funwind-tables  # ensure reliable stack unwinding with GDB
 
     - type: Release
       debug: off

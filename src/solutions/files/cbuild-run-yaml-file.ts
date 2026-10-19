@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { string, number, arrayOf, optional, unionOf, InferType, Schema } from '../../generic/schema';
+import { string, number, arrayOf, optional, unionOf, InferType, Schema } from '@open-cmsis-pack/cmsis-common/schema';
 import { SemVer, parse } from 'semver';
-import { Optional } from '../../generic/type-helper';
-import { YamlFile } from '../../generic/yaml-file';
+import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
+import { YamlFile } from '@open-cmsis-pack/cmsis-common/yaml-file';
 
 export const DebugTopologySchema = new Schema({
     processors: optional(arrayOf({

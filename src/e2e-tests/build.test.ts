@@ -125,7 +125,7 @@ test.describe('CMSIS Solution Build Validation', () => {
                     // that invocation. Polling the same quick pick cannot recover; instead re-invoke
                     // the command (each invocation takes a fresh snapshot) until the rows appear.
                     const quickPickList = vsCodeDriver.page.getLocator('.quick-input-list');
-                    const quickPickRows = quickPickList.locator('.monaco-list-row');
+                    const visibleQuickPickRows = quickPickList.locator('.monaco-list-row:visible');
                     const maxOpenAttempts = 10;
                     let solutionSelected = false;
 
@@ -147,7 +147,7 @@ test.describe('CMSIS Solution Build Validation', () => {
                         }
 
                         try {
-                            await expect.poll(async () => quickPickRows.count(), {
+                            await expect.poll(async () => visibleQuickPickRows.count(), {
                                 timeout: MEDIUM_TIMEOUT_MS,
                                 intervals: [1000, 2000, 3000]
                             }).toBeGreaterThan(0);
@@ -159,10 +159,13 @@ test.describe('CMSIS Solution Build Validation', () => {
 
                         // Explicitly selecting the solution is what deterministically activates it;
                         // relying on the extension's auto-activation alone proved unreliable in CI.
-                        const firstWorkspaceItem = quickPickRows.first();
-                        await firstWorkspaceItem.waitFor({ state: 'visible', timeout: DEFAULT_TIMEOUT_MS });
-                        await firstWorkspaceItem.click();
-                        solutionSelected = true;
+                        try {
+                            await visibleQuickPickRows.first().click({ timeout: MEDIUM_TIMEOUT_MS });
+                            solutionSelected = true;
+                        } catch {
+                            log('warn', `Quick pick row became hidden or detached on attempt ${attempt}; dismissing and retrying...`);
+                            await vsCodeDriver.page.getPage().keyboard.press('Escape');
+                        }
                     }
 
                     expect(solutionSelected).toBe(true);

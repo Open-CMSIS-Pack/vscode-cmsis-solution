@@ -10,14 +10,15 @@ import { ChildProcess, spawn } from 'node:child_process';
 import { MessageConnection } from 'vscode-jsonrpc';
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter } from 'vscode-jsonrpc/node';
 import { RpcMethods, RpcInterface, GetVersionResult } from './interface/rpc-interface';
-import { constructor } from '../generic/constructor';
-import { Optional } from '../generic/type-helper';
+import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
+import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { debounce } from 'lodash';
 import { getCmsisPackRoot, getCmsisToolboxRoot } from '../utils/path-utils';
 import { VcpkgManager } from '../vcpkg/vcpkg-manager';
 import { Environment, EnvironmentManager } from '../desktop/env-manager';
 import { Mutex } from 'async-mutex';
 import { CommandsProvider } from '../vscode-api/commands-provider';
+import { SolutionEventHub } from '../solutions/solution-event-hub';
 export * from './interface/rpc-interface';
 
 
@@ -58,6 +59,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     constructor(
         private readonly environmentManager: EnvironmentManager,
         private readonly commandsProvider: CommandsProvider,
+        private readonly eventHub: SolutionEventHub,
     ) {
         super();
         this.mutex = new Mutex();
@@ -105,7 +107,9 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
 
     private async reloadPacks() {
         const result = await this.loadPacks();
-        void this.commandsProvider.executeCommand(manifest.REFRESH_COMMAND_ID);
+        if (result.success) {
+            await this.eventHub.firePacksReloaded();
+        }
         return result;
     }
 
@@ -213,18 +217,19 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     }
 
     private async launch(): Promise<boolean> {
-        // wait vcpkg activation to pick up environment variables
-        await VcpkgManager.instance.awaitActivation().catch(() => {
-            console.warn('VcpkgManager activation failed or timed out');
-        }).then(() => {
+        try {
+            await VcpkgManager.instance.awaitActivation();
             console.log('VcpkgManager activation completed');
-        });
+        } catch {
+            console.warn('VcpkgManager activation failed or timed out');
+        }
 
         // Augment environment
-        const augmentedEnv = this.environmentManager.augmentEnv(new Environment(process.env)).vars;
+        const augmentedEnv = this.environmentManager
+            .augmentEnv(new Environment(process.env)).vars;
 
-        // Resolve the final path to the executable
-        this.csolutionBin = path.resolve(getCmsisToolboxRoot(augmentedEnv), 'bin', `csolution${process.platform === 'win32' ? '.exe' : ''}`);
+        const executable = `csolution${process.platform === 'win32' ? '.exe' : ''}`;
+        this.csolutionBin = path.resolve(getCmsisToolboxRoot(augmentedEnv), 'bin', executable);
 
         if (fs.existsSync(this.csolutionBin) && fs.statSync(this.csolutionBin).isFile()) {
             console.log('Running csolution rpc:', this.csolutionBin);

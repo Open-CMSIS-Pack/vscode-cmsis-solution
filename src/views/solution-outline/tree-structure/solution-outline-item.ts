@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { CTreeItem } from '../../../generic/tree-item';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 
 export class COutlineItem extends CTreeItem {
     constructor(tag: string, parent?: COutlineItem) {
@@ -107,6 +107,21 @@ export class COutlineItem extends CTreeItem {
             return this.getAttribute('label');
         }
         return undefined;
+    }
+
+    isApiHeader(): boolean {
+        return this.getAttribute('description') === ' (API)';
+    }
+
+    getHeaders(): COutlineItem[] {
+        const items = this.getTag() === 'component'
+            ? this.getChildren() as COutlineItem[]
+            : [this];
+        const headers = items.filter(item => item.getHeader());
+        return [
+            ...headers.filter(item => item.isApiHeader()),
+            ...headers.filter(item => !item.isApiHeader()),
+        ];
     }
 
     getResourcePath(): string | undefined {

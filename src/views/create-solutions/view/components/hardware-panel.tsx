@@ -17,14 +17,10 @@
 import * as React from 'react';
 import './hardware-panel.css';
 import { HardwareInfo, debugInterfaceAdaptersAreEqual, labelForHardwareOption } from '../../cmsis-solution-types';
-import { messageServiceAwaitResult } from './message-service';
-import { MessageHandler } from '../../../message-handler';
-import { IncomingMessage, OutgoingMessage } from '../../messages';
 import { formatBytes } from '../../units-conversion';
 import { HardwareSelection } from '../state/hardware-selection';
-import * as Messages from '../../messages';
 import { dedupe } from '../../../../array';
-import { DebugInterface } from '../../../../core-tools/client/packs_pb';
+import { DebugAdapter } from '../../create-solution-dto';
 import { CreateSolutionAction } from '../state/reducer';
 import { serialisePackId } from '../../../../packs/pack-id';
 import { Button, Spin } from 'antd';
@@ -33,7 +29,6 @@ interface HardwarePanelProps {
     hardwareInfo: HardwareInfo | undefined;
     hardwareSelection: HardwareSelection | undefined;
     previewHardware: HardwareSelection | undefined;
-    messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>;
     onClick: () => void;
     // Feature flag IOTIDE-5591, enable once URL slugs are sorted
     enableWebsiteLinks?: boolean;
@@ -41,7 +36,7 @@ interface HardwarePanelProps {
 }
 
 export const HardwarePanel = (props: HardwarePanelProps) => {
-    const { dispatch, enableWebsiteLinks = false, hardwareInfo, messageHandler, onClick } = props;
+    const { dispatch, enableWebsiteLinks = false, hardwareInfo, onClick } = props;
     let { previewHardware } = props;
 
     const dispatchSelect = (previewHardware: HardwareSelection | undefined) => {
@@ -51,19 +46,6 @@ export const HardwarePanel = (props: HardwarePanelProps) => {
             dispatch({ type: 'SET_DEVICE_SELECTION', deviceSelection: previewHardware.value });
         }
     };
-
-    const boardPreview = previewHardware?.type === 'Boards' ? previewHardware.value : undefined;
-    const devicePreview = previewHardware?.type === 'Devices' ? previewHardware.value : undefined;
-
-    React.useEffect(() => {
-        if (boardPreview) {
-            const message: Messages.OutgoingMessage = { type: 'DATA_GET_BOARD_INFO', boardId: { ...boardPreview.id, key: boardPreview.key } };
-            messageServiceAwaitResult(messageHandler, message);
-        } else if (devicePreview) {
-            const message: Messages.OutgoingMessage = { type: 'DATA_GET_DEVICE_INFO', deviceId: { ...devicePreview.id, key: devicePreview.key } };
-            messageServiceAwaitResult(messageHandler, message);
-        }
-    }, [boardPreview, devicePreview, messageHandler]);
 
     let content;
     if (hardwareInfo && previewHardware) {
@@ -115,7 +97,7 @@ export const HardwarePanel = (props: HardwarePanelProps) => {
         const headingText = labelForHardwareOption(previewHardware.value);
 
         const debugAdapters = hardwareInfo?.debugInterfacesList &&
-            dedupe<DebugInterface.AsObject>(debugInterfaceAdaptersAreEqual)(hardwareInfo.debugInterfacesList)
+            dedupe<DebugAdapter>(debugInterfaceAdaptersAreEqual)(hardwareInfo.debugInterfacesList)
                 .map(debugInterface => debugInterface.adapter);
 
         content = (

@@ -19,11 +19,12 @@ import * as React from 'react';
 import { CreateSolution } from './components/create-solution';
 import { MessageHandler } from '../../message-handler';
 import * as Messages from '../messages';
-import { creationActions } from './actions';
+import { CreateSolutionViewModel } from './create-solution-view-model';
 
 export const start = (messageHandler: MessageHandler<Messages.IncomingMessage, Messages.OutgoingMessage>) => {
     const containerEl = document.createElement('div');
     document.body.appendChild(containerEl);
     const root = createRoot(containerEl);
-    root.render(React.createElement(CreateSolution, { messageHandler, creationActions }));
+    const viewModel = new CreateSolutionViewModel(messageHandler);
+    root.render(React.createElement(CreateSolution, { viewModel }));
 };

@@ -95,9 +95,9 @@ describe('Configure vcpkg utilities', () => {
             [{ compiler: 'AC6' }]
         )('determines packages for a $compiler solution', ({ compiler }) => {
             const availablePackages: EnvironmentManagerPackage[] = [
-                { ...toolboxRequirement, releases: [{ version: '2.1.0' }] },
-                { ...cmakeRequirement, releases: [{ version: '3.1.1' }] },
-                { ...ninjaRequirement, releases: [{ version: '1.0.0' }] },
+                { ...toolboxRequirement, releases: [{ version: '2.14.1' }] },
+                { ...cmakeRequirement, releases: [{ version: '4.3.3' }] },
+                { ...ninjaRequirement, releases: [{ version: '1.13.2' }] },
                 { ...requirementForCompiler[compiler]!, releases: [{ version: '17.2.0' }] },
             ];
             const output = determinePackagesToInstallForSolution(availablePackages, [compiler]);
@@ -123,9 +123,9 @@ describe('Configure vcpkg utilities', () => {
         it('configures packages for an Arm Compiler solution', async () => {
             const environmentManagerApi: jest.Mocked<Pick<EnvironmentManagerApiV1, 'installPackage' | 'listPackages'>> = {
                 listPackages: jest.fn(async () => [
-                    { ...toolboxRequirement, releases: [{ version: '2.1.0' }] },
-                    { ...cmakeRequirement, releases: [{ version: '3.1.1' }] },
-                    { ...ninjaRequirement, releases: [{ version: '1.0.0' }] },
+                    { ...toolboxRequirement, releases: [{ version: '2.14.1' }] },
+                    { ...cmakeRequirement, releases: [{ version: '4.3.3' }] },
+                    { ...ninjaRequirement, releases: [{ version: '1.13.2' }] },
                     { ...requirementForCompiler.AC6!, releases: [{ version: '7.2.0' }] },
                 ]),
                 installPackage: jest.fn(),
@@ -135,13 +135,13 @@ describe('Configure vcpkg utilities', () => {
             await getConfigureVcpkgForSolution(extensionApiProviderFactory(environmentManagerApi))(solutionRootUri, ['AC6']);
 
             expect(environmentManagerApi.installPackage).toHaveBeenCalledWith(
-                solutionRootUri, toolboxRequirement.registry, toolboxRequirement.id, '2.1.0'
+                solutionRootUri, toolboxRequirement.registry, toolboxRequirement.id, '2.14.1'
             );
             expect(environmentManagerApi.installPackage).toHaveBeenCalledWith(
-                solutionRootUri, cmakeRequirement.registry, cmakeRequirement.id, '3.1.1'
+                solutionRootUri, cmakeRequirement.registry, cmakeRequirement.id, '4.3.3'
             );
             expect(environmentManagerApi.installPackage).toHaveBeenCalledWith(
-                solutionRootUri, ninjaRequirement.registry, ninjaRequirement.id, '1.0.0'
+                solutionRootUri, ninjaRequirement.registry, ninjaRequirement.id, '1.13.2'
             );
             expect(environmentManagerApi.installPackage).toHaveBeenCalledWith(
                 solutionRootUri, requirementForCompiler.AC6!.registry, requirementForCompiler.AC6!.id, '*'

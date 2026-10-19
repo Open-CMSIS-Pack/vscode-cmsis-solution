@@ -1,0 +1,44 @@
+{
+    "solutionName": "solution",
+    "solutionPath": "TEST_PATH/CMakeSupport/solution.csolution.yml",
+    "targets": [
+        {
+            "name": "Native",
+            "device": "ARM::Cortex-M0:CM0",
+            "targetSets": [
+                {
+                    "name": "",
+                    "images": []
+                }
+            ],
+            "selectedSet": ""
+        }
+    ],
+    "selectedTarget": {
+        "name": "Native",
+        "device": "ARM::Cortex-M0:CM0",
+        "targetSets": [
+            {
+                "name": "",
+                "images": []
+            }
+        ],
+        "selectedSet": ""
+    },
+    "projects": [
+        {
+            "name": "firmware",
+            "path": "TEST_PATH/CMakeSupport/app.v2/firmware.cproject-cmake.yml",
+            "selected": true,
+            "load": "image+symbols",
+            "selectedBuildType": "Debug",
+            "buildTypes": [
+                "Debug"
+            ],
+            "device": "CM0",
+            "projectType": "CMake",
+            "readOnly": true
+        }
+    ],
+    "images": []
+}

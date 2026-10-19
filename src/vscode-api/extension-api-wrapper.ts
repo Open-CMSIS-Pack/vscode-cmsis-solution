@@ -16,7 +16,7 @@
 
 import * as vscode from 'vscode';
 
-import { Optional } from '../generic/type-helper';
+import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 
 export interface IExtensionApiWrapper<A> {
     readonly api: Optional<A>;

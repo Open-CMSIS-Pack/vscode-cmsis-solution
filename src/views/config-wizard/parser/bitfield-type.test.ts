@@ -102,5 +102,21 @@ describe('CBitfield', () => {
             expect(bitfield.getExtractedValue(value)).toBe(0x80);
         });
 
+        it('should mask bits outside the configured range when extracting a value', () => {
+            const bitfield = new BitfieldType(new NumberType(0), new NumberType(1));
+            bitfield.validate();
+
+            expect(bitfield.getExtractedValue(new NumberType(4))).toBe(0);
+            expect(bitfield.getExtractedValue(new NumberType(7))).toBe(3);
+        });
+
+        it('should report whether a value can be represented by the bitfield', () => {
+            const bitfield = new BitfieldType(new NumberType(0), new NumberType(1));
+            bitfield.validate();
+
+            expect(bitfield.isValueRepresentable(new NumberType(3))).toBe(true);
+            expect(bitfield.isValueRepresentable(new NumberType(4))).toBe(false);
+        });
+
     });
 });

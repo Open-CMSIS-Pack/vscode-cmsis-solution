@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-import { PackScopePreset, PackScopePresetMap } from './core-tools/client/packs_pb';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { CONFIG_USE_WEBSERVICES, OUTPUT_DIRECTORY } from './manifest';
 import { SolutionManager } from './solutions/solution-manager';
 import { ConfigurationProvider } from './vscode-api/configuration-provider';
-import { CTreeItem, ITreeItem } from './generic/tree-item';
+import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { getCmsisPackRoot } from './utils/path-utils';
 
 export const isUri = (uri: unknown): uri is vscode.Uri => !!uri && (uri as vscode.Uri).path !== undefined && (uri as vscode.Uri).fsPath !== undefined;
@@ -54,10 +53,6 @@ export const getOutputDirectory = (): string | undefined => {
 export const getActiveTargetSetName = () => {
     return solutionManager?.getCsolution()?.getActiveTargetSetName();
 };
-
-export function getPackScopePreset(): PackScopePresetMap[keyof PackScopePresetMap] {
-    return PackScopePreset.PACK_SCOPE_PRESET_LATEST;
-}
 
 export function areMapsEqual<K, V>(map1: Map<K, V>, map2: Map<K, V>): boolean {
     if (map1.size !== map2.size) {

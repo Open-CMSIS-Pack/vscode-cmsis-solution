@@ -59,13 +59,16 @@
     margin-left: 0;
 }
 
+.current-layer-name {
+    font-weight: 600;
+}
+
 .ant-table-row.leaf-node .ant-table-cell {
     border-color: transparent !important;
 }
 
-.ant-table-row-disabled {
+.current-layer-row {
     background-color: var(--vscode-editorStickyScrollHover-background) !important;
-    color: var(--vscode-disabledForeground, var(--vscode-descriptionForeground)) !important;
 }
 
 .ant-table-row .group-toggle.codicon {
@@ -77,6 +80,12 @@
     height: 16px;
     padding: 8px;
     width: 16px;
+}
+
+.different-partition-control,
+.different-partition-control-wrapper,
+.component-properties-edit:disabled {
+    cursor: not-allowed;
 }
 
 .ant-radio-button-wrapper:first-child {

@@ -15,13 +15,13 @@
  */
 
 import * as path from 'path';
-import { CTreeItem, ETreeItemKind, ITreeItem } from '../generic/tree-item';
-import { ETextFileResult } from '../generic/text-file';
-import { parseYamlToCTreeItem } from '../generic/tree-item-yaml-parser';
+import { CTreeItem, ETreeItemKind, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { CTreeItemYamlFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { CbuildRunYamlFile } from './files/cbuild-run-yaml-file';
-import { optional, arrayOf, nullable, Schema, string, InferType } from '../generic/schema';
-import { Optional, ArrayElement } from '../generic/type-helper';
-import { extractSuffix, stripPrefix, stripSuffix, stripTwoExtensions } from '../utils/string-utils';
+import { optional, arrayOf, nullable, Schema, string, InferType } from '@open-cmsis-pack/cmsis-common/schema';
+import { Optional, ArrayElement } from '@open-cmsis-pack/cmsis-common/type-helper';
+import { extractSuffix, stripPrefix, stripSuffix, stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { getFileNameNoExt } from '../utils/path-utils';
 import { CbuildIdxFile } from './files/cbuild-idx-file';
 import { ContextDescriptor, contextDescriptorFromString } from './descriptors/descriptors';
@@ -65,26 +65,41 @@ export class CSolution {
     }
 
     public getSolutionYmlFiles(): string[] {
-        const ymlFiles: string[] = [];
+        const ymlFiles = new Set<string>();
 
         // Add solution path
         if (this.solutionPath) {
-            ymlFiles.push(this.solutionPath);
+            ymlFiles.add(this.solutionPath);
         }
 
         // Add project paths
         for (const project of this.projects.values()) {
             if (project?.fileName) {
-                ymlFiles.push(project.fileName);
+                ymlFiles.add(project.fileName);
             }
         }
 
         // Add layer paths
         for (const layerPath of this.clayerYmlRoot.keys()) {
-            ymlFiles.push(layerPath);
+            ymlFiles.add(layerPath);
+        }
+        for (const context of this.cbuildIdxFile.activeContexts) {
+            for (const layer of context.layers ?? []) {
+                ymlFiles.add(layer.absolutePath);
+            }
         }
 
-        return ymlFiles;
+        return [...ymlFiles];
+    }
+
+    public getSourceFiles(): string[] {
+        const sourceFiles = new Set<string>();
+        for (const cbuild of this.cbuildIdxFile.cbuildFiles.values()) {
+            for (const fileName of cbuild.getSourceFiles()) {
+                sourceFiles.add(path.normalize(fileName));
+            }
+        }
+        return [...sourceFiles].sort((left, right) => left.localeCompare(right));
     }
 
     public getUsedDbgconfFiles(): string[] {
@@ -112,6 +127,7 @@ export class CSolution {
     cbuilds?: ITreeItem<CTreeItem>[];
     cbuildYmlRoot: Map<string, CTreeItem> = new Map();
     clayerYmlRoot: Map<string, CTreeItem> = new Map();
+    clayerYmlFiles: Map<string, CTreeItemYamlFile> = new Map();
 
     // local configuration
     cbuildSetYmlFileName = '';
@@ -333,9 +349,32 @@ export class CSolution {
             this.solutionDir = path.dirname(solutionPath);
         }
         this.cmsisJsonFile.solutionPath = this.solutionPath;
-        this.cmsisJsonFile.load(); // first load settings
+        const cmsisJsonResult = await this.cmsisJsonFile.load();
         // load csolution and its cproject.yml files
         const solutionResult = await this.csolutionYml.load(this.solutionPath);
+        if (solutionResult !== ETextFileResult.NotExists
+            && solutionResult !== ETextFileResult.Error
+            && cmsisJsonResult !== ETextFileResult.Error) {
+            if (cmsisJsonResult === ETextFileResult.NotExists) {
+                this.cmsisJsonFile.setSettings({});
+            }
+            const activeTargetType = this.getActiveTargetType();
+            if (activeTargetType) {
+                this.cmsisJsonFile.activeTargetTypeName = activeTargetType;
+                const targetType = this.csolutionYml.getTargetType(activeTargetType);
+                const selectedTargetSet = targetType?.getTargetSetFromIndex(this.cmsisJsonFile.getSelectedSet(activeTargetType));
+                if (selectedTargetSet?.name) {
+                    const targetSetIndex = targetType?.targetSetNames.indexOf(selectedTargetSet.name) ?? -1;
+                    this.cmsisJsonFile.set(`targetSet.${this.cmsisJsonFile.solutionDisplayName}.${activeTargetType}`, targetSetIndex);
+                }
+                this.cmsisJsonFile.setActiveSelection(activeTargetType, selectedTargetSet?.name);
+            }
+            const saveResult = await this.cmsisJsonFile.save();
+            if (saveResult === ETextFileResult.Error) {
+                await this.loadBuildFiles();
+                return saveResult;
+            }
+        }
         await this.loadBuildFiles(); // can already be available
         return solutionResult;
     }
@@ -350,6 +389,7 @@ export class CSolution {
         this.cbuildIdxFile?.clear();
         this.cbuildYmlRoot = new Map();
         this.clayerYmlRoot = new Map();
+        this.clayerYmlFiles = new Map();
     }
 
     private async loadClayerYmlFiles(parent?: ITreeItem<CTreeItem>): Promise<void> {
@@ -360,7 +400,7 @@ export class CSolution {
         for (const cbuild of this.cbuilds) {
             const clayers: CTreeItem[] = [];
             for (const clayer of cbuild.getGrandChildren('clayers')) {
-                const clayerYml = await this.loadChildYml('clayer', clayer, this.clayerYmlRoot);
+                const clayerYml = await this.loadChildYml('clayer', clayer, this.clayerYmlRoot, this.clayerYmlFiles);
                 if (clayerYml) {
                     clayers.push(clayerYml);
                 }
@@ -372,17 +412,27 @@ export class CSolution {
         }
     }
 
-    private async loadChildYml(tag: string, element: ITreeItem<CTreeItem>, collection: Map<string, CTreeItem>): Promise<CTreeItem | undefined> {
+    private async loadChildYml(
+        tag: string,
+        element: ITreeItem<CTreeItem>,
+        collection: Map<string, CTreeItem>,
+        fileCollection?: Map<string, CTreeItemYamlFile>,
+    ): Promise<CTreeItem | undefined> {
         const fileName = path.join(this.solutionDir, element.getValue(tag) ?? '');
         const loaded = collection.get(fileName);
         if (loaded !== undefined) {
             return loaded; // already read
         }
-        const yml = parseYamlToCTreeItem('', fileName) as CTreeItem;
-        if (yml) {
-            collection.set(fileName, yml); //add to the supplied map
+        const ymlFile = new CTreeItemYamlFile(fileName);
+        if (await ymlFile.load() !== ETextFileResult.Success) {
+            return undefined;
         }
-        return yml;
+        const root = ymlFile.rootItem;
+        if (root) {
+            collection.set(fileName, root); //add to the supplied map
+            fileCollection?.set(fileName, ymlFile);
+        }
+        return root;
     }
 
     public async loadBuildFiles(): Promise<ETextFileResult> {
@@ -410,17 +460,21 @@ export class CSolution {
         return undefined;
     }
 
-    public async getDefaultDebugAdapterName() {
+    public async getDefaultTargetConfiguration() {
         const cbuildRunYml = this.cbuildRunYml;
         if (!cbuildRunYml?.exists()) {
-            return '';
+            return undefined;
         }
         await cbuildRunYml?.load();
         try {
-            return cbuildRunYml?.getDebugger().name ?? '';
+            return {
+                debugAdapterName: cbuildRunYml.getDebugger().name,
+                device: cbuildRunYml.getDevice(),
+                targetType: cbuildRunYml.getTargetType(),
+            };
         } catch (e) {
-            console.error('Error getting default debug adapter name:', e);
-            return '';
+            console.error('Error getting default target configuration:', e);
+            return undefined;
         }
     }
 
@@ -488,8 +542,17 @@ export class CSolution {
      * @returns CTreeItem or undefined
      */
     public getClayer(fileName: string): CTreeItem | undefined {
+        return this.getClayerYamlFile(fileName)?.rootItem;
+    }
+
+    /**
+     * Returns the YAML file associated with a clayer.yml file.
+     * @param fileName Absolute path or path relative to the solution directory
+     * @returns CTreeItemYamlFile or undefined
+     */
+    public getClayerYamlFile(fileName: string): CTreeItemYamlFile | undefined {
         const absPath = path.resolve(this.solutionDir, fileName);
-        return this.clayerYmlRoot.get(absPath);
+        return this.clayerYmlFiles.get(absPath);
     }
 
     public getClayersForContext(context?: string): CTreeItem[] {
@@ -523,6 +586,16 @@ export class CSolution {
     public hasWestProject(): boolean {
         for (const project of this.projects.values()) {
             if (project?.projectType === 'West') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public hasVirtualProject(): boolean {
+        for (const project of this.projects.values()) {
+            if (project?.readOnly && (project.projectType === 'West' || project.projectType === 'CMake')) {
                 return true;
             }
         }

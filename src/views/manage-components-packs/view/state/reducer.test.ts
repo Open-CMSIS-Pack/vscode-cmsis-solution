@@ -80,6 +80,58 @@ describe('manageComponentsReducer', () => {
             checkValuesUnmodified(['packs'], inputState, outputState);
         });
 
+        it('clears solution data while preserving view preferences', () => {
+            const selectedProject: Project = { projectId: 'path/to/myProject.cproject.yml', projectName: 'myProject' };
+            const selectedTargetType = {
+                type: 'project' as const,
+                relativePath: 'path/to/myProject.cproject.yml',
+                label: 'myProject',
+                key: 'project.path.to.myProject',
+                path: 'path/to/myProject.cproject.yml',
+            };
+            const inputState: ComponentsState = {
+                ...initialState,
+                searchText: 'CMSIS',
+                packsFilterValue: 'all',
+                showSelectedOnly: true,
+                componentTree: [{ id: 'component' } as any],
+                selectedProject,
+                solution: { name: 'solution', path: 'path/to/solution.csolution.yml' },
+                isDirty: true,
+                packs: [{ key: 'Vendor::Pack@1.0.0' } as any],
+                cbuildPackPath: 'solution.cbuild-pack.yml',
+                stateMessage: 'Loading...',
+                errorMessages: [{ type: 'ERROR', message: 'error' }],
+                availableTargetTypes: [selectedTargetType],
+                selectedTargetType,
+                unlilnkRequestStack: ['Vendor::Pack'],
+                availablePacks: { 'Vendor::Pack': 'https://example.com' },
+                availablePacksIndexCurrent: true,
+            };
+
+            const outputState = componentsReducer(inputState, {
+                type: 'INCOMING_MESSAGE',
+                message: { type: 'CLEAR_SOLUTION_DATA' },
+            });
+
+            expect(outputState).toEqual({
+                ...inputState,
+                componentTree: [],
+                selectedProject: undefined,
+                solution: {},
+                isDirty: false,
+                packs: [],
+                cbuildPackPath: '',
+                stateMessage: undefined,
+                errorMessages: [],
+                availableTargetTypes: [],
+                selectedTargetType: undefined,
+                unlilnkRequestStack: [],
+                availablePacks: {},
+                availablePacksIndexCurrent: false,
+            });
+        });
+
         it('returns unknown message object in reducer default branch', () => {
             const unknownMessage = { type: 'UNEXPECTED_INCOMING_MESSAGE' } as any;
             const action = { type: 'INCOMING_MESSAGE', message: unknownMessage } as ComponentsAction;

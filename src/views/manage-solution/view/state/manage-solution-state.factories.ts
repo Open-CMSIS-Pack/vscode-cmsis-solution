@@ -72,6 +72,7 @@ export const solutionDataFactory = (options?: SolutionDataFactoryOptions): Solut
         images: options?.images ?? faker.helpers.multiple(() => imageSelectionFactory()),
         selectedTarget: targets[0],
         availableCoreNames: faker.helpers.multiple(() => faker.word.noun()),
+        usedCoreNames: faker.helpers.multiple(() => faker.word.noun()),
     };
 };
 

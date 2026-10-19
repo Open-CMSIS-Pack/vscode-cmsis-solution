@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import '../../generic/map';
-import { splitInTwo } from '../../utils/string-utils';
+import '@open-cmsis-pack/cmsis-common/map';
+import { splitInTwo } from '@open-cmsis-pack/cmsis-common/string-utils';
 
 
 /**

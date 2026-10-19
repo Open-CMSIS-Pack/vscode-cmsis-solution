@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { CTreeItem, ITreeItem } from '../generic/tree-item';
+import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { matchesContext } from './context-utils';
 
 describe('matchesContext (CMSIS context forms)', () => {
@@ -84,4 +84,3 @@ describe('matchesContext (CMSIS context forms)', () => {
         expect(matchesContext(makeItem(['\\.*D.*']), 'Hello.Release+CS300')).toBe(false);
     });
 });
-

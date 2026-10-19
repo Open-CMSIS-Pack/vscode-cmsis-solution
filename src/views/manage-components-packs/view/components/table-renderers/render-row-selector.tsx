@@ -15,6 +15,8 @@
  */
 
 import { TableRowSelection } from 'antd/es/table/interface';
+import { Tooltip } from 'antd';
+import React from 'react';
 import { ComponentRowDataType } from '../../../data/component-tools';
 import { isInActiveLayer } from '../../helpers/components-packs-helpers';
 import { flatTree } from '../../../data/component-tree';
@@ -47,12 +49,25 @@ export const rowSelection = (
 
         onChangeComponentValue(record);
     },
-    getCheckboxProps: (record: ComponentRowDataType) => ({
-        disabled: !isInActiveLayer(record, state) && record.aggregate.selectedCount ? true : false,
-        type: 'checkbox',
-        name: record.name,
-        className: record.children && record.children.length > 0 ? 'hidden' : '',
-        id: record.data.id,
-    }),
+    getCheckboxProps: (record: ComponentRowDataType) => {
+        const differentPartition = !isInActiveLayer(record, state) && Boolean(record.aggregate.selectedCount);
+        return {
+            disabled: differentPartition,
+            type: 'checkbox',
+            name: record.name,
+            className: `${record.children && record.children.length > 0 ? 'hidden ' : ''}${differentPartition ? 'different-partition-control' : ''}`.trim(),
+            id: record.data.id,
+        };
+    },
+    renderCell: (_checked, record, _index, originNode) => {
+        const differentPartition = !isInActiveLayer(record, state) && Boolean(record.aggregate.selectedCount);
+        if (!differentPartition) return originNode;
+
+        return (
+            <Tooltip title='Component is in different project partition, change selection to modify'>
+                <span className='different-partition-control-wrapper'>{originNode}</span>
+            </Tooltip>
+        );
+    },
     hideSelectAll: true,
 });

@@ -16,14 +16,14 @@
 
 import { TestDataHandler } from '../../../__test__/test-data';
 import { CSolution } from '../../../solutions/csolution';
-import { ETextFileResult, TextFile } from '../../../generic/text-file';
+import { ETextFileResult, TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
 import path from 'node:path';
 import { SolutionOutlineTree } from './solution-outline-tree';
 import { COutlineItem } from './solution-outline-item';
 import { getCmsisPackRoot } from '../../../utils/path-utils';
-import { toGenericString } from '../../../generic/tree-item-parser';
+import { toGenericString } from '@open-cmsis-pack/cmsis-common/tree-item-parser';
 import * as fsUtils from '../../../utils/fs-utils';
-import { CTreeItem } from '../../../generic/tree-item';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { solutionRpcDataFactory, SolutionRpcDataMock } from '../../../solutions/solution-rpc-data.factory';
 
 describe('CSolution', () => {
@@ -62,6 +62,19 @@ describe('CSolution', () => {
             results.push(...findComponentGenNodes(child));
         }
         return results;
+    }
+
+    function findNodeByLabel(node: COutlineItem, tag: string, label: string): COutlineItem | undefined {
+        if (node.getTag() === tag && node.getAttribute('label') === label) {
+            return node;
+        }
+        for (const child of node.getChildren() as COutlineItem[]) {
+            const result = findNodeByLabel(child, tag, label);
+            if (result) {
+                return result;
+            }
+        }
+        return undefined;
     }
 
 
@@ -196,6 +209,18 @@ describe('CSolution', () => {
         const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
         let tree = solutionOutlineTree.createTree();
 
+        const rtxComponent = findNodeByLabel(tree, 'component', 'ARM::CMSIS:RTOS2:Keil RTX5&Source');
+        expect(rtxComponent?.getHeader()).toBe('cmsis_os2.h');
+        expect(rtxComponent?.getHeaders().map(item => item.getHeader())).toContain('rtx_os.h');
+
+        const usartComponent = findNodeByLabel(tree, 'component', 'Keil::CMSIS Driver:USART');
+        expect(usartComponent?.getHeader()).toBe('Driver_USART.h');
+        expect(usartComponent?.getHeaders().map(item => item.getHeader())).toContain('USART_STM32.h');
+
+        const massStorageProject = findNodeByLabel(tree, 'project', 'MassStorage.Debug+B-U585I-IOT02A');
+        const stderrComponent = findNodeByLabel(massStorageProject!, 'component', 'ARM::CMSIS-Compiler:STDERR:Custom');
+        expect(stderrComponent?.getHeaders().map(item => item.getHeader())).toContain('retarget_stderr.h');
+
         let topItems = tree.getChildren();
         expect(topItems.length).toBe(5); // device, board, cdefault and two projects
         const project = topItems[3];
@@ -247,7 +272,7 @@ describe('CSolution', () => {
         expect(res.dump).toEqual(res.ref);
 
     });
-    it('uses the full TargetType@Set as activeTarget on component-gen nodes when a target set is active', async () => {
+    it('uses the full context on component-gen nodes when a target set is active', async () => {
         const fileName = path.join(tmpSolutionDir, 'USBD', 'USB_Device.csolution.yml');
         const csolution = new CSolution();
 
@@ -262,11 +287,12 @@ describe('CSolution', () => {
         const componentGenNodes = findComponentGenNodes(tree as COutlineItem);
         expect(componentGenNodes.length).toBeGreaterThan(0);
         for (const node of componentGenNodes) {
-            expect(node.getAttribute('activeTarget')).toBe('B-U585I-IOT02A@fvp');
+            expect(node.getAttribute('context')).toMatch(/^[^.]+\.[^+]+\+B-U585I-IOT02A$/);
+            expect(node.getAttribute('activeTarget')).toBeUndefined();
         }
     });
 
-    it('falls back to TargetType from context string as activeTarget when no target set is active', async () => {
+    it('uses the full context on component-gen nodes when no target set is active', async () => {
         const fileName = path.join(tmpSolutionDir, 'USBD', 'USB_Device.csolution.yml');
         const csolution = new CSolution();
 
@@ -281,7 +307,8 @@ describe('CSolution', () => {
         const componentGenNodes = findComponentGenNodes(tree as COutlineItem);
         expect(componentGenNodes.length).toBeGreaterThan(0);
         for (const node of componentGenNodes) {
-            expect(node.getAttribute('activeTarget')).toBe('B-U585I-IOT02A');
+            expect(node.getAttribute('context')).toMatch(/^[^.]+\.[^+]+\+B-U585I-IOT02A$/);
+            expect(node.getAttribute('activeTarget')).toBeUndefined();
         }
     });
 
@@ -375,6 +402,31 @@ describe('CSolution', () => {
             const prjConfPath = projectNode.getAttribute('prjConfPath');
             expect(prjConfPath).toBeUndefined();
         }
+    });
+
+    it('creates a CMake project node with its source file and generated groups', async () => {
+        const fileName = path.join(tmpSolutionDir, 'CMakeSupport', 'solution.csolution.yml');
+        const csolution = new CSolution();
+
+        const loadResult = await csolution.load(fileName);
+        expect(loadResult).toEqual(ETextFileResult.Success);
+
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const tree = solutionOutlineTree.createTree();
+        const cmakeProject = (tree.getChildren() as COutlineItem[]).find(
+            node => node.getAttribute('description') === '(CMake)'
+        );
+
+        expect(cmakeProject).toBeDefined();
+        expect(cmakeProject?.getAttribute('resourcePath')).toBe(
+            path.join(tmpSolutionDir, 'CMakeSupport', 'app.v2', 'firmware.cproject-cmake.yml')
+        );
+        expect(cmakeProject?.getAttribute('prjCmakePath')).toBe(
+            path.join(tmpSolutionDir, 'CMakeSupport', 'app.v2', 'CMakeLists.txt')
+        );
+        expect(cmakeProject?.getAttribute('prjConfPath')).toBeUndefined();
+        expect(findNodeByLabel(cmakeProject!, 'group', 'Application')).toBeDefined();
+        expect(findNodeByLabel(cmakeProject!, 'group', 'Generated Sources')).toBeDefined();
     });
 
     it('test tree content for Image Only multicore solution', async () => {

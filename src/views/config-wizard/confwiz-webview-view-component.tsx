@@ -22,19 +22,23 @@ import { HOST_EXTENSION } from 'vscode-messenger-common';
 import { Messenger } from 'vscode-messenger-webview';
 import { ConfWizKeyboardNavigation } from './confwiz-webview-keyboard-navigation';
 import {
-    ConfigWizardData,
+    ConfigWizardViewData,
     GuiTypes,
     TreeNodeElement,
     markDocumentDirty,
+    openIssueLocationType,
     readyType,
     saveElement,
+    selectAnnotationType,
     setPanelActiveType,
+    setSourceSelectionType,
     setWizardDataType
 } from './confwiz-webview-common';
 import { Input, Checkbox, ConfigProvider, theme } from 'antd';
 import { filterTree } from './../filterTree';
 import './confwiz-webview.css';
 import { CompactDropdown } from '../common/components/compact-dropdown';
+import { AnnotationIssues } from './confwiz-annotation-issues';
 
 const { Search } = Input;
 
@@ -64,14 +68,20 @@ interface State {
     expandedKeys: Record<string, boolean>;
     panelIsActive: boolean;
     hasUserFocus: boolean;
+    isIssuesVisible: boolean;
 }
 
 export class ConfWiz extends React.Component<Record<string, unknown>, State> {
 
     private _messenger: Messenger | undefined;
     private readonly keyboardNav = new ConfWizKeyboardNavigation((key) => this.setActiveKey(key));
+    private sourceAuthoritative = false;
+    private restoringFocus = false;
     private pendingRefocus = false;
     private pendingRefocusKey?: string;
+    private isMouseSelectionInteraction = false;
+    private hasReportedMouseSelection = false;
+    private mouseSelectionInteractionId = 0;
     private readonly handleWindowBlur = (): void => {
         this.setState(prevState => ({
             hasUserFocus: false,
@@ -106,21 +116,25 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
             expandedKeys: {},
             panelIsActive: true,
             hasUserFocus: false,
+            isIssuesVisible: false,
         };
     }
 
     public async componentDidMount(): Promise<void> {
         window.addEventListener('blur', this.handleWindowBlur);
-        this.messenger.onNotification<ConfigWizardData>(
+        this.messenger.onNotification<ConfigWizardViewData>(
             setWizardDataType,
             wizardData => {
                 // Clear edited field when new data arrives to prevent race conditions
                 this.editedFieldId = undefined;
-                const shouldResetExpansion = this.state.documentPath !== wizardData.documentPath;
-                const shouldResetActiveKey = this.state.documentPath !== wizardData.documentPath;
-                const expandedKeys = shouldResetExpansion ? {} : this.state.expandedKeys;
-                const activeKey = shouldResetActiveKey ? undefined : this.state.activeKey;
-                const lastTouchedKey = shouldResetActiveKey ? undefined : this.state.lastTouchedKey;
+                this.sourceAuthoritative = wizardData.sourceSelection !== undefined;
+                const isDocumentChanged = this.state.documentPath !== wizardData.documentPath;
+                const expandedKeys = isDocumentChanged ? {} : this.state.expandedKeys;
+                const activeKey = isDocumentChanged ? undefined : this.state.activeKey;
+                const lastTouchedKey = isDocumentChanged ? undefined : this.state.lastTouchedKey;
+                const isIssuesVisible = isDocumentChanged || !wizardData.element?.errors?.length
+                    ? false
+                    : this.state.isIssuesVisible;
                 this.setState({
                     annotations: wizardData.element,
                     documentPath: wizardData.documentPath,
@@ -128,9 +142,20 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     activeKey,
                     lastTouchedKey,
                     expandedKeys,
+                    isIssuesVisible,
+                }, () => {
+                    if (wizardData.sourceSelection !== undefined) {
+                        this.applySourceSelection(wizardData.sourceSelection);
+                    }
                 });
             }
         );
+        this.messenger.onNotification(setSourceSelectionType, data => {
+            if (data.documentPath === this.state.documentPath) {
+                this.sourceAuthoritative = true;
+                this.applySourceSelection(data.selectedGuiId);
+            }
+        });
         this.messenger.onNotification<{ active: boolean }>(
             setPanelActiveType,
             ({ active }) => {
@@ -145,6 +170,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
     }
 
     public componentDidUpdate(_prevProps: Record<string, unknown>, prevState: State): void {
+        if (this.sourceAuthoritative) return;
         const visibleKeys = this.keyboardNav.getVisibleKeys();
         if (visibleKeys.length === 0) {
             return;
@@ -160,7 +186,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
             if (activeKey !== nearestVisible) {
                 this.setState({ activeKey: nearestVisible });
             }
-            this.keyboardNav.focusRowByKey(nearestVisible);
+            this.restoreRowFocus(nearestVisible);
             return;
         }
 
@@ -172,7 +198,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         }
 
         if (prevState.activeKey !== activeKey && activeKey !== undefined) {
-            this.keyboardNav.focusRowByKey(activeKey);
+            this.restoreRowFocus(activeKey);
         }
     }
 
@@ -181,6 +207,24 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         // Cleanup to prevent memory leaks
         this.editedFieldId = undefined;
         this.keyboardNav.reset();
+    }
+
+    private restoreRowFocus(key: string): void {
+        this.restoringFocus = true;
+        try {
+            this.keyboardNav.focusRowByKey(key);
+        } finally {
+            this.restoringFocus = false;
+        }
+    }
+
+    private applySourceSelection(guiId: number | null): void {
+        const key = guiId === null ? undefined : guiId.toString();
+        const path = key && this.state.annotations ? this.findPathToKey(this.state.annotations, key, []) : undefined;
+        const expandedKeys = { ...this.state.expandedKeys };
+        path?.slice(0, -1).forEach(ancestor => { expandedKeys[ancestor] = true; });
+        this.pendingRefocus = false;
+        this.setState({ activeKey: key, lastTouchedKey: key, expandedKeys, hasUserFocus: false });
     }
 
     private getElementKey(element: TreeNodeElement): string {
@@ -226,6 +270,59 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         return undefined;
     }
 
+    private findElementByKey(node: TreeNodeElement, targetKey: string): TreeNodeElement | undefined {
+        if (this.getElementKey(node) === targetKey) {
+            return node;
+        }
+
+        for (const child of node.children ?? []) {
+            const match = this.findElementByKey(child, targetKey);
+            if (match) {
+                return match;
+            }
+        }
+
+        return undefined;
+    }
+
+    private reportAnnotationSelection(key: string): void {
+        this.sourceAuthoritative = false;
+        const documentPath = this.state.documentPath;
+        const annotationRange = this.state.annotations
+            ? this.findElementByKey(this.state.annotations, key)?.annotationRange
+            : undefined;
+        if (!documentPath || !annotationRange) {
+            return;
+        }
+        if (this.isMouseSelectionInteraction && this.hasReportedMouseSelection) {
+            return;
+        }
+
+        this.messenger.sendNotification(selectAnnotationType, HOST_EXTENSION, {
+            documentPath,
+            annotationRange
+        });
+        if (this.isMouseSelectionInteraction) {
+            this.hasReportedMouseSelection = true;
+        }
+    }
+
+    private readonly beginMouseSelectionInteraction = (): void => {
+        this.isMouseSelectionInteraction = true;
+        this.hasReportedMouseSelection = false;
+        const interactionId = ++this.mouseSelectionInteractionId;
+        setTimeout(() => {
+            if (this.mouseSelectionInteractionId === interactionId) {
+                this.endMouseSelectionInteraction();
+            }
+        }, 0);
+    };
+
+    private readonly endMouseSelectionInteraction = (): void => {
+        this.isMouseSelectionInteraction = false;
+        this.hasReportedMouseSelection = false;
+    };
+
     private getNodeKey(node: DTreeNode): string {
         const key = node.key ?? node.id ?? (node.data as TreeNodeElement | undefined)?.guiId?.toString();
         return key ? key.toString() : '';
@@ -233,6 +330,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
 
 
     private readonly setActiveKey = (key: string): void => {
+        this.reportAnnotationSelection(key);
         if (this.state.activeKey !== key) {
             this.setState({
                 activeKey: key,
@@ -243,6 +341,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
     };
 
     private readonly handleUserFocus = (key: string): void => {
+        this.reportAnnotationSelection(key);
         this.setState({
             activeKey: key,
             lastTouchedKey: key,
@@ -286,35 +385,6 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                 this.buildTreeData(currentNode, child, dimForChildren);
             }
         }
-    }
-
-    protected getErrorLines(errors: string[] | undefined) {
-        if (errors == undefined || !errors.length) {
-            return undefined;
-        }
-        const errorsLines: React.JSX.Element[] = [];
-
-        for (const val of errors) {
-            errorsLines.push(<div>{val}</div>);
-        }
-
-        return errorsLines;
-    }
-
-    protected getErrorsText(rootNode: TreeNode) {
-        let errorsText: React.JSX.Element = <div></div>;
-        const rootElement = rootNode.data as TreeNodeElement;
-        if (rootElement !== undefined) {
-            const errorsLines = this.getErrorLines(rootElement.errors);
-            if (errorsLines !== undefined) {
-                errorsText = <section><br /><br /><br />
-                    <h3>Errors</h3>
-                    {errorsLines}
-                </section>;
-            }
-        }
-
-        return errorsText;
     }
 
     protected getTree() {
@@ -382,7 +452,8 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
             return <div>loading</div>;
         }
 
-        const errorsText = this.getErrorsText(rootNode);
+        const rootElement = rootNode.data as TreeNodeElement;
+        const annotationIssues = rootElement.errors ?? [];
 
         const header = <div className='tree-table-header'>
             <Search
@@ -397,6 +468,19 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     this.setState({ filter: element.value });
                 }}
             />
+            <AnnotationIssues
+                issues={annotationIssues}
+                isVisible={this.state.isIssuesVisible}
+                onToggle={() => this.setState(prevState => ({ isIssuesVisible: !prevState.isIssuesVisible }))}
+                onNavigateToLine={(line) => {
+                    if (this.state.documentPath) {
+                        this.messenger.sendNotification(openIssueLocationType, HOST_EXTENSION, {
+                            documentPath: this.state.documentPath,
+                            line
+                        });
+                    }
+                }}
+            />
         </div>;
 
         const filteredChildren = filterTree(rootNode.children, this.state.filter);
@@ -407,16 +491,24 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                 theme={{
                     algorithm: isDarkTheme ? theme.darkAlgorithm : theme.defaultAlgorithm,
                 }}>
-                <div>
+                <div
+                    onMouseDownCapture={this.beginMouseSelectionInteraction}
+                    onClick={this.endMouseSelectionInteraction}
+                >
                     <TreeTable
                         value={filteredChildren}
                         header={header}
-                        tableStyle={{ minWidth: '30rem' }}
                         expandedKeys={this.state.expandedKeys}
                         onToggle={(event: { value: Record<string, boolean> }) => {
                             this.pendingRefocus = true;
                             this.pendingRefocusKey = this.state.activeKey;
                             this.setState({ expandedKeys: event.value });
+                        }}
+                        onRowClick={(event) => {
+                            const key = this.getNodeKey(event.node as DTreeNode);
+                            if (key) {
+                                this.handleUserFocus(key);
+                            }
                         }}
                         // Apply dimming to the row itself; no extra wrappers in cells (keeps expanders aligned)
                         rowClassName={(node: DTreeNode) => {
@@ -435,7 +527,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                         <Column
                             header='Option'
                             className='tree-table-column-name'
-                            style={{ width: '50%' }}
+                            style={{ width: '60%' }}
                             expander
                             body={(data: TreeNode, _options: ColumnBodyOptions) => {
                                 return this.createTextName(data.data as TreeNodeElement);
@@ -443,7 +535,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                         />
                         <Column
                             header='Value'
-                            style={{ width: '50%' }}
+                            style={{ width: '40%' }}
                             body={(data: TreeNode, _options: ColumnBodyOptions) => {
                                 const treeNodeData = data.data as TreeNodeElement;
                                 const isDimmed = (data as DTreeNode).dimmed || false;
@@ -456,7 +548,6 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                             }}
                         />
                     </TreeTable>
-                    {errorsText}
                 </div>
             </ConfigProvider>
         );
@@ -496,18 +587,19 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
             // );
         }
 
-        let tooltipMessage = infos;
+        let warningMessage: string | undefined;
         if (hasOverflow) {
             const displayValue = overflowValue ?? extractedValue ?? selectedValue;
-            tooltipMessage = `Value '${displayValue}' overflows ${bitWidth} bits`;
+            warningMessage = `Value '${displayValue}' overflows ${bitWidth} bits`;
         } else if (isInvalid) {
             const displayValue = extractedValue !== undefined ? extractedValue : selectedValue;
-            tooltipMessage = `Value '${displayValue}' is not in the list`;
+            warningMessage = `Value '${displayValue}' is not in the list`;
         }
 
         return (
             <div ref={this.keyboardNav.registerValueRef(key)} onFocusCapture={() => this.handleUserFocus(key)}>
                 <CompactDropdown
+                    className='tree-dropdown'
                     disabled={element.value.readOnly || shouldDisable}
                     selected={selectedValue}
                     available={dropItems}
@@ -523,8 +615,8 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                         this.setState(prevState => ({ forceRender: !prevState.forceRender }));
                         this.messenger.sendNotification(saveElement, HOST_EXTENSION, { documentPath: this.state.documentPath, element, noAnnotationsFound: false });
                     }}
-                    title={tooltipMessage}
-                    warning={isInvalid || hasOverflow ? tooltipMessage : undefined}
+                    title={infos}
+                    warning={warningMessage}
                 />
             </div>
         );
@@ -532,6 +624,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
     protected createGroup(element: TreeNodeElement, _shouldDisable: boolean = false): React.ReactElement {
         const infos = this.getInfoItems(element);
         const option = <label
+            className='cw-value-text'
             title={infos}
         >
             {element.value.value}
@@ -547,9 +640,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         const isInconsistent = element.value.inconsistent === true;
         const key = this.getElementKey(element);
 
-        const tooltipText = isInconsistent
-            ? `Inconsistent comment state detected: Some lines in this code block are commented while others are not.\n\nToggling this checkbox will force ALL lines to the same state.\n\n${infos}`
-            : infos;
+        const warningMessage = 'Inconsistent comment state detected: Some lines in this code block are commented while others are not.\n\nToggling this checkbox will force ALL lines to the same state.';
 
         const option = (
             <Checkbox
@@ -572,11 +663,19 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     this.onKeyDownFilter(event);
                 }}
                 checked={checked}
-                title={tooltipText}
+                title={infos}
             />
         );
         return (
-            <div ref={this.keyboardNav.registerValueRef(key)} onFocusCapture={() => this.handleUserFocus(key)}>{option}</div>
+            <div ref={this.keyboardNav.registerValueRef(key)} onFocusCapture={() => this.handleUserFocus(key)}>
+                {option}
+                {isInconsistent && <span
+                    className='codicon codicon-warning checkbox-inconsistent-warning'
+                    role='img'
+                    aria-label={warningMessage}
+                    title={warningMessage}
+                />}
+            </div>
         );
     }
 
@@ -642,6 +741,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
         const infos = this.getInfoItems(element);
         return (
             <label
+                className='cw-value-text'
                 title={infos}
             >
                 {element.value.value}</label>
@@ -665,7 +765,7 @@ export class ConfWiz extends React.Component<Record<string, unknown>, State> {
                     this.handleRowPointerActivate(key);
                 }}
                 onFocus={() => {
-                    if (this.pendingRefocus) {
+                    if (this.pendingRefocus || this.restoringFocus) {
                         return;
                     }
                     this.handleUserFocus(key);

@@ -26,6 +26,7 @@ module.exports = [{
         "**/dist",
         "**/node_modules",
         "src/solar-search/graphql/client",
+        "src/e2e-tests/data",
         "**/*.vsix"
     ],
 }, ...fixupConfigRules(compat.extends(
@@ -46,7 +47,7 @@ module.exports = [{
         sourceType: "module",
 
         parserOptions: {
-            project: ["./tsconfig.json", "./scripts/tsconfig.json", "./api/tsconfig.json"],
+            project: ["./tsconfig.json", "./scripts/tsconfig.json", "./api/tsconfig.json", "./packages/cmsis-common/tsconfig.eslint.json"],
         },
 
         globals: {

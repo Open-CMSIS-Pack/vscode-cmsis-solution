@@ -197,11 +197,13 @@ const variantComponents = (
             }
             components.forEach(component => {
                 const parsedComponent = parseComponentId(component.id);
-                // Find validation result for this component
-                let validationResult = validations?.find(v => {
-                    const vParsed = parseComponentId(v.id);
-                    return vParsed?.class === parsedComponent?.class && vParsed?.group === parsedComponent?.group;
-
+                let validationResult = validations?.find(validation => {
+                    const parsedValidation = parseComponentId(validation.id);
+                    return parsedValidation !== undefined && parsedComponent !== undefined &&
+                        parsedValidation.class === parsedComponent.class &&
+                        parsedValidation.group === parsedComponent.group &&
+                        parsedValidation.bundle === parsedComponent.bundle &&
+                        parsedValidation.sub === parsedComponent.sub;
                 });
                 if (validationResult?.conditions) {
                     validationResult.conditions.forEach(condition => {

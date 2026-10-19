@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ETextFileResult } from '../generic/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import * as fsUtils from '../utils/fs-utils';
 import { TasksJsonFile, Task } from './tasks-json-file';
 import * as path from 'path';

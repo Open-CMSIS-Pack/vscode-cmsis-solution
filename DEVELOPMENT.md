@@ -60,6 +60,33 @@ Use the `vscode-uri` module to access the `URI` class.
 Factories for test data that is used in multiple tests are stored in `<name>.factories.ts` files,
 where `<name>` is the source file where their return type is defined.
 
+### CMSIS Common package
+
+The `@open-cmsis-pack/cmsis-common` workspace is the single source for shared file-model and tree
+APIs used by the extension. Build and test it independently with:
+
+```sh
+npm run build --workspace @open-cmsis-pack/cmsis-common
+npm test --workspace @open-cmsis-pack/cmsis-common
+```
+
+The root extension build, compile, test, watch, and package scripts build the workspace first. The
+production package output is bundled into the extension's webpack output; package source, tests,
+and package-local build output are excluded from the VSIX.
+
+Regenerate both the extension and package third-party reports after changing runtime dependencies:
+
+```sh
+npm run tpip:update
+npm run tpip
+```
+
+Inspect the npm artifact before publishing:
+
+```sh
+npm pack --workspace @open-cmsis-pack/cmsis-common --dry-run --json
+```
+
 ### End-to-end tests
 
 A limited number of end-to-end (E2E) tests are maintained for key extension features, using the
@@ -88,7 +115,58 @@ Both formats can be found under the `e2e-reports/` directory at the project root
  ┗ 📜results.xml
 ```
 
+## AI Agent Skills
+
+[AGENTS.md](./AGENTS.md) tells AI agents to discover repository guidance in `.agents/` and
+`.agents-local/` at the start of a conversation. Skills in `.agents/` are public and included in
+the repository. Skills in `.agents-local/` are local, not included in the repository, and can
+contribute additional guidance or override a public skill at the same relative path. Agents read
+applicable skills when needed and follow the relevant skill for the task, such as `plan` for
+proposed changes or `change` for implementation.
+
+```text
+               AGENTS.md
+                  │
+        ┌─────────┴─────────┐
+     .agents/          .agents-local/
+     └─ skills/        └─ skills/
+       ├─ change/       ├─ change/
+       │  └─ SKILL.md   │  └─ SKILL.md  ← overrides
+       ├─ plan/         ├─ prompt-log/
+       │  └─ SKILL.md   │  └─ SKILL.md  ← contributes
+       └─ ...           └─ ...
+```
+
 ## Development Guidelines
+
+### Text Formatting
+
+Repository-owned UTF-8 text files use LF line endings and exactly one final newline,
+including empty files. Batch (`.bat`) files are excluded from formatting checks and
+fixes and retain CRLF line endings as specified in `.gitattributes`.
+Use the shared `fmtlf` script instead of ad hoc scripts:
+
+```sh
+npm run fmtlf:check
+npm run fmtlf:fix -- --include=src/example.ts,README.md
+npm run fmtlf:check -- --include=src/example.ts,README.md
+```
+
+Run these commands from the repository root. Both modes support comma-separated
+`--include` and `--exclude` globs. Commas inside brace patterns are preserved, including
+nested braces. Quote glob arguments to prevent shell expansion, for example:
+
+```sh
+npm run fmtlf:check -- --include="**/*.{ts,tsx},README.md" --exclude="**/{generated,vendor}/**"
+```
+
+By default, the script checks tracked and non-ignored
+untracked files with recognized text extensions or standard extensionless text names.
+Dependencies, generated output, test-data fixtures, binaries, symlinks, and submodules
+are excluded. Unsupported text encodings are reported and never rewritten.
+Fix mode preserves BOMs and all whitespace except newline sequences at EOF.
+Check mode never writes files and exits nonzero for violations or errors.
+CI enforcement is deferred until existing repository formatting violations are cleaned up.
 
 ### Logging
 
@@ -142,6 +220,22 @@ Use the following commands:
 4. Create a new release at [Open-CMSIS-Pack/vscode-cmsis-solution releases](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/releases).
    - This will trigger the `CI.yml` workflow.
    - Once the workflow completes successfully, the release artifacts will be generated automatically.
+
+### CMSIS Common release workflow
+
+The npm package is versioned and published independently from the extension. To release it:
+
+1. Update the version in `packages/cmsis-common/package.json`, the matching extension dependency in
+   `package.json`, and `package-lock.json`.
+2. Run package tests, repository lint and copyright checks, regenerate third-party reports, and
+   inspect the package with the commands above.
+3. Merge those changes into `main`.
+4. Create and push a tag named `cmsis-common-v<version>`, where `<version>` exactly matches the
+   package manifest, for example `cmsis-common-v0.2.0`.
+
+The `CMSIS Common Release` workflow validates the tag, rebuilds and tests the package, verifies the
+third-party report and tarball, and publishes to GitHub Packages. This tag does not publish or
+version the VSIX.
 
 ## JSON-RPC Protocol (`csolution`)
 

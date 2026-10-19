@@ -9,6 +9,7 @@ coverage/**
 out/**
 node_modules/**
 !node_modules/@lydell/node-pty*/**
+packages/**
 src/**
 .gitattributes
 .gitignore
@@ -37,3 +38,5 @@ e2e-report/**
 e2e-screenshots/**
 test-results/**
 .qlty/**
+.codex/**
+.cmsis-dev/**

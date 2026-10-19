@@ -31,6 +31,7 @@ export const workspaceFsProviderFactory = (): MockWorkspaceFsProvider => ({
     rename: jest.fn(),
     copy: jest.fn(),
     exists: jest.fn().mockResolvedValue(false),
+    isFile: jest.fn().mockResolvedValue(false),
 });
 
 export type Files = {

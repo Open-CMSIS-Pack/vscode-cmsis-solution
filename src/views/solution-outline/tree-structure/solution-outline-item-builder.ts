@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
+import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { CSolution } from '../../../solutions/csolution';
 import { SolutionRpcData } from '../../../solutions/solution-rpc-data';
 import { expandRootVars } from '../../../utils/path-utils';
+import { COutlineItem } from './solution-outline-item';
+import { matchesContext } from '../../../utils/context-utils';
 
 export class SolutionOutlineItemBuilder {
     constructor(
@@ -25,11 +28,32 @@ export class SolutionOutlineItemBuilder {
         protected context?: string,
     ) { }
 
+    /**
+     * Expands context variables, ${CMSIS_PACK_ROOT}, and ${CMSIS_COMPILER_ROOT} to actual values
+     * @param str string to expand
+     * @returns expanded string
+     */
     public expandString(str: string) {
         str = expandRootVars(str);
         if (!this.rpcData || !this.context || !str) {
             return str;
         }
         return this.rpcData.expandString(str, this.context);
+    }
+
+    /**
+     * Applies exclusion inherited from the parent or determined by the active context.
+     * @param outlineItem item to mark as excluded if needed
+     * @param sourceItem original item that supplies for-context and not-for-context
+     */
+    protected applyContextExclusion(outlineItem: COutlineItem, sourceItem?: ITreeItem<CTreeItem>): void {
+        const isParentExcluded = outlineItem.getParent()?.getAttribute('excluded') === '1';
+        const isExcludedByContext = this.context
+            ? !matchesContext(sourceItem, this.context)
+            : false;
+
+        if (isParentExcluded || isExcludedByContext) {
+            outlineItem.setAttribute('excluded', '1');
+        }
     }
 }

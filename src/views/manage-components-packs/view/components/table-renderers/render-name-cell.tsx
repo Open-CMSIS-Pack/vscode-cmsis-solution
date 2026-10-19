@@ -20,6 +20,7 @@ import { Tooltip } from 'antd';
 import { validationIds } from './render-warning-cell';
 import { EditFilled } from '@ant-design/icons';
 import { PackTitleLink } from '../pack-title-link';
+import { isInActiveLayer } from '../../helpers/components-packs-helpers';
 
 /**
  * Renders the name cell with a tooltip that shows additional information about the component.
@@ -27,7 +28,12 @@ import { PackTitleLink } from '../pack-title-link';
  * @param record The record of the row
  * @returns The rendered cell with the component name and a tooltip
  */
-export const renderNameCell = (value: string, record: ComponentRowDataType, openFile: (link: string, external?: boolean, focusOn?: string) => void): React.ReactNode => {
+export const renderNameCell = (
+    value: string,
+    record: ComponentRowDataType,
+    openFile: (link: string, external?: boolean, focusOn?: string) => void,
+    state: { activeLayer?: string; selectedTargetType: Parameters<typeof isInActiveLayer>[1]['selectedTargetType'] }
+): React.ReactNode => {
     // Count all leaf subs and grandsubs
     const getLeafCount = (nodes?: ComponentRowDataType[]): number =>
         nodes?.reduce((acc, node) => acc + (node.children?.length ? getLeafCount(node.children) : 1), 0) ?? 0;
@@ -45,6 +51,7 @@ export const renderNameCell = (value: string, record: ComponentRowDataType, open
 
     const vids = validationIds(record, undefined, 'name-col');
     const packTitle = <PackTitleLink packId={record.data.pack} packName={record.data.pack} openFile={openFile} />;
+    const nameClassName = isInActiveLayer(record, state) ? 'current-layer-name' : undefined;
 
     const tooltTipContent = (
         <div>
@@ -77,7 +84,7 @@ export const renderNameCell = (value: string, record: ComponentRowDataType, open
     return (
         <div onClick={preventTooltipClicks}>
             <Tooltip placement='right' title={tooltTipContent} mouseEnterDelay={1.0} mouseLeaveDelay={0.3} trigger={['hover']}>
-                <span style={{ whiteSpace: 'nowrap' }}>
+                <span className={nameClassName} style={{ whiteSpace: 'nowrap' }}>
                     {value} {record.api ? '(API)' : ''} {instances}
                 </span>
             </Tooltip>

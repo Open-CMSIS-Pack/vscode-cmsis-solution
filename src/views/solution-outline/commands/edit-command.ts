@@ -20,9 +20,17 @@ import { CommandsProvider } from '../../../vscode-api/commands-provider';
 import * as manifest from '../../../manifest';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 import { getGroupPathArray } from '../utils';
-import { buildPathFromContentToGroup } from '../../../solutions/edit/manage-group-items';
-import { getYamlNodeAtPath, listItem, mapKey } from '../../../solutions/edit/edit-yaml';
+import { getYamlNodeAtPath, listItem, mapKey, YamlPathSegment } from '../../../solutions/edit/edit-yaml';
 import { readTextFile } from '../../../utils/fs-utils';
+
+const buildPathFromContentToGroup = (
+    groupPath: readonly string[],
+    initialPath: YamlPathSegment[],
+): YamlPathSegment[] => groupPath.reduce<YamlPathSegment[]>((path, groupName) => [
+    ...path,
+    mapKey('groups'),
+    listItem(item => yaml.isMap(item) && item.get('group') === groupName),
+], initialPath);
 
 export class EditCommand {
     public static readonly editCommandId = `${manifest.PACKAGE_NAME}.edit`;

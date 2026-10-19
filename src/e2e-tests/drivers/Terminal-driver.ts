@@ -21,13 +21,27 @@
  * to switch between terminals and verify their content.
  */
 
+import { expect } from '@playwright/test';
 import type * as playwright from '@playwright/test';
 import { VsCodeDriver } from '../infrastructure/vscode-driver';
 import { QUICK_PICK_DELAY_MS, QUICK_PICK_TIMEOUT_MS, PANEL_VISIBILITY_TIMEOUT_MS, PANEL_TEXT_TIMEOUT_MS } from '../constants';
 import { log } from '../utils/logger';
+import crypto from 'crypto';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+
+type RunCommandOptions = {
+    allowFailure?: boolean;
+    timeout?: number;
+};
+
+type TerminalCommandResult = {
+    exitCode: number;
+};
 
 export class TerminalDriver {
-    public constructor(private readonly vscode: VsCodeDriver) {}
+    public constructor(private readonly vscode: VsCodeDriver) { }
 
     public async switchTerminal(terminalName: string): Promise<void> {
         log('debug', `[switchTerminal] Switching to terminal: "${terminalName}"`);
@@ -52,13 +66,112 @@ export class TerminalDriver {
         log('debug', `[switchTerminal] Clicked terminal "${terminalName}"`);
     }
 
-    getTerminalPanel (): playwright.Locator {
+    getTerminalPanel(): playwright.Locator {
         return this.vscode.page.getLocator('#workbench\\.panel\\.terminal');
     }
 
-    async waitForTerminalEntry (text: string | RegExp): Promise<void> {
+    async waitForTerminalEntry(text: string | RegExp): Promise<void> {
         const terminalPanel = this.getTerminalPanel();
         await terminalPanel.waitFor({ state: 'visible', timeout: PANEL_VISIBILITY_TIMEOUT_MS });
         await terminalPanel.getByText(text).first().waitFor({ state: 'visible', timeout: PANEL_TEXT_TIMEOUT_MS });
+    }
+
+    private getActiveTerminal(): playwright.Locator {
+        return this.vscode.page
+            .getPage()
+            .locator('.xterm')
+            .first();
+    }
+
+    public async ensureTerminal(): Promise<void> {
+        await this.vscode.page
+            .getCommands()
+            .runCommandFromPalette('Terminal: Focus Terminal');
+
+        await this.getActiveTerminal().waitFor({
+            state: 'visible',
+            timeout: 10_000,
+        });
+    }
+
+    public async runCommand(
+        command: string,
+        options: RunCommandOptions = {},
+    ): Promise<TerminalCommandResult> {
+        const {
+            allowFailure = false,
+            timeout = 120_000,
+        } = options;
+
+        await this.ensureTerminal();
+
+        const id = crypto.randomUUID();
+        const marker = `__E2E_COMMAND_COMPLETE_${id}__`;
+
+        const completionFile = path.join(
+            os.tmpdir(),
+            `cmsis-e2e-command-${id}.txt`,
+        );
+
+        const wrappedCommand = process.platform === 'win32'
+            ? '$global:LASTEXITCODE=0; ' +
+          `try { ${command}; $commandSucceeded=$? } ` +
+          'catch { $commandSucceeded=$false }; ' +
+          '$exitCode=if ($commandSucceeded) { 0 } ' +
+          'elseif ($LASTEXITCODE -ne 0) { $LASTEXITCODE } ' +
+          'else { 1 }; ' +
+          `Set-Content -Path "${completionFile}" ` +
+          `-Value "${marker}:$exitCode"`
+            : `${command}; ` +
+          'exitCode=$?; ' +
+          `printf '${marker}:%s\\n' "$exitCode" > "${completionFile}"`;
+
+        const terminal = this.getActiveTerminal();
+
+        try {
+            await terminal.pressSequentially(wrappedCommand);
+            await terminal.press('Enter');
+
+            await expect.poll(
+                () => fs.existsSync(completionFile),
+                {
+                    timeout,
+                    message: `Waiting for command to complete: ${command}`,
+                },
+            ).toBe(true);
+
+            const result = fs.readFileSync(
+                completionFile,
+                'utf8',
+            ).trim();
+
+            const markerPattern = new RegExp(
+                `${marker}:(-?\\d+)`,
+            );
+
+            const match = result.match(markerPattern);
+
+            if (!match) {
+                throw new Error(
+                    `Unable to determine exit code for command: ${command}`,
+                );
+            }
+
+            const exitCode = Number(match[1]);
+
+            if (exitCode !== 0 && !allowFailure) {
+                throw new Error(
+                    `Command failed with exit code ${exitCode}: ${command}`,
+                );
+            }
+
+            return {
+                exitCode,
+            };
+        } finally {
+            if (fs.existsSync(completionFile)) {
+                fs.unlinkSync(completionFile);
+            }
+        }
     }
 }

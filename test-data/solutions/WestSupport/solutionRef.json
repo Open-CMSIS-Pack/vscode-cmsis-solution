@@ -36,7 +36,8 @@
                 "Debug"
             ],
             "device": "cm0_core0",
-            "projectType": "West"
+            "projectType": "West",
+            "readOnly": true
         },
         {
             "name": "core1",
@@ -48,7 +49,8 @@
                 "Debug"
             ],
             "device": "cm0_core1",
-            "projectType": "West"
+            "projectType": "West",
+            "readOnly": true
         }
     ],
     "images": []

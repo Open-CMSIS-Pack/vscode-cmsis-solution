@@ -15,21 +15,33 @@
  */
 
 import path from 'path';
+import * as fs from 'node:fs';
 import { DebugAdapter, DebugAdaptersYamlFile, loadDebugAdaptersYml, UISection, UISectionChildren } from '../../debug/debug-adapters-yaml-file';
-import { ETextFileResult } from '../../generic/text-file';
-import { ETreeItemKind } from '../../generic/tree-item';
-import { Optional } from '../../generic/type-helper';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { DebuggerWrap, ImageWrap, ProjectRefWrap, TargetSetWrap, TargetTypeWrap } from '../../solutions/files/csolution-wrap';
 import { CSolutionYamlFile } from '../../solutions/files/csolution-yaml-file';
-import { SolutionManager } from '../../solutions/solution-manager';
+import { isAutoConvertOnFileChangeEnabled, SolutionManager } from '../../solutions/solution-manager';
 import * as fsUtils from '../../utils/fs-utils';
 import { getFileNameNoExt } from '../../utils/path-utils';
-import { extractSuffix, stripTwoExtensions } from '../../utils/string-utils';
+import { extractSuffix, stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { CmsisSettingsJsonFile } from './../../global/cmsis-settings-json-file';
 import { GenericPropertyList, getSelectedTargetSet, ImageSelection, ProjectSelection, SolutionData, TargetSet, TargetType } from './view/state/manage-solution-state';
 import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
 
 export type CustomDebugAdapterDefaults = { [adapterName: string]: { [propertyName: string]: string | number } };
+
+type TargetConfiguration = {
+    debugAdapterName?: string;
+    device?: string;
+    targetType?: string;
+};
+
+type FileStamp = {
+    mtimeMs: number;
+    size: number;
+};
 
 /**
  * Class to connect Csolution model represented by CsolutionYmlFile with ManageSolutionWebviewMain
@@ -38,11 +50,14 @@ export class ManageSolutionController {
     private readonly _csolutionYml = new CSolutionYamlFile();
     private readonly _cmsisJsonFile = new CmsisSettingsJsonFile();
     private debugAdaptersYmlFile?: DebugAdaptersYamlFile = undefined;
-    private defaultDebugAdapterName: string = '';
     private debugAdaptersCache: DebugAdapter[] = [];
     private availableCoreNamesCache: string[] = [];
+    private defaults?: TargetConfiguration;
     public customDebugAdapterDefaults: CustomDebugAdapterDefaults = {};
     private _csolutionService?: CsolutionService;
+    private csolutionFileStamp?: FileStamp | null;
+    private cmsisJsonFileStamp?: FileStamp | null;
+    private cmsisJsonLoadResult?: ETextFileResult;
 
     /**
      * Gets the initialized csolution service instance.
@@ -100,20 +115,28 @@ export class ManageSolutionController {
     }
 
     /**
+     * Replaces build-run defaults without reloading editable solution state.
+     */
+    public updateDefaults(defaults?: TargetConfiguration): void {
+        this.defaults = defaults;
+    }
+
+    /**
      * Loads solution content and associated cmsis.json state.
      * @param csolutionPath Optional explicit path to the solution file.
-     * @param defaultDebugAdapterName Optional default debugger adapter name.
+     * @param defaults Optional target configuration from build-run data.
      * @returns Result of loading the csolution file.
      */
-    async loadSolution(csolutionPath?: string, defaultDebugAdapterName?: string) {
+    async loadSolution(csolutionPath?: string, defaults?: TargetConfiguration) {
 
-        this.defaultDebugAdapterName = defaultDebugAdapterName ?? '';
+        this.updateDefaults(defaults);
         if (!this.debugAdaptersYmlFile) {
             this.debugAdaptersYmlFile = await loadDebugAdaptersYml();
         }
         const result = await this.csolutionYml.load(csolutionPath);
         this.cmsisJsonFile.solutionPath = this.solutionPath;
-        await this.cmsisJsonFile.load();
+        this.cmsisJsonLoadResult = await this.cmsisJsonFile.load();
+        this.refreshFileStamps();
         return result;
     }
 
@@ -121,29 +144,58 @@ export class ManageSolutionController {
      * Saves csolution.yml and cmsis.json files
      * @returns result of saving csolution file
      */
-    async saveSolution(solutionManager: SolutionManager) {
+    async saveSolution(solutionManager: SolutionManager): Promise<boolean> {
         // remove deprecated .cbuild-set.yml file
         const cbuildSetYmlFileName = stripTwoExtensions(this.solutionPath) + '.cbuild-set.yml';
         fsUtils.deleteFileIfExists(cbuildSetYmlFileName);
 
         const csolution = solutionManager.getCsolution();
         if (!csolution) {
-            return;
+            return false;
         }
+        const userModified = this.csolutionYml.isModified() || this.cmsisJsonFile.isModified();
+        let changed = false;
+        let saved = true;
         // purge images that refer to non-existing projects (i.e. the project was renamed/deleted)
         this.csolutionYml.purgeAllProjectContexts();
 
         // directly copy content to global files
-        const cmsisJsonRes = csolution.cmsisJsonFile.copyFrom(this.cmsisJsonFile);
-        if (cmsisJsonRes !== ETextFileResult.Unchanged) {
-            await this.cmsisJsonFile.save();
+        let cmsisJsonRes = ETextFileResult.Unchanged;
+        if (this.cmsisJsonLoadResult !== ETextFileResult.Error) {
+            const activeTargetTypeName = this.activeTargetTypeName;
+            if (activeTargetTypeName) {
+                this.cmsisJsonFile.setActiveSelection(activeTargetTypeName, this.activeTargetSetName);
+            }
+            const saveResult = await this.cmsisJsonFile.save();
+            if (saveResult !== ETextFileResult.Error) {
+                this.cmsisJsonFileStamp = this.getCurrentFileStamp(this.cmsisJsonFile.fileName);
+                cmsisJsonRes = csolution.cmsisJsonFile.copyFrom(this.cmsisJsonFile);
+                if (cmsisJsonRes !== ETextFileResult.Unchanged && saveResult === ETextFileResult.Success) {
+                    changed = true;
+                }
+            } else {
+                saved = false;
+            }
         }
-        const solutionRes = csolution.csolutionYml.copyFrom(this.csolutionYml);
-        if (solutionRes !== ETextFileResult.Unchanged) {
-            await this.csolutionYml.save();
-        } else if (cmsisJsonRes !== ETextFileResult.Unchanged) {
-            await solutionManager.refresh(); // trigger reload and cbuild-setup run
+        const solutionRes = await this.csolutionYml.save();
+        if (solutionRes === ETextFileResult.Success) {
+            this.csolutionFileStamp = this.getCurrentFileStamp(this.csolutionYml.fileName);
+            changed = true;
+        } else if (solutionRes === ETextFileResult.Error) {
+            saved = false;
         }
+        if (solutionRes !== ETextFileResult.Error) {
+            csolution.csolutionYml.copyFrom(this.csolutionYml);
+        }
+        if (changed && userModified && saved) {
+            if (!isAutoConvertOnFileChangeEnabled()
+                || (cmsisJsonRes === ETextFileResult.Success && solutionRes === ETextFileResult.Unchanged)) {
+                await solutionManager.refresh();
+            }
+        } else if (changed && !saved) {
+            solutionManager.markDirty();
+        }
+        return saved;
     }
 
     /**
@@ -185,6 +237,7 @@ export class ManageSolutionController {
         }
 
         await this.cmsisJsonFile.save();
+        this.cmsisJsonFileStamp = this.getCurrentFileStamp(this.cmsisJsonFile.fileName);
         return true;
     }
 
@@ -196,7 +249,45 @@ export class ManageSolutionController {
      * outside the current controller instance.
      */
     public hasExternalFileChanges(): boolean {
-        return this.csolutionYml.hasExternalFileChanged() || this.cmsisJsonFile.hasExternalFileChanged();
+        const currentCsolutionFileStamp = this.getCurrentFileStamp(this.csolutionYml.fileName);
+        const currentCmsisJsonFileStamp = this.getCurrentFileStamp(this.cmsisJsonFile.fileName);
+        const csolutionChanged = this.hasFileStampChanged(this.csolutionFileStamp, currentCsolutionFileStamp);
+        const cmsisJsonChanged = this.hasFileStampChanged(this.cmsisJsonFileStamp, currentCmsisJsonFileStamp);
+
+        this.csolutionFileStamp = currentCsolutionFileStamp;
+        this.cmsisJsonFileStamp = currentCmsisJsonFileStamp;
+        return csolutionChanged || cmsisJsonChanged;
+    }
+
+    private refreshFileStamps(): void {
+        this.csolutionFileStamp = this.getCurrentFileStamp(this.csolutionYml.fileName);
+        this.cmsisJsonFileStamp = this.getCurrentFileStamp(this.cmsisJsonFile.fileName);
+    }
+
+    private getCurrentFileStamp(fileName: string): FileStamp | null {
+        if (!fileName || !fsUtils.fileExists(fileName)) {
+            return null;
+        }
+        try {
+            const stat = fs.statSync(fileName);
+            return {
+                mtimeMs: stat.mtimeMs,
+                size: stat.size,
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    private hasFileStampChanged(previousStamp: FileStamp | null | undefined, currentStamp: FileStamp | null): boolean {
+        if (previousStamp === undefined) {
+            return false;
+        }
+        if (previousStamp === null || currentStamp === null) {
+            return previousStamp !== currentStamp;
+        }
+        return currentStamp.mtimeMs !== previousStamp.mtimeMs
+            || currentStamp.size !== previousStamp.size;
     }
 
     /**
@@ -341,9 +432,9 @@ export class ManageSolutionController {
     public async toggleDebugAdapterSection(section: string) {
         const adapter = this.debugAdaptersYmlFile?.getAdapterByName(this.activeDebuggerName);
         this.customizeDebugAdapterDefaults(adapter);
-        const availableCores = await this.getAvailableCoreNames();
+        await this.getAvailableCoreNames();
         const uiSection = adapter?.['user-interface']?.find(sec => sec['yml-node'] === section);
-        const defaults = uiSection ? this.buildSectionDefaults(uiSection, availableCores) : {};
+        const defaults = uiSection ? this.buildSectionDefaults(uiSection, this.usedCoreNames) : {};
         this.activeTargetSetWrap.ensureDebugger().toggleSection(section, defaults);
     }
 
@@ -351,7 +442,7 @@ export class ManageSolutionController {
      * Gets the default debugger adapter name.
      */
     private get defaultDebuggerName() {
-        return this.defaultDebugAdapterName ||
+        return this.defaults?.debugAdapterName ||
             this.debugAdaptersYmlFile?.debugAdapters[0]?.name || '';
     }
 
@@ -359,8 +450,10 @@ export class ManageSolutionController {
      * Queries available processor core names for the active target device.
      */
     public async getAvailableCoreNames(): Promise<string[]> {
-        const availableCores = this.activeTargetTypeWrap?.device
-            ? (await this.csolutionService.getDeviceInfo({ id: this.activeTargetTypeWrap?.device || '' })).device?.processors?.map((p: { name?: string; core: string }) => p.name || '') || []
+        const device = this.activeTargetTypeWrap?.device ||
+            (this.defaults?.targetType === this.activeTargetTypeName ? this.defaults?.device : undefined);
+        const availableCores = device
+            ? (await this.csolutionService.getDeviceInfo({ id: device })).device?.processors?.flatMap((processor: { name?: string; core: string }) => processor.name ? [processor.name] : []) || []
             : [];
         this.availableCoreNamesCache = availableCores;
         return availableCores;
@@ -374,6 +467,49 @@ export class ManageSolutionController {
     }
 
     /**
+     * Gets processor core names used by selected projects and active images.
+     * Falls back to all device cores when no processor is specified.
+     */
+    public get usedCoreNames(): string[] {
+        const usedCores = new Set<string>();
+        const addCore = (core?: string) => {
+            if (core && this.availableCoreNames.includes(core)) {
+                usedCores.add(core);
+            }
+        };
+        this.collectProjects().filter(project => project.selected).forEach(project => addCore(project.device));
+        this.activeTargetSetWrap.imagesOnly.forEach(image => addCore(image.device));
+        return usedCores.size > 0 ? [...usedCores] : this.availableCoreNames;
+    }
+
+    /**
+     * Resolves the processor used to start debugging for the active target set.
+     */
+    public async getEffectiveStartProcessor(): Promise<string | undefined> {
+        const debuggerWrap = this.activeDebugger;
+        if (!debuggerWrap) {
+            return undefined;
+        }
+
+        await this.getAvailableCoreNames();
+        const usedCores = this.usedCoreNames;
+        const configuredStartProcessor = debuggerWrap.startPname;
+        return configuredStartProcessor && usedCores.includes(configuredStartProcessor)
+            ? configuredStartProcessor
+            : usedCores.at(0);
+    }
+
+    /**
+     * Adds an image and assigns the effective start processor when available.
+     */
+    public async addImage(name: string): Promise<ImageWrap> {
+        const startProcessor = await this.getEffectiveStartProcessor();
+        const image = this.activeTargetSetWrap.addImage(name);
+        image.device = startProcessor;
+        return image;
+    }
+
+    /**
      * Gets debug adapters, loading and caching them if needed.
      */
     public get debugAdapters(): Promise<DebugAdapter[]> {
@@ -384,16 +520,17 @@ export class ManageSolutionController {
     }
 
     /**
-     * Rebuilds debug adapter definitions using current defaults and available cores.
+     * Rebuilds debug adapter definitions using current defaults and used cores.
      */
     public async refreshDebugAdapters(): Promise<DebugAdapter[]> {
         const adapters = this.debugAdaptersYmlFile?.debugAdapters ?? [];
-        const availableCores = await this.getAvailableCoreNames();
+        await this.getAvailableCoreNames();
+        const usedCores = this.usedCoreNames;
         adapters.forEach(da => this.customizeDebugAdapterDefaults(da));
         adapters.forEach(da => {
             da['user-interface']?.forEach(section => {
                 if (section['pname-options'] !== undefined) {
-                    section.options = this.expandPnameOptions(section, availableCores);
+                    section.options = this.expandPnameOptions(section, usedCores);
                 }
             });
         });
@@ -475,11 +612,16 @@ export class ManageSolutionController {
             }
             child?.setValue(param, value as string);
         } else {
-            this.activeTargetSetWrap.ensureDebugger().item
+            const sectionNode = this.activeTargetSetWrap.ensureDebugger().item
                 ?.createChild(section, true)
-                ?.setKind(ETreeItemKind.Sequence)
-                ?.getChildByValue('pname', pname)
-                ?.setValue(param, value as string);
+                ?.setKind(ETreeItemKind.Sequence);
+            let processorNode = sectionNode?.getChildByValue('pname', pname);
+            if (!processorNode) {
+                processorNode = sectionNode?.createChild('-');
+                processorNode?.setKind(ETreeItemKind.Map).setText(undefined);
+                processorNode?.setValue('pname', pname);
+            }
+            processorNode?.setValue(param, value as string);
         }
 
     }
@@ -499,6 +641,7 @@ export class ManageSolutionController {
             projects: projects,
             images: selectedTargetSet?.images,
             availableCoreNames: this.availableCoreNames,
+            usedCoreNames: this.usedCoreNames,
         };
     }
 
@@ -587,6 +730,7 @@ export class ManageSolutionController {
             buildTypes: buildTypes,
             device: cproject?.deviceProcessor || pr.deviceProcessor,
             projectType: cproject?.projectType || pr.projectType,
+            ...(cproject?.readOnly || pr.projectType ? { readOnly: true } : {}),
         };
     }
 

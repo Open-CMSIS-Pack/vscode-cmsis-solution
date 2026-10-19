@@ -110,8 +110,132 @@ describe('component-tools', () => {
             const placeholder = flatTree(tree).find(node => node.data.id === aggregate.id);
 
             expect(placeholder?.validation?.result).toBe('CONFLICT_ONCE');
-            expect(placeholder?.validation?.id).toBe('AggregateValidationId');
-            expect(placeholder?.validation?.aggregates).toEqual(['UnknownAggregateId', 'OtherAggregateId']);
+            expect(placeholder?.validation?.id).toBe('AggregateValidationId/UnknownAggregateId');
+            expect(placeholder?.validation?.aggregates).toEqual(['OtherAggregateId']);
+        });
+
+        it('attaches validation only to the matching aggregate in the same class and group', () => {
+            const aggregateA: CtAggregate = {
+                id: 'Vendor::Class:Group:SubA',
+                name: 'SubA',
+                activeVersion: '1.0.0',
+                variants: [{
+                    name: 'default',
+                    components: [{ id: 'Vendor::Class:Group:SubA@1.0.0', pack: '' }],
+                }],
+            };
+            const aggregateB: CtAggregate = {
+                id: 'Vendor::Class:Group:SubB',
+                name: 'SubB',
+                activeVersion: '1.0.0',
+                variants: [{
+                    name: 'default',
+                    components: [{ id: 'Vendor::Class:Group:SubB@1.0.0', pack: '' }],
+                }],
+            };
+            const validation: Result = {
+                id: aggregateB.id,
+                result: 'SELECTABLE',
+            };
+            const root: CtRoot = {
+                success: true,
+                classes: [{
+                    name: 'Class',
+                    activeBundle: '',
+                    bundles: [{
+                        name: '',
+                        aggregates: [aggregateB, aggregateA],
+                        cgroups: [],
+                        bundle: { id: '', description: '', doc: '' },
+                    }],
+                }],
+            };
+
+            const rows = flatTree(mapTree(root, [validation]));
+            const rowA = rows.find(row => row.aggregate.id === aggregateA.id);
+            const rowB = rows.find(row => row.aggregate.id === aggregateB.id);
+
+            expect(rowA?.validation).toBeUndefined();
+            expect(rowB?.validation).toBe(validation);
+        });
+
+        it('distinguishes validations by bundle within the same class and group', () => {
+            const aggregateA: CtAggregate = {
+                id: 'Vendor::Class&BundleA:Group:Sub',
+                name: 'BundleA',
+                activeVersion: '1.0.0',
+                variants: [{
+                    name: 'default',
+                    components: [{ id: 'Vendor::Class&BundleA:Group:Sub@1.0.0', pack: '' }],
+                }],
+            };
+            const aggregateB: CtAggregate = {
+                id: 'Vendor::Class&BundleB:Group:Sub',
+                name: 'BundleB',
+                activeVersion: '1.0.0',
+                variants: [{
+                    name: 'default',
+                    components: [{ id: 'Vendor::Class&BundleB:Group:Sub@1.0.0', pack: '' }],
+                }],
+            };
+            const validation: Result = {
+                id: 'Class&BundleB:Group:Sub',
+                result: 'SELECTABLE',
+            };
+            const root: CtRoot = {
+                success: true,
+                classes: [{
+                    name: 'Class',
+                    activeBundle: '',
+                    bundles: [{
+                        name: '',
+                        aggregates: [aggregateA, aggregateB],
+                        cgroups: [],
+                        bundle: { id: '', description: '', doc: '' },
+                    }],
+                }],
+            };
+
+            const rows = flatTree(mapTree(root, [validation]));
+            const rowA = rows.find(row => row.aggregate.id === aggregateA.id);
+            const rowB = rows.find(row => row.aggregate.id === aggregateB.id);
+
+            expect(rowA?.validation).toBeUndefined();
+            expect(rowB?.validation).toBe(validation);
+        });
+
+        it('keeps group validation on the parent instead of attaching it to a child aggregate', () => {
+            const childAggregate: CtAggregate = {
+                id: 'Vendor::Class:Group:Child',
+                name: 'Child',
+                activeVersion: '1.0.0',
+                variants: [{
+                    name: 'default',
+                    components: [{ id: 'Vendor::Class:Group:Child@1.0.0', pack: '' }],
+                }],
+            };
+            const validation: Result = {
+                id: 'Vendor::Class:Group',
+                result: 'SELECTABLE',
+            };
+            const root: CtRoot = {
+                success: true,
+                classes: [{
+                    name: 'Class',
+                    activeBundle: '',
+                    bundles: [{
+                        name: '',
+                        aggregates: [],
+                        cgroups: [{ name: 'Group', aggregates: [childAggregate] }],
+                        bundle: { id: '', description: '', doc: '' },
+                    }],
+                }],
+            };
+
+            const group = mapTree(root, [validation])[0].children?.find(row => row.name === 'Group');
+
+            expect(group?.validation).toBe(validation);
+            expect(group?.children?.[0].validation).toBeUndefined();
         });
 
         it('uses API metadata for groups and falls back to taxonomy metadata', () => {

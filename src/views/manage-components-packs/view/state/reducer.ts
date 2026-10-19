@@ -101,6 +101,24 @@ const incomingMessageReducer = (
         case 'SELECTED_PROJECT': {
             return { ...state, selectedProject: message.project };
         }
+        case 'CLEAR_SOLUTION_DATA': {
+            return {
+                ...state,
+                componentTree: [],
+                selectedProject: undefined,
+                solution: {},
+                isDirty: false,
+                packs: [],
+                cbuildPackPath: '',
+                stateMessage: undefined,
+                errorMessages: [],
+                availableTargetTypes: [],
+                selectedTargetType: undefined,
+                unlilnkRequestStack: [],
+                availablePacks: {},
+                availablePacksIndexCurrent: false,
+            };
+        }
         case 'SET_COMPONENT_TREE': {
             return {
                 ...state,

@@ -39,6 +39,7 @@ import { ConvertMdkToCsolutionCommand } from '../solutions/mdk-conversion/conver
 import { SolutionCreatorImp } from '../solutions/solution-creator';
 import { SolutionInitialiserImp } from '../solutions/solution-initialiser';
 import { SolutionManagerImpl } from '../solutions/solution-manager';
+import { ToolsEnvironment } from '../solutions/tools-environment';
 import { SolutionRootsWatcher } from '../solutions/solution-roots-watcher';
 import { StatusBar } from '../status-bar';
 import { BuildCommand } from '../tasks/build/build-command';
@@ -60,6 +61,7 @@ import { OpenCommand } from '../views/solution-outline/commands/open-command';
 import { FindCommand } from '../views/solution-outline/commands/find-command';
 import { MergeCommand } from '../views/solution-outline/commands/merge-command';
 import { MergeSessionCoordinatorImpl } from '../views/solution-outline/commands/merge-session-coordinator';
+import { SearchSolutionSourcesCommand } from '../views/solution-outline/commands/search-solution-sources-command';
 import { SolutionOutlineView } from '../views/solution-outline/solution-outline';
 import { TreeViewFileDecorationProvider } from '../views/solution-outline/treeview-decoration-provider';
 import { TreeViewProviderImpl } from '../views/solution-outline/treeview-provider';
@@ -93,11 +95,16 @@ import { SolutionRpcData } from '../solutions/solution-rpc-data';
 import { ManageSolutionCustomEditorProvider, registerManageSolutionCommand } from '../views/manage-solution/manage-solution-custom-editor';
 import { FileOpenGroupOrchestratorImpl } from '../views/file-open-group-orchestrator';
 import { OpenArmExamplesCommand } from '../views/solution-outline/commands/open-arm-examples-command';
+import { TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
+import * as vscodeUtils from '../utils/vscode-utils';
 
 let installDefaultToolsetProcess: Promise<void> | undefined;
 
 export const activate = async (context: ExtensionContext): Promise<CsolutionExtension> => {
     console.log(`Activating extension ${manifest.PACKAGE_NAME}`);
+
+    TextFile.setErrorReporter(vscodeUtils.showErrorMessage);
+    context.subscriptions.push({ dispose: () => TextFile.setErrorReporter() });
 
     // Companion Extensions
     type SerialMonitorExtension = {
@@ -140,17 +147,20 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const csolutionService = new CsolutionService(
         envManager,
         commandsProvider,
+        eventHub,
     );
 
     const rpcData = new SolutionRpcData(csolutionService);
 
+    const toolsEnvironment = new ToolsEnvironment(envManager, environmentManagerApiProvider);
     const solutionManager = new SolutionManagerImpl(
         activeSolutionTracker,
         eventHub,
         rpcData,
         commandsProvider,
         environmentManagerApiProvider,
-        envManager);
+        envManager,
+        toolsEnvironment);
 
     initUtils(configurationProvider, solutionManager);
 
@@ -201,19 +211,19 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const convertMdkToCsolution = new ConvertMdkToCsolutionCommand(commandsProvider, processManager, outputChannelProvider, workspaceFoldersProvider, messageProvider, workspaceFsProvider, globalStateProvider);
     const solutionInitialiserImp = new SolutionInitialiserImp(commandsProvider, workspaceFoldersProvider, configureVcpkgForSolution, messageProvider, globalStateProvider,);
     const createSolutionFromDataManager = getCreateSolutionFromDataManager(workspaceFsProvider, convertMdkToCsolution, workspace.findFiles);
-    const solutionCreator = new SolutionCreatorImp(createSolutionFromDataManager, solutionInitialiserImp, workspaceFsProvider);
+    const solutionCreator = new SolutionCreatorImp(createSolutionFromDataManager, solutionInitialiserImp);
     const dataManager = new DataManager(
         new SolarDataSource(solarSearch, () => configurationProvider.getConfigVariableOrDefault<boolean>(manifest.CONFIG_USE_WEBSERVICES, true)),
         new CsolutionDataSource(csolutionService),
     );
 
     const createSolution = new CreateSolutionWebviewMain(
-        solutionCreator,
         context,
+        solutionCreator,
+        dataManager,
         messageProvider,
         commandsProvider,
         workspaceFoldersProvider,
-        dataManager,
     );
     const manageLayers = new ManageLayersWebviewMain(
         context,
@@ -226,11 +236,12 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const debugProvider = new DebugLaunchProvider(commandsProvider, solutionManager, configurationProvider);
 
     const addToGroupCommand = new AddToGroupCommand(workspaceFsProvider, commandsProvider, solutionManager);
-    const deleteCommand = new DeleteCommand(commandsProvider, workspaceFsProvider);
+    const deleteCommand = new DeleteCommand(commandsProvider, solutionManager);
     const editCommand = new EditCommand(commandsProvider);
     const copyHeaderCommand = new CopyHeaderCommand(commandsProvider);
     const openCommand = new OpenCommand(solutionManager, commandsProvider, externalFileOpener, undefined, fileOpenGroupOrchestrator);
     const findCommand = new FindCommand(commandsProvider);
+    const searchSolutionSourcesCommand = new SearchSolutionSourcesCommand(solutionManager, commandsProvider, workspaceFsProvider, messageProvider);
     const fileDecorationProviderManager = new FileDecorationProviderManagerImpl();
     const treeViewProviderImpl = new TreeViewProviderImpl(SolutionOutlineView.treeViewId);
     const treeViewFileDecorationProvider = new TreeViewFileDecorationProvider(fileDecorationProviderManager, themeProvider);
@@ -261,7 +272,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const clangdManager = new ClangdManager(solutionManager, configurationProvider, armclangDefineGetter, compileCommandsParser, workspaceFsProvider, commandsProvider);
     const targetPackCommand = new TargetPackCommandImpl(commandsProvider, solutionManager);
     const debugHardwareCommands = new DebugHardwareCommands(commandsProvider, solutionManager);
-    const csolutionExtension = new CsolutionExtensionImpl(solutionCreator, buildTaskProvider, dataManager);
+    const csolutionExtension = new CsolutionExtensionImpl(solutionCreator, buildTaskProvider, dataManager, solutionManager, toolsEnvironment);
     const solutionOutline = new SolutionOutlineView(solutionManager, treeViewProviderImpl, globalStateProvider, treeViewFileDecorationProvider, configurationProvider);
     const cmsisCommands = new CmsisCommands(configurationProvider, commandsProvider, solutionManager, debugProvider, serialMonitorExtension);
     const buildStopCommand = new BuildStopCommand(commandsProvider, buildTaskProvider);
@@ -299,6 +310,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         copyHeaderCommand.activate(context),
         openCommand.activate(context),
         findCommand.activate(context),
+        searchSolutionSourcesCommand.activate(context),
         mergeCommand.activate(context),
         cmsisCommands.activate(context),
         configurationWizardView.activate(),

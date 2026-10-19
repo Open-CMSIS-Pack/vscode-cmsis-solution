@@ -15,10 +15,13 @@
  */
 
 import * as path from 'path';
-import { CTreeItem } from '../../generic/tree-item';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { constructProjectYamlFile, CProjectYamlFile } from './cproject-yaml-file';
 import { ProjectRefWrap } from './csolution-wrap';
-import { PROJECT_WEST_SUFFIX } from '../constants';
+import { PROJECT_CMAKE_SUFFIX, PROJECT_WEST_SUFFIX } from '../constants';
+import { TEMPLATES_FOLDER } from '../../manifest';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import * as YAML from 'yaml';
 
 
 
@@ -31,6 +34,33 @@ function makeFile(deviceValue?: string): CProjectYamlFile {
     return file;
 }
 describe('CProjectYamlFile', () => {
+    it('loads and mutates a creation template while preserving TrustZone configuration', async () => {
+        const destination = path.join('destination', 'Secure.cproject.yml');
+        const file = new CProjectYamlFile();
+
+        const result = await file.loadTemplate(path.join(TEMPLATES_FOLDER, 'secure.cproject.yml'), destination);
+        file.deviceProcessor = 'cm33';
+        file.addComponent('ARM::CMSIS:CORE');
+        file.addComponent('Device:Startup', ['+Target'], ['.Release+Target', '.Debug+Target']);
+
+        const output = YAML.parse(file.stringify());
+
+        expect(result).toBe(ETextFileResult.Success);
+        expect(file.fileName).toBe(destination);
+        expect(file.rootItem?.rootFileName).toBe(destination);
+        expect(output.project.device).toBe(':cm33');
+        expect(output.project.processor.trustzone).toBe('secure');
+        expect(output.project.components).toEqual([
+            { component: 'ARM::CMSIS:CORE' },
+            {
+                component: 'Device:Startup',
+                'for-context': '+Target',
+                'not-for-context': ['.Release+Target', '.Debug+Target'],
+            },
+        ]);
+        expect(file.stringify()).toContain('# This project is executed in secure mode.');
+    });
+
     describe('CProjectYamlFile deviceProcessor', () => {
         it('returns processor if specified', () => {
             const file = makeFile(':core1');
@@ -93,6 +123,24 @@ describe('CProjectYamlFile', () => {
             const expected = path.join(myPath, 'appId' + PROJECT_WEST_SUFFIX);
             expect(file.fileName).toBe(expected);
             expect(file.deviceProcessor).toEqual(ref.deviceProcessor);
+        });
+
+        it('constructs virtual CProjectYamlFile for a CMake reference', () => {
+            const item = new CTreeItem('-');
+            item.rootFileName = path.join(process.cwd(), 'solution.csolution.yml');
+            const cmake = item.createChild('cmake');
+            cmake.setValue('source', 'path/to/app.v2');
+            cmake.setValue('device', ':core1');
+            const ref = new ProjectRefWrap(item);
+
+            const file = constructProjectYamlFile(ref);
+
+            expect(file).toBeInstanceOf(CProjectYamlFile);
+            expect(file.readOnly).toBeTruthy();
+            expect(file.fileName).toBe(path.join(process.cwd(), 'path/to/app.v2', 'app.v2' + PROJECT_CMAKE_SUFFIX));
+            expect(file.rootItem?.rootFileName).toBe(file.fileName);
+            expect(file.deviceProcessor).toBe('core1');
+            expect(file.projectType).toBe('CMake');
         });
     });
 

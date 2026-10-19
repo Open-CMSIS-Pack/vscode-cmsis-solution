@@ -1,5 +1,38 @@
 # Change Log
 
+## 1.72.0
+
+- Updates:
+  - The extension uses the bundled [**CMSIS-Toolbox v2.15.0**](https://github.com/Open-CMSIS-Pack/cmsis-toolbox/releases/tag/2.15.0) exclusively, adding [Native CMake Project Integration](https://open-cmsis-pack.github.io/cmsis-toolbox/build-operation/#native-cmake-project-integration) support.
+  - Added new action ["Search in Solution Sources"](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#search-in-solution-sources) to **CMSIS-View** using a magnifying-glass icon. The search covers the active target, including YAML files and files referenced from CMSIS-Packs.
+  - The tree view of the **CMSIS-View** now decorates files and groups that are excluded from the build through [conditional build nodes](https://open-cmsis-pack.github.io/cmsis-toolbox/YML-Input-Format/#conditional-build) like `for-context:`.
+  - Made [**Configuration Wizard**](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#configuration-wizard) more tolerant of errors and added annotation error reporting with an option to navigate to the error location in the editor view.
+  - Added the [`.cmsis/tools-environment.yml`](https://mdk-packs.github.io/vscode-cmsis-solution-docs/runexternal.html#cmsis-tools-environment) output file, which records tool versions and environment variables configured and contributed by the VS Code extensions CMSIS Solution, CMSIS Debugger, Arm Tools Environment Manager and SDS. AI agents and CI systems can use this file to reproduce the tool setup outside of VS Code.
+  - Refined the `.vscode/cmsis.json` output file to record the loaded `*.csolution.yml` file and active target. This helps AI agents navigate workspace folders containing multiple solutions.
+
+- Solved issues:
+  - The Create Solution workflow now opens and edits the correct solution when multiple `*.csolution.yml` files are present in the new solution directory.
+
+## 1.70.0
+
+- Updates:
+  - Discontinued support for macOS x64 (darwin-x64) hosts. macOS arm64 (darwin-arm64) remains supported.
+  - Extended the search scope for compatible layers from `packs in solution` to `all installed packs` when working with [Reference Applications](https://open-cmsis-pack.github.io/cmsis-toolbox/ReferenceApplications/#) and layer project partitions.
+  - Added and extended tooltip information throughout the **Software Components** dialog for improved usability.
+  - Improved responsiveness when loading solutions and saving modifications.
+  - The default temporary output directory [`tmpdir`](https://open-cmsis-pack.github.io/cmsis-toolbox/YML-Input-Format/#output-dirs) now includes the target set name to avoid unnecessary cleaning and rebuilding when switching between target sets.
+    The unnamed `set` node is represented as `default`.
+  - clangd now uses separate generated lists of predefined compiler macros for C (`compile_macros_c.h`) and C++ (`compile_macros_cxx.h`) for accurate language-specific code analysis, except when using the CLANG compiler.
+  - **Run Generator** now uses the active target set and reports warnings and errors from the generator launch in the VS Code *Problems* view. Diagnostics produced later by the background generator bridge process are written to a log file.
+
+- Solved issues:
+  - The refresh trigger for pack repository modifications now handles a missing `pack.idx` file gracefully and detects updates to `local_repository.pidx`.
+  - Loading or converting a solution now clears retained project and target-set state from the previous solution.
+  - Component and pack selections from the **Software Components** view are now stored correctly, even when layer files are outside the solution tree.
+  - Relative paths in `misc` nodes are now adjusted correctly for the build system.
+  - Integer MVE option handling has been corrected for Arm Compiler for Embedded and Arm Toolchain for Embedded (LLVM/Clang).
+  - Component dependency output has been updated to avoid misleading component-selection diagnostics.
+
 ## 1.68.0
 
 Stable release including changes from the 1.67.x pre-release series.

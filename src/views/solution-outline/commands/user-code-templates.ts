@@ -17,7 +17,7 @@
 import * as fs from 'node:fs';
 import * as vscode from 'vscode';
 import { CSolution } from '../../../solutions/csolution';
-import { CTreeItem, ITreeItem } from '../../../generic/tree-item';
+import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import * as path from 'path';
 
 

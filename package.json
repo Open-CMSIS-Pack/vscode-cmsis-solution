@@ -2,11 +2,14 @@
   "name": "cmsis-csolution",
   "displayName": "Arm CMSIS Solution",
   "description": "Create embedded and Edge AI projects for Arm Cortex-M based devices using the Common Microcontroller Software Interface Standard (CMSIS) and csolution format",
-  "version": "1.68.0",
+  "version": "1.72.0",
   "preview": false,
   "publisher": "Arm",
   "author": "Jonatan Antoni <jonatan.antoni@arm.com>",
   "license": "SEE LICENSE IN LICENSE",
+  "workspaces": [
+    "packages/*"
+  ],
   "main": "dist/extension.js",
   "repository": "https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution",
   "qna": "https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/issues/new/choose",
@@ -19,7 +22,7 @@
     "theme": "dark"
   },
   "engines": {
-    "node": "^22.22.0",
+    "node": "^22.22.2",
     "npm": "^10.0.0",
     "vscode": "^1.108.1"
   },
@@ -37,25 +40,31 @@
   "csolution": {
     "uv2csolutionVersion": "1.6.0",
     "toolboxVersion": "nightly",
-    "rpcVersion": "0.0.11"
+    "rpcVersion": "0.0.12"
   },
   "scripts": {
     "preprepare": "npm run download:rpc-interface",
     "prepare": "concurrently npm:download:uv2csolution npm:download:debug-adapters npm:download:toolbox",
-    "clean": "git clean -f -x ./dist ./out ./tools ./coverage ./e2e-report ./e2e-screenshots ./test-results",
-    "prebuild": "npm run font",
+    "clean": "npm run clean --workspace @open-cmsis-pack/cmsis-common && git clean -f -x ./dist ./out ./tools ./coverage ./e2e-report ./e2e-screenshots ./test-results",
+    "prebuild": "npm run build --workspace @open-cmsis-pack/cmsis-common && npm run font",
     "build": "webpack --mode production",
-    "prewatch": "npm run font",
-    "watch": "webpack -w --progress",
-    "lint": "eslint src api",
-    "lint:fix": "eslint src api --fix",
+    "prewatch": "npm run build --workspace @open-cmsis-pack/cmsis-common && npm run font",
+    "watch": "concurrently --kill-others-on-fail \"npm run watch --workspace @open-cmsis-pack/cmsis-common\" \"webpack -w --progress\"",
+    "lint": "eslint src api packages/cmsis-common/src",
+    "lint:fix": "eslint src api packages/cmsis-common/src --fix",
+    "prepackage": "npm run build",
     "package": "tsx scripts/package.ts",
-    "test": "jest --runInBand",
+    "pretest": "npm run build --workspace @open-cmsis-pack/cmsis-common && npm test --workspace @open-cmsis-pack/cmsis-common",
+    "test": "jest --runInBand --reporters=default --reporters=./node_modules/jest-html-reporter",
+    "pretest:parallel": "npm run build --workspace @open-cmsis-pack/cmsis-common && npm test --workspace @open-cmsis-pack/cmsis-common",
     "test:parallel": "jest",
-    "test:watch": "jest --collectCoverage=false --watch",
+    "pretest:watch": "npm run build --workspace @open-cmsis-pack/cmsis-common",
+    "test:watch": "concurrently --kill-others-on-fail \"npm run watch --workspace @open-cmsis-pack/cmsis-common\" \"jest --collectCoverage=false --watch\"",
     "e2e": "cross-env E2E_LOG_LEVEL=debug npx playwright test --config=playwright.config.ts",
+    "precompile": "npm run build --workspace @open-cmsis-pack/cmsis-common",
     "compile": "tsc -p .",
-    "compile:watch": "tsc -p . -w",
+    "precompile:watch": "npm run build --workspace @open-cmsis-pack/cmsis-common",
+    "compile:watch": "concurrently --kill-others-on-fail \"npm run watch --workspace @open-cmsis-pack/cmsis-common\" \"tsc -p . -w\"",
     "download:uv2csolution": "tsx scripts/download-tools.ts uv2csolution",
     "download:debug-adapters": "tsx scripts/download-tools.ts debug-adapters",
     "download:toolbox": "tsx scripts/download-tools.ts toolbox",
@@ -63,12 +72,18 @@
     "download:node-pty": "tsx scripts/download-tools.ts node-pty",
     "generate-solar-search-client": "graphql-codegen --config src/solar-search/graphql/codegen.ts",
     "api:nocheck": "tsc --noEmit -p ./api",
-    "tpip": "tsx scripts/tpip-reporter.ts --header docs/tpip-header.md docs/third-party-licenses.json docs/third-party-licenses.md",
-    "tpip:update": "tsx scripts/update-tpip docs/third-party-licenses.json",
+    "tpip": "npm run tpip:extension && npm run tpip:cmsis-common",
+    "tpip:extension": "tsx scripts/tpip-reporter.ts --header docs/tpip-header.md docs/third-party-licenses.json docs/third-party-licenses.md",
+    "tpip:cmsis-common": "tsx scripts/tpip-reporter.ts --header packages/cmsis-common/tpip-header.md --manifest packages/cmsis-common/package.json packages/cmsis-common/third-party-licenses.json packages/cmsis-common/third-party-licenses.md",
+    "tpip:update": "npm run tpip:update:extension && npm run tpip:update:cmsis-common",
+    "tpip:update:extension": "tsx scripts/update-tpip docs/third-party-licenses.json",
+    "tpip:update:cmsis-common": "tsx scripts/update-tpip packages/cmsis-common/third-party-licenses.json packages/cmsis-common",
     "font": "fantasticon",
     "lint:md": "markdownlint **/*.md -c ./.github/markdownlint.jsonc -i ./node_modules -i ./dist -i ./coverage -i ./tools -i ./test-data -i ./src/e2e-tests/data -i CHANGELOG.md",
     "copyright:check": "tsx scripts/copyright-manager.ts --mode=check",
     "copyright:fix": "tsx scripts/copyright-manager.ts --mode=fix",
+    "fmtlf:check": "tsx scripts/fmtlf.ts --mode=check",
+    "fmtlf:fix": "tsx scripts/fmtlf.ts --mode=fix",
     "check:links": "tsx scripts/check-links.ts -i ./node_modules/** -i ./.github/** -c ./.github/markdown-link-check.jsonc"
   },
   "dependencies": {
@@ -78,24 +93,23 @@
     "@fortawesome/fontawesome-free": "^7.2.0",
     "@lydell/node-pty": "^1.1.0",
     "@microsoft/vscode-serial-monitor-api": "^0.1.7",
-    "@vscode/codicons": "^0.0.44",
+    "@open-cmsis-pack/cmsis-common": "*",
+    "@vscode/codicons": "^0.0.45",
     "antd": "^5.29.3",
     "async-mutex": "^0.5.0",
-    "eta": "^4.5.1",
+    "eta": "^4.6.0",
     "fetch-blob": "^4.0.0",
     "formdata-polyfill": "^4.0.10",
     "glob": "^13.0.6",
-    "google-protobuf": "^4.0.2",
     "graphql-request": "^7.4.0",
     "graphql-tag": "^2.12.6",
-    "jsonc-parser": "^3.3.1",
+    "lodash": "^4.18.1",
     "lodash.debounce": "^4.0.8",
     "node-fetch": "^3.3.2",
     "primereact": "^10.9.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-window": "^1.8.11",
-    "sax-ts": "^1.2.13",
     "semver": "^7.7.4",
     "tcp-port-used": "^1.0.2",
     "tmp": "^0.2.5",
@@ -103,28 +117,28 @@
     "vscode-messenger": "~0.6.0",
     "vscode-messenger-common": "~0.6.0",
     "vscode-messenger-webview": "~0.6.0",
-    "which": "^6.0.1",
-    "yaml": "^2.8.2",
+    "which": "^7.0.0",
+    "yaml": "^2.9.1",
     "yargs-parser": "^21.1.1"
   },
   "devDependencies": {
     "@babel/plugin-transform-modules-commonjs": "^7.28.6",
     "@eslint/compat": "^2.0.2",
-    "@eslint/eslintrc": "^3.3.4",
+    "@eslint/eslintrc": "^3.3.7",
     "@eslint/js": "^9.39.3",
-    "@faker-js/faker": "^9.9.0",
+    "@faker-js/faker": "^10.6.0",
     "@graphql-codegen/cli": "^6.1.2",
     "@graphql-codegen/typescript-graphql-request": "^7.1.0",
-    "@graphql-codegen/typescript-operations": "^5.0.8",
-    "@open-cmsis-pack/vsce-helper": "^0.3.0",
-    "@playwright/test": "^1.60.0",
+    "@graphql-codegen/typescript-operations": "^6.1.6",
+    "@open-cmsis-pack/vsce-helper": "^0.4.1",
+    "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@twbs/fantasticon": "^3.1.0",
     "@types/fs-extra": "^11.0.4",
-    "@types/google-protobuf": "3.15.12",
     "@types/jest": "^29.5.14",
     "@types/jest-when": "^3.5.5",
+    "@types/lodash": "^4.17.25",
     "@types/lodash.debounce": "^4.0.9",
     "@types/minimist": "^1.2.5",
     "@types/ncp": "^2.0.8",
@@ -142,52 +156,59 @@
     "@types/yargs": "^17.0.35",
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^8.56.1",
-    "@vscode/test-electron": "^2.5.2",
-    "@vscode/vsce": "^3.7.1",
-    "concurrently": "^9.1.2",
-    "copy-webpack-plugin": "^13.0.1",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "ajv": "^8.18.0",
+    "ajv-formats": "^3.0.1",
+    "concurrently": "^9.2.5",
+    "copy-webpack-plugin": "^14.0.0",
     "cross-env": "^10.1.0",
     "css-loader": "^7.1.4",
     "dedent": "1.7.1",
-    "eslint": "^9.39.3",
+    "eslint": "^9.39.5",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "7.0.1",
     "eslint-plugin-unused-imports": "^4.4.1",
-    "extract-zip": "^2.0.1",
     "fs-extra": "^11.3.3",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
+    "jest-html-reporter": "^4.4.0",
     "jest-util": "^29.7.0",
-    "jest-when": "^3.7.0",
+    "jest-when": "^4.0.3",
     "markdownlint-cli": "^0.49.1",
     "ncp": "^2.0.0",
     "nock": "^13.5.6",
     "octokit": "^5.0.5",
-    "playwright": "^1.58.2",
-    "serve": "^14.2.5",
-    "simple-git": "^3.32.3",
+    "playwright": "^1.62.1",
+    "serve": "^14.2.6",
+    "simple-git": "^4.0.2",
     "style-loader": "^4.0.0",
     "targz": "^1.0.1",
-    "ts-jest": "^29.4.6",
+    "ts-jest": "^29.4.12",
     "ts-loader": "^9.5.4",
     "tsx": "^4.22.4",
     "typescript": "^5.9.3",
     "vscode-uri": "^3.1.0",
     "webpack": "^5.105.3",
-    "webpack-cli": "^6.0.1",
-    "yargs": "^18.0.0"
+    "webpack-cli": "^7.2.3",
+    "yargs": "^18.2.0"
   },
   "overrides": {
     "ajv@>=7.0.0": "^8.18.0",
-    "fast-uri@^3.1.3": "^3.1.4",
+    "fast-uri@^3.1.3": "^3.1.7",
     "js-yaml": "^4.3.0",
     "lodash": "^4.18.1",
     "serialize-javascript@<=7.0.3": "^7.0.3",
+    "brace-expansion@^1.0.0": "^1.1.21",
+    "brace-expansion@^2.0.0": "^2.1.7",
+    "brace-expansion@^5.0.0": "^5.0.12",
     "@twbs/fantasticon": {
       "ttf2woff2": "^8.0.1"
     },
     "markdownlint-cli": {
-      "minimatch": "^10.2.4"
+      "js-yaml": "^5.2.2",
+      "minimatch": "^10.2.4",
+      "smol-toml": "^1.9.0"
     },
     "serve-handler": {
       "minimatch": "^3.1.5"
@@ -196,7 +217,14 @@
     "immutable@<=4.3.8": "^4.3.8",
     "@tootallnate/once@<=3.0.1": "^3.0.1",
     "handlebars@<=4.7.8": "^4.7.9",
-    "shell-quote@<=1.8.4": "1.9.0"
+    "shell-quote": "^1.11.0",
+    "@fastify/busboy": "^3.2.1",
+    "@graphql-tools/executor-legacy-ws": "^1.1.35",
+    "@graphql-tools/utils": "^12.0.1",
+    "compression": "^1.8.2",
+    "node-gyp": "^13.1.0",
+    "source-map-js": "^1.2.2",
+    "undici": "^7.29.1"
   },
   "contributes": {
     "icons": {
@@ -328,13 +356,8 @@
         {
           "id": "cmsis-csolution.outline",
           "name": "CMSIS",
-          "when": "!view.arm.cmsis-csolution.outline.hidden"
-        }
-      ],
-      "explorer": [
-        {
-          "id": "searchResults",
-          "name": "Search Results"
+          "when": "!view.arm.cmsis-csolution.outline.hidden",
+          "icon": "$(csolution-cmsis-logo)"
         }
       ]
     },
@@ -381,7 +404,12 @@
           "buildOutputVerbosity": {
             "type": "string",
             "default": "normal",
-            "enum": [ "quiet", "normal", "verbose", "debug" ],
+            "enum": [
+              "quiet",
+              "normal",
+              "verbose",
+              "debug"
+            ],
             "description": "Controls the verbosity of the output generated by cbuild."
           },
           "intermediateDirectory": {
@@ -437,13 +465,25 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.refresh",
-        "title": "Refresh (Reload Packs, Update RTE)",
-        "icon": "$(refresh)"
+        "title": "Refresh Build Information",
+        "icon": {
+          "light": "./media/refresh-normal.svg",
+          "dark": "./media/refresh-normal-dark.svg"
+        }
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.refreshDirty",
+        "title": "Refresh Build Information (Refresh Required)",
+        "icon": {
+          "light": "./media/refresh-dirty.svg",
+          "dark": "./media/refresh-dirty-dark.svg"
+        }
       },
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.reloadPacks",
-        "title": "Refresh (Reload Packs)",
+        "title": "Reload Packs",
         "icon": "$(refresh)"
       },
       {
@@ -627,8 +667,20 @@
       },
       {
         "category": "CMSIS",
+        "command": "cmsis-csolution.openPrjCmakeFile",
+        "title": "Open CMakeLists.txt File",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "category": "CMSIS",
         "command": "cmsis-csolution.openZephyrTerminal",
         "title": "Open Zephyr Terminal",
+        "icon": "$(terminal)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.openCMakeTerminal",
+        "title": "Open CMake Terminal",
         "icon": "$(terminal)"
       },
       {
@@ -672,6 +724,16 @@
         "category": "CMSIS",
         "command": "cmsis-csolution.getSolutionFile",
         "title": "Path and Name to csolution.yml File of Active Solution"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getSolutionName",
+        "title": "Name of Active Solution"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.getSolutionDir",
+        "title": "Directory of Active Solution"
       },
       {
         "category": "CMSIS",
@@ -793,7 +855,14 @@
       },
       {
         "command": "cmsis-csolution.list.find",
-        "title": "Search"
+        "title": "Find a file in Solution"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.searchSolutionSources",
+        "title": "Search in Solution Sources",
+        "icon": "$(search)",
+        "enablement": "cmsis-csolution.activeSolutionState == active"
       },
       {
         "command": "cmsis-csolution.edit",
@@ -820,6 +889,10 @@
         },
         {
           "command": "cmsis-csolution.refresh"
+        },
+        {
+          "command": "cmsis-csolution.refreshDirty",
+          "when": "false"
         },
         {
           "command": "cmsis-csolution.build"
@@ -890,7 +963,15 @@
           "when": "false"
         },
         {
+          "command": "cmsis-csolution.openPrjCmakeFile",
+          "when": "false"
+        },
+        {
           "command": "cmsis-csolution.openZephyrTerminal",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.openCMakeTerminal",
           "when": "false"
         },
         {
@@ -983,6 +1064,16 @@
       ],
       "view/title": [
         {
+          "command": "cmsis-csolution.refresh",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && !cmsis-csolution.solutionDirty",
+          "group": "navigation@4"
+        },
+        {
+          "command": "cmsis-csolution.refreshDirty",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && cmsis-csolution.solutionDirty",
+          "group": "navigation@4"
+        },
+        {
           "command": "cmsis-csolution.build",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && (cmsis-csolution.buildState == idle || cmsis-csolution.buildState == setup)",
           "group": "navigation@1"
@@ -1020,12 +1111,17 @@
         {
           "command": "cmsis-csolution.openSolutionFile",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
-          "group": "navigation@4"
+          "group": "navigation@5"
+        },
+        {
+          "command": "cmsis-csolution.searchSolutionSources",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "group": "navigation@6"
         },
         {
           "command": "cmsis-csolution.manageSolution",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
-          "group": "navigation@6"
+          "group": "navigation@7"
         },
         {
           "command": "cmsis-csolution.openSolution",
@@ -1068,11 +1164,6 @@
           "group": "Build@2"
         },
         {
-          "command": "cmsis-csolution.refresh",
-          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
-          "group": "Build@3"
-        },
-        {
           "command": "cmsis-csolution.reloadPacks",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState != active",
           "group": "Build@3"
@@ -1112,6 +1203,16 @@
         {
           "command": "cmsis-csolution.openZephyrTerminal",
           "when": "view == cmsis-csolution.outline && viewItem =~ /\\.cproject-west\\.yml/ && cmsis-csolution.executionState == idle",
+          "group": "inline@3"
+        },
+        {
+          "command": "cmsis-csolution.openPrjCmakeFile",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /\\.cproject-cmake\\.yml/",
+          "group": "inline@3"
+        },
+        {
+          "command": "cmsis-csolution.openCMakeTerminal",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /\\.cproject-cmake\\.yml/ && cmsis-csolution.executionState == idle",
           "group": "inline@3"
         },
         {
@@ -1189,7 +1290,7 @@
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "navigation",
-           "when": "resourceFilename =~ /\\.(h|c|cpp|dbgconf|s|sct)$/i"
+          "when": "resourceFilename =~ /\\.(h|c|cpp|dbgconf|s|sct)$/i"
         },
         {
           "command": "cmsis-csolution.build",
@@ -1322,6 +1423,11 @@
     "configuration": {
       "title": "CMSIS Solution",
       "properties": {
+        "cmsis-csolution.autoConvertOnFileChange": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically refresh build information when files used by the active solution change. When disabled, these file changes mark the solution as needing refresh. Manual Refresh and successful webview saves can still refresh build information."
+        },
         "cmsis-csolution.generateClangSetup": {
           "type": "boolean",
           "default": true,
@@ -1385,7 +1491,12 @@
         "cmsis-csolution.buildOutputVerbosity": {
           "type": "string",
           "default": "normal",
-          "enum": [ "quiet", "normal", "verbose", "debug"],
+          "enum": [
+            "quiet",
+            "normal",
+            "verbose",
+            "debug"
+          ],
           "enumDescriptions": [
             "Show only errors or fatal conditions",
             "Include build steps and warnings",
@@ -1542,7 +1653,8 @@
     "workspace"
   ],
   "extensionPack": [
-    "redhat.vscode-yaml"
+    "redhat.vscode-yaml",
+    "llvm-vs-code-extensions.vscode-clangd"
   ],
   "jest": {
     "moduleFileExtensions": [
@@ -1567,10 +1679,11 @@
       ]
     },
     "transformIgnorePatterns": [
-      "/node_modules/(?!(@microsoft|yaml)/)"
+      "/node_modules/(?!(@faker-js/faker|@microsoft|yaml)/)"
     ],
     "testPathIgnorePatterns": [
       "/node_modules/",
+      "/packages/cmsis-common/",
       "/src/e2e-tests/"
     ],
     "testMatch": [
@@ -1585,8 +1698,8 @@
     ],
     "setupFilesAfterEnv": [
       "./src/__test__/custom-matchers.ts",
-      "./src/generic/map.ts",
-      "./src/generic/array.ts"
+      "@open-cmsis-pack/cmsis-common/map",
+      "@open-cmsis-pack/cmsis-common/array"
     ],
     "clearMocks": true,
     "collectCoverage": true,
@@ -1599,6 +1712,7 @@
       "!src/**/*.factories.{ts,tsx}",
       "!src/vscode-api/**",
       "!src/e2e-tests/**",
+      "!src/api/extension-host-v3-smoke.ts",
       "!src/desktop/extension.ts",
       "!src/solar-search/graphql/client"
     ],

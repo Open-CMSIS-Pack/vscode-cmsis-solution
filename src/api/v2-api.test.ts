@@ -23,11 +23,10 @@ import { boardDataFactory, dataManagerFactory, deviceDataFactory, deviceIdFactor
 import { DataSet } from '../data-manager/dataset';
 import { DeviceData } from '../data-manager/device-data';
 import { DraftProjectData } from '../data-manager/draft-project-data';
-import { SolutionCreator } from '../solutions/solution-creator';
+import { CreateSolutionRequest, SolutionCreator } from '../solutions/solution-creator';
 import { createdSolutionFactory } from '../solutions/solution-creator.factories';
 import { BuildTaskDefinition } from '../tasks/build/build-task-definition';
 import { BuildTaskProvider, BuildTaskProviderImpl } from '../tasks/build/build-task-provider';
-import { NewSolutionMessage } from '../views/create-solutions/messages';
 import { CsolutionApiV2Impl } from './v2-api';
 
 describe('CsolutionApiV2Impl', () => {
@@ -173,12 +172,12 @@ describe('CsolutionApiV2Impl', () => {
             folder: '/path/to/newSolutionFolder',
         };
 
+        mockDataManager.getDraftProjects.mockResolvedValue(new DataSet([draft]));
         mockSolutionCreator.createSolution.mockResolvedValue(createdSolutionFactory());
 
         await api.createNewSolution(options);
 
-        const expectedMessage: NewSolutionMessage = {
-            type: 'NEW_SOLUTION',
+        const expectedRequest: CreateSolutionRequest = {
             solutionName: '',
             projects: [],
             targetTypes: [{
@@ -188,24 +187,32 @@ describe('CsolutionApiV2Impl', () => {
             }],
             packs: expect.arrayContaining([{
                 pack: `${devicePack?.vendor}::${devicePack?.name}`,
-                forContext: '',
-                notForContext: ''
+                forContext: [],
+                notForContext: []
             }, {
                 pack: `${boardPack?.vendor}::${boardPack?.name}`,
-                forContext: '',
-                notForContext: ''
+                forContext: [],
+                notForContext: []
             }]),
             gitInit: false,
             solutionLocation: options.folder,
             solutionFolder: '',
             compiler: '',
-            selectedTemplate: expect.objectContaining({
-                type: 'dataManagerApp',
-            }),
-            dataManagerObject: draft,
+            draftProject: draft,
         };
 
-        expect(mockSolutionCreator.createSolution).toHaveBeenCalledWith(expectedMessage);
+        expect(mockSolutionCreator.createSolution).toHaveBeenCalledWith(expectedRequest);
+    });
+
+    it('rejects createNewSolution when the draft cannot be resolved', async () => {
+        const draft = draftProjectDataFactory();
+        mockDataManager.getDraftProjects.mockResolvedValue(new DataSet());
+
+        await expect(api.createNewSolution({
+            draft: draft as CsolutionApiV2.DraftProjectData,
+            folder: '/path/to/newSolutionFolder',
+        })).rejects.toThrow(`Draft project not found: ${draft.id.key}`);
+        expect(mockSolutionCreator.createSolution).not.toHaveBeenCalled();
     });
 
     it('build', async () => {

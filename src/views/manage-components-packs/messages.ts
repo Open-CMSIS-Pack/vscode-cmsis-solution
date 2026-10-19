@@ -58,6 +58,7 @@ export type OutgoingMessage
  */
 export type IncomingMessage
     = { type: 'SELECTED_PROJECT', project: Project }
+    | { type: 'CLEAR_SOLUTION_DATA' }
     | { type: 'SET_COMPONENT_TREE', tree: CtRoot, validations?: Result[], scope?: ComponentScope }
     | { type: 'SET_PACKS_INFO', packs: PackRowDataType[] }
     | { type: 'IS_DIRTY', isDirty: boolean }

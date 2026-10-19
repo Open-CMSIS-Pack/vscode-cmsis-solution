@@ -1,0 +1,88 @@
+name: CMSIS Common Release
+
+on:
+  push:
+    tags:
+      - 'cmsis-common-v*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish:
+    name: Publish npm package
+    if: github.repository == 'Open-CMSIS-Pack/vscode-cmsis-solution'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          node-version-file: package.json
+          registry-url: https://npm.pkg.github.com
+          package-manager-cache: false
+
+      - name: Get Version
+        id: get_version
+        run: |
+          VERSION=$(node -p "require('./packages/cmsis-common/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release tag
+        run: |
+          PACKAGE_VERSION=${{ steps.get_version.outputs.version }}
+          TAG_VERSION="${GITHUB_REF_NAME#cmsis-common-v}"
+          if [[ "$TAG_VERSION" != "$PACKAGE_VERSION" ]]; then
+            echo "Tag version $TAG_VERSION does not match package version $PACKAGE_VERSION"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+        run: npm ci
+
+      - name: Check copyright
+        run: npm run copyright:check
+
+      - name: Lint package
+        run: npx eslint packages/cmsis-common/src
+
+      - name: Test package
+        run: npm test --workspace @open-cmsis-pack/cmsis-common
+
+      - name: Check third-party report
+        run: |
+          npm run tpip:update:cmsis-common
+          npm run tpip:cmsis-common
+          git diff --exit-code packages/cmsis-common/third-party-licenses.json packages/cmsis-common/third-party-licenses.md
+
+      - name: Inspect package contents
+        run: npm pack --workspace @open-cmsis-pack/cmsis-common --dry-run
+
+      - name: Publish package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm publish --workspace @open-cmsis-pack/cmsis-common

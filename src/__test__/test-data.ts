@@ -17,7 +17,6 @@
 import * as fs from 'node:fs';
 import * as fsUtils from '../utils/fs-utils';
 import * as os from 'os';
-import * as vscodeUtils from '../utils/vscode-utils';
 import { Uri, workspace, WorkspaceFolder } from 'vscode';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -64,20 +63,8 @@ export const TmpDirReplacer = (tmpDir: string): JsonReplacer =>
 export class TestDataHandler {
     protected _tmpDataDir?: string;
     protected _tmpDir?: string;
-    public showErrorMessageSpy;
-
-    public get errorMessageSpy() {
-        return this.showErrorMessageSpy;
-    }
-
-    constructor() {
-        this.showErrorMessageSpy = jest.spyOn(vscodeUtils, 'showErrorMessage').mockImplementation(() => { });
-    }
 
     public dispose() {
-        if (this.showErrorMessageSpy) {
-            this.showErrorMessageSpy.mockRestore();
-        }
         this.rmTmpDir();
     }
 

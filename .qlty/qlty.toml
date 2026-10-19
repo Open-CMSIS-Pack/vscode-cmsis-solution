@@ -1,21 +1,38 @@
 # Configuration version for compatibility with the tool
 config_version = "0"
 
-# Glob patterns to exclude from analysis (e.g., build artifacts and dependencies)
+# Exclude dependencies, generated output, fixtures, and binary documentation assets.
 exclude_patterns = [
-    "**/node_modules/**",       # Ignore node_modules directories
-    "**/dist/**",               # Ignore distribution/build output
-    "**/coverage/**",           # Ignore code coverage output
-    "**/e2e-report/**",         # Ignore e2e test output
-    "**/e2e-screenshots/**",    # Ignore e2e screenshots
-    "**/guide/**",              # Ignore guides or docs
-    "**/test-results/**",       # Ignore test result outputs
-    "**/tools/**"               # Ignore tooling scripts and utilities
+    "**/node_modules/**",
+    ".qlty/out/**",
+    ".qlty/results/**",
+    "dist/**",
+    "out/**",
+    "coverage/**",
+    "e2e-report/**",
+    "e2e-screenshots/**",
+    "guide/**",
+    "test-results/**",
+    "tools/**",
+    "test-data/**",
+    "test-workspace/**",
+    "templates/**",
+    "src/e2e-tests/data/**",
+    "src/json-rpc/interface/**",
+    "docs/images/**",
+    "docs/third-party-licenses.*",
+    "packages/*/third-party-licenses.*",
+    "**/*.drawio",
+    "**/*.pptx",
+    "**/*.min.js",
+    "**/*.bundle.js"
 ]
 
 # Glob patterns to identify test files
 test_patterns = [
-    "**/*.test.ts"         # Match TypeScript test files
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "src/e2e-tests/**"
 ]
 
 # === Smells Configuration ===
@@ -64,9 +81,6 @@ enabled = false           # Would flag functions with multiple return paths
 
 [[plugin]]
 name = "actionlint"       # Validates GitHub Actions workflows
-
-[[plugin]]
-name = "osv-scanner"      # Scans for known vulnerabilities using OSV database
 
 [[plugin]]
 name = "ripgrep"          # Fast searching for pattern matching in codebase

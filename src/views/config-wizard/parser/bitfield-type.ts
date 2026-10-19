@@ -109,8 +109,11 @@ export class BitfieldType {
             return num.val;
         }
 
-        const lsb = this.lsb.val;
-        return unsignedRShift(num.val, lsb);
+        return this.getAdjustedValue(num);
+    }
+
+    public isValueRepresentable(num: NumberType): boolean {
+        return this.check(num) && num.val <= this.getMaxValue();
     }
 
     public getBitWidth(): number {

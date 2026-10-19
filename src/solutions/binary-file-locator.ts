@@ -19,7 +19,7 @@ import _ from 'lodash';
 import { PACKAGE_NAME } from '../manifest';
 import { CommandsProvider } from '../vscode-api/commands-provider';
 import { SolutionManager } from './solution-manager';
-import { ETextFileResult } from '../generic/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import path from 'path';
 
 export class BinaryFileLocator {

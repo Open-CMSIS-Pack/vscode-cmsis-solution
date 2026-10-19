@@ -17,17 +17,16 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscodeUtils from '../utils/vscode-utils';
-import { JsonFile } from '../generic/json-file';
+import { JsonFile } from '@open-cmsis-pack/cmsis-common/json-file';
 import { merge } from 'lodash';
 import { backToForwardSlashes, getFileNameNoExt } from '../utils/path-utils';
-import { stripTwoExtensions } from '../utils/string-utils';
+import { stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
 
 export type SettingsValueType = boolean | string | number | undefined | object | null;
 
 export type ContextSelectionSettings = {
     [key: string]: SettingsValueType | ContextSelectionSettings;
 };
-
 
 export class CmsisSettingsJsonFile extends JsonFile {
     constructor(filename: string = 'cmsis.json') {
@@ -62,6 +61,16 @@ export class CmsisSettingsJsonFile extends JsonFile {
 
     public get activeTargetTypeName(): string | undefined {
         return this.get<string>(`targetSet.${this.solutionDisplayName}.activeTargetType`);
+    }
+
+    public setActiveSolution(): void {
+        const activeSolution = backToForwardSlashes(path.relative(path.dirname(this.fileName), this.solutionPath));
+        this.set('activeSolution', activeSolution);
+    }
+
+    public setActiveSelection(targetType: string, targetSet?: string): void {
+        this.setActiveSolution();
+        this.set('activeTarget', targetSet ? `${targetType}@${targetSet}` : targetType);
     }
 
     public getSelectedSet(targetType: string): number {

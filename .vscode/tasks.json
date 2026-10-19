@@ -2,6 +2,16 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "Prepare API Smoke Test",
+			"type": "process",
+			"command": "node",
+			"args": ["--import", "tsx", "${workspaceFolder}/scripts/prepare-api-smoke.ts"],
+			"options": { "cwd": "${workspaceFolder}" },
+			"dependsOrder": "sequence",
+			"dependsOn": ["Webpack Build", "Compile"],
+			"problemMatcher": []
+		},
+		{
 			"type": "npm",
 			"script": "build",
 			"group": "build",
@@ -18,7 +28,7 @@
 			},
 			"problemMatcher": [],
 			"label": "Webpack Watch",
-			"detail": "webpack -w"
+			"detail": "Watch cmsis-common and extension bundles"
 		},
 		{
 			"type": "npm",
@@ -42,7 +52,8 @@
 			"problemMatcher": [
 				"$tsc-watch"
 			],
-			"label": "Compile Watch"
+			"label": "Compile Watch",
+			"detail": "Watch cmsis-common and extension TypeScript"
 		},
 		{
 			"type": "npm",

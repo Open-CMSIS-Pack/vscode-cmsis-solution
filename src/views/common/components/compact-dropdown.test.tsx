@@ -53,6 +53,27 @@ describe('CompactDropdown', () => {
         expect(container.querySelectorAll('select').length).toBe(0);
     });
 
+    it('renders the selected value in a truncatable label with a full-value tooltip', () => {
+        const selected = 'A selected value that is too long for a narrow table cell';
+
+        React.act(() => {
+            createRoot(container).render(
+                <CompactDropdown
+                    onChange={onChange}
+                    selected={selected}
+                    available={[selected]}
+                    title='Configuration details'
+                    titleText={(value) => value}
+                />
+            );
+        });
+
+        const valueLabel = container.querySelector('.compact-dropdown-value');
+        const trigger = container.querySelector('.compact-dropdown-trigger');
+        expect(valueLabel?.textContent).toBe(selected);
+        expect(trigger?.getAttribute('title')).toBe(`Configuration details\n${selected}`);
+    });
+
     describe('with more than one available option', () => {
         let containerClick: jest.Mock;
         const available = [

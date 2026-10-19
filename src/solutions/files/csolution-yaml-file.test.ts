@@ -16,12 +16,147 @@
 
 import { CSolutionWrap, TargetTypeWrap, BuildTypeWrap } from './csolution-wrap';
 import { CSolutionYamlFile } from './csolution-yaml-file';
-import { CTreeItem } from '../../generic/tree-item';
-import { extractVersion, stripVersion } from '../../utils/string-utils';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { extractVersion, stripVersion } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { MIN_TOOLBOX_VERSION } from '../../manifest';
+import { TEMPLATES_FOLDER } from '../../manifest';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import * as path from 'path';
+import * as YAML from 'yaml';
+import { TestDataHandler } from '../../__test__/test-data';
+import { writeTextFile } from '../../utils/fs-utils';
 
 
 describe('CSolutionYamlFile', () => {
+    const testDataHandler = new TestDataHandler();
+
+    afterAll(() => {
+        testDataHandler.dispose();
+    });
+
+    it('loads and mutates a creation template without synthesizing target sets', async () => {
+        const destination = path.join('destination', 'test.csolution.yml');
+        const file = new CSolutionYamlFile();
+
+        const result = await file.loadTemplate(path.join(TEMPLATES_FOLDER, 'template.csolution.yml'), destination);
+        file.appendProjectRef('Secure/Secure.cproject.yml');
+        file.appendProjectRef('Application/Application.cproject.yml');
+        file.appendTargetType('Board', undefined, 'Vendor::Board:1.0.0');
+        file.appendTargetType('Device', 'Vendor::Device', undefined);
+        file.addPack('Vendor::BoardPack@1.2.3', ['+Board'], ['.Release+Board', '.Debug+Device']);
+        file.addPack('Vendor::DevicePack@2.0.0');
+        file.addPack('Vendor::DevicePack@2.0.0', ['+Device']);
+        file.compiler = 'AC6';
+
+        const output = YAML.parse(file.stringify());
+
+        expect(result).toBe(ETextFileResult.Success);
+        expect(file.fileName).toBe(destination);
+        expect(file.rootItem?.rootFileName).toBe(destination);
+        expect(output.solution.projects).toEqual([
+            { project: 'Secure/Secure.cproject.yml' },
+            { project: 'Application/Application.cproject.yml' },
+        ]);
+        expect(output.solution['target-types']).toEqual([
+            { type: 'Board', board: 'Vendor::Board:1.0.0' },
+            { type: 'Device', device: 'Vendor::Device' },
+        ]);
+        expect(output.solution.packs).toEqual([
+            {
+                pack: 'Vendor::BoardPack@1.2.3',
+                'for-context': '+Board',
+                'not-for-context': ['.Release+Board', '.Debug+Device'],
+            },
+            { pack: 'Vendor::DevicePack@2.0.0', 'for-context': '+Device' },
+        ]);
+        expect(output.solution.compiler).toBe('AC6');
+        expect(output.solution['build-types']).toHaveLength(2);
+        expect(output.solution.misc).toHaveLength(1);
+        expect(file.targetTypes.every(targetType => targetType.targetSets.length === 0)).toBe(true);
+        expect(file.stringify()).toContain('# List of different build configurations.');
+    });
+
+    it('rejects unsupported compilers and omits an empty compiler', () => {
+        const file = new CSolutionYamlFile();
+
+        expect(() => { file.compiler = 'unsupported'; }).toThrow("Unsupported compiler 'unsupported'");
+        file.compiler = 'GCC';
+        file.compiler = undefined;
+
+        expect(file.compiler).toBeUndefined();
+    });
+
+    it('loads a virtual CMake project and preserves its settings', async () => {
+        const fileName = testDataHandler.tmpFileName('app.v2/solution.csolution.yml');
+        const cmakeSettings = {
+            generator: 'Ninja',
+            configure: ['-DCMAKE_BUILD_TYPE=Debug'],
+            target: 'firmware',
+            images: [
+                { image: 'build/firmware.axf', type: 'elf' },
+                { image: 'build/firmware.hex', type: 'hex' },
+                { image: 'build/firmware.bin', type: 'bin' },
+                { image: 'build/firmware.lib', type: 'lib' },
+            ],
+        };
+        writeTextFile(fileName, YAML.stringify({
+            solution: {
+                projects: [{ cmake: cmakeSettings }],
+            },
+        }));
+        const file = new CSolutionYamlFile();
+
+        expect(await file.load(fileName)).toBe(ETextFileResult.Success);
+
+        const project = file.getProject('app.v2');
+        expect(project?.readOnly).toBeTruthy();
+        expect(project?.projectType).toBe('CMake');
+        expect(project?.fileName).toBe(path.join(path.dirname(fileName), 'app.v2.cproject-cmake.yml'));
+        expect(YAML.parse(file.stringify()).solution.projects[0].cmake).toEqual(cmakeSettings);
+    });
+
+    it('loads and preserves an empty CMake project entry', async () => {
+        const fileName = testDataHandler.tmpFileName('empty-cmake/solution.csolution.yml');
+        writeTextFile(fileName, YAML.stringify({
+            solution: {
+                projects: [{ cmake: {} }],
+            },
+        }));
+        const file = new CSolutionYamlFile();
+
+        expect(await file.load(fileName)).toBe(ETextFileResult.Success);
+
+        const project = file.getProject('empty-cmake');
+        expect(project?.readOnly).toBeTruthy();
+        expect(project?.projectType).toBe('CMake');
+        expect(project?.fileName).toBe(path.join(path.dirname(fileName), 'empty-cmake.cproject-cmake.yml'));
+        expect(YAML.parse(file.stringify()).solution.projects[0].cmake).toEqual({});
+    });
+
+    it('waits for project loading before load resolves', async () => {
+        let resolveStarted!: () => void;
+        let resolveProjects!: () => void;
+        const started = new Promise<void>(resolve => { resolveStarted = resolve; });
+        const projectsLoaded = new Promise<void>(resolve => { resolveProjects = resolve; });
+        const prototype = CSolutionYamlFile.prototype as unknown as { loadProjects: () => Promise<void> };
+        const loadProjects = jest.spyOn(prototype, 'loadProjects').mockImplementation(() => {
+            resolveStarted();
+            return projectsLoaded;
+        });
+        const file = new CSolutionYamlFile();
+        const loadPromise = file.load(path.join(TEMPLATES_FOLDER, 'template.csolution.yml'));
+
+        await started;
+        let settled = false;
+        void loadPromise.then(() => { settled = true; });
+        await Promise.resolve();
+        expect(settled).toBe(false);
+
+        resolveProjects();
+        await expect(loadPromise).resolves.toBe(ETextFileResult.Success);
+        loadProjects.mockRestore();
+    });
+
     it('should create a CSolutionWrap with a top item', () => {
         const file = new CSolutionYamlFile();
         const wrap = file.solutionWrap;
@@ -291,4 +426,3 @@ describe('CSolutionYamlFile.getTargetSet', () => {
     });
 
 });
-

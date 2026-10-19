@@ -137,6 +137,81 @@ describe('PacksView', () => {
         expect(tableContent).toContain('6.0.0');
     });
 
+    it('labels the version column as Version Used', () => {
+        const headers = Array.from(container.querySelectorAll('th'));
+        expect(headers.some(header => header.textContent?.trim() === 'Version Used')).toBe(true);
+    });
+
+    it('marks an exact pack reference as fixed', () => {
+        const fixedPackState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                versionUsed: '@1.2.3',
+                references: [{ ...mockPack.references[0], pack: 'ARM::CMSIS@1.2.3' }]
+            }]
+        };
+
+        const localContainer = document.createElement('div');
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView state={fixedPackState} openFile={openFileMock} messageHandler={messageHandler} availablePacks={defaultState.availablePacks} />
+            );
+        });
+
+        const versionCell = Array.from(localContainer.querySelectorAll('td'))
+            .find(td => td.textContent?.trim() === '1.2.3 (fixed)');
+        expect(versionCell).toBeDefined();
+    });
+
+    it('does not mark a caret-qualified pack reference as fixed', () => {
+        const qualifiedPackState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                versionUsed: '@^1.2.3',
+                references: [{ ...mockPack.references[0], pack: 'ARM::CMSIS@^1.2.3' }]
+            }]
+        };
+
+        const localContainer = document.createElement('div');
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView state={qualifiedPackState} openFile={openFileMock} messageHandler={messageHandler} availablePacks={defaultState.availablePacks} />
+            );
+        });
+
+        const versionCell = Array.from(localContainer.querySelectorAll('td'))
+            .find(td => td.textContent?.trim() === '1.2.3');
+        expect(versionCell).toBeDefined();
+        expect(localContainer.textContent).not.toContain('(fixed)');
+    });
+
+    it('marks the pack as fixed when one of multiple references is exact', () => {
+        const mixedReferencePackState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                versionUsed: '@1.2.3',
+                references: [
+                    { ...mockPack.references[0], pack: 'ARM::CMSIS@^1.2.3' },
+                    { ...mockPack.references[0], pack: 'ARM::CMSIS@1.2.3', origin: 'path/to/other.cproject.yml' }
+                ]
+            }]
+        };
+
+        const localContainer = document.createElement('div');
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView state={mixedReferencePackState} openFile={openFileMock} messageHandler={messageHandler} availablePacks={defaultState.availablePacks} />
+            );
+        });
+
+        const versionCell = Array.from(localContainer.querySelectorAll('td'))
+            .find(td => td.textContent?.trim() === '1.2.3 (fixed)');
+        expect(versionCell).toBeDefined();
+    });
+
     it('strips version qualifier prefix for missing packs', () => {
         const missingPackState: ComponentsState = {
             ...defaultState,
@@ -161,6 +236,7 @@ describe('PacksView', () => {
         const versionCells = localContainer.querySelectorAll('td');
         const versionCell = Array.from(versionCells).find(td => td.textContent?.trim() === '7.13.0');
         expect(versionCell).toBeDefined();
+        expect(localContainer.textContent).not.toContain('(fixed)');
     });
 
     it('adds missing-row class when pack has missing references', () => {
@@ -189,7 +265,7 @@ describe('PacksView', () => {
         expect(row?.classList.contains('ant-table-row-disabled')).toBe(false);
     });
 
-    it('keeps selected packs in the current layer on the default row styling', () => {
+    it('highlights selected packs in the current layer', () => {
         const currentLayerState: ComponentsState = {
             ...defaultState,
             packs: [{
@@ -206,10 +282,33 @@ describe('PacksView', () => {
         });
 
         const row = localContainer.querySelector('tr.ant-table-row');
-        expect(row?.classList.contains('ant-table-row-disabled')).toBe(false);
+        expect(row?.classList.contains('current-layer-row')).toBe(true);
     });
 
-    it('dims selected packs that are outside the current layer', () => {
+    it('bolds a pack name listed in the current layer', () => {
+        const currentLayerState: ComponentsState = {
+            ...defaultState,
+            packs: [{
+                ...mockPack,
+                references: [{ ...mockPack.references[0], origin: 'path/to/context', relOrigin: 'path/to/context', selected: false }]
+            }]
+        };
+        const localContainer = document.createElement('div');
+
+        React.act(() => {
+            createRoot(localContainer).render(
+                <PacksView state={currentLayerState} openFile={openFileMock} messageHandler={messageHandler} availablePacks={defaultState.availablePacks} />
+            );
+        });
+
+        expect(localContainer.querySelector('.current-layer-name')?.textContent).toContain('CMSIS');
+    });
+
+    it('does not bold a pack name outside the current layer', () => {
+        expect(container.querySelector('.current-layer-name')).toBeNull();
+    });
+
+    it('keeps selected packs outside the current layer on the default row styling', () => {
         const outsideLayerState: ComponentsState = {
             ...defaultState,
             packs: [{
@@ -226,7 +325,7 @@ describe('PacksView', () => {
         });
 
         const row = localContainer.querySelector('tr.ant-table-row');
-        expect(row?.classList.contains('ant-table-row-disabled')).toBe(true);
+        expect(row?.classList.contains('ant-table-row-disabled')).toBe(false);
     });
 
     it('shows empty version when no version is given in the pack id', () => {

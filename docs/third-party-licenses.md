@@ -1,6 +1,6 @@
 # TPIP Report for vscode-cmsis-solution
 
-Generated for release: 1.68.0
+Generated for release: 1.72.0
 
 | *Package* | *Version* | *Repository* | *License* |
 |---|---|---|---|
@@ -10,31 +10,33 @@ Generated for release: 1.68.0
 |@fortawesome/fontawesome-free|7.2.0|https://github.com/FortAwesome/Font-Awesome|https://github.com/FortAwesome/Font-Awesome/blob/6.x/LICENSE.txt|
 |@lydell/node-pty|1.1.0|https://github.com/lydell/node-pty|https://github.com/lydell/node-pty/blob/split-package/LICENSE|
 |@microsoft/vscode-serial-monitor-api|0.1.7|https://github.com/microsoft/vscode-serial-monitor|https://raw.githubusercontent.com/microsoft/vscode-serial-monitor/refs/heads/main/LICENSE|
-|@vscode/codicons|0.0.44|https://github.com/microsoft/vscode-codicons|https://github.com/microsoft/vscode-codicons/blob/main/LICENSE|
+|@vscode/codicons|0.0.45|https://github.com/microsoft/vscode-codicons|https://github.com/microsoft/vscode-codicons/blob/main/LICENSE|
 |antd|5.29.3|https://ant.design|https://github.com/ant-design/ant-design/blob/master/LICENSE|
 |async-mutex|0.5.0|https://github.com/DirtyHairy/async-mutex|https://github.com/DirtyHairy/async-mutex/blob/master/LICENSE|
-|eta|4.5.1|https://github.com/eta-dev/eta|https://github.com/eta-dev/eta/blob/main/LICENSE|
+|eta|4.6.0|https://github.com/eta-dev/eta|https://github.com/eta-dev/eta/blob/main/LICENSE|
 |fetch-blob|4.0.0|https://github.com/node-fetch/fetch-blob|https://github.com/node-fetch/fetch-blob/blob/main/LICENSE|
 |formdata-polyfill|4.0.10|https://github.com/jimmywarting/FormData|https://github.com/jimmywarting/FormData/blob/master/LICENSE|
 |glob|13.0.6|https://github.com/isaacs/node-glob|https://github.com/isaacs/node-glob/blob/main/LICENSE.md|
-|google-protobuf|4.0.2|https://github.com/protocolbuffers/protobuf|https://github.com/protocolbuffers/protobuf/blob/main/LICENSE|
 |graphql-request|7.4.0|https://github.com/jasonkuhrt/graphql-request|https://github.com/jasonkuhrt/graphql-request/blob/main/LICENSE|
 |graphql-tag|2.12.6|https://github.com/apollographql/graphql-tag|https://github.com/apollographql/graphql-tag/blob/main/LICENSE|
 |jsonc-parser|3.3.1|https://github.com/microsoft/node-jsonc-parser|https://github.com/microsoft/node-jsonc-parser/blob/main/LICENSE.md|
+|lodash|4.18.1|https://github.com/lodash/lodash|https://github.com/lodash/lodash/blob/master/LICENSE|
 |lodash.debounce|4.0.8|https://github.com/lodash/lodash|https://github.com/lodash/lodash/blob/master/LICENSE|
 |node-fetch|3.3.2|https://github.com/node-fetch/node-fetch|https://github.com/node-fetch/node-fetch/blob/master/LICENSE.md|
+|pend|1.2.0|https://github.com/andrewrk/node-pend|https://github.com/andrewrk/node-pend/blob/master/LICENSE|
 |primereact|10.9.7|https://github.com/primefaces/primereact|https://github.com/primefaces/primereact/blob/master/LICENSE.md|
 |react|18.3.1|https://github.com/facebook/react|https://github.com/facebook/react/blob/main/LICENSE|
 |react-dom|18.3.1|https://github.com/facebook/react|https://github.com/facebook/react/blob/main/LICENSE|
 |react-window|1.8.11|https://github.com/bvaughn/react-window|https://github.com/bvaughn/react-window/blob/master/LICENSE.md|
 |sax-ts|1.2.13|https://github.com/Maxim-Mazurok/sax-ts|https://github.com/Maxim-Mazurok/sax-ts/blob/master/LICENSE.md|
-|semver|7.7.4|https://github.com/npm/node-semver|https://github.com/npm/node-semver/blob/main/LICENSE|
+|semver|7.8.5|https://github.com/npm/node-semver|https://github.com/npm/node-semver/blob/main/LICENSE|
 |tcp-port-used|1.0.2|https://github.com/stdarg/tcp-port-used|https://raw.githubusercontent.com/stdarg/tcp-port-used/refs/heads/master/LICENSE|
 |tmp|0.2.7|https://github.com/raszi/node-tmp|https://github.com/raszi/node-tmp/blob/master/LICENSE|
 |vscode-jsonrpc|8.2.1|https://github.com/Microsoft/vscode-languageserver-node|https://github.com/Microsoft/vscode-languageserver-node/blob/main/License.txt|
 |vscode-messenger|0.6.0|https://github.com/TypeFox/vscode-messenger|https://github.com/TypeFox/vscode-messenger/blob/main/LICENSE|
 |vscode-messenger-common|0.6.0|https://github.com/TypeFox/vscode-messenger|https://github.com/TypeFox/vscode-messenger/blob/main/LICENSE|
 |vscode-messenger-webview|0.6.0|https://github.com/TypeFox/vscode-messenger|https://github.com/TypeFox/vscode-messenger/blob/main/LICENSE|
-|which|6.0.1|https://github.com/npm/node-which|https://github.com/npm/node-which/blob/main/LICENSE|
-|yaml|2.9.0|https://github.com/eemeli/yaml|https://github.com/eemeli/yaml/blob/main/LICENSE|
+|which|7.0.0|https://github.com/npm/node-which|https://github.com/npm/node-which/blob/main/LICENSE|
+|yaml|2.9.1|https://github.com/eemeli/yaml|https://github.com/eemeli/yaml/blob/main/LICENSE|
 |yargs-parser|21.1.1|https://github.com/yargs/yargs-parser|https://github.com/yargs/yargs-parser/blob/main/LICENSE.txt|
+|yauzl|3.4.0|https://github.com/thejoshwolfe/yauzl|https://github.com/thejoshwolfe/yauzl/blob/master/LICENSE|

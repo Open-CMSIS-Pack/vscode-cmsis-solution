@@ -18,12 +18,15 @@ import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react';
 import { ConfWiz } from './confwiz-webview-view-component';
 import {
-    ConfigWizardData,
+    ConfigWizardViewData,
     GuiTypes,
     TreeNodeElement,
     markDocumentDirty,
+    openIssueLocationType,
     saveElement,
+    selectAnnotationType,
     setPanelActiveType,
+    setSourceSelectionType,
     setWizardDataType
 } from './confwiz-webview-common';
 
@@ -59,20 +62,19 @@ jest.mock('vscode-messenger-webview', () => ({
 }));
 
 jest.mock('primereact/treetable', () => ({
-    TreeTable: ({ value, header, children }: { value: unknown[]; header: React.ReactNode; children: React.ReactNode }) => {
+    TreeTable: ({ value, header, children, onRowClick, expandedKeys, rowClassName }: { value: unknown[]; header: React.ReactNode; children: React.ReactNode; expandedKeys: Record<string, boolean>; rowClassName: (node: unknown) => Record<string, boolean>; onRowClick?: (event: { originalEvent: React.SyntheticEvent; node: unknown }) => void }) => {
         const columns = React.Children.toArray(children) as React.ReactElement[];
-        return (
-            <>
-                {header}
-                {value?.map((node: unknown, index: number) => (
-                    <div key={index} data-testid={`row-${index}`}>
-                        {columns.map((col, colIndex) => (
-                            <div key={colIndex}>{col.props.body(node, {})}</div>
-                        ))}
-                    </div>
-                ))}
-            </>
-        );
+        const renderNodes = (nodes: unknown[]): React.ReactNode => nodes?.map((node, index) => {
+            const treeNode = node as { key: string; children?: unknown[] };
+            const classes = Object.entries(rowClassName(node)).filter(([, enabled]) => enabled).map(([name]) => name).join(' ');
+            return <div key={index} data-testid={`row-${index}`} className={classes}>
+                <div onClick={(event) => onRowClick?.({ originalEvent: event, node })}>
+                    {columns.map((col, colIndex) => <div key={colIndex}>{col.props.body(node, {})}</div>)}
+                </div>
+                {expandedKeys[treeNode.key] && renderNodes(treeNode.children ?? [])}
+            </div>;
+        });
+        return <>{header}{renderNodes(value)}</>;
     },
 }));
 
@@ -86,7 +88,7 @@ jest.mock('./../filterTree', () => ({
     filterTree: (nodes: unknown) => nodes,
 }));
 
-const emitWizardData = (data: ConfigWizardData) => {
+const emitWizardData = (data: ConfigWizardViewData) => {
     const handler = notificationHandlers.get(getNotificationKey(setWizardDataType));
     if (!handler) {
         throw new Error('setWizardDataType handler not registered');
@@ -106,7 +108,7 @@ const emitPanelActive = (active: boolean) => {
     });
 };
 
-const makeRoot = (children: TreeNodeElement[]): TreeNodeElement => ({
+const makeRoot = (children: TreeNodeElement[], issues?: string[]): TreeNodeElement => ({
     guiId: 0,
     name: 'Root',
     type: GuiTypes.group,
@@ -114,6 +116,7 @@ const makeRoot = (children: TreeNodeElement[]): TreeNodeElement => ({
     value: { value: 'Root', readOnly: true },
     newValue: { value: 'Root', readOnly: true },
     children,
+    errors: issues,
 });
 
 describe('ConfWiz functional component', () => {
@@ -158,7 +161,47 @@ describe('ConfWiz functional component', () => {
         expect(saveCalls.length).toBe(1);
     });
 
-    it('applies checkbox-inconsistent class and tooltip when inconsistent flag is true', () => {
+    it('uses only info annotations for the option tooltip', () => {
+        const settingName = 'DBGMCU APB2 peripheral freeze register CPU2 (DBGMCU_APB2FZ2)';
+        const textElement: TreeNodeElement = {
+            guiId: 2,
+            name: settingName,
+            type: GuiTypes.none,
+            group: false,
+            value: { value: '', readOnly: true },
+            newValue: { value: '', readOnly: true },
+            infoItems: ['Register configuration details', 'Default: enabled'],
+        };
+
+        const { getByText } = render(<ConfWiz />);
+        emitWizardData({ element: makeRoot([textElement]), documentPath: 'test.c', noAnnotationsFound: false });
+
+        const settingNameElement = getByText(settingName);
+        expect(settingNameElement.textContent).toBe(settingName);
+        expect(settingNameElement.getAttribute('title')).toBe('Register configuration details\nDefault: enabled');
+    });
+
+    it('keeps a full static value in the DOM but not in the value tooltip', () => {
+        const longValue = 'A static configuration value that does not fit in a narrow value column';
+        const textElement: TreeNodeElement = {
+            guiId: 3,
+            name: 'Static value',
+            type: GuiTypes.none,
+            group: false,
+            value: { value: longValue, readOnly: true },
+            newValue: { value: longValue, readOnly: true },
+            infoItems: ['Value details'],
+        };
+
+        const { getByText } = render(<ConfWiz />);
+        emitWizardData({ element: makeRoot([textElement]), documentPath: 'test.c', noAnnotationsFound: false });
+
+        const valueElement = getByText(longValue);
+        expect(valueElement.classList.contains('cw-value-text')).toBe(true);
+        expect(valueElement.getAttribute('title')).toBe('Value details');
+    });
+
+    it('keeps checkbox info and inconsistency diagnostics in separate tooltips', () => {
         const checkboxElement: TreeNodeElement = {
             guiId: 2,
             name: 'Check Field',
@@ -174,8 +217,11 @@ describe('ConfWiz functional component', () => {
 
         const checkbox = document.querySelector('input[type="checkbox"]')?.parentElement as HTMLInputElement;
         expect(checkbox.parentElement?.className).toContain('checkbox-inconsistent');
-        expect(checkbox.getAttribute('title')).toContain('Inconsistent comment state detected');
-        expect(checkbox.getAttribute('title')).toContain('Original tooltip info');
+        expect(checkbox.getAttribute('title')).toBe('Original tooltip info');
+
+        const warning = document.querySelector('.checkbox-inconsistent-warning');
+        expect(warning?.getAttribute('title')).toContain('Inconsistent comment state detected');
+        expect(warning?.getAttribute('title')).not.toContain('Original tooltip info');
     });
 
     it('toggles checkbox on Space key press', () => {
@@ -198,6 +244,65 @@ describe('ConfWiz functional component', () => {
         expect(checkboxElement.newValue.value).toBe('1');
         const saveCalls = sendNotificationMock.mock.calls.filter(call => call[0] === saveElement);
         expect(saveCalls.length).toBe(1);
+    });
+
+    it('shows and hides line-numbered annotation issues from the tree header', () => {
+        const issues = [
+            'Line: 208: Unknown command "<9>" found.',
+            'Line: 211: Unknown command "<10>" found.',
+            'Line: 214: Unknown command "<8>" found.',
+            'Line: 1285: Unknown command "<0>" found.',
+        ];
+
+        const { getByRole, getByText, queryByRole } = render(<ConfWiz />);
+        emitWizardData({
+            element: makeRoot([], issues),
+            documentPath: 'board_defs.h',
+            noAnnotationsFound: false
+        });
+
+        const showButton = getByRole('button', { name: '4 annotation issues Show' });
+        expect(showButton.getAttribute('aria-expanded')).toBe('false');
+        expect(queryByRole('region', { name: 'Annotation issues' })).toBeNull();
+
+        fireEvent.click(showButton);
+
+        expect(getByRole('button', { name: '4 annotation issues Hide' }).getAttribute('aria-expanded')).toBe('true');
+        expect(getByRole('region', { name: 'Annotation issues' })).not.toBeNull();
+        expect(getByText(issues[0])).not.toBeNull();
+        expect(getByText(issues[3])).not.toBeNull();
+
+        fireEvent.click(getByRole('button', { name: '4 annotation issues Hide' }));
+
+        expect(queryByRole('region', { name: 'Annotation issues' })).toBeNull();
+    });
+
+    it('does not show an annotation issue control when parsing has no issues', () => {
+        const { queryByText } = render(<ConfWiz />);
+        emitWizardData({ element: makeRoot([]), documentPath: 'valid.h', noAnnotationsFound: false });
+
+        expect(queryByText(/annotation issues?/)).toBeNull();
+    });
+
+    it('opens line-numbered issues while leaving unlocated issues as plain text', () => {
+        const locatedIssue = 'Line: 12: Unknown command "<x>" found.';
+        const unlocatedIssue = 'Configuration section marker is missing.';
+        const { getByRole, queryByRole } = render(<ConfWiz />);
+        emitWizardData({
+            element: makeRoot([], [locatedIssue, unlocatedIssue]),
+            documentPath: 'config.h',
+            noAnnotationsFound: false
+        });
+        fireEvent.click(getByRole('button', { name: '2 annotation issues Show' }));
+        sendNotificationMock.mockClear();
+
+        fireEvent.click(getByRole('button', { name: locatedIssue }));
+
+        expect(sendNotificationMock).toHaveBeenCalledWith(openIssueLocationType, expect.anything(), {
+            documentPath: 'config.h',
+            line: 11
+        });
+        expect(queryByRole('button', { name: unlocatedIssue })).toBeNull();
     });
 
     it('moves focus to clicked row after panel is deactivated and reactivated', () => {
@@ -236,6 +341,101 @@ describe('ConfWiz functional component', () => {
         expect(secondRow.tabIndex).toBe(-1);
         expect(document.activeElement).toBe(firstRow);
     });
+
+    it('reports the annotation range when a GUI row is selected', () => {
+        const notificationElement: TreeNodeElement = {
+            guiId: 21,
+            name: 'Memory configuration',
+            type: GuiTypes.none,
+            group: false,
+            value: { value: '', readOnly: true },
+            newValue: { value: '', readOnly: true },
+            annotationRange: {
+                start: { line: 7, character: 4 },
+                end: { line: 7, character: 38 }
+            }
+        };
+
+        const { getByText } = render(<ConfWiz />);
+        emitWizardData({ element: makeRoot([notificationElement]), documentPath: 'config.h', noAnnotationsFound: false });
+        sendNotificationMock.mockClear();
+
+        fireEvent.click(getByText('Memory configuration'));
+
+        expect(sendNotificationMock).toHaveBeenCalledWith(selectAnnotationType, expect.anything(), {
+            documentPath: 'config.h',
+            annotationRange: notificationElement.annotationRange
+        });
+    });
+
+    it('applies source selection and expansion without focus or navigation feedback, then allows GUI reselection', () => {
+        const node: TreeNodeElement = {
+            guiId: 21, name: 'Source setting', type: GuiTypes.none, group: false,
+            value: { value: '', readOnly: true }, newValue: { value: '', readOnly: true },
+            annotationRange: { start: { line: 7, character: 0 }, end: { line: 7, character: 20 } }
+        };
+        const parent: TreeNodeElement = { ...node, guiId: 20, name: 'Settings', group: true, children: [node] };
+        const { getByText, queryByText } = render(<ConfWiz />);
+        emitWizardData({ element: makeRoot([parent]), documentPath: 'config.h', noAnnotationsFound: false });
+        expect(queryByText('Source setting')).toBeNull();
+        act(() => { getByText('Settings').blur(); });
+        const originalFocus = document.activeElement;
+        sendNotificationMock.mockClear();
+        act(() => notificationHandlers.get(getNotificationKey(setSourceSelectionType))?.({
+            documentPath: 'config.h', selectedGuiId: node.guiId
+        }));
+        expect(getByText('Source setting').closest('[data-testid]')?.className).toContain('cw-row-inactive');
+        expect(document.activeElement).toBe(originalFocus);
+        expect(sendNotificationMock).not.toHaveBeenCalled();
+        emitWizardData({ element: makeRoot([parent]), documentPath: 'config.h', noAnnotationsFound: false, sourceSelection: node.guiId });
+        expect(document.activeElement).toBe(originalFocus);
+        expect(sendNotificationMock).not.toHaveBeenCalled();
+        act(() => notificationHandlers.get(getNotificationKey(setSourceSelectionType))?.({
+            documentPath: 'other.h', selectedGuiId: null
+        }));
+        expect(getByText('Source setting').closest('[data-testid]')?.className).toContain('cw-row-inactive');
+        fireEvent.click(getByText('Source setting'));
+        expect(sendNotificationMock).toHaveBeenCalledWith(selectAnnotationType, expect.anything(), {
+            documentPath: 'config.h', annotationRange: node.annotationRange
+        });
+        sendNotificationMock.mockClear();
+        emitWizardData({ element: makeRoot([parent]), documentPath: 'config.h', noAnnotationsFound: false });
+        expect(sendNotificationMock).not.toHaveBeenCalled();
+        act(() => notificationHandlers.get(getNotificationKey(setSourceSelectionType))?.({
+            documentPath: 'config.h', selectedGuiId: null
+        }));
+        expect(document.querySelector('.cw-row-inactive')).toBeNull();
+    });
+
+    it('reports a selected annotation only once for a mouse click', () => {
+        const notificationElement: TreeNodeElement = {
+            guiId: 21,
+            name: 'Memory configuration',
+            type: GuiTypes.none,
+            group: false,
+            value: { value: '', readOnly: true },
+            newValue: { value: '', readOnly: true },
+            annotationRange: {
+                start: { line: 7, character: 4 },
+                end: { line: 7, character: 38 }
+            }
+        };
+        const { getByText } = render(<ConfWiz />);
+        emitWizardData({ element: makeRoot([notificationElement]), documentPath: 'config.h', noAnnotationsFound: false });
+        sendNotificationMock.mockClear();
+        const rowName = getByText('Memory configuration');
+
+        fireEvent.mouseDown(rowName, { button: 0 });
+        fireEvent.focus(rowName);
+        fireEvent.click(rowName);
+
+        const selectionCalls = sendNotificationMock.mock.calls.filter(call => call[0] === selectAnnotationType);
+        expect(selectionCalls).toHaveLength(1);
+        expect(selectionCalls[0]).toEqual([selectAnnotationType, expect.anything(), {
+            documentPath: 'config.h',
+            annotationRange: notificationElement.annotationRange
+        }]);
+    });
 });
 
 describe('ConfWiz dropdown overflow tooltips', () => {
@@ -260,14 +460,16 @@ describe('ConfWiz dropdown overflow tooltips', () => {
                 bitWidth: 8,
             },
             newValue: { value: '256 entries', readOnly: false },
-            dropItems: ['4 entries', '256 entries']
+            dropItems: ['4 entries', '256 entries'],
+            infoItems: ['Choose the queue size']
         };
 
         const confWiz = new TestableDropdownConfWiz({});
         const { getByRole } = render(confWiz.getCreateCombobox(element));
         const dropdown = getByRole('combobox') as HTMLSelectElement;
 
-        expect(dropdown.title).toBe('Value \'256\' overflows 8 bits');
+        expect(dropdown.title).toBe('Choose the queue size');
+        expect(document.querySelector('.compact-dropdown-warn')?.getAttribute('title')).toBe("Value '256' overflows 8 bits");
         expect(dropdown.className).toContain('compact-dropdown-trigger');
     });
 
@@ -284,14 +486,16 @@ describe('ConfWiz dropdown overflow tooltips', () => {
                 bitWidth: 8,
             },
             newValue: { value: '0', readOnly: false },
-            dropItems: ['4 entries', '8 entries']
+            dropItems: ['4 entries', '8 entries'],
+            infoItems: ['Choose the queue size']
         };
 
         const confWiz = new TestableDropdownConfWiz({});
         const { getByRole } = render(confWiz.getCreateCombobox(element));
         const dropdown = getByRole('combobox') as HTMLSelectElement;
 
-        expect(dropdown.title).toBe("Value '0' is not in the list");
+        expect(dropdown.title).toBe('Choose the queue size');
+        expect(document.querySelector('.compact-dropdown-warn')?.getAttribute('title')).toBe("Value '0' is not in the list");
         expect(dropdown.className).toContain('compact-dropdown-trigger');
     });
 });

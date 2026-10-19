@@ -71,7 +71,7 @@ export class CompileCommandsGenerator {
     private async runCbuildSetup(): Promise<void> {
         const task = await this.prepareSetupTask();
         const definition = task.definition;
-        const revealKind = definition.west ? vscode.TaskRevealKind?.Always : vscode.TaskRevealKind?.Silent;
+        const revealKind = definition.virtualProject ? vscode.TaskRevealKind?.Always : vscode.TaskRevealKind?.Silent;
         task.presentationOptions = {
             ...(revealKind !== undefined ? { reveal: revealKind } : {})
         };

@@ -16,7 +16,7 @@
 
 import 'jest';
 import { isWebAddress } from './util';
-import { ITreeItem, CTreeItem } from './generic/tree-item';
+import { ITreeItem, CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { matchesStringOrRegExp, arrayContainsValue, matchesContext } from './utils/context-utils';
 
 describe('Util', () => {

@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { arrayOf, object, Schema, unionOf, string, InferType, optional, assureProperty, array } from '../generic/schema';
-import { CTreeItem } from '../generic/tree-item';
-import { CTreeItemJsonFile } from '../generic/tree-item-file';
+import { arrayOf, object, Schema, unionOf, string, InferType, optional, assureProperty, array } from '@open-cmsis-pack/cmsis-common/schema';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { CTreeItemJsonFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 
 export const InputSchema = new Schema({
     id: string,

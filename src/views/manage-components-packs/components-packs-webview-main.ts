@@ -21,7 +21,7 @@ import path, { dirname } from 'path';
 import { ComponentInstance, CsolutionService, CtAggregate, CtRoot, Pack, PackReference, PacksInfo, Results, UsedItems } from '../../json-rpc/csolution-rpc-client';
 import { IOpenFileExternal } from '../../open-file-external-if';
 import { ProjectFileUpdater, ProjectFileUpdaterImpl } from '../../solutions/edit/project-file-updater';
-import { SolutionLoadStateChangeEvent, SolutionManager } from '../../solutions/solution-manager';
+import { isAutoConvertOnFileChangeEnabled, SolutionLoadStateChangeEvent, SolutionManager } from '../../solutions/solution-manager';
 import { backToForwardSlashes, getFileNameNoExt } from '../../utils/path-utils';
 import { CommandsProvider } from '../../vscode-api/commands-provider';
 import { MessageProvider } from '../../vscode-api/message-provider';
@@ -34,11 +34,12 @@ import { componentTreeWalker } from './data/component-tree-walker';
 import { cloneDeep, uniqWith } from 'lodash';
 import { parsePackId } from './data/pack-parse';
 import { lineOf, readTextFile } from '../../utils/fs-utils';
-import { stripTwoExtensions } from '../../utils/string-utils';
+import { stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { getLatestAvailablePacksInfo, isPackIndexCurrent } from '../../packs/index-pidx-file';
 import { isDeepStrictEqual } from 'util';
 import { openFileWithPolicy } from '../file-open-policy';
 import { FileOpenGroupOrchestrator, FileOpenGroupOrchestratorImpl } from '../file-open-group-orchestrator';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 
 export const MANAGE_COMPONENTS_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> = {
     title: 'Software Components',
@@ -94,7 +95,7 @@ export class ComponentsPacksWebviewMain {
     private componentTree!: CtRoot;
     private validations!: Results;
     private selectedContext: TargetSetData | undefined;
-    public usedItems!: UsedItems; // loaded after load solution and after apply calls. need to use this data
+    public usedItems: UsedItems | undefined; // loaded after load solution and after apply calls. need to use this data
     private cachedTargetSetData?: TargetSetData[];
 
     private readonly projectFileUpdater: ProjectFileUpdater;
@@ -290,6 +291,13 @@ export class ComponentsPacksWebviewMain {
             return;
         }
 
+        if (e.newState.solutionPath === e.previousState.solutionPath
+            && e.newState.converted === e.previousState.converted
+            && e.newState.loaded === e.previousState.loaded
+            && e.newState.activated === e.previousState.activated) {
+            return;
+        }
+
         // If conversion is in progress, show a busy indicator and wait for the converted=true event
         if (e.newState.converted === false && e.newState.solutionPath) {
             await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Converting solution...' });
@@ -314,7 +322,7 @@ export class ComponentsPacksWebviewMain {
             if (this.currentProject) {
                 await this.debounce_load(this.currentProject.project.projectId, true);
             } else {
-                await this.clearComponents();
+                await this.clearSolutionData();
                 await this.webviewManager.sendMessage({
                     type: 'SET_ERROR_MESSAGES', messages: [
                         { type: 'ERROR', message: 'No valid project found in the loaded solution' }
@@ -322,7 +330,7 @@ export class ComponentsPacksWebviewMain {
                 });
             }
         } else {
-            await this.clearComponents();
+            await this.clearSolutionData();
         }
     }
 
@@ -585,10 +593,19 @@ export class ComponentsPacksWebviewMain {
     private async handleApplyComponentSet(): Promise<boolean> {
         await this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: 'Saving changes...' });
 
-        const cbuildPackModified = this.solutionManager.getCsolution()?.cbuildPackFile.isModified() ?? false;
+        const cbuildPackFile = this.solutionManager.getCsolution()?.cbuildPackFile;
+        const cbuildPackModified = cbuildPackFile?.isModified() ?? false;
+        const wasDirty = await this.isDirty();
+        let packFileChanged = false;
         if (cbuildPackModified) {
-            await this.solutionManager.getCsolution()?.cbuildPackFile.save();
-            this.unlinkRequests.clear();
+            const packResult = await cbuildPackFile!.save();
+            if (packResult === ETextFileResult.Error || packResult === ETextFileResult.NotExists) {
+                await this.webviewManager.sendMessage({ type: 'IS_DIRTY', isDirty: true });
+                return false;
+            }
+            if (packResult === ETextFileResult.Success) {
+                packFileChanged = true;
+            }
         }
 
         const activeContext = this.getActiveContext();
@@ -599,11 +616,16 @@ export class ComponentsPacksWebviewMain {
         const requestAll = this.scope === ComponentScope.All;
         this.componentTree = this.manageComponentsActions.mapComponentsFromService(await this.csolutionService.getComponentsTree({ context: activeContext, all: requestAll }));
         this.validations = await this.csolutionService.validateComponents({ context: activeContext });
-        await this.projectFileUpdater.updateUsedItems(activeContext, projectFileName, usedItemsForProjectFileUpdate);
-
-        // Trigger refresh if cbuild-pack was modified to ensure solution is properly reloaded
-        if (cbuildPackModified) {
-            await this.solutionManager.refresh();
+        const projectFilesChanged = state.success !== false
+            && await this.projectFileUpdater.updateUsedItems(activeContext, projectFileName, usedItemsForProjectFileUpdate);
+        const saved = state.success !== false;
+        if (saved && wasDirty && (packFileChanged || projectFilesChanged)) {
+            if (!isAutoConvertOnFileChangeEnabled() || (packFileChanged && !projectFilesChanged)) {
+                await this.solutionManager.refresh();
+            }
+        }
+        if (saved) {
+            this.unlinkRequests.clear();
         }
 
         await Promise.all([
@@ -613,8 +635,12 @@ export class ComponentsPacksWebviewMain {
         if (state.success === false) {
             this.webviewManager.sendMessage({ type: 'SET_SOLUTION_STATE', stateMessage: state.message ?? 'Unspecified error when writing solution information' });
         }
-        await this.sendDirtyState({ skipApply: true, usedItems: usedItemsForProjectFileUpdate });
-        return state.success !== false;
+        if (saved) {
+            await this.sendDirtyState({ skipApply: true, usedItems: usedItemsForProjectFileUpdate });
+        } else {
+            await this.webviewManager.sendMessage({ type: 'IS_DIRTY', isDirty: true });
+        }
+        return saved;
     }
 
     private async handleOpenFile(message: Messages.OutgoingMessage): Promise<void> {
@@ -768,7 +794,7 @@ export class ComponentsPacksWebviewMain {
                     return message; // Exhaustiveness check
             }
         } else {
-            await this.clearComponents();
+            await this.clearSolutionData();
         }
     }
 
@@ -921,12 +947,20 @@ export class ComponentsPacksWebviewMain {
         await this.sendDirtyState();
     };
 
-    private async clearComponents() {
-        if (this.componentTree) {
-            this.componentTree.classes = [];
+    private async clearSolutionData(): Promise<void> {
+        this.currentProject = undefined;
+        this.componentTree = { success: false, classes: [] };
+        this.validations = { success: false, result: 'UNDEFINED', validation: [] };
+        this.selectedContext = undefined;
+        this.cachedTargetSetData = undefined;
+        this.usedItems = undefined;
+        this.unlinkRequests.clear();
+        this.availablePacksCache = {};
+        this.availablePacksCacheLoaded = false;
+        this.availablePacksIndexTimestamp = undefined;
+        this.pendingFocusPackId = undefined;
 
-            await this.webviewManager.sendMessage({ type: 'SET_COMPONENT_TREE', tree: { success: false, classes: [] }, validations: [] });
-        }
+        await this.webviewManager.sendMessage({ type: 'CLEAR_SOLUTION_DATA' });
     }
 
     private createBuildContextDeps(): BuildContext[] {

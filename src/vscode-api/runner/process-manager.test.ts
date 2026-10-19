@@ -16,8 +16,9 @@
 
 import 'jest';
 import { EventEmitter } from 'events';
-import { type SpawnOptions } from 'child_process';
-import { ProcessManagerImpl } from './process-manager';
+import * as inspector from 'inspector';
+import * as pty from '@lydell/node-pty';
+import { ProcessManagerImpl, type ProcessSpawnOptions } from './process-manager';
 
 const spawnMock = jest.fn();
 const createInterfaceMock = jest.fn();
@@ -39,6 +40,17 @@ jest.mock('inspector', () => ({
 }));
 
 describe('process-manager.ts', () => {
+    const originalPlatform = process.platform;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        (inspector.url as jest.Mock).mockReturnValue(undefined);
+    });
+
+    afterEach(() => {
+        Object.defineProperty(process, 'platform', { value: originalPlatform });
+    });
+
     describe('spawn', () => {
         it('forwards stdout and stderr line output and resolves on close code 0', async () => {
             const stdoutStream = {};
@@ -73,7 +85,7 @@ describe('process-manager.ts', () => {
 
             const processManager = new ProcessManagerImpl(environmentManager as never);
             const onOutput = jest.fn();
-            const spawnOptions: SpawnOptions = { cwd: '.', env: { ORIGINAL: '1' } };
+            const spawnOptions: ProcessSpawnOptions = { cwd: '.', env: { ORIGINAL: '1' }, filterOutput: true };
 
             const resultPromise = processManager.spawn('tool', ['--flag'], spawnOptions, onOutput);
 
@@ -82,9 +94,135 @@ describe('process-manager.ts', () => {
             childProcess.emit('close', 0);
 
             await expect(resultPromise).resolves.toEqual({ code: 0 });
-            expect(spawnMock).toHaveBeenCalledWith('tool', ['--flag'], { ...spawnOptions, env: { AUGMENTED: '1' } });
+            expect(spawnMock).toHaveBeenCalledWith('tool', ['--flag'], {
+                cwd: '.',
+                env: { AUGMENTED: '1' },
+            });
             expect(onOutput).toHaveBeenNthCalledWith(1, 'stdout line\r\n');
             expect(onOutput).toHaveBeenNthCalledWith(2, 'stderr line\r\n');
+        });
+
+        it.each([
+            { platform: 'linux', inspectorUrl: undefined, dimensions: undefined },
+            { platform: 'win32', inspectorUrl: 'ws://debugger', dimensions: undefined },
+            { platform: 'win32', inspectorUrl: 'ws://debugger', dimensions: { columns: 120, rows: 30 } },
+        ])('uses a child process for a PTY request on $platform with inspector $inspectorUrl and dimensions $dimensions', async ({ platform, inspectorUrl, dimensions }) => {
+            Object.defineProperty(process, 'platform', { value: platform });
+            (inspector.url as jest.Mock).mockReturnValue(inspectorUrl);
+
+            const stdoutStream = {};
+            const stderrStream = {};
+            const lineCallbacks = new Map<object, (line: string) => void>();
+
+            createInterfaceMock.mockImplementation(({ input }: { input: object }) => ({
+                on: (event: string, callback: (line: string) => void) => {
+                    if (event === 'line') {
+                        lineCallbacks.set(input, callback);
+                    }
+                },
+            }));
+
+            const childProcess = new EventEmitter() as EventEmitter & {
+                stdout: object;
+                stderr: object;
+                exitCode: number | null;
+                kill: jest.Mock;
+            };
+            childProcess.stdout = stdoutStream;
+            childProcess.stderr = stderrStream;
+            childProcess.exitCode = null;
+            childProcess.kill = jest.fn();
+            spawnMock.mockReturnValue(childProcess);
+
+            const environmentManager = {
+                augmentEnv: jest.fn(() => ({ vars: { AUGMENTED: '1' } })),
+            };
+            const processManager = new ProcessManagerImpl(environmentManager as never);
+            const onOutput = jest.fn();
+
+            const args = ['run', 'd:\\examples\\csolution examples\\DualCore\\HelloWorld.csolution.yml', '-g', 'MCUXpressoConfig', '-c', 'HelloWorld_cm0plus.Debug+FRDM-K32L3A6'];
+            const resultPromise = processManager.spawn('tool', args, { usePty: true }, onOutput, undefined, dimensions);
+
+            lineCallbacks.get(stdoutStream)?.('output');
+            childProcess.emit('close', 0);
+
+            await expect(resultPromise).resolves.toEqual({ code: 0 });
+            expect(spawnMock).toHaveBeenCalledWith('tool', args, {
+                env: { AUGMENTED: '1' },
+            });
+            expect(pty.spawn).not.toHaveBeenCalled();
+            expect(onOutput).toHaveBeenCalledWith('output\r\n');
+        });
+
+        it('uses PTY with default dimensions when not debugging on Windows', async () => {
+            Object.defineProperty(process, 'platform', { value: 'win32' });
+
+            let onData: ((data: string) => void) | undefined;
+            let onExit: ((event: { exitCode: number }) => void) | undefined;
+            const ptyProcess = {
+                onData: jest.fn((callback: (data: string) => void) => { onData = callback; }),
+                onExit: jest.fn((callback: (event: { exitCode: number }) => void) => { onExit = callback; }),
+                write: jest.fn(),
+                kill: jest.fn(),
+            };
+            (pty.spawn as jest.Mock).mockReturnValue(ptyProcess);
+
+            const environmentManager = {
+                augmentEnv: jest.fn(() => ({ vars: { AUGMENTED: '1' } })),
+            };
+            const processManager = new ProcessManagerImpl(environmentManager as never);
+            const onOutput = jest.fn();
+
+            const resultPromise = processManager.spawn(
+                'tool',
+                ['--flag'],
+                { cwd: '.', env: { ORIGINAL: '1' }, usePty: true },
+                onOutput,
+            );
+
+            onData?.('\x1b[?9001h\x1b[?1004houtput chunk');
+            onExit?.({ exitCode: 0 });
+
+            await expect(resultPromise).resolves.toEqual({ code: 0 });
+            expect(pty.spawn).toHaveBeenCalledWith('tool', ['--flag'], {
+                name: 'xterm-256color',
+                cols: 80,
+                rows: 24,
+                cwd: '.',
+                env: { AUGMENTED: '1' },
+            });
+            expect(spawnMock).not.toHaveBeenCalled();
+            expect(onOutput).toHaveBeenCalledWith('\x1b[?9001h\x1b[?1004houtput chunk');
+        });
+
+        it('filters PTY control sequences split across output chunks', async () => {
+            Object.defineProperty(process, 'platform', { value: 'win32' });
+
+            let onData: ((data: string) => void) | undefined;
+            let onExit: ((event: { exitCode: number }) => void) | undefined;
+            const ptyProcess = {
+                onData: jest.fn((callback: (data: string) => void) => { onData = callback; }),
+                onExit: jest.fn((callback: (event: { exitCode: number }) => void) => { onExit = callback; }),
+                write: jest.fn(),
+                kill: jest.fn(),
+            };
+            (pty.spawn as jest.Mock).mockReturnValue(ptyProcess);
+
+            const environmentManager = {
+                augmentEnv: jest.fn(() => ({ vars: {} })),
+            };
+            const processManager = new ProcessManagerImpl(environmentManager as never);
+            const onOutput = jest.fn();
+
+            const resultPromise = processManager.spawn('tool', [], { usePty: true, filterOutput: true }, onOutput);
+
+            onData?.('\x1b[?90');
+            onData?.('01hGenerator output\r\n');
+            onExit?.({ exitCode: 0 });
+
+            await expect(resultPromise).resolves.toEqual({ code: 0 });
+            expect(onOutput).toHaveBeenCalledTimes(1);
+            expect(onOutput).toHaveBeenCalledWith('Generator output\r\n');
         });
     });
 });

@@ -1,0 +1,13 @@
+build-idx:
+  generated-by: csolution version 0.0.0
+  csolution: solution.csolution.yml
+  tmpdir: tmp
+  cprojects:
+    - cproject: app.v2/firmware.cproject-cmake.yml
+  cbuilds:
+    - cbuild: build/firmware.Debug+Native.cbuild.yml
+      project: firmware
+      configuration: .Debug+Native
+      messages:
+        info:
+          - firmware.Debug+Native.cbuild.yml - file generated successfully

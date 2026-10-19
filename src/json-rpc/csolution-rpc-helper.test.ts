@@ -13,7 +13,7 @@ import { CsolutionService } from './csolution-rpc-client';
 import { splitBoardId, splitDeviceId, splitPackId } from './csolution-rpc-helper';
 import { VcpkgManager } from '../vcpkg/vcpkg-manager';
 import { Environment, EnvironmentManager } from '../desktop/env-manager';
-import * as manifest from '../manifest';
+import { SolutionEventHub } from '../solutions/solution-event-hub';
 
 jest.mock('node:child_process', () => ({
     ...jest.requireActual('node:child_process'),
@@ -28,6 +28,7 @@ jest.mock('vscode-jsonrpc/node', () => ({
 
 describe('csolution-rpc-client', () => {
     type AnyService = Record<string, any>;
+    let eventHub: SolutionEventHub;
 
     function createService(envManager?: EnvironmentManager, commandsProvider?: AnyService): AnyService {
         // `constructor(...)` wrapper shape is repo-specific; treat as constructible in tests.
@@ -38,10 +39,11 @@ describe('csolution-rpc-client', () => {
             executeCommand: jest.fn().mockResolvedValue(undefined),
             registerCommand: jest.fn(),
         });
-        return new (CsolutionService as unknown as new (em: EnvironmentManager, cp: AnyService) => AnyService)(mockEnvManager, mockCommandsProvider);
+        return new (CsolutionService as unknown as new (em: EnvironmentManager, cp: AnyService, hub: SolutionEventHub) => AnyService)(mockEnvManager, mockCommandsProvider, eventHub);
     }
 
     beforeEach(() => {
+        eventHub = new SolutionEventHub();
         jest.spyOn(console, 'log').mockImplementation(() => undefined);
         jest.spyOn(console, 'warn').mockImplementation(() => undefined);
         jest.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -281,8 +283,10 @@ describe('csolution-rpc-client', () => {
             expect(service.commandsProvider.executeCommand).not.toHaveBeenCalled();
         });
 
-        it('does not await refresh command execution in reloadPacks', async () => {
+        it('emits a reload event without running a refresh command', async () => {
             const neverResolves = new Promise<void>(() => undefined);
+            const listener = jest.fn();
+            eventHub.onDidReloadPacks(listener);
             service = createService(undefined, {
                 executeCommand: jest.fn().mockReturnValue(neverResolves),
                 registerCommand: jest.fn(),
@@ -303,7 +307,17 @@ describe('csolution-rpc-client', () => {
             const result = await service.reloadPacks();
 
             expect(result).toEqual({ success: true });
-            expect(service.commandsProvider.executeCommand).toHaveBeenCalledWith(manifest.REFRESH_COMMAND_ID);
+            expect(listener).toHaveBeenCalledTimes(1);
+            expect(service.commandsProvider.executeCommand).not.toHaveBeenCalled();
+        });
+
+        it('does not emit a reload event when loading packs fails', async () => {
+            const listener = jest.fn();
+            eventHub.onDidReloadPacks(listener);
+            jest.spyOn(service as any, 'loadPacks').mockResolvedValue({ success: false });
+
+            expect(await service.reloadPacks()).toEqual({ success: false });
+            expect(listener).not.toHaveBeenCalled();
         });
     });
 
@@ -854,6 +868,7 @@ describe('csolution-rpc-client', () => {
             expect(service.getCsolutionBin()).toBe(expectedBin);
 
             expect(awaitActivationMock).toHaveBeenCalledTimes(1);
+            expect(environmentManager.augmentEnv).toHaveBeenCalledTimes(1);
 
             expect(spawnMock).toHaveBeenCalledTimes(1);
             const spawnCall = spawnMock.mock.calls[0];
@@ -905,9 +920,12 @@ describe('csolution-rpc-client', () => {
             expect(spawnMock.mock.calls[0][1]).toEqual(['rpc', '--content-length', 'x']);
         });
 
-        it('csolution executable is not found', async () => {
+        it('waits for activation before using csolution from PATH', async () => {
             environmentManager = {
-                augmentEnv: jest.fn().mockReturnValue(new Environment({})),
+                augmentEnv: jest.fn().mockReturnValue(new Environment({
+                    PATH: '/after-activation',
+                    CSOLUTION_ARGS: 'after',
+                })),
             } as unknown as EnvironmentManager;
 
             const service = createService(environmentManager);
@@ -924,9 +942,17 @@ describe('csolution-rpc-client', () => {
             await expect((service as any).launch()).resolves.toBe(true);
 
             expect(service.getCsolutionBin()).toBe('csolution');
+            expect(awaitActivationMock).toHaveBeenCalledTimes(1);
+            expect(environmentManager.augmentEnv).toHaveBeenCalledTimes(1);
+            expect(awaitActivationMock.mock.invocationCallOrder[0])
+                .toBeLessThan((environmentManager.augmentEnv as jest.Mock).mock.invocationCallOrder[0]);
             expect(spawnMock).toHaveBeenCalledTimes(1);
             expect(spawnMock.mock.calls[0][0]).toBe('csolution');
-            expect(spawnMock.mock.calls[0][1]).toEqual(['rpc', '--content-length']);
+            expect(spawnMock.mock.calls[0][1]).toEqual(['rpc', '--content-length', 'after']);
+            expect(spawnMock.mock.calls[0][2].env).toEqual(expect.objectContaining({
+                PATH: '/after-activation',
+                CSOLUTION_ARGS: 'after',
+            }));
         });
 
         it('does not spawn a new process when one is already running', async () => {

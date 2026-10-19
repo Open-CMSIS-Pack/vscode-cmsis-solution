@@ -91,8 +91,21 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
             openFile(e.currentTarget.getAttribute('href') || '', false);
         };
 
+        const activeLayer = state.selectedTargetType?.relativePath?.replaceAll('\\', '/').toLowerCase() || '';
+        const isInCurrentLayer = (record: PackRowDataType): boolean => {
+            if (!activeLayer) {
+                return false;
+            }
+
+            return record.references.some(ref => {
+                const origin = ref.relOrigin.replaceAll('\\', '/').toLowerCase();
+                return origin === activeLayer || origin.endsWith(`/${activeLayer}`);
+            });
+        };
+
         const renderPackColumn = (_value: string, record: PackRowDataType) => {
             const packTitle = <PackTitleLink packId={record.packId} packName={record.name} openFile={openFile} />;
+            const nameClassName = isInCurrentLayer(record) ? 'current-layer-name' : undefined;
             const referencedFrom = [
                 <div key='pack-name'>{packTitle}</div>,
                 ...(record.references?.map((ref, index) => {
@@ -129,7 +142,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
                             title={referencedFrom}
                             placement='bottomLeft'
                         >
-                            <span>{record.name}</span>
+                            <span className={nameClassName}>{record.name}</span>
                         </Tooltip>
                     </span>
                 </div>
@@ -168,6 +181,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
 
         const renderVersionTarget = (_value: string, record: PackRowDataType) => {
             const usedVersion = record.versionUsed.replace(/^[~^<>=@\s]+/, '');
+            const hasFixedVersion = record.references.some(reference => parsePackId(reference.pack)?.versionOperator === '@');
             const lockedReference = record.references
                 .find(reference => Boolean(reference.locked?.trim()))
                 ?.locked?.trim();
@@ -183,7 +197,7 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
             const version = lockedVersion || usedVersion || missingVersion;
             return (
                 <span>
-                    {version}
+                    {version}{hasFixedVersion ? ' (fixed)' : ''}
                 </span>
             );
         };
@@ -191,10 +205,10 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
         return [
             { title: 'Software Pack', dataIndex: 'name', key: 'name', width: 240, ellipsis: true, render: renderPackColumn, onCell: () => ({ className: 'packs-pack-column' }) },
             { title: 'Select', render: (record: PackRowDataType) => renderEditColumn(record), width: 64 },
-            { title: 'Version', dataIndex: 'versionTarget', key: 'versionTarget', minWidth: 120, ellipsis: false, render: renderVersionTarget, onCell: () => ({ className: 'packs-version-column' }) },
+            { title: 'Version Used', dataIndex: 'versionTarget', key: 'versionTarget', minWidth: 120, ellipsis: false, render: renderVersionTarget, onCell: () => ({ className: 'packs-version-column' }) },
             { title: 'Description', dataIndex: 'description', key: 'description', ellipsis: true, render: renderDescriptionCell, onCell: () => ({ className: 'description-column packs-description-column' }) },
         ];
-    }, [openFile, selectPack]);
+    }, [openFile, selectPack, state.selectedTargetType?.relativePath]);
 
     // pack properties dialog was closed
     const packSelected = (confirmed: boolean, updated?: PackRowDataType, unlockOf?: string) => {
@@ -277,19 +291,17 @@ export const PacksView: React.FC<PacksProps> = ({ state, openFile, messageHandle
     }, [focusPackId, normalizeExactPackId, normalizePackLookupId, onFocusPackConsumed, state.packs]);
 
     const rowClassName = (record: PackRowDataType): string => {
-        const relativePath = state.selectedTargetType?.relativePath || '';
-        const selectedReferences = record.references.filter(ref => ref.selected);
-        const selectedInCurrentTarget = selectedReferences.some(ref => ref.relOrigin.endsWith(relativePath));
         const hasMissingReferences = record.references.some(ref => ref.missing);
 
-        const classes: string[] = [];
-        if (selectedReferences.length > 0 && !selectedInCurrentTarget) {
-            classes.push('ant-table-row-disabled');
-        }
-        if (hasMissingReferences) {
-            classes.push('packs-missing-row');
-        }
-        return classes.join(' ');
+        const activeLayer = state.selectedTargetType?.relativePath?.replaceAll('\\', '/').toLowerCase() || '';
+        const usedInCurrentLayer = activeLayer && record.references.some(ref => {
+            const origin = ref.relOrigin.replaceAll('\\', '/').toLowerCase();
+            return origin === activeLayer || origin.endsWith(`/${activeLayer}`);
+        });
+        return [
+            hasMissingReferences ? 'packs-missing-row' : '',
+            usedInCurrentLayer ? 'current-layer-row' : '',
+        ].filter(Boolean).join(' ');
     };
 
     return (

@@ -27,7 +27,6 @@ import { getToolsSeverity } from '../../solutions/solution-problems';
 interface RunGeneratorRequest {
     generator: string;
     context?: string;
-    activeTarget?: string;
 }
 
 export class GeneratorCommand {
@@ -47,7 +46,7 @@ export class GeneratorCommand {
             this.commandsProvider.registerCommand(GeneratorCommand.runGeneratorCommandType, async (input: unknown) => {
                 const request = this.getRunGeneratorRequest(input);
                 if (request) {
-                    await this.handleRunGenerator(request.generator, request.context, request.activeTarget);
+                    await this.handleRunGenerator(request.generator, request.context);
                 } else {
                     console.error(`Tried to execute ${GeneratorCommand.runGeneratorCommandType} without a generator component`);
                 }
@@ -64,7 +63,7 @@ export class GeneratorCommand {
 
             return {
                 generator: maybeNode.getAttribute('generator') ?? '',
-                activeTarget: maybeNode.getAttribute('activeTarget') ?? undefined,
+                context: maybeNode.getAttribute('context') ?? undefined,
             };
         }
 
@@ -76,52 +75,40 @@ export class GeneratorCommand {
         return {
             generator: maybeRequest.generator,
             context: typeof maybeRequest.context === 'string' ? maybeRequest.context : undefined,
-            activeTarget: typeof maybeRequest.activeTarget === 'string' ? maybeRequest.activeTarget : undefined,
         };
     }
 
-    public async handleRunGenerator(generator: string, context?: string, activeTarget?: string): Promise<void> {
+    public async handleRunGenerator(generator: string, context?: string): Promise<void> {
         const solutionFilePath = this.solutionManager.getCsolution()?.solutionPath;
         if (!solutionFilePath) {
             vscode.window.showErrorMessage('Solution file does not exist');
             return;
         }
 
-        const normalizedActiveTarget = activeTarget !== undefined ? (activeTarget || '""') : undefined;
-
-        const msg = context && normalizedActiveTarget
-            ? `Starting generator ${generator} for project ${context} and target ${normalizedActiveTarget}...`
-            : context
-                ? `Starting generator ${generator} for project ${context}...`
-                : normalizedActiveTarget
-                    ? `Starting generator ${generator} for target ${normalizedActiveTarget}...`
-                    : `Starting generator ${generator}...`;
+        const msg = context
+            ? `Starting generator ${generator} for context ${context}...`
+            : `Starting generator ${generator}...`;
         vscode.window.showInformationMessage(msg);
 
         const executableArgs = ['run', solutionFilePath, '-g', generator];
         if (context) {
             executableArgs.push('-c', context);
         }
-        if (normalizedActiveTarget !== undefined) {
-            executableArgs.push('-a', normalizedActiveTarget);
-        }
         const outputChannel = this.outputChannelProvider.getOrCreate(CMSIS_SOLUTION_OUTPUT_CHANNEL);
         outputChannel.appendLine(msg);
 
-        // Capture output lines for diagnostics
-        const outputLines: string[] = [];
-        const [result] = await this.cmsisToolboxManager.runCmsisTool('csolution', executableArgs, line => {
-            const trimmedLine = line.trimEnd();
-            outputChannel.appendLine(trimmedLine);
-            outputLines.push(trimmedLine);
-        }, undefined, undefined, true);
+        const outputChunks: string[] = [];
+        const [result] = await this.cmsisToolboxManager.runCmsisTool('csolution', executableArgs, chunk => {
+            outputChannel.append(chunk);
+            outputChunks.push(chunk);
+        }, undefined, undefined, true, { usePty: true, filterOutput: true });
 
         // Fire event with generator run result for diagnostics
-        const severity = getToolsSeverity(outputLines);
+        const severity = getToolsSeverity([outputChunks.join('')]);
         await this.eventHub.fireGeneratorRunCompleted({
             success: result === 0,
             severity: severity,
-            toolsOutputMessages: outputLines,
+            toolsOutputMessages: outputChunks,
         });
 
         if (result != 0) {

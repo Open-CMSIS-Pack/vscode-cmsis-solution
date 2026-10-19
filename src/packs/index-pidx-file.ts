@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { CTreeItemXmlFile, ITreeItemFile } from '../generic/tree-item-file';
-import { constructor } from '../generic/constructor';
+import { CTreeItemXmlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
+import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { getCmsisPackRoot } from '../utils/path-utils';
 
 

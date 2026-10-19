@@ -20,10 +20,20 @@ import { createInterface } from 'readline';
 import * as inspector from 'inspector';
 import * as pty from '@lydell/node-pty';
 import { Environment, EnvironmentManager } from '../../desktop/env-manager';
+import { TerminalOutputFilter } from '../../utils/terminal-output-filter';
+
+const DEFAULT_PTY_DIMENSIONS: TerminalDimensions = { columns: 80, rows: 24 };
 
 export type ProcessResult = {
     code: number;
     error?: unknown;
+}
+
+export type ProcessSpawnOptions = SpawnOptions & {
+    /** Execute the process in a pseudoterminal. */
+    usePty?: boolean;
+    /** Remove terminal control sequences from PTY output when true. */
+    filterOutput?: boolean;
 }
 
 export const isProcessResult = (r: unknown): r is ProcessResult => typeof (r as ProcessResult).code === 'number';
@@ -32,7 +42,7 @@ export interface ProcessManager {
     spawn(
         command: string,
         args: string[],
-        options: SpawnOptions,
+        options: ProcessSpawnOptions,
         onOutput: (line: string) => void,
         cancellationToken?: CancellationToken,
         dimensions?: TerminalDimensions,
@@ -51,7 +61,7 @@ export class ProcessManagerImpl implements ProcessManager {
     public spawn(
         command: string,
         args: string[],
-        options: SpawnOptions,
+        options: ProcessSpawnOptions,
         onOutput: (line: string) => void,
         cancellationToken?: CancellationToken,
         dimensions?: TerminalDimensions,
@@ -61,19 +71,27 @@ export class ProcessManagerImpl implements ProcessManager {
                 return;
             }
 
-            // Augment environment
-            const augmentedEnv = this.environmentManager.augmentEnv(new Environment(options.env)).vars;
+            const { usePty = false, filterOutput, ...spawnOptions } = options;
 
-            if (dimensions && !this.debuggingOnWindows) {
-                // terminal dimensions provided, use pty to spawn process preserving terminal behavior
+            // Augment environment
+            const augmentedEnv = this.environmentManager.augmentEnv(new Environment(spawnOptions.env)).vars;
+
+            if (!this.debuggingOnWindows && ((usePty && process.platform === 'win32') || dimensions)) {
+                const ptyDimensions = dimensions ?? DEFAULT_PTY_DIMENSIONS;
+                const outputFilter = filterOutput ? new TerminalOutputFilter() : undefined;
                 const ptyProcess = pty.spawn(command, args, {
                     name: 'xterm-256color',
-                    cols: dimensions.columns,
-                    rows: dimensions.rows,
-                    cwd: typeof options.cwd === 'string' ? options.cwd : undefined,
+                    cols: ptyDimensions.columns,
+                    rows: ptyDimensions.rows,
+                    cwd: typeof spawnOptions.cwd === 'string' ? spawnOptions.cwd : undefined,
                     env: augmentedEnv
                 });
-                ptyProcess.onData((data) => { onOutput(data); });
+                ptyProcess.onData((data) => {
+                    const output = outputFilter?.write(data) ?? data;
+                    if (output.length > 0) {
+                        onOutput(output);
+                    }
+                });
                 ptyProcess.onExit(({ exitCode }) => {
                     if (exitCode === 0) {
                         resolve({ code: 0 });
@@ -92,7 +110,7 @@ export class ProcessManagerImpl implements ProcessManager {
 
             } else {
 
-                const childProcess = spawn(command, args, { ...options, env: augmentedEnv });
+                const childProcess = spawn(command, args, { ...spawnOptions, env: augmentedEnv });
 
                 [childProcess.stdout, childProcess.stderr].forEach(ioStream => {
                     if (ioStream) {

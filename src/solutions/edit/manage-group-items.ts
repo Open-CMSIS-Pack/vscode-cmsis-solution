@@ -14,34 +14,49 @@
  * limitations under the License.
  */
 
-import { YAMLMap, YAMLSeq, Document as YamlDocument, Node as YamlNode } from 'yaml';
-import * as yaml from 'yaml';
-import { FileData, GroupData } from '../parsing/common-file-parsing';
-import { YamlPathSegment, listItem, mapKey, modifyYamlNodeAtPath } from './edit-yaml';
-import { constructContextList } from './common';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { appendSequenceMapEntry, setContextRestrictions } from '../files/yaml-creation-helpers';
+
+export type GroupItemData = {
+    name: string;
+    forContext: string[] | string;
+    notForContext: string[] | string;
+};
 
 export type FileOrGroup
-    = { type: 'file', data: FileData }
-    | { type: 'group', data: GroupData }
+    = { type: 'file', data: GroupItemData }
+    | { type: 'group', data: GroupItemData };
+
+export type GroupItemEditResult = 'changed' | 'duplicate' | 'not-found' | 'invalid-path';
+
+const asArray = (value: string[] | string): string[] => Array.isArray(value) ? value : value ? [value] : [];
+
+export const findGroup = (topItem: CTreeItem, groupPath: readonly string[]): CTreeItem | undefined => {
+    let group: CTreeItem | undefined = topItem;
+    for (const groupName of groupPath) {
+        const nextGroup = group.getChild('groups')?.getChildByValue('group', groupName) as CTreeItem | undefined;
+        if (!nextGroup) {
+            return undefined;
+        }
+        group = nextGroup;
+    }
+    return group;
+};
 
 /**
  * Add a file to a group in the given project or layer document
  * @param groupPath Groups that must be expanded to reach the target group, including the target
  */
 export const addItemToExistingGroup = (
-    document: YamlDocument<YamlNode>,
-    contentKey: 'project' | 'layer',
-    groupPath: string[],
+    topItem: CTreeItem,
+    groupPath: readonly string[],
     fileOrGroup: FileOrGroup,
-): void => {
-    if (document.contents) {
-        const yamlPath = buildPathFromContentToGroup(groupPath, [mapKey(contentKey)]);
-        modifyYamlNodeAtPath(
-            document.contents,
-            yamlPath,
-            group => addItemToGroupNode(group, fileOrGroup),
-        );
+): GroupItemEditResult => {
+    const group = findGroup(topItem, groupPath);
+    if (!group) {
+        return 'invalid-path';
     }
+    return addItemToGroupNode(group, fileOrGroup);
 };
 
 /**
@@ -53,106 +68,41 @@ export const addItemToExistingGroup = (
  * @param name The name of the file or group to delete
  */
 export const deleteItemFromExistingGroup = (
-    document: YamlDocument<YamlNode>,
-    contentKey: 'project' | 'layer',
-    groupPath: string[],
+    topItem: CTreeItem,
+    groupPath: readonly string[],
     type: 'file' | 'group',
     name: string,
-): boolean => {
-    if (document.contents) {
-        const yamlPath = buildPathFromContentToGroup(groupPath, [mapKey(contentKey)]);
-        let deleted = false;
-        modifyYamlNodeAtPath(
-            document.contents,
-            yamlPath,
-            group => {
-                deleted = deleteItemFromGroupNode(group, type, name);
-            },
-        );
-        return deleted;
+): GroupItemEditResult => {
+    const group = findGroup(topItem, groupPath);
+    if (!group) {
+        return 'invalid-path';
     }
-    return false;
+    return deleteItemFromGroupNode(group, type, name);
 };
 
-export const buildPathFromContentToGroup = (groupPath: string[], parentPath: YamlPathSegment[]): YamlPathSegment[] => {
-    if (groupPath.length === 0) {
-        return parentPath;
-    } else {
-        const [currentGroup, ...remainingGroups] = groupPath;
-
-        return buildPathFromContentToGroup(remainingGroups, [
-            ...parentPath,
-            mapKey('groups'),
-            listItem(node => yaml.isMap(node) && node.get('group') === currentGroup),
-        ]);
-    }
-};
-
-export const addItemToGroupNode = (group: YamlNode, fileOrGroup: FileOrGroup): void => {
-    if (!yaml.isMap(group)) {
-        return;
-    }
-
+export const addItemToGroupNode = (group: CTreeItem, fileOrGroup: FileOrGroup): GroupItemEditResult => {
     const containerNodeName = fileOrGroup.type + 's';
-    const untypedNode = group.get(containerNodeName);
-    let containerNode: YAMLSeq;
-    if (yaml.isSeq(untypedNode)) {
-        containerNode = untypedNode;
-        for (const node of containerNode.items) {
-            if (yaml.isMap(node) && node.get(fileOrGroup.type) === fileOrGroup.data.name) {
-                console.error(`Group '${fileOrGroup.data.name}' already exists`);
-                return; //already exists
-            }
-        }
-    } else {
-        containerNode = new YAMLSeq();
-        group.set(containerNodeName, containerNode);
+    const containerNode = group.getChild(containerNodeName);
+    if (containerNode?.getChildByValue(fileOrGroup.type, fileOrGroup.data.name)) {
+        return 'duplicate';
     }
-    containerNode.add(constructFileOrGroupNode(fileOrGroup));
+
+    const item = appendSequenceMapEntry(group, containerNodeName, fileOrGroup.type, fileOrGroup.data.name);
+    setContextRestrictions(item, asArray(fileOrGroup.data.forContext), asArray(fileOrGroup.data.notForContext));
+    return 'changed';
 };
 
-export const deleteItemFromGroupNode = (group: YamlNode, type: 'file' | 'group', name: string): boolean => {
-    if (!yaml.isMap(group)) {
-        return false;
-    }
-
+export const deleteItemFromGroupNode = (group: CTreeItem, type: 'file' | 'group', name: string): GroupItemEditResult => {
     const containerNodeName = type + 's';
-    const containerNode = group.get(containerNodeName);
-
-    if (yaml.isSeq(containerNode)) {
-        // Find the item to delete
-        const itemIndex = containerNode.items.findIndex(item =>
-            yaml.isMap(item) && item.get(type) === name
-        );
-
-        if (itemIndex !== -1) {
-            // Remove the item
-            containerNode.items.splice(itemIndex, 1);
-
-            // If the container is now empty, remove it entirely
-            if (containerNode.items.length === 0) {
-                group.delete(containerNodeName);
-            }
-            return true;
-        }
+    const containerNode = group.getChild(containerNodeName) as CTreeItem | undefined;
+    const item = containerNode?.getChildByValue(type, name);
+    if (!containerNode || !item) {
+        return 'not-found';
     }
 
-    return false;
-};
-
-export const constructFileOrGroupNode = (fileOrGroup: FileOrGroup): YAMLMap => {
-    const fileOrGroupNode = new YAMLMap();
-    fileOrGroupNode.set(fileOrGroup.type, fileOrGroup.data.name);
-
-    const forContexts = constructContextList(fileOrGroup.data.forContext);
-    if (forContexts) {
-        fileOrGroupNode.set('for-context', forContexts);
+    containerNode.removeChild(item);
+    if (containerNode.getChildren().length === 0) {
+        group.removeChild(containerNode);
     }
-
-    const notForContexts = constructContextList(fileOrGroup.data.notForContext);
-    if (notForContexts) {
-        fileOrGroupNode.set('not-for-context', notForContexts);
-    }
-
-    return fileOrGroupNode;
+    return 'changed';
 };
