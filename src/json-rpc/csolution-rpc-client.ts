@@ -9,7 +9,7 @@ import * as manifest from '../manifest';
 import { ChildProcess, spawn } from 'node:child_process';
 import { MessageConnection } from 'vscode-jsonrpc';
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter } from 'vscode-jsonrpc/node';
-import { RpcMethods, RpcInterface, GetVersionResult } from './interface/rpc-interface';
+import { RpcMethods, RpcInterface, GetVersionResult, GetPacksInfoParams, PacksInfo } from './interface/rpc-interface';
 import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { debounce } from 'lodash';
@@ -52,6 +52,8 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     private csolutionBin = 'csolution';
     private exitPromise: Promise<void> | undefined;
     private cachedVersion: GetVersionResult = { success: false };
+    private packsReady: ReturnType<RpcInterface['loadPacks']> | undefined;
+    private packsFailed = false;
     private packIdxWatcherSuspendDepth = 0;
     private pendingPackIdxChange = false;
     private readonly mutex: Mutex;
@@ -70,7 +72,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
             this,
             this.commandsProvider.registerCommand(CsolutionServiceImpl.reloadPacksCommandId, this.reloadPacks, this),
         );
-        this.loadPacks(); // direct load without notification
+        void this.loadPacks().catch(error => console.error('Initial pack loading failed:', error));
     }
 
     public async dispose() {
@@ -83,6 +85,28 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         return (response ?? {}) as TResponse;
     }
 
+    public async getPacksInfo(args: GetPacksInfoParams): Promise<PacksInfo> {
+        if (this.packsFailed) {
+            this.loadPacks();
+        }
+        for (;;) {
+            const ready = this.packsReady ?? this.loadPacks();
+            try {
+                const result = await ready;
+                if (ready === this.packsReady) {
+                    if (!result.success) {
+                        throw new Error(result.message ?? 'Unable to initialize pack catalog');
+                    }
+                    return super.getPacksInfo(args);
+                }
+            } catch (error) {
+                if (ready === this.packsReady) {
+                    throw error;
+                }
+            }
+        }
+    }
+
     public async getVersion(): Promise<GetVersionResult> {
         if (!this.cachedVersion.success) {
             // Query daemon version once per launched session
@@ -92,7 +116,22 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         return this.cachedVersion;
     }
 
-    public async loadPacks() {
+    public loadPacks() {
+        const previous = this.packsReady;
+        this.packsFailed = false;
+        const ready: ReturnType<RpcInterface['loadPacks']> = previous
+            ? previous.catch(() => undefined).then(() =>
+                this.packsReady === ready ? this.initializePacks() : { success: false, message: 'Pack load superseded' })
+            : this.initializePacks();
+        this.packsReady = ready;
+        void ready.then(
+            result => { if (this.packsReady === ready) { this.packsFailed = !result.success; } },
+            () => { if (this.packsReady === ready) { this.packsFailed = true; } },
+        );
+        return ready;
+    }
+
+    private async initializePacks() {
         if (this.idxWatcher === undefined) {
             this.watchPackIdxFile();
         }
@@ -214,6 +253,8 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         this.connection?.dispose();
         this.connection = undefined;
         this.cachedVersion = { success: false };
+        this.packsReady = undefined;
+        this.packsFailed = false;
     }
 
     private async launch(): Promise<boolean> {

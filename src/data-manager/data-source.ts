@@ -20,6 +20,8 @@ import { BoardId, BoardData, SolarBoardData, CsolutionBoardData } from './board-
 import { LazyPromise } from '@open-cmsis-pack/cmsis-common/lazy';
 import { CsolutionExampleData, CsolutionTemplateData, DraftProjectData, DraftProjectType, SolarExampleData } from './draft-project-data';
 import { CsolutionService } from '../json-rpc/csolution-rpc-client';
+import type { CsolutionApiV3 } from '../../api/csolution-api-v3';
+import { splitPackId } from '../json-rpc/csolution-rpc-helper';
 
 /**
  * A Data source to connect Data Manager to a specific data provider.
@@ -55,7 +57,6 @@ export interface DataSource {
 }
 
 abstract class BaseDataSource implements DataSource {
-
     constructor(
         private readonly _enabled: () => boolean = () => true,
     ) {}
@@ -82,7 +83,6 @@ class DataSourceError<T> extends Error {
  * A DataSource connecting to a SolarSearchClient
  */
 export class SolarDataSource extends BaseDataSource {
-
     /**
      * Create a new SolarDataSource
      * @param client The solar search client to use for queries.
@@ -154,6 +154,26 @@ export class SolarDataSource extends BaseDataSource {
  * DataSource connecting to csolution service via JSON-RPC.
  */
 export class CsolutionDataSource extends BaseDataSource {
+    public async getPacks(): Promise<CsolutionApiV3.PackData[]> {
+        // An empty context queries the local pack inventory without loading a solution.
+        const result = await this.service.getPacksInfo({ context: '', all: true });
+        if (!result.success) {
+            throw new Error(result.message ?? 'Unable to query installed packs');
+        }
+        return result.packs.map(pack => {
+            const { version } = splitPackId(pack.id);
+            if (!version) {
+                throw new Error('Installed pack has no version');
+            }
+            return {
+                id: pack.id,
+                version,
+                installed: true,
+                description: pack.description,
+                path: pack.references?.find(reference => reference.resolvedPack === pack.id && !reference.missing)?.path,
+            };
+        });
+    }
 
     constructor(
         private readonly service: CsolutionService,

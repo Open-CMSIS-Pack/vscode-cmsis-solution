@@ -16,14 +16,15 @@
 
 import { Disposable } from 'vscode';
 import { CsolutionApiV2 } from '../../api/csolution';
-import { draftProjectDataFactory } from '../data-manager/data-manager.factories';
+import { dataManagerFactory, draftProjectDataFactory } from '../data-manager/data-manager.factories';
 import { SolutionManager } from '../solutions/solution-manager';
 import { CsolutionApiV3Impl } from './v3-api';
 
 describe('CsolutionApiV3Impl', () => {
     let existingApi: jest.Mocked<CsolutionApiV2 & Disposable>;
     let api: CsolutionApiV3Impl;
-    const solutionManager: { loadState: SolutionManager['loadState'] } = { loadState: {} };
+    const solutionManager: { getCsolution: jest.Mock; loadState: SolutionManager['loadState'] } = { getCsolution: jest.fn(), loadState: {} };
+    const csolutionService = { getPacksInfo: jest.fn() };
     const toolsEnvironment = { getToolsEnvironment: jest.fn() };
 
     beforeEach(() => {
@@ -35,12 +36,15 @@ describe('CsolutionApiV3Impl', () => {
             createNewSolution: jest.fn(),
             build: jest.fn(),
         };
-        solutionManager.loadState = {};
+        solutionManager.loadState = { loaded: true };
+        solutionManager.getCsolution.mockReset();
+        csolutionService.getPacksInfo.mockReset();
         toolsEnvironment.getToolsEnvironment.mockReset();
-        api = new CsolutionApiV3Impl(existingApi, solutionManager, toolsEnvironment);
+        api = new CsolutionApiV3Impl(existingApi, dataManagerFactory(), solutionManager, csolutionService, toolsEnvironment);
     });
 
     it('delegates tools export without a loaded solution', async () => {
+        solutionManager.loadState = {};
         toolsEnvironment.getToolsEnvironment.mockResolvedValue('tools YAML');
         await expect(api.getToolsEnvironment()).resolves.toBe('tools YAML');
         expect(toolsEnvironment.getToolsEnvironment).toHaveBeenCalledWith(undefined);
@@ -59,6 +63,240 @@ describe('CsolutionApiV3Impl', () => {
     it('propagates environment export failures', async () => {
         toolsEnvironment.getToolsEnvironment.mockRejectedValue(new Error('export failed'));
         await expect(api.getToolsEnvironment()).rejects.toThrow('export failed');
+    });
+
+    it('queries catalogs without a loaded or active solution', async () => {
+        solutionManager.loadState = {};
+        const dataManager = dataManagerFactory();
+        const packs = [{ id: 'ARM::CMSIS@6.0.0', version: '6.0.0', installed: true }];
+        const query = jest.spyOn(dataManager, 'getPacks').mockResolvedValue({ packs });
+        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment);
+        await expect(catalogApi.getPacks()).resolves.toEqual({ packs });
+        await expect(catalogApi.getPacks({ scope: 'installed' })).resolves.toEqual({ packs });
+        expect(query).toHaveBeenNthCalledWith(1, undefined);
+        expect(query).toHaveBeenNthCalledWith(2, 'installed');
+        expect(solutionManager.getCsolution).not.toHaveBeenCalled();
+        expect(csolutionService.getPacksInfo).not.toHaveBeenCalled();
+    });
+
+    it('requires a loaded solution and an explicit known context for used packs before RPC', async () => {
+        await expect(api.getPacks({ scope: 'used' } as never)).rejects.toThrow('explicit context');
+        await expect(api.getPacks({ scope: 'used', context: ' ' })).rejects.toThrow('explicit context');
+        const options = { scope: 'used' as const, context: 'App.Debug+Board' };
+        await expect(api.getPacks(options)).rejects.toThrow('loaded solution');
+        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => [options.context] });
+        solutionManager.loadState.loaded = false;
+        await expect(api.getPacks(options)).rejects.toThrow('loaded solution');
+        solutionManager.loadState.loaded = true;
+        await expect(api.getPacks({ ...options, context: 'Other' })).rejects.toThrow('Unknown pack context');
+        expect(csolutionService.getPacksInfo).not.toHaveBeenCalled();
+    });
+
+    it('copies only RPC-used packs in order with reference-backed installation evidence', async () => {
+        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => ['App.Debug+Board'] });
+        const id = 'Arm::CMSIS@6.0.0';
+        const packs = [
+            { id: 'Unused', used: false },
+            { id, used: true, description: 'Core', references: [{ resolvedPack: id, path: '/packs/CMSIS', missing: false }] },
+            { id: 'Vendor::BSP@1.0.0', used: true, references: [{ resolvedPack: 'Other', path: '/wrong' }] },
+            { id: 'Vendor::DFP@2.0.0', used: true, references: [{ resolvedPack: 'Vendor::DFP@2.0.0', missing: true, path: '/missing' }] },
+            { id: 'Vendor::Other@3.0.0', used: true },
+            { id, used: true, references: [{ resolvedPack: id }] },
+            { id: 'Unspecified' },
+        ];
+        csolutionService.getPacksInfo.mockResolvedValue({ success: true, packs });
+        expect(await api.getPacks({ scope: 'used', context: 'App.Debug+Board' })).toEqual({
+            packs: [
+                { id, version: '6.0.0', description: 'Core', installed: true, path: '/packs/CMSIS' },
+                { id: 'Vendor::BSP@1.0.0', version: '1.0.0' },
+                { id: 'Vendor::DFP@2.0.0', version: '2.0.0' },
+                { id: 'Vendor::Other@3.0.0', version: '3.0.0' },
+                { id, version: '6.0.0', installed: true },
+            ],
+        });
+        expect(csolutionService.getPacksInfo).toHaveBeenCalledWith({ context: 'App.Debug+Board', all: true });
+        expect(packs[1]).not.toHaveProperty('installed');
+        for (const method of Object.values(existingApi)) {
+            expect(method).not.toHaveBeenCalled();
+        }
+    });
+
+    it('preserves empty used packs and rejects RPC failures, unversioned records and changed solutions', async () => {
+        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => ['App.Debug+Board'] });
+        const options = { scope: 'used' as const, context: 'App.Debug+Board' };
+        csolutionService.getPacksInfo.mockResolvedValueOnce({ success: true, packs: [] });
+        expect(await api.getPacks(options)).toEqual({ packs: [] });
+        csolutionService.getPacksInfo.mockResolvedValueOnce({ success: false, message: 'RPC unavailable' });
+        await expect(api.getPacks(options)).rejects.toThrow('RPC unavailable');
+        csolutionService.getPacksInfo.mockResolvedValueOnce({ success: false });
+        await expect(api.getPacks(options)).rejects.toThrow('Unable to query used packs');
+        csolutionService.getPacksInfo.mockRejectedValueOnce(new Error('transport failed'));
+        await expect(api.getPacks(options)).rejects.toThrow('transport failed');
+        csolutionService.getPacksInfo.mockResolvedValueOnce({ success: true, packs: [{ id: 'Arm::CMSIS', used: true }] });
+        await expect(api.getPacks(options)).rejects.toThrow('Used pack has no version');
+        csolutionService.getPacksInfo.mockResolvedValueOnce({ success: true, packs: [{ id: 'Invalid', used: true }] });
+        await expect(api.getPacks(options)).rejects.toThrow('Invalid pack ID format');
+        csolutionService.getPacksInfo.mockImplementationOnce(async () => {
+            solutionManager.getCsolution.mockReturnValue(undefined);
+            return { success: true, packs: [] };
+        });
+        await expect(api.getPacks(options)).rejects.toThrow('changed during used pack query');
+    });
+
+    it.each(['unloaded', 'context removed'])('rejects used packs when %s during the RPC query', async change => {
+        const contexts = ['App.Debug+Board'];
+        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => contexts });
+        csolutionService.getPacksInfo.mockImplementationOnce(async () => {
+            if (change === 'unloaded') {
+                solutionManager.loadState.loaded = false;
+            } else {
+                contexts.length = 0;
+            }
+            return { success: true, packs: [] };
+        });
+        await expect(api.getPacks({ scope: 'used', context: 'App.Debug+Board' }))
+            .rejects.toThrow('changed during used pack query');
+    });
+
+    it('returns only explicit missing references, preserving requirements, origins, order and duplicates', async () => {
+        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => ['App.Debug+Board'] });
+        const reference = { pack: 'Vendor::Missing@1.0.0:2.0.0', origin: '/App.csolution.yml', missing: true, selected: false };
+        csolutionService.getPacksInfo.mockResolvedValue({ success: true, packs: [
+            { id: 'Unresolved', references: [reference, { ...reference, missing: false }, { ...reference, missing: undefined }] },
+            { id: 'Unused', used: false, references: [{ ...reference, pack: 'Vendor::Other', resolvedPack: 'Vendor::Other@1.0.0', path: '/not-evidence' }, reference] },
+            { id: 'NoReferences' },
+        ] });
+        const result = await api.getPacks({ scope: 'missing', context: 'App.Debug+Board' });
+        expect(result).toEqual({ packs: [
+            { pack: reference.pack, origin: reference.origin },
+            { pack: 'Vendor::Other', origin: reference.origin, resolvedPack: 'Vendor::Other@1.0.0' },
+            { pack: reference.pack, origin: reference.origin },
+        ] });
+        expect(JSON.parse(JSON.stringify(result))).toEqual(result);
+        expect(csolutionService.getPacksInfo).toHaveBeenCalledWith({ context: 'App.Debug+Board', all: true });
+        expect(reference).toEqual({ pack: 'Vendor::Missing@1.0.0:2.0.0', origin: '/App.csolution.yml', missing: true, selected: false });
+    });
+
+    it('gates missing-pack queries and propagates empty results and RPC failures', async () => {
+        const options = { scope: 'missing' as const, context: 'App.Debug+Board' };
+        await expect(api.getPacks({ ...options, context: ' ' })).rejects.toThrow('explicit context');
+        await expect(api.getPacks(options)).rejects.toThrow('loaded solution');
+        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => [options.context] });
+        solutionManager.loadState.loaded = false;
+        await expect(api.getPacks(options)).rejects.toThrow('loaded solution');
+        solutionManager.loadState.loaded = true;
+        await expect(api.getPacks({ ...options, context: 'Unknown' })).rejects.toThrow('Unknown pack context');
+        expect(csolutionService.getPacksInfo).not.toHaveBeenCalled();
+        csolutionService.getPacksInfo.mockResolvedValueOnce({ success: true, packs: [] });
+        expect(await api.getPacks(options)).toEqual({ packs: [] });
+        csolutionService.getPacksInfo.mockResolvedValueOnce({ success: false, message: 'RPC failed' });
+        await expect(api.getPacks(options)).rejects.toThrow('RPC failed');
+        csolutionService.getPacksInfo.mockResolvedValueOnce({ success: false });
+        await expect(api.getPacks(options)).rejects.toThrow('Unable to query missing packs');
+        csolutionService.getPacksInfo.mockRejectedValueOnce(new Error('Transport failed'));
+        await expect(api.getPacks(options)).rejects.toThrow('Transport failed');
+    });
+
+    it.each(['replaced', 'unloaded', 'context removed'])('rejects missing packs when %s during RPC', async change => {
+        const contexts = ['App.Debug+Board'];
+        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => contexts });
+        csolutionService.getPacksInfo.mockImplementationOnce(async () => {
+            if (change === 'replaced') {
+                solutionManager.getCsolution.mockReturnValue(undefined);
+            } else if (change === 'unloaded') {
+                solutionManager.loadState.loaded = false;
+            } else {
+                contexts.length = 0;
+            }
+            return { success: true, packs: [] };
+        });
+        await expect(api.getPacks({ scope: 'missing', context: 'App.Debug+Board' }))
+            .rejects.toThrow('changed during missing pack query');
+    });
+
+    it.each([undefined, 'all', 'installed'] as const)('filters %s pack catalogs without changing records', async scope => {
+        const packs = [
+            { id: 'Arm::CMSIS@6.0.0', version: '6.0.0' },
+            { id: 'Vendor::Driver@1.0.0', version: '1.0.0', description: 'CMSIS [UART]' },
+            { id: 'Other::Pack@2.0.0', version: '2.0.0' },
+        ];
+        const dataManager = dataManagerFactory();
+        const query = jest.spyOn(dataManager, 'getPacks').mockResolvedValue({ packs });
+        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment);
+        for (const [text, expected] of [
+            [undefined, packs], ['', packs], ['cMsIs', packs.slice(0, 2)],
+            ['[uart]', [packs[1]]], ['.*', []], [' CMSIS ', []], ['no match', []],
+        ] as const) {
+            const result = await catalogApi.getPacks({ scope, filter: { text } });
+            expect(result.packs).toEqual(expected);
+            expect(result).toEqual({ packs: expected });
+            result.packs.forEach(record => expect(packs).toContain(record));
+        }
+        expect(packs).toHaveLength(3);
+        expect(query).toHaveBeenLastCalledWith(scope);
+        expect(csolutionService.getPacksInfo).not.toHaveBeenCalled();
+        const filter = { text: '[UART]' };
+        query.mockImplementationOnce(async () => {
+            filter.text = 'no match';
+            return { packs };
+        });
+        expect((await catalogApi.getPacks({ scope, filter })).packs).toEqual([packs[1]]);
+        query.mockRejectedValueOnce(new Error('Catalog failed'));
+        await expect(catalogApi.getPacks({ scope, filter })).rejects.toThrow('Catalog failed');
+    });
+
+    it('filters used pack ids and descriptions after mapping, retaining order and duplicates', async () => {
+        const context = 'App.Debug+Board';
+        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => [context] });
+        const packs = [
+            { id: 'Arm::CMSIS@6.0.0', used: true },
+            { id: 'Vendor::Driver@1.0.0', description: 'CMSIS [UART]', used: true },
+            { id: 'Arm::CMSIS@6.0.0', used: true },
+        ];
+        csolutionService.getPacksInfo.mockResolvedValue({ success: true, packs });
+        const records = (await api.getPacks({ scope: 'used', context })).packs;
+        for (const [text, expected] of [
+            [undefined, records], ['', records], ['cMsIs', records],
+            ['[uart]', [records[1]]], ['arm::', [records[0], records[2]]], ['.*', []], [' CMSIS ', []],
+        ] as const) {
+            expect((await api.getPacks({ scope: 'used', context, filter: { text } })).packs).toEqual(expected);
+        }
+        const filter = { text: '[UART]' };
+        csolutionService.getPacksInfo.mockImplementationOnce(async () => {
+            filter.text = 'no match';
+            return { success: true, packs };
+        });
+        expect((await api.getPacks({ scope: 'used', context, filter })).packs).toEqual([records[1]]);
+        csolutionService.getPacksInfo.mockResolvedValueOnce({ success: true, packs: [{ id: 'Invalid', used: true }] });
+        await expect(api.getPacks({ scope: 'used', context, filter })).rejects.toThrow('Invalid pack ID');
+        expect(csolutionService.getPacksInfo).toHaveBeenLastCalledWith({ context, all: true });
+    });
+
+    it('filters only original missing requirements, preserving duplicate references and captured text', async () => {
+        const context = 'App.Debug+Board';
+        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => [context] });
+        const reference = { pack: 'Vendor::Missing@1.0.0:2.0.0', origin: '/Origin.csolution.yml', resolvedPack: 'Resolved::Pack@1.0.0', missing: true };
+        const packs = [{ id: 'Unused', description: 'Description', references: [reference, reference,
+            { ...reference, pack: 'Other::Pack' }] }];
+        csolutionService.getPacksInfo.mockResolvedValue({ success: true, packs });
+        const records = (await api.getPacks({ scope: 'missing', context })).packs;
+        for (const [text, expected] of [
+            [undefined, records], ['', records], ['mIsSiNg', records.slice(0, 2)],
+            ['1.0.0:2.0.0', records.slice(0, 2)], ['origin', []], ['resolved', []],
+            ['description', []], ['.*', []], [' Missing ', []],
+        ] as const) {
+            expect((await api.getPacks({ scope: 'missing', context, filter: { text } })).packs).toEqual(expected);
+        }
+        const filter = { text: 'missing' };
+        csolutionService.getPacksInfo.mockImplementationOnce(async () => {
+            filter.text = 'other';
+            return { success: true, packs };
+        });
+        expect((await api.getPacks({ scope: 'missing', context, filter })).packs).toEqual(records.slice(0, 2));
+        expect(reference.pack).toBe('Vendor::Missing@1.0.0:2.0.0');
+        expect(csolutionService.getPacksInfo).toHaveBeenLastCalledWith({ context, all: true });
+        solutionManager.loadState.loaded = false;
+        await expect(api.getPacks({ scope: 'missing', context, filter })).rejects.toThrow('loaded solution');
     });
 
     it('delegates board queries', () => {

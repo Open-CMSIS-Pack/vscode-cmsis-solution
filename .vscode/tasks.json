@@ -7,8 +7,6 @@
 			"command": "node",
 			"args": ["--import", "tsx", "${workspaceFolder}/scripts/prepare-api-smoke.ts"],
 			"options": { "cwd": "${workspaceFolder}" },
-			"dependsOrder": "sequence",
-			"dependsOn": ["Webpack Build", "Compile"],
 			"problemMatcher": []
 		},
 		{

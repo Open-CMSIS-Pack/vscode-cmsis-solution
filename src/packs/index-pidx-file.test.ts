@@ -16,7 +16,7 @@
 
 import 'jest';
 import type { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
-import { getLatestAvailablePacks, IndexPidxFile, isPackIndexCurrent } from './index-pidx-file';
+import { getLatestAvailablePacks, getLatestAvailablePacksInfo, IndexPidxFile, isPackIndexCurrent } from './index-pidx-file';
 import * as pathUtils from '../utils/path-utils';
 import * as fsUtils from '../utils/fs-utils';
 
@@ -133,11 +133,10 @@ describe('getLatestAvailablePacks', () => {
         expect(packs.get('NXP::LPC55S69_DFP@15.0.0')).toBe('https://www.keil.arm.com/packs/lpc55s69_dfp-nxp/versions/');
     });
 
-    it('should return empty map when index.pidx file is not found', async () => {
-
+    it('rejects when index.pidx file is not found', async () => {
         jest.spyOn(pathUtils, 'getCmsisPackRoot').mockReturnValue('/mock/pack/root');
-        jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
-        const packs = await getLatestAvailablePacks();
-        expect(packs.size).toBe(0);
+        jest.spyOn(fsUtils, 'fileExists').mockReturnValue(false);
+        await expect(getLatestAvailablePacks()).rejects.toThrow('Failed to load pack index');
+        expect((await getLatestAvailablePacksInfo()).packIds.size).toBe(0);
     });
 });

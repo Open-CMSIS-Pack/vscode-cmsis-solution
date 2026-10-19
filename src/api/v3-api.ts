@@ -18,17 +18,78 @@ import { Disposable } from 'vscode';
 import { CsolutionApiV2, CsolutionApiV3 } from '../../api/csolution';
 import type { SolutionManager } from '../solutions/solution-manager';
 import type { ToolsEnvironment } from '../solutions/tools-environment';
+import type { DataManager } from '../data-manager/data-manager';
+import type { CsolutionService } from '../json-rpc/csolution-rpc-client';
+import { splitPackId } from '../json-rpc/csolution-rpc-helper';
 
 export class CsolutionApiV3Impl implements CsolutionApiV3 {
     constructor(
         private readonly existingApi: CsolutionApiV2 & Disposable,
-        private readonly solutionManager: Pick<SolutionManager, 'loadState'>,
+        private readonly dataManager: DataManager,
+        private readonly solutionManager: Pick<SolutionManager, 'getCsolution' | 'loadState'>,
+        private readonly csolutionService: Pick<CsolutionService, 'getPacksInfo'>,
         private readonly toolsEnvironment: Pick<ToolsEnvironment, 'getToolsEnvironment'>,
     ) {}
 
     public getToolsEnvironment(): Promise<string> {
         const state = this.solutionManager.loadState;
         return this.toolsEnvironment.getToolsEnvironment(state.loaded ? state.solutionPath : undefined);
+    }
+
+    public async getPacks(options?: CsolutionApiV3.PackQuery): Promise<CsolutionApiV3.PackQueryResult> {
+        const text = options?.filter?.text?.toLowerCase() ?? '';
+        const matches = (pack: CsolutionApiV3.PackData) => !text || !!pack.id?.toLowerCase().includes(text)
+            || !!pack.description?.toLowerCase().includes(text);
+        if (options?.scope !== 'used' && options?.scope !== 'missing') {
+            const result = await this.dataManager.getPacks(options?.scope);
+            return text ? { ...result, packs: result.packs.filter(matches) } : result;
+        }
+        const scope = options.scope;
+        const queryName = scope === 'used' ? 'Used' : 'Missing';
+        const context = options.context;
+        if (typeof context !== 'string' || !context.trim()) {
+            throw new Error(`${queryName} pack query requires an explicit context`);
+        }
+        const solution = this.solutionManager.getCsolution();
+        if (!solution || !this.solutionManager.loadState.loaded) {
+            throw new Error(`${queryName} pack query requires a loaded solution`);
+        }
+        if (!solution.getContextNames().includes(context)) {
+            throw new Error(`Unknown pack context: ${context}`);
+        }
+        const result = await this.csolutionService.getPacksInfo({ context, all: true });
+        if (!result.success) {
+            throw new Error(result.message ?? `Unable to query ${scope} packs`);
+        }
+        if (this.solutionManager.getCsolution() !== solution || !this.solutionManager.loadState.loaded
+            || !solution.getContextNames().includes(context)) {
+            throw new Error(`Solution or context changed during ${scope} pack query`);
+        }
+        if (scope === 'missing') {
+            const packs = result.packs.flatMap(pack => (pack.references ?? [])
+                .filter(reference => reference.missing === true)
+                .map(reference => ({
+                    pack: reference.pack,
+                    origin: reference.origin,
+                    ...(reference.resolvedPack === undefined ? {} : { resolvedPack: reference.resolvedPack }),
+                })));
+            return { packs: packs.filter(pack => !text || pack.pack.toLowerCase().includes(text)) };
+        }
+        const packs = result.packs.filter(pack => pack.used === true).map(pack => {
+            const { version } = splitPackId(pack.id);
+            if (!version) {
+                throw new Error(`Used pack has no version: ${pack.id}`);
+            }
+            const reference = pack.references?.find(item => item.resolvedPack === pack.id && !item.missing);
+            return {
+                id: pack.id,
+                version,
+                ...(pack.description === undefined ? {} : { description: pack.description }),
+                ...(reference ? { installed: true } : {}),
+                ...(reference?.path === undefined ? {} : { path: reference.path }),
+            };
+        });
+        return { packs: packs.filter(matches) };
     }
 
     public dispose() {

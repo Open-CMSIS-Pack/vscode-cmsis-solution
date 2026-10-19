@@ -15,6 +15,7 @@
  */
 
 import { CTreeItemXmlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { getCmsisPackRoot } from '../utils/path-utils';
 
@@ -79,13 +80,16 @@ class IndexPidxFileImpl extends CTreeItemXmlFile implements IndexPidxFile {
 export const IndexPidxFile = constructor<typeof IndexPidxFileImpl, IndexPidxFile>(IndexPidxFileImpl);
 
 export async function getLatestAvailablePacks() {
-    return (await getLatestAvailablePacksInfo()).packIds;
+    return (await getLatestAvailablePacksInfo(true)).packIds;
 }
 
-export async function getLatestAvailablePacksInfo(): Promise<PackIndexInfo> {
+export async function getLatestAvailablePacksInfo(requireLoaded = false): Promise<PackIndexInfo> {
     const pidxPath = getCmsisPackRoot() + '/.Web/index.pidx';
     const pidx = new IndexPidxFile(pidxPath);
-    await pidx.load();
+    const result = await pidx.load();
+    if (requireLoaded && result !== ETextFileResult.Success && result !== ETextFileResult.Unchanged) {
+        throw new Error(`Failed to load pack index: ${pidxPath}`);
+    }
     return {
         packIds: pidx.packIds,
         timestamp: pidx.timestamp,
