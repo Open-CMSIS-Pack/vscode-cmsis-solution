@@ -35,7 +35,8 @@ describe('HardwareItemBuilder', () => {
     });
 
     beforeEach(() => {
-        docManager = new DocManager(path.join(testDataHandler.tmpDir, '.docs'));
+        docManager = new DocManager();
+        docManager.file.fileName = path.join(testDataHandler.tmpDir, '.docs', 'docs.yml');
     });
 
     afterAll(async () => {
@@ -65,7 +66,7 @@ describe('HardwareItemBuilder', () => {
                   title: Cbuild manual`);
         root!.rootFileName = cSolFile;
 
-        docManager.addCbuildBooks(root!.getChild() as CTreeItem, parentTag);
+        await docManager.addCbuildBooks(root!.getChild() as CTreeItem, parentTag);
         const inventory = docManager.file.stringify();
         const addCbuildBooks = jest.spyOn(docManager, 'addCbuildBooks');
         const save = jest.spyOn(docManager.file, 'save');

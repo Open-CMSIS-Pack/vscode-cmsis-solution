@@ -36,14 +36,6 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
             return rootItem;
         }
 
-        for (const cbuildYml of this.csolution.cbuildYmlRoot.values()) {
-            const cbuild = cbuildYml.getChildItem();
-            if (cbuild) {
-                this.docManager?.addCbuildBooks(cbuild, 'device');
-                this.docManager?.addCbuildBooks(cbuild, 'board');
-            }
-        }
-
         const treeNodeItems = this.csolution.cbuildYmlRoot.size > 0
             ? this.processBuildFiles(rootItem, this.csolution)
             : this.createProjectsFromCsolution(rootItem, this.csolution);

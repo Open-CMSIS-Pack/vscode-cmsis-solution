@@ -15,7 +15,6 @@
  */
 
 import type { EnvironmentManagerApiV1, EnvironmentManagerExtension } from '@arm-software/vscode-environment-manager';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import { ExtensionContext, window, workspace } from 'vscode';
 import { CsolutionExtension } from '../../api/csolution';
@@ -100,6 +99,7 @@ import { FileOpenGroupOrchestratorImpl } from '../views/file-open-group-orchestr
 import { OpenArmExamplesCommand } from '../views/solution-outline/commands/open-arm-examples-command';
 import { TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
 import * as vscodeUtils from '../utils/vscode-utils';
+import { getCmsisPackRoot } from '../utils/path-utils';
 
 let installDefaultToolsetProcess: Promise<void> | undefined;
 
@@ -109,7 +109,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     TextFile.setErrorReporter(vscodeUtils.showErrorMessage);
     context.subscriptions.push({ dispose: () => TextFile.setErrorReporter() });
 
-    const docManager = new DocManager(path.join(os.homedir(), '.cmsis', 'docs'));
+    const docManager = new DocManager();
 
     // Companion Extensions
     type SerialMonitorExtension = {
@@ -288,8 +288,10 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const protocolHandler = new ProtocolHandler(cmsisToolboxManager, outputChannelProvider);
     const openArmExamplesCommand = new OpenArmExamplesCommand(commandsProvider, externalFileOpener);
 
+    await envManager.activate(context);
+    await docManager.initialize(path.join(getCmsisPackRoot(envManager.getEnvironmentVariables()), '.docs'));
+
     const activations = [
-        docManager.initialize(),
         eventHub.activate(context),
         csolutionService.activate(context),
         solutionManager.activate(context),
@@ -328,7 +330,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         buildStopCommand.activate(context),
         protocolHandler.activate(context),
         debugProvider.activate(context),
-        envManager.activate(context),
         serialMonitorExtension.activate(context),
         solutionRootsWatcher.activate(context),
         openArmExamplesCommand.activate(context),

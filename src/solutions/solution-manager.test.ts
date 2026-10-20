@@ -165,7 +165,9 @@ describe('SolutionManager', () => {
             environmentManager,
             extensionApiProviderFactory(environmentManagerApi),
         );
-        docManager = new DocManager(path.join(tmpSolutionsDir, 'inventory'));
+        docManager = new DocManager();
+        docManager.file.fileName = path.join(tmpSolutionsDir, 'inventory', 'docs.yml');
+        jest.spyOn(docManager, 'initialize').mockResolvedValue(ETextFileResult.Unchanged);
         solutionManager = new SolutionManagerImpl(
             mockActiveSolutionTracker as unknown as ActiveSolutionTracker,
             eventHub,
@@ -200,6 +202,43 @@ describe('SolutionManager', () => {
 
     it('exposes the injected document manager', () => {
         expect(solutionManager.getDocManager()).toBe(docManager);
+    });
+
+    it('imports device and board books after loading build files and before setup completes', async () => {
+        const addCbuildBooks = jest.spyOn(docManager, 'addCbuildBooks');
+        let completeSave!: (result: ETextFileResult) => void;
+        const pendingSave = new Promise<ETextFileResult>(resolve => { completeSave = resolve; });
+        const save = jest.spyOn(docManager.file, 'save').mockReturnValueOnce(pendingSave);
+        const setupCompleted = new Promise<void>(resolve => {
+            solutionManager.onDidSetupCompleted(() => resolve());
+        });
+        const loadSolutionBuildFiles = solutionManager.loadSolutionBuildFiles.bind(solutionManager);
+        const loadBuildFiles = jest.spyOn(solutionManager, 'loadSolutionBuildFiles').mockImplementation(async () => {
+            await loadSolutionBuildFiles();
+            expect(addCbuildBooks).not.toHaveBeenCalled();
+        });
+
+        await activateTestSolution();
+
+        expect(addCbuildBooks).toHaveBeenCalledTimes(1);
+        expect(loadBuildFilesListener).not.toHaveBeenCalled();
+        expect(cbuildSetupRequestedListener).not.toHaveBeenCalled();
+
+        completeSave(ETextFileResult.Success);
+        await setupCompleted;
+
+        const builds = [...solutionManager.getCsolution()!.cbuildYmlRoot.values()]
+            .map(root => root.getChildItem()!);
+        expect(builds.length).toBeGreaterThan(1);
+        expect(addCbuildBooks.mock.calls).toEqual(builds.flatMap(cbuild => [
+            [cbuild, 'device'],
+            [cbuild, 'board'],
+        ]));
+        expect(Math.max(...addCbuildBooks.mock.invocationCallOrder))
+            .toBeLessThan(loadBuildFilesListener.mock.invocationCallOrder[0]);
+        loadBuildFiles.mockRestore();
+        save.mockRestore();
+        addCbuildBooks.mockRestore();
     });
 
     it('register the command on activation', async () => {
@@ -675,6 +714,31 @@ describe('SolutionManager', () => {
                 convertResultData.detection,
             ]),
         );
+    });
+
+    it.each([false, true])('updates the document inventory when the pack root changes with activated=%s', async activated => {
+        if (activated) {
+            await activateTestSolution();
+        }
+        await environmentManager.activate({
+            subscriptions: [],
+            environmentVariableCollection: {
+                clear: jest.fn(),
+                prepend: jest.fn(),
+                replace: jest.fn(),
+            } as unknown as vscode.GlobalEnvironmentVariableCollection,
+        } as unknown as ExtensionContext);
+
+        const packRoot = path.join(tmpSolutionsDir, 'changed-packs');
+        jest.mocked(environmentManager.getEnvironmentVariables).mockReturnValue({ CMSIS_PACK_ROOT: packRoot });
+        configurationProviderMock.getConfigVariableOrDefault.mockReturnValue({ CMSIS_PACK_ROOT: packRoot });
+        convertMock.mockClear();
+        configurationProviderMock.fireOnChangeConfiguration(CONFIG_ENVIRONMENT_VARIABLES);
+        await waitTimeout(600);
+
+        expect(docManager.initialize).toHaveBeenCalledTimes(1);
+        expect(docManager.initialize).toHaveBeenCalledWith(path.join(packRoot, '.docs'));
+        expect(convertMock).not.toHaveBeenCalled();
     });
 
     it('defers restartRpc until refresh when envVars change after solution is activated', async () => {

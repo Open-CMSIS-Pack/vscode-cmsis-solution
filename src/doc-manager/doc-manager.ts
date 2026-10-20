@@ -24,19 +24,20 @@ import { DocsYamlFile, getWebLocationType, IDocRef } from './docs-yaml-file';
 
 export interface DocManager {
     readonly file: DocsYamlFile;
-    initialize(): Promise<ETextFileResult>;
-    addCbuildBooks(cbuild: CTreeItem, parentTag: string): void;
-    addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): IDocRef | undefined;
+    initialize(docsDirectory: string): Promise<ETextFileResult>;
+    addCbuildBooks(cbuild: CTreeItem, parentTag: string): Promise<void>;
+    addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): Promise<IDocRef | undefined>;
 }
 
 class DocManagerImpl implements DocManager {
-    public readonly file: DocsYamlFile;
+    public readonly file = new DocsYamlFile();
 
-    constructor(docsDirectory: string) {
-        this.file = new DocsYamlFile(path.join(docsDirectory, 'docs.yml'));
-    }
-
-    async initialize(): Promise<ETextFileResult> {
+    async initialize(docsDirectory: string): Promise<ETextFileResult> {
+        const fileName = path.join(docsDirectory, 'docs.yml');
+        if (this.file.fileName !== fileName) {
+            this.file.clear();
+            this.file.fileName = fileName;
+        }
         this.file.parser?.clearErrors();
         const result = await this.file.load();
         if (this.file.parser?.hasErrors()) {
@@ -54,7 +55,7 @@ class DocManagerImpl implements DocManager {
         return this.file.save();
     }
 
-    addCbuildBooks(cbuild: CTreeItem, parentTag: string): void {
+    async addCbuildBooks(cbuild: CTreeItem, parentTag: string): Promise<void> {
         const parentId = cbuild.getValue(parentTag);
         if (!parentId) {
             return;
@@ -72,10 +73,10 @@ class DocManagerImpl implements DocManager {
                 : undefined;
             this.addBook(parentId, parentTag, name, book.getValue('title'), book.getValue('category'), docPath);
         }
-        void this.file.save();
+        await this.file.save();
     }
 
-    addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): IDocRef | undefined {
+    async addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): Promise<IDocRef | undefined> {
         if (!parentId || !name) {
             return;
         }
@@ -83,7 +84,7 @@ class DocManagerImpl implements DocManager {
             ? path.resolve(expandRootVars(name.startsWith('file://') ? fileURLToPath(name) : name))
             : undefined;
         const doc = this.addBook(parentId, parentTag, name, title, category, docPath, 'user');
-        void this.file.save();
+        await this.file.save();
         return doc;
     }
 

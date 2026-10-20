@@ -108,9 +108,6 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
     set error(value: string | undefined) { this.setValue('error', value); }
     isWebDoc(): boolean { return getWebLocationType(this.name) === 'W'; }
     isWeb(): boolean { return getWebLocationType(this.name) !== undefined; }
-
-
-
     isDownloaded(): boolean { return this.locationType === 'W' && this.path !== undefined; }
 }
 

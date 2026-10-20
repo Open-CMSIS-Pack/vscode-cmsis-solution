@@ -50,8 +50,8 @@ describe('SolutionOutlineItemBuilder', () => {
             'docs: {boards: [{board: Vendor::Board, docs: [{name: manual, title: Board manual}]}]}\n',
         ]]));
         TextFile.setFileSystem(fileSystem);
-        const docManager = new DocManager(docsDirectory);
-        expect(await docManager.initialize()).toBe(ETextFileResult.Success);
+        const docManager = new DocManager();
+        expect(await docManager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
 
         const builder = new TestSolutionOutlineItemBuilder(context, docManager);
 

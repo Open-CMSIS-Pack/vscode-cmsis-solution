@@ -27,7 +27,8 @@ import { EnvironmentManagerApiV1 } from '@arm-software/vscode-environment-manage
 import { debounce } from 'lodash';
 import { SolutionRpcData } from './solution-rpc-data';
 import { EnvironmentManager } from '../desktop/env-manager';
-import { pathsEqual } from '../utils/path-utils';
+import { getCmsisPackRoot, pathsEqual } from '../utils/path-utils';
+import * as path from 'node:path';
 import { ToolsEnvironment } from './tools-environment';
 import { DocManager } from '../doc-manager/doc-manager';
 
@@ -131,9 +132,6 @@ export class SolutionManagerImpl implements SolutionManager {
             this.environmentManagerApiProvider.onActivate(environmentManagerApi => {
                 environmentManagerApi.onDidActivate(results => {
                     this.toolsEnvironment.updateVcpkgResults(results);
-                    if (!this.isSolutionActivated()) {
-                        return;
-                    }
                     this.debouncedHandleEnvironmentChange();
                 }, undefined, context.subscriptions);
             }),
@@ -172,6 +170,7 @@ export class SolutionManagerImpl implements SolutionManager {
     }
 
     private async handleEnvironmentChange(): Promise<void> {
+        await this.docManager.initialize(path.join(getCmsisPackRoot(this.environmentManager.getEnvironmentVariables()), '.docs'));
         if (!this.isSolutionActivated()) {
             return;
         }
@@ -308,6 +307,7 @@ export class SolutionManagerImpl implements SolutionManager {
         }
         await this.updateRpcData(); // refresh RPC data
         await this.loadSolutionBuildFiles();
+        await this.updateDocs();
         this.setupCompletedEmitter.fire([data.severity, data.detection]);
 
         if (data.severity != 'error' && !data.detection) {
@@ -315,6 +315,16 @@ export class SolutionManagerImpl implements SolutionManager {
             // spawn cbuild setup asynchronously (fire-and-forget)
             // cbuild completion will be signaled via onDidCbuildCompleted event
             void this.eventHub.requestCbuildSetup();
+        }
+    }
+
+    private async updateDocs(): Promise<void> {
+        for (const cbuildYml of this.csolution?.cbuildYmlRoot.values() ?? []) {
+            const cbuild = cbuildYml.getChildItem();
+            if (cbuild) {
+                await this.docManager.addCbuildBooks(cbuild, 'device');
+                await this.docManager.addCbuildBooks(cbuild, 'board');
+            }
         }
     }
 

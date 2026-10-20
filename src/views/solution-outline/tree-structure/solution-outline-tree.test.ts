@@ -48,7 +48,8 @@ describe('CSolution', () => {
 
     beforeEach(() => {
         rpcData = solutionRpcDataFactory();
-        docManager = new DocManager(path.join(testDataHandler.tmpDir, '.docs'));
+        docManager = new DocManager();
+        docManager.file.fileName = path.join(testDataHandler.tmpDir, '.docs', 'docs.yml');
     });
 
     const normalize = (s: string) =>
@@ -146,13 +147,8 @@ describe('CSolution', () => {
         const tree = solutionOutlineTree.createTree();
         const builds = [...csolution.cbuildYmlRoot.values()].map(root => root.getChildItem()!);
         expect(builds.length).toBeGreaterThan(1);
-        expect(addCbuildBooks.mock.calls).toEqual(builds.flatMap(cbuild => [
-            [cbuild, 'device'],
-            [cbuild, 'board'],
-        ]));
+        expect(addCbuildBooks).not.toHaveBeenCalled();
         expect(createHardwareNodes).toHaveBeenCalledTimes(builds.length);
-        expect(Math.max(...addCbuildBooks.mock.invocationCallOrder))
-            .toBeLessThan(Math.min(...createHardwareNodes.mock.invocationCallOrder));
         addCbuildBooks.mockRestore();
         createHardwareNodes.mockRestore();
         const got = new Map<string, string>();
@@ -337,6 +333,14 @@ describe('CSolution', () => {
         expect(loadResult).toEqual(ETextFileResult.Success);
         expect(csolution.hasWestProject()).toBeTruthy();
 
+        for (const cbuildYml of csolution.cbuildYmlRoot.values()) {
+            const cbuild = cbuildYml.getChildItem();
+            if (cbuild) {
+                await docManager.addCbuildBooks(cbuild, 'device');
+                await docManager.addCbuildBooks(cbuild, 'board');
+            }
+        }
+
         // get results from tree
         const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData, docManager);
         const tree = solutionOutlineTree.createTree();
@@ -452,6 +456,14 @@ describe('CSolution', () => {
 
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
+
+        for (const cbuildYml of csolution.cbuildYmlRoot.values()) {
+            const cbuild = cbuildYml.getChildItem();
+            if (cbuild) {
+                await docManager.addCbuildBooks(cbuild, 'device');
+                await docManager.addCbuildBooks(cbuild, 'board');
+            }
+        }
 
         // get results from tree
         const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData, docManager);

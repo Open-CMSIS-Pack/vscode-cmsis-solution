@@ -29,6 +29,12 @@ describe('DocManager', () => {
     let files: Map<string, string>;
     let fileSystem: jest.Mocked<ITextFileSystem>;
 
+    const createManager = (directory = docsDirectory): DocManager => {
+        const manager = new DocManager();
+        manager.file.fileName = path.join(directory, 'docs.yml');
+        return manager;
+    };
+
     beforeEach(() => {
         files = new Map([[fileName,
             'docs: {boards: [{board: Vendor::Board, docs: [{name: manual, path: manual.pdf}]}]}\n',
@@ -45,11 +51,11 @@ describe('DocManager', () => {
         jest.restoreAllMocks();
     });
 
-    it('owns the file in the supplied directory without performing I/O on construction', () => {
-        const manager = new DocManager(docsDirectory);
+    it('owns an unnamed file without performing I/O on construction', () => {
+        const manager = new DocManager();
         expect(manager.file).toBeInstanceOf(DocsYamlFile);
-        expect(manager.file.fileName).toBe(fileName);
-        expect(manager.file.fileDir).toBe(docsDirectory);
+        expect(manager.file.fileName).toBe('');
+        expect(manager.file.fileDir).toBe('');
         expect(manager.file.rootItem).toBeUndefined();
         expect(fileSystem.exists).not.toHaveBeenCalled();
         expect(fileSystem.read).not.toHaveBeenCalled();
@@ -57,11 +63,13 @@ describe('DocManager', () => {
     });
 
     it('loads the existing inventory without writing and exposes it for direct editing and saving', async () => {
-        const manager = new DocManager(docsDirectory);
+        const manager = new DocManager();
         const file = manager.file;
         const originalText = files.get(fileName);
-        expect(await manager.initialize()).toBe(ETextFileResult.Success);
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         expect(manager.file).toBe(file);
+        expect(file.fileName).toBe(fileName);
+        expect(file.fileDir).toBe(docsDirectory);
         expect(file.getDoc('manual', 'Vendor::Board', 'board')?.path).toBe('manual.pdf');
         expect(file.errors).toEqual([]);
         expect(fileSystem.read).toHaveBeenCalledWith(fileName);
@@ -70,15 +78,15 @@ describe('DocManager', () => {
 
         file.getDocs('Vendor::Board', 'board')[0].title = 'Manual';
         expect(await file.save()).toBe(ETextFileResult.Success);
-        const reloaded = new DocManager(docsDirectory);
-        expect(await reloaded.initialize()).toBe(ETextFileResult.Success);
+        const reloaded = new DocManager();
+        expect(await reloaded.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         expect(reloaded.file.getDoc('manual', 'Vendor::Board', 'board')?.title).toBe('Manual');
         expect(fileSystem.write).toHaveBeenCalledTimes(1);
     });
 
     it('addCbuildBooks saves appended books without changing stored docs or rewriting unchanged content', async () => {
-        const manager = new DocManager(docsDirectory);
-        expect(await manager.initialize()).toBe(ETextFileResult.Success);
+        const manager = new DocManager();
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         const save = jest.spyOn(manager.file, 'save');
         const parentItem = manager.file.getDocParent('Vendor::Board', 'board')!.item!;
         parentItem.setValue('future', 'preserved');
@@ -110,7 +118,7 @@ describe('DocManager', () => {
         const sourceText = cbuildFile.stringify();
         jest.clearAllMocks();
 
-        manager.addCbuildBooks(cbuild, 'board');
+        await manager.addCbuildBooks(cbuild, 'board');
         const docs = manager.file.getDocs('Vendor::Board', 'board');
         expect(manager.file.getDocParent('Vendor::Device', 'device')).toBeUndefined();
         expect(docs.map(doc => doc.name)).toEqual(['manual', path.resolve('build', 'guide.pdf'), 'https://example.com/guide.pdf']);
@@ -133,10 +141,10 @@ describe('DocManager', () => {
         const importedText = manager.file.stringify();
         expect(importedText).not.toBe(existingText);
 
-        manager.addCbuildBooks(cbuild, 'board');
+        await manager.addCbuildBooks(cbuild, 'board');
         expect(cbuildFile.stringify()).toBe(sourceText);
         cbuild.removeChild(cbuild.getChild('board-books'));
-        manager.addCbuildBooks(cbuild, 'board');
+        await manager.addCbuildBooks(cbuild, 'board');
         expect(manager.file.stringify()).toBe(importedText);
         expect(manager.file.getDocs('Vendor::Board', 'board').map(doc => doc.item)).toEqual(docs.map(doc => doc.item));
         expect(save).toHaveBeenCalledTimes(3);
@@ -149,13 +157,13 @@ describe('DocManager', () => {
     it.each([
         ['missing board', ['  board-books:', '    - name: manual.pdf']],
         ['empty board', ['  board: ""', '  board-books:', '    - name: manual.pdf']],
-    ])('addCbuildBooks ignores %s without creating an empty board or performing I/O', (_description, lines) => {
-        const manager = new DocManager(docsDirectory);
+    ])('addCbuildBooks ignores %s without creating an empty board or performing I/O', async (_description, lines) => {
+        const manager = createManager();
         const cbuildFile = new CTreeItemYamlFile();
         cbuildFile.text = ['build:', ...lines].join('\n');
         cbuildFile.rootItem = cbuildFile.parse();
 
-        manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
 
         expect(manager.file.rootItem).toBeUndefined();
         expect(fileSystem.exists).not.toHaveBeenCalled();
@@ -168,13 +176,13 @@ describe('DocManager', () => {
         ['missing books', ['  device-books:', '    - name: device.pdf']],
         ['empty books', ['  board-books: []']],
         ['missing names', ['  board-books:', '    - title: Manual', '    - name: ""']],
-    ])('addCbuildBooks saves the parent with %s without adding documents', (_description, lines) => {
-        const manager = new DocManager(docsDirectory);
+    ])('addCbuildBooks saves the parent with %s without adding documents', async (_description, lines) => {
+        const manager = createManager();
         const cbuildFile = new CTreeItemYamlFile();
         cbuildFile.text = ['build:', '  board: Vendor::Board', ...lines].join('\n');
         cbuildFile.rootItem = cbuildFile.parse();
 
-        manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
 
         expect(manager.file.getDocParent('Vendor::Board', 'board')?.id).toBe('Vendor::Board');
         expect(manager.file.getDocs('Vendor::Board', 'board')).toEqual([]);
@@ -186,7 +194,7 @@ describe('DocManager', () => {
     });
 
     it.each(['board', 'device'])('addCbuildBooks updates %s metadata and clones the processor only for devices', async parentTag => {
-        const manager = new DocManager(docsDirectory);
+        const manager = createManager();
         const cbuildFile = new CTreeItemYamlFile(path.resolve('build', 'example.cbuild.yml'));
         cbuildFile.text = [
             'build:',
@@ -206,7 +214,7 @@ describe('DocManager', () => {
         const sourceText = cbuildFile.stringify();
         const parentId = cbuild.getValue(parentTag)!;
 
-        manager.addCbuildBooks(cbuild, parentTag);
+        await manager.addCbuildBooks(cbuild, parentTag);
 
         const parent = manager.file.getDocParent(parentId, parentTag)!.item!;
         parent.setValue('future', 'preserved');
@@ -224,13 +232,13 @@ describe('DocManager', () => {
         expect(manager.file.getDocParents()).toHaveLength(1);
         const importedText = manager.file.stringify();
 
-        manager.addCbuildBooks(cbuild, parentTag);
+        await manager.addCbuildBooks(cbuild, parentTag);
         expect(manager.file.stringify()).toBe(importedText);
         expect(cbuildFile.stringify()).toBe(sourceText);
         cbuild.setValue(`${parentTag}-pack`, 'Vendor::UpdatedPack@3.0.0');
         sourceProcessor.setValue('core', 'Cortex-M55');
         expect(processor?.getValue('core')).toBe(parentTag === 'device' ? 'Cortex-M33' : undefined);
-        manager.addCbuildBooks(cbuild, parentTag);
+        await manager.addCbuildBooks(cbuild, parentTag);
         expect(manager.file.getDocParent(parentId, parentTag)!.item).toBe(parent);
         expect(parent.getValue('pack')).toBe('Vendor::UpdatedPack@3.0.0');
         expect(parent.getChildren().filter(child => child.getTag() === 'processor')).toHaveLength(parentTag === 'device' ? 1 : 0);
@@ -242,13 +250,13 @@ describe('DocManager', () => {
         expect(fileSystem.write).toHaveBeenCalledTimes(3);
         expect(fileSystem.unlink).not.toHaveBeenCalled();
 
-        const reloaded = new DocManager(docsDirectory);
-        expect(await reloaded.initialize()).toBe(ETextFileResult.Success);
+        const reloaded = new DocManager();
+        expect(await reloaded.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         const savedParent = reloaded.file.getDocParent(parentId, parentTag)!.item!;
         expect(savedParent.toObject()).toEqual(parent.toObject());
         expect(files.get(fileName)?.includes('# Keep processor attributes.')).toBe(parentTag === 'device');
         cbuild.setValue(`${parentTag}-pack`, undefined);
-        manager.addCbuildBooks(cbuild, parentTag);
+        await manager.addCbuildBooks(cbuild, parentTag);
         expect(parent.getValue('pack')).toBe('Vendor::UpdatedPack@3.0.0');
         expect(files.get(fileName)).toBe(manager.file.stringify());
     });
@@ -262,7 +270,7 @@ describe('DocManager', () => {
             ['missing pack update', 'Vendor::Pack@1.0.0', undefined, true],
             ['changed pack without books', 'Vendor::Pack@1.0.0', 'Vendor::Pack@2.0.0', false],
         ])('preserves user entries and clears imported entries only for %s', async (_description, currentPack, packId, includeBooks) => {
-            const manager = new DocManager(docsDirectory);
+            const manager = createManager();
             const parentId = 'Vendor::Hardware';
             const parent = manager.file.ensureParent(parentId, parentTag);
             parent.setValue('pack', currentPack);
@@ -298,7 +306,7 @@ describe('DocManager', () => {
             const expectedPack = packId ?? currentPack;
             const packChanged = currentPack !== expectedPack;
 
-            manager.addCbuildBooks(cbuild, parentTag);
+            await manager.addCbuildBooks(cbuild, parentTag);
 
             expect(manager.file.getDocParent(parentId, parentTag)!.item).toBe(parent);
             expect(parent.getValue('pack')).toBe(expectedPack);
@@ -324,20 +332,20 @@ describe('DocManager', () => {
             expect(manager.file.getDoc(stale.name, 'Vendor::Other', parentTag)!.item).toBe(otherParent.item);
             expect(files.get(fileName)).toBe(manager.file.stringify());
             const importedText = manager.file.stringify();
-            manager.addCbuildBooks(cbuild, parentTag);
+            await manager.addCbuildBooks(cbuild, parentTag);
             expect(manager.file.stringify()).toBe(importedText);
             expect(fileSystem.write).toHaveBeenCalledTimes(1);
 
-            const reloaded = new DocManager(docsDirectory);
-            expect(await reloaded.initialize()).toBe(ETextFileResult.Success);
+            const reloaded = new DocManager();
+            expect(await reloaded.initialize(docsDirectory)).toBe(ETextFileResult.Success);
             expect(reloaded.file.getDoc(manual.name, parentId, parentTag)?.mode).toBe('user');
             expect(reloaded.file.getDoc(stale.name, parentId, parentTag)?.name).toBe(packChanged ? undefined : stale.name);
             expect(reloaded.file.getDocParent(parentId, parentTag)?.item!.getValue('pack')).toBe(expectedPack);
         });
     });
 
-    it('addCbuildBooks imports only the selected device collection', () => {
-        const manager = new DocManager(docsDirectory);
+    it('addCbuildBooks imports only the selected device collection', async () => {
+        const manager = createManager();
         const cbuildFile = new CTreeItemYamlFile(path.resolve('build', 'example.cbuild.yml'));
         cbuildFile.text = [
             'build:',
@@ -351,7 +359,7 @@ describe('DocManager', () => {
         ].join('\n');
         cbuildFile.rootItem = cbuildFile.parse();
 
-        manager.addCbuildBooks(cbuildFile.topItem!, 'device');
+        await manager.addCbuildBooks(cbuildFile.topItem!, 'device');
 
         const docs = manager.file.getDocs('Vendor::Device', 'device');
         expect(docs.map(doc => doc.name)).toEqual([path.resolve('build', 'device.pdf')]);
@@ -363,8 +371,8 @@ describe('DocManager', () => {
         ['both parents', ['board', 'device']],
         ['board only', ['board']],
         ['device only', ['device']],
-    ])('addCbuildBooks imports independent collections with %s', (_description, parentTags) => {
-        const manager = new DocManager(docsDirectory);
+    ])('addCbuildBooks imports independent collections with %s', async (_description, parentTags) => {
+        const manager = createManager();
         const cbuildFile = new CTreeItemYamlFile(path.resolve('build', 'example.cbuild.yml'));
         cbuildFile.text = [
             'build:',
@@ -380,8 +388,8 @@ describe('DocManager', () => {
         const sourceText = cbuildFile.stringify();
         const docName = path.resolve('build', 'manual.pdf');
 
-        manager.addCbuildBooks(cbuildFile.topItem!, 'board');
-        manager.addCbuildBooks(cbuildFile.topItem!, 'device');
+        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addCbuildBooks(cbuildFile.topItem!, 'device');
 
         for (const parentTag of ['board', 'device']) {
             const docs = manager.file.getDocs('Vendor::Hardware', parentTag);
@@ -393,8 +401,8 @@ describe('DocManager', () => {
             }
         }
         const importedText = manager.file.stringify();
-        manager.addCbuildBooks(cbuildFile.topItem!, 'board');
-        manager.addCbuildBooks(cbuildFile.topItem!, 'device');
+        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addCbuildBooks(cbuildFile.topItem!, 'device');
         expect(manager.file.stringify()).toBe(importedText);
         expect(cbuildFile.stringify()).toBe(sourceText);
         expect(files.get(fileName)).toBe(importedText);
@@ -429,20 +437,20 @@ describe('DocManager', () => {
         ['malformed web URL', 'https://', undefined, true, 'H'],
         ['other URI', 'custom:manual', path.resolve('build', 'custom:manual'), true, 'L'],
         ['relative path without source metadata', 'manual.pdf', path.resolve('manual.pdf'), false, 'L'],
-    ])('addCbuildBooks normalizes and classifies %s and sets the matching path only for files', (_description, name, expectedPath, hasSource, locationType) => {
+    ])('addCbuildBooks normalizes and classifies %s and sets the matching path only for files', async (_description, name, expectedPath, hasSource, locationType) => {
         jest.replaceProperty(process, 'env', {
             ...process.env,
             CMSIS_PACK_ROOT: path.resolve('packs'),
             CMSIS_COMPILER_ROOT: path.resolve('compilers'),
         });
-        const manager = new DocManager(docsDirectory);
+        const manager = createManager();
         const cbuildFile = new CTreeItemYamlFile(hasSource ? path.resolve('build', 'example.cbuild.yml') : '');
         cbuildFile.text = 'build: {board: Vendor::Board, board-books: [{title: Manual, category: reference}]}\n';
         cbuildFile.rootItem = cbuildFile.parse();
         cbuildFile.topItem!.getGrandChildren('board-books')[0].setValue('name', name);
         const sourceText = cbuildFile.stringify();
 
-        manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
 
         const doc = manager.file.getDocs('Vendor::Board', 'board')[0];
         expect(doc.name).toBe(expectedPath ?? name);
@@ -461,8 +469,8 @@ describe('DocManager', () => {
         expect(fileSystem.unlink).not.toHaveBeenCalled();
     });
 
-    it.each([false, true])('addCbuildBooks reuses normalized file aliases with an existing reference: %s', hasExisting => {
-        const manager = new DocManager(docsDirectory);
+    it.each([false, true])('addCbuildBooks reuses normalized file aliases with an existing reference: %s', async hasExisting => {
+        const manager = createManager();
         const docName = path.resolve('build', 'guide.pdf');
         const existing = hasExisting ? manager.file.ensureDoc(docName, 'Vendor::Board', 'board') : undefined;
         if (existing) {
@@ -487,7 +495,7 @@ describe('DocManager', () => {
         books[2].setValue('name', pathToFileURL(docName).href);
         const sourceText = cbuildFile.stringify();
 
-        manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
 
         const docs = manager.file.getDocs('Vendor::Board', 'board');
         expect(docs).toHaveLength(1);
@@ -501,7 +509,7 @@ describe('DocManager', () => {
             expect(docs[0].item!.getValue('future')).toBe('preserved');
         }
         const importedText = manager.file.stringify();
-        manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
         expect(manager.file.stringify()).toBe(importedText);
         expect(manager.file.getDocs('Vendor::Board', 'board')[0].item).toBe(docs[0].item);
         expect(cbuildFile.stringify()).toBe(sourceText);
@@ -530,7 +538,7 @@ describe('DocManager', () => {
         ['file://server/share/manual.pdf', undefined, true, true, 'W'],
     ])('addUserBook classifies manual additions and preserves their web predicates: %s', async (name, expectedPath, isWeb, isWebDoc, locationType) => {
         jest.replaceProperty(process, 'env', { ...process.env, CMSIS_PACK_ROOT: path.resolve('packs') });
-        const manager = new DocManager(docsDirectory);
+        const manager = createManager();
         const save = jest.spyOn(manager.file, 'save');
         const cbuildFile = new CTreeItemYamlFile(path.resolve('example.cbuild.yml'));
         cbuildFile.text = 'build: {board: Vendor::Board, board-books: [{title: Manual}]}\n';
@@ -539,7 +547,7 @@ describe('DocManager', () => {
         book.setValue('name', name);
         const sourceText = cbuildFile.stringify();
 
-        manager.addUserBook('Vendor::Board', 'board', name, 'Manual', 'reference');
+        await manager.addUserBook('Vendor::Board', 'board', name, 'Manual', 'reference');
 
         const doc = manager.file.getDocs('Vendor::Board', 'board')[0];
         expect(doc.name).toBe(expectedPath ?? name);
@@ -555,8 +563,8 @@ describe('DocManager', () => {
         expect(doc.isWebDoc()).toBe(isWebDoc);
         expect(doc.isDownloaded()).toBe(false);
         expect(files.get(fileName)).toBe(manager.file.stringify());
-        const cbuildManager = new DocManager(path.join(docsDirectory, 'cbuild'));
-        cbuildManager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        const cbuildManager = createManager(path.join(docsDirectory, 'cbuild'));
+        await cbuildManager.addCbuildBooks(cbuildFile.topItem!, 'board');
         const importedDoc = cbuildManager.file.getDocs('Vendor::Board', 'board')[0];
         expect(importedDoc.name).toBe(doc.name);
         expect(importedDoc.path).toBe(expectedPath);
@@ -568,8 +576,8 @@ describe('DocManager', () => {
         doc.error = 'Retry failed';
         expect(doc.isDownloaded()).toBe(locationType === 'W');
         const importedText = manager.file.stringify();
-        manager.addCbuildBooks(cbuildFile.topItem!, 'board');
-        manager.addUserBook('Vendor::Board', 'board', name, 'Replacement', 'other');
+        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addUserBook('Vendor::Board', 'board', name, 'Replacement', 'other');
         expect(manager.file.stringify()).toBe(importedText);
         expect(cbuildFile.stringify()).toBe(sourceText);
         expect(save).toHaveBeenCalledTimes(3);
@@ -577,8 +585,8 @@ describe('DocManager', () => {
         expect(fileSystem.read).not.toHaveBeenCalled();
         expect(fileSystem.write).toHaveBeenCalledTimes(3);
         expect(fileSystem.unlink).not.toHaveBeenCalled();
-        const reloaded = new DocManager(docsDirectory);
-        expect(await reloaded.initialize()).toBe(ETextFileResult.Success);
+        const reloaded = new DocManager();
+        expect(await reloaded.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         const saved = reloaded.file.getDoc(doc.name, 'Vendor::Board', 'board')!;
         expect(saved.locationType).toBe(locationType);
         expect(saved.item!.getChild('locationType')).toBeUndefined();
@@ -588,8 +596,8 @@ describe('DocManager', () => {
         expect(saved.path).toBe(doc.path);
     });
 
-    it.each([undefined, 'W', 'H', 'P', 'L', 'U', 'future'])('addUserBook and addCbuildBooks ignore legacy type %s while preserving duplicate metadata', locationType => {
-        const manager = new DocManager(docsDirectory);
+    it.each([undefined, 'W', 'H', 'P', 'L', 'U', 'future'])('addUserBook and addCbuildBooks ignore legacy type %s while preserving duplicate metadata', async locationType => {
+        const manager = createManager();
         const docName = path.resolve('build', 'guide.pdf');
         const doc = manager.file.ensureDoc(docName, 'Vendor::Board', 'board');
         doc.title = 'Stored title';
@@ -604,9 +612,9 @@ describe('DocManager', () => {
         books[1].setValue('name', docName);
         const importedText = manager.file.stringify();
 
-        manager.addCbuildBooks(cbuildFile.topItem!, 'board');
-        manager.addUserBook('Vendor::Board', 'board', path.join('build', 'guide.pdf'), 'New title', 'new');
-        manager.addUserBook('Vendor::Board', 'board', docName, 'New title', 'new');
+        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addUserBook('Vendor::Board', 'board', path.join('build', 'guide.pdf'), 'New title', 'new');
+        await manager.addUserBook('Vendor::Board', 'board', docName, 'New title', 'new');
 
         expect(manager.file.stringify()).toBe(importedText);
         expect(manager.file.getDocs('Vendor::Board', 'board')).toHaveLength(1);
@@ -626,14 +634,14 @@ describe('DocManager', () => {
         expect(fileSystem.unlink).not.toHaveBeenCalled();
     });
 
-    it('addUserBook returns live new and duplicate references without resetting the parent pack', () => {
-        const manager = new DocManager(docsDirectory);
+    it('addUserBook returns live new and duplicate references without resetting the parent pack', async () => {
+        const manager = createManager();
         const parentId = 'Vendor::Board';
         const parent = manager.file.ensureParent(parentId, 'board', 'Vendor::Pack@1.0.0');
         const imported = manager.file.ensureDoc('https://example.com/imported.pdf', parentId, 'board');
         const save = jest.spyOn(manager.file, 'save');
 
-        const created = manager.addUserBook(parentId, 'board', 'guide.pdf', 'Guide', 'reference')!;
+        const created = (await manager.addUserBook(parentId, 'board', 'guide.pdf', 'Guide', 'reference'))!;
         expect(created.item).toBe(manager.file.getDoc(path.resolve('guide.pdf'), parentId, 'board')!.item);
         expect(created.title).toBe('Guide');
         expect(created.category).toBe('reference');
@@ -641,37 +649,37 @@ describe('DocManager', () => {
         expect(created.mode).toBe('user');
         created.error = 'Stored error';
         const createdObject = created.item!.toObject();
-        const normalizedDuplicate = manager.addUserBook(parentId, 'board', 'guide.pdf', 'Replacement', 'other')!;
+        const normalizedDuplicate = (await manager.addUserBook(parentId, 'board', 'guide.pdf', 'Replacement', 'other'))!;
         expect(normalizedDuplicate.item).toBe(created.item);
         expect(normalizedDuplicate.item!.toObject()).toEqual(createdObject);
 
         const legacy = manager.file.ensureDoc('legacy.pdf', parentId, 'board');
         legacy.title = 'Stored title';
-        const rawDuplicate = manager.addUserBook(parentId, 'board', legacy.name, 'Replacement')!;
+        const rawDuplicate = (await manager.addUserBook(parentId, 'board', legacy.name, 'Replacement'))!;
         expect(rawDuplicate.item).toBe(legacy.item);
         expect(rawDuplicate.title).toBe('Stored title');
         expect(rawDuplicate.mode).toBeUndefined();
-        const web = manager.addUserBook(parentId, 'board', 'https://example.com/manual.pdf', 'Manual')!;
+        const web = (await manager.addUserBook(parentId, 'board', 'https://example.com/manual.pdf', 'Manual'))!;
         expect(web.item).toBe(manager.file.getDoc(web.name, parentId, 'board')!.item);
         expect(web.path).toBeUndefined();
         expect(web.mode).toBe('user');
-        expect(manager.addUserBook(parentId, 'board', web.name, 'Replacement')!.item).toBe(web.item);
+        expect((await manager.addUserBook(parentId, 'board', web.name, 'Replacement'))!.item).toBe(web.item);
         expect(parent.getValue('pack')).toBe('Vendor::Pack@1.0.0');
         expect(manager.file.getDoc(imported.name, parentId, 'board')!.item).toBe(imported.item);
         expect(save).toHaveBeenCalledTimes(5);
         expect(files.get(fileName)).toBe(manager.file.stringify());
-        expect(manager.addUserBook('', 'board', 'guide.pdf', 'Guide')).toBeUndefined();
-        expect(manager.addUserBook(parentId, 'board', '', 'Guide')).toBeUndefined();
+        expect(await manager.addUserBook('', 'board', 'guide.pdf', 'Guide')).toBeUndefined();
+        expect(await manager.addUserBook(parentId, 'board', '', 'Guide')).toBeUndefined();
         expect(save).toHaveBeenCalledTimes(5);
     });
 
-    it.each([undefined, 'reference'])('addUserBook scopes manual entries by parent and accepts optional category %s', category => {
-        const manager = new DocManager(docsDirectory);
+    it.each([undefined, 'reference'])('addUserBook scopes manual entries by parent and accepts optional category %s', async category => {
+        const manager = createManager();
         const name = 'https://example.com/manual.pdf';
 
-        manager.addUserBook('Vendor::Hardware', 'board', name, 'Board manual', category);
-        manager.addUserBook('Vendor::Hardware', 'device', name, 'Device manual');
-        manager.addUserBook('Vendor::Other', 'board', name, 'Other manual');
+        await manager.addUserBook('Vendor::Hardware', 'board', name, 'Board manual', category);
+        await manager.addUserBook('Vendor::Hardware', 'device', name, 'Device manual');
+        await manager.addUserBook('Vendor::Other', 'board', name, 'Other manual');
 
         const board = manager.file.getDoc(name, 'Vendor::Hardware', 'board')!;
         const device = manager.file.getDoc(name, 'Vendor::Hardware', 'device')!;
@@ -693,10 +701,10 @@ describe('DocManager', () => {
     it.each([
         ['', 'manual.pdf'],
         ['Vendor::Board', ''],
-    ])('addUserBook ignores missing parent id %s or name %s without creating entries', (parentId, name) => {
-        const manager = new DocManager(docsDirectory);
+    ])('addUserBook ignores missing parent id %s or name %s without creating entries', async (parentId, name) => {
+        const manager = createManager();
 
-        manager.addUserBook(parentId, 'board', name, 'Manual');
+        await manager.addUserBook(parentId, 'board', name, 'Manual');
 
         expect(manager.file.rootItem).toBeUndefined();
         expect(fileSystem.exists).not.toHaveBeenCalled();
@@ -705,8 +713,8 @@ describe('DocManager', () => {
     });
 
     it('addCbuildBooks saves separate board references that can be reloaded', async () => {
-        const manager = new DocManager(docsDirectory);
-        expect(await manager.initialize()).toBe(ETextFileResult.Success);
+        const manager = new DocManager();
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         const device = manager.file.ensureDoc('manual', 'Vendor::NewBoard', 'device');
         device.title = 'Device manual';
         device.path = 'device.pdf';
@@ -721,7 +729,7 @@ describe('DocManager', () => {
             '    - name: file://server/share/manual.pdf',
         ].join('\n');
         cbuildFile.rootItem = cbuildFile.parse();
-        manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
         const docName = path.resolve('build', 'manual');
         const doc = manager.file.getDoc(docName, 'Vendor::NewBoard', 'board')!;
         expect(doc.item).not.toBe(device.item);
@@ -738,7 +746,7 @@ describe('DocManager', () => {
         const book = cbuildFile.topItem!.getGrandChildren('board-books')[1];
         book.setValue('title', 'New title');
         book.setValue('category', 'new category');
-        manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
         expect(manager.file.stringify()).toBe(existingText);
         expect(manager.file.getDoc(remote.name, 'Vendor::NewBoard', 'board')!.item).toBe(remote.item);
         expect(remote.path).toBeUndefined();
@@ -749,8 +757,8 @@ describe('DocManager', () => {
         expect(files.get(fileName)).toBe(existingText);
         expect(fileSystem.write).toHaveBeenCalledTimes(2);
 
-        const reloaded = new DocManager(docsDirectory);
-        expect(await reloaded.initialize()).toBe(ETextFileResult.Success);
+        const reloaded = new DocManager();
+        expect(await reloaded.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         expect(reloaded.file.getDocs('Vendor::NewBoard', 'board').map(entry => entry.name))
             .toEqual([docName, 'https://example.com/manual.pdf', 'file://server/share/manual.pdf']);
         expect(reloaded.file.getDoc(docName, 'Vendor::NewBoard', 'board')?.path).toBe(doc.path);
@@ -763,8 +771,35 @@ describe('DocManager', () => {
         expect(fileSystem.write).toHaveBeenCalledTimes(2);
     });
 
-    it.each(['cbuild', 'user'])('reports %s book save errors through the file error reporter', source => {
-        const manager = new DocManager(docsDirectory);
+    it.each(['cbuild', 'user'])('waits for %s book saving before resolving', async source => {
+        const manager = createManager();
+        let completeSave!: (result: ETextFileResult) => void;
+        const saveResult = new Promise<ETextFileResult>(resolve => { completeSave = resolve; });
+        const save = jest.spyOn(manager.file, 'save').mockReturnValueOnce(saveResult);
+        const cbuildFile = new CTreeItemYamlFile();
+        cbuildFile.text = 'build: {board: Vendor::Board, board-books: [{name: manual.pdf}]}\n';
+        cbuildFile.rootItem = cbuildFile.parse();
+        const addition = source === 'cbuild'
+            ? manager.addCbuildBooks(cbuildFile.topItem!, 'board')
+            : manager.addUserBook('Vendor::Board', 'board', 'manual.pdf', 'Manual');
+        const completed = jest.fn();
+        const completion = addition.then(completed);
+
+        expect(save).toHaveBeenCalledTimes(1);
+        await Promise.resolve();
+        expect(completed).not.toHaveBeenCalled();
+
+        completeSave(ETextFileResult.Success);
+        await completion;
+
+        expect(completed).toHaveBeenCalledTimes(1);
+        expect(completed).toHaveBeenCalledWith(source === 'user'
+            ? expect.objectContaining({ item: manager.file.getDocs('Vendor::Board', 'board')[0].item })
+            : undefined);
+    });
+
+    it.each(['cbuild', 'user'])('reports %s book save errors through the file error reporter', async source => {
+        const manager = createManager();
         const errorReporter = jest.fn();
         TextFile.setErrorReporter(errorReporter);
         fileSystem.write.mockImplementationOnce(() => { throw new Error('write failed'); });
@@ -773,9 +808,9 @@ describe('DocManager', () => {
             const cbuildFile = new CTreeItemYamlFile();
             cbuildFile.text = 'build: {board: Vendor::Board, board-books: [{name: manual.pdf}]}\n';
             cbuildFile.rootItem = cbuildFile.parse();
-            manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+            await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
         } else {
-            manager.addUserBook('Vendor::Board', 'board', 'manual.pdf', 'Manual');
+            await manager.addUserBook('Vendor::Board', 'board', 'manual.pdf', 'Manual');
         }
 
         expect(manager.file.errors.join('\n')).toContain('write failed');
@@ -785,8 +820,8 @@ describe('DocManager', () => {
 
     it('creates a missing inventory with an empty docs map that can be reloaded', async () => {
         files.clear();
-        const manager = new DocManager(docsDirectory);
-        expect(await manager.initialize()).toBe(ETextFileResult.Success);
+        const manager = new DocManager();
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         expect(manager.file.topItem?.getTag()).toBe('docs');
         expect(manager.file.topItem?.isMap()).toBe(true);
         expect(manager.file.getDocParents()).toEqual([]);
@@ -794,8 +829,8 @@ describe('DocManager', () => {
         expect(fileSystem.read).not.toHaveBeenCalled();
         expect(fileSystem.write).toHaveBeenCalledWith(fileName, expect.any(String));
 
-        const reloaded = new DocManager(docsDirectory);
-        expect(await reloaded.initialize()).toBe(ETextFileResult.Success);
+        const reloaded = new DocManager();
+        expect(await reloaded.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         expect(reloaded.file.topItem?.getTag()).toBe('docs');
         expect(reloaded.file.topItem?.isMap()).toBe(true);
         expect(reloaded.file.getDocParents()).toEqual([]);
@@ -803,24 +838,24 @@ describe('DocManager', () => {
     });
 
     it('does not rewrite an unchanged inventory on repeated initialization', async () => {
-        const manager = new DocManager(docsDirectory);
-        expect(await manager.initialize()).toBe(ETextFileResult.Success);
+        const manager = new DocManager();
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         const parentItem = manager.file.getDocParent('Vendor::Board', 'board')?.item;
-        expect(await manager.initialize()).toBe(ETextFileResult.Unchanged);
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Unchanged);
         expect(manager.file.getDocParent('Vendor::Board', 'board')?.item).toBe(parentItem);
         expect(fileSystem.write).not.toHaveBeenCalled();
     });
 
     it('propagates read errors without creating an inventory and supports retry', async () => {
         fileSystem.read.mockImplementationOnce(() => { throw new Error('read failed'); });
-        const manager = new DocManager(docsDirectory);
+        const manager = new DocManager();
         const originalText = files.get(fileName);
-        expect(await manager.initialize()).toBe(ETextFileResult.Error);
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Error);
         expect(manager.file.errors.join('\n')).toContain('read failed');
         expect(manager.file.rootItem).toBeUndefined();
         expect(fileSystem.write).not.toHaveBeenCalled();
         expect(files.get(fileName)).toBe(originalText);
-        expect(await manager.initialize()).toBe(ETextFileResult.Success);
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         expect(manager.file.errors).toEqual([]);
         expect(fileSystem.write).not.toHaveBeenCalled();
     });
@@ -828,17 +863,17 @@ describe('DocManager', () => {
     it('does not overwrite an existing inventory when parsing fails', async () => {
         const invalidText = 'docs: [\n';
         files.set(fileName, invalidText);
-        const manager = new DocManager(docsDirectory);
-        expect(await manager.initialize()).toBe(ETextFileResult.Error);
+        const manager = new DocManager();
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Error);
         expect(manager.file.errors.join('\n')).toContain('Failed to parse');
         expect(fileSystem.write).not.toHaveBeenCalled();
         expect(files.get(fileName)).toBe(invalidText);
-        expect(await manager.initialize()).toBe(ETextFileResult.Error);
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Error);
         expect(files.get(fileName)).toBe(invalidText);
         expect(fileSystem.write).not.toHaveBeenCalled();
 
         files.set(fileName, 'docs: {}\n');
-        expect(await manager.initialize()).toBe(ETextFileResult.Success);
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         expect(manager.file.errors).toEqual([]);
         expect(manager.file.topItem?.isMap()).toBe(true);
         expect(fileSystem.write).not.toHaveBeenCalled();
@@ -847,14 +882,38 @@ describe('DocManager', () => {
     it('reports creation errors and retries when the inventory is still missing', async () => {
         files.clear();
         fileSystem.write.mockImplementationOnce(() => { throw new Error('write failed'); });
-        const manager = new DocManager(docsDirectory);
-        expect(await manager.initialize()).toBe(ETextFileResult.Error);
+        const manager = new DocManager();
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Error);
         expect(manager.file.errors.join('\n')).toContain('write failed');
         expect(files.has(fileName)).toBe(false);
-        expect(await manager.initialize()).toBe(ETextFileResult.Success);
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         expect(manager.file.errors).toEqual([]);
         expect(manager.file.topItem?.isMap()).toBe(true);
         expect(files.has(fileName)).toBe(true);
         expect(fileSystem.write).toHaveBeenCalledTimes(2);
+    });
+
+    it('switches inventory directories without retaining documents from the previous directory', async () => {
+        const manager = new DocManager();
+        const file = manager.file;
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
+        const originalText = files.get(fileName);
+        const nextDirectory = path.resolve('other-inventory');
+        const nextFileName = path.join(nextDirectory, 'docs.yml');
+
+        expect(await manager.initialize(nextDirectory)).toBe(ETextFileResult.Success);
+        expect(manager.file).toBe(file);
+        expect(file.fileName).toBe(nextFileName);
+        expect(file.fileDir).toBe(nextDirectory);
+        expect(file.getDocParents()).toEqual([]);
+        await manager.addUserBook('Vendor::OtherBoard', 'board', 'https://example.com/other.pdf', 'Other');
+        const nextText = files.get(nextFileName);
+        expect(nextText).toContain('Vendor::OtherBoard');
+        expect(files.get(fileName)).toBe(originalText);
+
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
+        expect(file.getDoc('manual', 'Vendor::Board', 'board')?.path).toBe('manual.pdf');
+        expect(file.getDocParents().map(parent => parent.id)).toEqual(['Vendor::Board']);
+        expect(files.get(nextFileName)).toBe(nextText);
     });
 });
