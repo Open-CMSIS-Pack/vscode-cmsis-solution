@@ -181,6 +181,10 @@ export class CsolutionDataSource extends BaseDataSource {
         super();
     }
 
+    public getPackRoot(): string {
+        return this.service.getPackRoot();
+    }
+
     public async getAllBoards(_details: boolean) {
         const boards = await this.service.getBoardList({ context: '', vendor: '', namePattern: '' });
         return boards.boards.map(b => new CsolutionBoardData(b, this.getBoardInfo(b.id)));

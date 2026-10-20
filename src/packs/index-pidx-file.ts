@@ -77,15 +77,19 @@ class IndexPidxFileImpl extends CTreeItemXmlFile implements IndexPidxFile {
     }
 }
 
-export const IndexPidxFile = constructor<typeof IndexPidxFileImpl, IndexPidxFile>(IndexPidxFileImpl);
-
-export async function getLatestAvailablePacks() {
-    return (await getLatestAvailablePacksInfo(true)).packIds;
+class SilentIndexPidxFile extends IndexPidxFileImpl {
+    protected override showErrorMessage(): void { }
 }
 
-export async function getLatestAvailablePacksInfo(requireLoaded = false): Promise<PackIndexInfo> {
-    const pidxPath = getCmsisPackRoot() + '/.Web/index.pidx';
-    const pidx = new IndexPidxFile(pidxPath);
+export const IndexPidxFile = constructor<typeof IndexPidxFileImpl, IndexPidxFile>(IndexPidxFileImpl);
+
+export async function getLatestAvailablePacks(packRoot?: string) {
+    return (await getLatestAvailablePacksInfo(true, packRoot, true)).packIds;
+}
+
+export async function getLatestAvailablePacksInfo(requireLoaded = false, packRoot = getCmsisPackRoot(), suppressErrors = false): Promise<PackIndexInfo> {
+    const pidxPath = packRoot + '/.Web/index.pidx';
+    const pidx = suppressErrors ? new SilentIndexPidxFile(pidxPath) : new IndexPidxFile(pidxPath);
     const result = await pidx.load();
     if (requireLoaded && result !== ETextFileResult.Success && result !== ETextFileResult.Unchanged) {
         throw new Error(`Failed to load pack index: ${pidxPath}`);

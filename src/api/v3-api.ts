@@ -54,7 +54,9 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
         if (!solution || !this.solutionManager.loadState.loaded) {
             throw new Error(`${queryName} pack query requires a loaded solution`);
         }
-        if (!solution.getContextNames().includes(context)) {
+        const hasContext = () => solution.getActiveTargetSetWrap()?.projectContexts.some(projectContext =>
+            `${projectContext.name}+${solution.getActiveTargetType()}` === context);
+        if (!hasContext()) {
             throw new Error(`Unknown pack context: ${context}`);
         }
         const result = await this.csolutionService.getPacksInfo({ context, all: true });
@@ -62,7 +64,7 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
             throw new Error(result.message ?? `Unable to query ${scope} packs`);
         }
         if (this.solutionManager.getCsolution() !== solution || !this.solutionManager.loadState.loaded
-            || !solution.getContextNames().includes(context)) {
+            || !hasContext()) {
             throw new Error(`Solution or context changed during ${scope} pack query`);
         }
         if (scope === 'missing') {

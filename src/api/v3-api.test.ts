@@ -26,6 +26,10 @@ describe('CsolutionApiV3Impl', () => {
     const solutionManager: { getCsolution: jest.Mock; loadState: SolutionManager['loadState'] } = { getCsolution: jest.fn(), loadState: {} };
     const csolutionService = { getPacksInfo: jest.fn() };
     const toolsEnvironment = { getToolsEnvironment: jest.fn() };
+    const solutionWithContexts = (contexts: string[]) => ({
+        getActiveTargetType: () => 'Board',
+        getActiveTargetSetWrap: () => ({ projectContexts: contexts.map(name => ({ name: name.replace(/\+Board$/, '') })) }),
+    });
 
     beforeEach(() => {
         existingApi = {
@@ -84,7 +88,7 @@ describe('CsolutionApiV3Impl', () => {
         await expect(api.getPacks({ scope: 'used', context: ' ' })).rejects.toThrow('explicit context');
         const options = { scope: 'used' as const, context: 'App.Debug+Board' };
         await expect(api.getPacks(options)).rejects.toThrow('loaded solution');
-        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => [options.context] });
+        solutionManager.getCsolution.mockReturnValue(solutionWithContexts([options.context]));
         solutionManager.loadState.loaded = false;
         await expect(api.getPacks(options)).rejects.toThrow('loaded solution');
         solutionManager.loadState.loaded = true;
@@ -92,8 +96,28 @@ describe('CsolutionApiV3Impl', () => {
         expect(csolutionService.getPacksInfo).not.toHaveBeenCalled();
     });
 
+    it.each(['used', 'missing'] as const)('validates %s contexts against the selected non-first target set', async scope => {
+        const targetSets = [solutionWithContexts(['First.Debug+Board']).getActiveTargetSetWrap(),
+            solutionWithContexts(['Second.Release+Board']).getActiveTargetSetWrap()];
+        let selectedSetIndex = 1;
+        solutionManager.getCsolution.mockReturnValue({
+            getActiveTargetType: () => 'Board',
+            getActiveTargetSetWrap: () => targetSets[selectedSetIndex],
+        });
+        csolutionService.getPacksInfo.mockResolvedValue({ success: true, packs: [] });
+        await expect(api.getPacks({ scope, context: 'Second.Release+Board' })).resolves.toEqual({ packs: [] });
+        await expect(api.getPacks({ scope, context: 'First.Debug+Board' })).rejects.toThrow('Unknown pack context');
+        csolutionService.getPacksInfo.mockImplementationOnce(async () => {
+            selectedSetIndex = 0;
+            return { success: true, packs: [] };
+        });
+        await expect(api.getPacks({ scope, context: 'Second.Release+Board' }))
+            .rejects.toThrow(`changed during ${scope} pack query`);
+        expect(csolutionService.getPacksInfo).toHaveBeenCalledTimes(2);
+    });
+
     it('copies only RPC-used packs in order with reference-backed installation evidence', async () => {
-        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => ['App.Debug+Board'] });
+        solutionManager.getCsolution.mockReturnValue(solutionWithContexts(['App.Debug+Board']));
         const id = 'Arm::CMSIS@6.0.0';
         const packs = [
             { id: 'Unused', used: false },
@@ -122,7 +146,7 @@ describe('CsolutionApiV3Impl', () => {
     });
 
     it('preserves empty used packs and rejects RPC failures, unversioned records and changed solutions', async () => {
-        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => ['App.Debug+Board'] });
+        solutionManager.getCsolution.mockReturnValue(solutionWithContexts(['App.Debug+Board']));
         const options = { scope: 'used' as const, context: 'App.Debug+Board' };
         csolutionService.getPacksInfo.mockResolvedValueOnce({ success: true, packs: [] });
         expect(await api.getPacks(options)).toEqual({ packs: [] });
@@ -145,7 +169,7 @@ describe('CsolutionApiV3Impl', () => {
 
     it.each(['unloaded', 'context removed'])('rejects used packs when %s during the RPC query', async change => {
         const contexts = ['App.Debug+Board'];
-        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => contexts });
+        solutionManager.getCsolution.mockReturnValue(solutionWithContexts(contexts));
         csolutionService.getPacksInfo.mockImplementationOnce(async () => {
             if (change === 'unloaded') {
                 solutionManager.loadState.loaded = false;
@@ -159,7 +183,7 @@ describe('CsolutionApiV3Impl', () => {
     });
 
     it('returns only explicit missing references, preserving requirements, origins, order and duplicates', async () => {
-        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => ['App.Debug+Board'] });
+        solutionManager.getCsolution.mockReturnValue(solutionWithContexts(['App.Debug+Board']));
         const reference = { pack: 'Vendor::Missing@1.0.0:2.0.0', origin: '/App.csolution.yml', missing: true, selected: false };
         csolutionService.getPacksInfo.mockResolvedValue({ success: true, packs: [
             { id: 'Unresolved', references: [reference, { ...reference, missing: false }, { ...reference, missing: undefined }] },
@@ -181,7 +205,7 @@ describe('CsolutionApiV3Impl', () => {
         const options = { scope: 'missing' as const, context: 'App.Debug+Board' };
         await expect(api.getPacks({ ...options, context: ' ' })).rejects.toThrow('explicit context');
         await expect(api.getPacks(options)).rejects.toThrow('loaded solution');
-        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => [options.context] });
+        solutionManager.getCsolution.mockReturnValue(solutionWithContexts([options.context]));
         solutionManager.loadState.loaded = false;
         await expect(api.getPacks(options)).rejects.toThrow('loaded solution');
         solutionManager.loadState.loaded = true;
@@ -199,7 +223,7 @@ describe('CsolutionApiV3Impl', () => {
 
     it.each(['replaced', 'unloaded', 'context removed'])('rejects missing packs when %s during RPC', async change => {
         const contexts = ['App.Debug+Board'];
-        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => contexts });
+        solutionManager.getCsolution.mockReturnValue(solutionWithContexts(contexts));
         csolutionService.getPacksInfo.mockImplementationOnce(async () => {
             if (change === 'replaced') {
                 solutionManager.getCsolution.mockReturnValue(undefined);
@@ -247,7 +271,7 @@ describe('CsolutionApiV3Impl', () => {
 
     it('filters used pack ids and descriptions after mapping, retaining order and duplicates', async () => {
         const context = 'App.Debug+Board';
-        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => [context] });
+        solutionManager.getCsolution.mockReturnValue(solutionWithContexts([context]));
         const packs = [
             { id: 'Arm::CMSIS@6.0.0', used: true },
             { id: 'Vendor::Driver@1.0.0', description: 'CMSIS [UART]', used: true },
@@ -274,7 +298,7 @@ describe('CsolutionApiV3Impl', () => {
 
     it('filters only original missing requirements, preserving duplicate references and captured text', async () => {
         const context = 'App.Debug+Board';
-        solutionManager.getCsolution.mockReturnValue({ getContextNames: () => [context] });
+        solutionManager.getCsolution.mockReturnValue(solutionWithContexts([context]));
         const reference = { pack: 'Vendor::Missing@1.0.0:2.0.0', origin: '/Origin.csolution.yml', resolvedPack: 'Resolved::Pack@1.0.0', missing: true };
         const packs = [{ id: 'Unused', description: 'Description', references: [reference, reference,
             { ...reference, pack: 'Other::Pack' }] }];

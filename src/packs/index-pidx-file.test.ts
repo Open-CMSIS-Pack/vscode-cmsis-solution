@@ -16,6 +16,7 @@
 
 import 'jest';
 import type { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
 import { getLatestAvailablePacks, getLatestAvailablePacksInfo, IndexPidxFile, isPackIndexCurrent } from './index-pidx-file';
 import * as pathUtils from '../utils/path-utils';
 import * as fsUtils from '../utils/fs-utils';
@@ -109,6 +110,7 @@ describe('isPackIndexCurrent', () => {
 describe('getLatestAvailablePacks', () => {
     afterEach(() => {
         jest.restoreAllMocks();
+        TextFile.setErrorReporter();
     });
 
     it('should load and return pack IDs from index.pidx file', async () => {
@@ -133,10 +135,35 @@ describe('getLatestAvailablePacks', () => {
         expect(packs.get('NXP::LPC55S69_DFP@15.0.0')).toBe('https://www.keil.arm.com/packs/lpc55s69_dfp-nxp/versions/');
     });
 
+    it('reads an explicit pack root instead of the process pack root', async () => {
+        jest.spyOn(pathUtils, 'getCmsisPackRoot').mockReturnValue('/process/packs');
+        jest.spyOn(fsUtils, 'readTextFile').mockReturnValue('<index><pindex><pdsc vendor="ARM" name="CMSIS" version="6.0.0" /></pindex></index>');
+        jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
+
+        const packs = await getLatestAvailablePacks('/configured/packs');
+
+        expect(packs.has('ARM::CMSIS@6.0.0')).toBe(true);
+        expect(fsUtils.readTextFile).toHaveBeenCalledWith('/configured/packs/.Web/index.pidx');
+        expect(pathUtils.getCmsisPackRoot).not.toHaveBeenCalled();
+    });
+
     it('rejects when index.pidx file is not found', async () => {
         jest.spyOn(pathUtils, 'getCmsisPackRoot').mockReturnValue('/mock/pack/root');
         jest.spyOn(fsUtils, 'fileExists').mockReturnValue(false);
         await expect(getLatestAvailablePacks()).rejects.toThrow('Failed to load pack index');
         expect((await getLatestAvailablePacksInfo()).packIds.size).toBe(0);
+    });
+
+    it('suppresses catalog load notifications but preserves normal index errors', async () => {
+        const reportError = jest.fn();
+        TextFile.setErrorReporter(reportError);
+        jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
+        jest.spyOn(fsUtils, 'readTextFile').mockImplementation(() => { throw new Error('read failed'); });
+
+        await expect(getLatestAvailablePacks('/mock/pack/root')).rejects.toThrow('Failed to load pack index');
+        expect(reportError).not.toHaveBeenCalled();
+
+        await getLatestAvailablePacksInfo(false, '/mock/pack/root');
+        expect(reportError).toHaveBeenCalledTimes(1);
     });
 });

@@ -31,6 +31,7 @@ declare module './interface/rpc-interface' {
 export interface CsolutionService extends RpcInterface {
     activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>): Promise<void>;
     getCsolutionBin(): string;
+    getPackRoot(): string;
     waitForExit(): Promise<void>;
     suspendPackIdxWatcher(): void;
     resumePackIdxWatcher(skipPendingReload?: boolean): void;
@@ -156,6 +157,10 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         return this.csolutionBin;
     }
 
+    public getPackRoot(): string {
+        return getCmsisPackRoot(this.environmentManager.augmentEnv(new Environment(process.env)).vars);
+    }
+
     public async waitForExit(): Promise<void> {
         return this.exitPromise ?? Promise.resolve();
     }
@@ -180,7 +185,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     private watchPackIdxFile() {
         this.idxWatcher = this.watchPackIndexFile(
             this.idxWatcher,
-            path.join(getCmsisPackRoot(), 'pack.idx'),
+            path.join(this.getPackRoot(), 'pack.idx'),
             'pack.idx'
         );
     }
@@ -188,7 +193,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     private watchLocalRepositoryPidxFile() {
         this.localRepositoryIdxWatcher = this.watchPackIndexFile(
             this.localRepositoryIdxWatcher,
-            path.join(getCmsisPackRoot(), '.Local', 'local_repository.pidx'),
+            path.join(this.getPackRoot(), '.Local', 'local_repository.pidx'),
             'local_repository.pidx'
         );
     }

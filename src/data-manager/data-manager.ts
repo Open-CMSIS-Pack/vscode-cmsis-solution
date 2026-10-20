@@ -104,7 +104,7 @@ class DataManagerImpl implements DataManager {
         }
         const sources = this._sources.filter((source): source is CsolutionDataSource => source instanceof CsolutionDataSource && source.enabled);
         const requests: Promise<CsolutionApiV3.PackData[]>[] = scope === 'all'
-            ? [getLatestAvailablePacks().then(ids => [...ids.keys()].map(id => ({ id, version: splitPackId(id).version })))]
+            ? [getLatestAvailablePacks(sources[0]?.getPackRoot()).then(ids => [...ids.keys()].map(id => ({ id, version: splitPackId(id).version })))]
             : [];
         requests.push(...sources.map(source => Promise.resolve().then(() => source.getPacks())));
         const results = await Promise.allSettled(requests);
