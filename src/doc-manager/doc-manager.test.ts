@@ -279,6 +279,8 @@ describe('DocManager', () => {
         expect(doc.category).toBe('reference');
         expect(doc.path).toBe(expectedPath);
         expect(doc.locationType).toBe(locationType);
+        expect(doc.userAdded).toBe(false);
+        expect(doc.item!.getChild('userAdded')).toBeUndefined();
         expect(cbuildFile.stringify()).toBe(sourceText);
         expect(fileSystem.exists).not.toHaveBeenCalled();
         expect(fileSystem.read).not.toHaveBeenCalled();
@@ -337,22 +339,22 @@ describe('DocManager', () => {
     });
 
     it.each([
-        ['manual.pdf', path.resolve('manual.pdf'), false, false, 'U'],
+        ['manual.pdf', path.resolve('manual.pdf'), false, false, 'L'],
         ['${CMSIS_PACK_ROOT}/manual.pdf', path.resolve('packs', 'manual.pdf'), false, false, 'P'],
         [path.resolve('packs', 'manual.pdf'), path.resolve('packs', 'manual.pdf'), false, false, 'P'],
         [path.join('packs', 'manual.pdf'), path.resolve('packs', 'manual.pdf'), false, false, 'P'],
         [pathToFileURL(path.resolve('packs', 'manual.pdf')).href, path.resolve('packs', 'manual.pdf'), false, false, 'P'],
         [`file://localhost${pathToFileURL(path.resolve('packs', 'manual.pdf')).pathname}`, path.resolve('packs', 'manual.pdf'), false, false, 'P'],
-        [path.resolve('packs-other', 'manual.pdf'), path.resolve('packs-other', 'manual.pdf'), false, false, 'U'],
-        [path.resolve('packs', '..'), path.resolve('packs', '..'), false, false, 'U'],
-        [path.join('packs', '..', 'manual.pdf'), path.resolve('manual.pdf'), false, false, 'U'],
+        [path.resolve('packs-other', 'manual.pdf'), path.resolve('packs-other', 'manual.pdf'), false, false, 'L'],
+        [path.resolve('packs', '..'), path.resolve('packs', '..'), false, false, 'L'],
+        [path.join('packs', '..', 'manual.pdf'), path.resolve('manual.pdf'), false, false, 'L'],
         [path.resolve('packs', '..manual.pdf'), path.resolve('packs', '..manual.pdf'), false, false, 'P'],
-        [pathToFileURL(path.resolve('books', 'manual.pdf')).href, path.resolve('books', 'manual.pdf'), false, false, 'U'],
-        [`file://localhost${pathToFileURL(path.resolve('books', 'manual.pdf')).pathname}`, path.resolve('books', 'manual.pdf'), false, false, 'U'],
-        ['https://example.com/manual.pdf', undefined, true, true, 'U'],
-        ['https://example.com/manual.htm', undefined, true, false, 'U'],
-        ['www.example.com/manual.pdf', undefined, true, true, 'U'],
-        ['file://server/share/manual.pdf', undefined, true, true, 'U'],
+        [pathToFileURL(path.resolve('books', 'manual.pdf')).href, path.resolve('books', 'manual.pdf'), false, false, 'L'],
+        [`file://localhost${pathToFileURL(path.resolve('books', 'manual.pdf')).pathname}`, path.resolve('books', 'manual.pdf'), false, false, 'L'],
+        ['https://example.com/manual.pdf', undefined, true, true, 'W'],
+        ['https://example.com/manual.htm', undefined, true, false, 'H'],
+        ['www.example.com/manual.pdf', undefined, true, true, 'W'],
+        ['file://server/share/manual.pdf', undefined, true, true, 'W'],
     ])('addUserBook classifies manual additions and preserves their web predicates: %s', async (name, expectedPath, isWeb, isWebDoc, locationType) => {
         jest.replaceProperty(process, 'env', { ...process.env, CMSIS_PACK_ROOT: path.resolve('packs') });
         const manager = new DocManager(docsDirectory);
@@ -371,13 +373,26 @@ describe('DocManager', () => {
         expect(doc.category).toBe('reference');
         expect(doc.path).toBe(expectedPath);
         expect(doc.locationType).toBe(locationType);
+        expect(doc.userAdded).toBe(true);
+        expect(doc.item!.getChild('userAdded')?.toObject()).toBe(true);
         expect(doc.isWeb()).toBe(isWeb);
         expect(doc.isWebDoc()).toBe(isWebDoc);
+        expect(doc.isDownloaded()).toBe(false);
+        const cbuildManager = new DocManager(path.join(docsDirectory, 'cbuild'));
+        cbuildManager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        const importedDoc = cbuildManager.file.getDocs('Vendor::Board', 'board')[0];
+        expect(importedDoc.name).toBe(doc.name);
+        expect(importedDoc.path).toBe(expectedPath);
+        expect(importedDoc.locationType).toBe(locationType);
+        expect(importedDoc.userAdded).toBe(false);
+        expect(importedDoc.item!.getChild('userAdded')).toBeUndefined();
+        expect(cbuildManager.file.stringify()).not.toContain('userAdded');
         doc.path = path.resolve('downloaded', 'manual.pdf');
         doc.error = 'Retry failed';
-        expect(doc.isDownloaded()).toBe(false);
+        expect(doc.isDownloaded()).toBe(locationType === 'W');
         const importedText = manager.file.stringify();
         manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        manager.addUserBook('Vendor::Board', 'board', name, 'Replacement', 'other');
         expect(manager.file.stringify()).toBe(importedText);
         expect(cbuildFile.stringify()).toBe(sourceText);
         expect(fileSystem.exists).not.toHaveBeenCalled();
@@ -389,6 +404,8 @@ describe('DocManager', () => {
         expect(await reloaded.initialize()).toBe(ETextFileResult.Success);
         const saved = reloaded.file.getDoc(doc.name, 'Vendor::Board', 'board')!;
         expect(saved.locationType).toBe(locationType);
+        expect(saved.userAdded).toBe(true);
+        expect(files.get(fileName)).toContain('userAdded: true');
         expect(saved.error).toBe('Retry failed');
         expect(saved.path).toBe(doc.path);
     });
@@ -420,6 +437,8 @@ describe('DocManager', () => {
         expect(saved.title).toBe('Stored title');
         expect(saved.category).toBe('stored');
         expect(saved.locationType).toBe(locationType);
+        expect(saved.userAdded).toBe(false);
+        expect(saved.item!.getChild('userAdded')).toBeUndefined();
         expect(saved.error).toBe('Stored error');
         expect(saved.path).toBe(doc.path);
         expect(fileSystem.exists).not.toHaveBeenCalled();
@@ -446,7 +465,8 @@ describe('DocManager', () => {
         expect(other.title).toBe('Other manual');
         expect(board.item).not.toBe(device.item);
         expect(board.item).not.toBe(other.item);
-        expect([board, device, other].map(doc => doc.locationType)).toEqual(['U', 'U', 'U']);
+        expect([board, device, other].map(doc => doc.locationType)).toEqual(['W', 'W', 'W']);
+        expect([board, device, other].map(doc => doc.userAdded)).toEqual([true, true, true]);
         expect(fileSystem.exists).not.toHaveBeenCalled();
         expect(fileSystem.read).not.toHaveBeenCalled();
         expect(fileSystem.write).not.toHaveBeenCalled();

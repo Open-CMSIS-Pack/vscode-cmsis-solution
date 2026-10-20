@@ -98,20 +98,55 @@ describe('DocsYamlFile', () => {
         expect(fileSystem.write).not.toHaveBeenCalled();
     });
 
-    it.each([undefined, 'W', 'H', 'P', 'L', 'U', 'future'])('detects downloads using only location type %s and a defined path', locationType => {
+    it.each([undefined, 'W', 'H', 'P', 'L', 'U', 'future'])('detects downloads independently of manual provenance using location type %s and a defined path', locationType => {
         const file = new DocsYamlFile(fileName);
         const doc = file.ensureDoc('https://example.com/manual.pdf', 'Vendor::Board', 'board');
         doc.locationType = locationType;
-        for (const docPath of [undefined, '', '/downloaded/manual.pdf']) {
-            doc.path = docPath;
-            const beforeRead = file.stringify();
+        for (const userAdded of [false, true]) {
+            doc.userAdded = userAdded;
+            for (const docPath of [undefined, '', '/downloaded/manual.pdf']) {
+                doc.path = docPath;
+                const beforeRead = file.stringify();
 
-            expect(doc.isDownloaded()).toBe(locationType === 'W' && docPath !== undefined);
-            expect(file.stringify()).toBe(beforeRead);
+                expect(doc.isDownloaded()).toBe(locationType === 'W' && docPath !== undefined);
+                expect(file.stringify()).toBe(beforeRead);
+            }
         }
         expect(fileSystem.exists).not.toHaveBeenCalled();
         expect(fileSystem.read).not.toHaveBeenCalled();
         expect(fileSystem.write).not.toHaveBeenCalled();
+    });
+
+    it.each([false, undefined])('persists only a true manual flag and removes it when cleared with %s', async clearedValue => {
+        const file = new DocsYamlFile(fileName);
+        const doc = file.ensureDoc('manual.pdf', 'Vendor::Board', 'board');
+        const beforeRead = file.stringify();
+
+        expect(doc.userAdded).toBe(false);
+        expect(doc.item!.getChild('userAdded')).toBeUndefined();
+        expect(file.stringify()).toBe(beforeRead);
+        doc.userAdded = true;
+        expect(doc.userAdded).toBe(true);
+        expect(doc.item!.getChild('userAdded')?.toObject()).toBe(true);
+        expect(await file.save()).toBe(ETextFileResult.Success);
+        expect(files.get(fileName)).toContain('userAdded: true');
+
+        const reloaded = new DocsYamlFile(fileName);
+        expect(await reloaded.load()).toBe(ETextFileResult.Success);
+        const saved = reloaded.getDoc(doc.name, 'Vendor::Board', 'board')!;
+        expect(saved.userAdded).toBe(true);
+        saved.item!.getChild('userAdded')!.fromObject(false);
+        expect(saved.userAdded).toBe(false);
+        saved.userAdded = true;
+        saved.userAdded = clearedValue;
+        expect(saved.userAdded).toBe(false);
+        expect(saved.item!.getChild('userAdded')).toBeUndefined();
+        expect(await reloaded.save()).toBe(ETextFileResult.Success);
+        expect(files.get(fileName)).not.toContain('userAdded');
+
+        const cleared = new DocsYamlFile(fileName);
+        expect(await cleared.load()).toBe(ETextFileResult.Success);
+        expect(cleared.getDoc(doc.name, 'Vendor::Board', 'board')?.userAdded).toBe(false);
     });
 
     it.each(['W', 'H', 'P', 'L', 'U', 'future'])('round-trips and clears live location type %s and errors', async locationType => {
@@ -154,6 +189,8 @@ describe('DocsYamlFile', () => {
         const doc = file.getDocs('NXP::LPC4300', 'device')[0];
 
         expect(doc.locationType).toBeUndefined();
+        expect(doc.userAdded).toBe(false);
+        expect(doc.item!.getChild('userAdded')).toBeUndefined();
         expect(doc.error).toBeUndefined();
         expect(doc.isWeb()).toBe(false);
         expect(doc.isWebDoc()).toBe(false);

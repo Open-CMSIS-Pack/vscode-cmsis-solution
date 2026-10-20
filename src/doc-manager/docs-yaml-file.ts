@@ -30,6 +30,8 @@ export interface IDocRef extends ITreeItemWrap {
     set title(value: string | undefined);
     category: string | undefined;
     locationType: string | undefined;
+    get userAdded(): boolean;
+    set userAdded(value: boolean | undefined);
     error: string | undefined;
     isWebDoc(): boolean;
     isWeb(): boolean;
@@ -86,6 +88,14 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
     set category(value: string | undefined) { this.setValue('category', value); }
     get locationType(): string | undefined { return this.getValue('locationType'); }
     set locationType(value: string | undefined) { this.setValue('locationType', value); }
+    get userAdded(): boolean { return this.item?.getChild('userAdded')?.toObject() === true; }
+    set userAdded(value: boolean | undefined) {
+        if (value) {
+            this.ensureItem().createChild('userAdded', true).fromObject(true);
+        } else {
+            this.setValue('userAdded', undefined);
+        }
+    }
     get error(): string | undefined { return this.getValue('error'); }
     set error(value: string | undefined) { this.setValue('error', value); }
     isWebDoc(): boolean { return getWebLocationType(this.name) === 'W'; }

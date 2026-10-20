@@ -62,8 +62,7 @@ class DocManagerImpl implements DocManager {
             const docPath = name && !locationType
                 ? book.resolvePath(expandRootVars(name.startsWith('file://') ? fileURLToPath(name) : name))
                 : undefined;
-            this.addBook(parentId, parentTag, name, book.getValue('title'), book.getValue('category'),
-                docPath, locationType ?? 'L');
+            this.addBook(parentId, parentTag, name, book.getValue('title'), book.getValue('category'), docPath);
         }
     }
 
@@ -71,7 +70,7 @@ class DocManagerImpl implements DocManager {
         const docPath = name && !getWebLocationType(name)
             ? path.resolve(expandRootVars(name.startsWith('file://') ? fileURLToPath(name) : name))
             : undefined;
-        this.addBook(parentId, parentTag, name, title, category, docPath);
+        this.addBook(parentId, parentTag, name, title, category, docPath, undefined, true);
     }
 
     private addBook(
@@ -81,11 +80,13 @@ class DocManagerImpl implements DocManager {
         title: string | undefined,
         category?: string,
         docPath?: string,
-        locationType = 'U',
+        locationType?: string,
+        userAdded = false,
     ): void {
         if (!parentId || !name || this.file.getDoc(name, parentId, parentTag)) {
             return;
         }
+        locationType ??= getWebLocationType(name) ?? 'L';
         if (docPath !== undefined) {
             const packRootPrefix = /^\$\{CMSIS_PACK_ROOT\}(?:[/\\]|$)/.test(name);
             name = docPath;
@@ -103,6 +104,9 @@ class DocManagerImpl implements DocManager {
         doc.category = category;
         doc.path = docPath;
         doc.locationType = locationType;
+        if (userAdded) {
+            doc.userAdded = true;
+        }
     }
 }
 
