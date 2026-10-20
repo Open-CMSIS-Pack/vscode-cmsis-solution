@@ -16,6 +16,8 @@
 
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { DocManager } from '../../../doc-manager/doc-manager';
 import { PACKAGE_NAME } from '../../../manifest';
 import { SolutionManager } from '../../../solutions/solution-manager';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
@@ -57,16 +59,20 @@ export class DocumentCommand {
     }
 
     private async addDocument(node?: COutlineItem): Promise<void> {
+        const localPath = await this.pickDocument('Add Document');
+        if (!localPath) {
+            return;
+        }
+        const manager = await this.loadDocs();
+        if (!manager) {
+            return;
+        }
         const target = (!node || node.getTag() === 'board' || node.getTag() === 'device') ? this.getTarget(node) : undefined;
         if (!target) {
             await this.window.showWarningMessage('Select a board or device, or activate a target type with board or device hardware.');
             return;
         }
-        const localPath = await this.pickDocument('Add Document');
-        if (!localPath) {
-            return;
-        }
-        const doc = await this.solutionManager.getDocManager().addUserBook(
+        const doc = await manager.addUserBook(
             target.parentId, target.parentTag, localPath, path.basename(localPath),
         );
         if (!doc) {
@@ -75,18 +81,21 @@ export class DocumentCommand {
     }
 
     private async setLocalPath(node?: COutlineItem): Promise<void> {
+        const localPath = await this.pickDocument('Set Local Path');
+        if (!localPath) {
+            return;
+        }
+        const manager = await this.loadDocs();
+        if (!manager) {
+            return;
+        }
         const target = node?.getTag() === 'book' ? this.getTarget(node) : undefined;
         const name = node?.getAttribute('docName');
         if (!target || !name) {
             return;
         }
-        const manager = this.solutionManager.getDocManager();
         const doc = manager.file.getDoc(name, target.parentId, target.parentTag);
         if (doc?.locationType !== 'W') {
-            return;
-        }
-        const localPath = await this.pickDocument('Set Local Path');
-        if (!localPath || manager.file.getDoc(name, target.parentId, target.parentTag)?.item !== doc.item) {
             return;
         }
         if (!await manager.setLocalPath(target.parentId, target.parentTag, name, localPath)) {
@@ -95,12 +104,15 @@ export class DocumentCommand {
     }
 
     private async removeDocument(node?: COutlineItem): Promise<void> {
+        const manager = await this.loadDocs();
+        if (!manager) {
+            return;
+        }
         const target = node?.getTag() === 'book' ? this.getTarget(node) : undefined;
         const name = node?.getAttribute('docName');
         if (!target || !name) {
             return;
         }
-        const manager = this.solutionManager.getDocManager();
         if (manager.file.getDoc(name, target.parentId, target.parentTag)?.mode !== 'user') {
             return;
         }
@@ -109,14 +121,16 @@ export class DocumentCommand {
         }
     }
 
-    private async pickDocument(title: string): Promise<string | undefined> {
+    private async loadDocs(): Promise<DocManager | undefined> {
         const manager = this.solutionManager.getDocManager();
-        const fileName = manager.file.fileName;
-        const root = manager.file.rootItem;
-        const solution = this.solutionManager.getCsolution();
-        const targetName = solution?.getActiveTargetType();
-        const board = solution?.getActiveTargetTypeWrap()?.board;
-        const device = solution?.getActiveTargetTypeWrap()?.device;
+        if (await manager.initialize(path.dirname(manager.file.fileName)) === ETextFileResult.Error) {
+            await this.window.showErrorMessage('Failed to load the document inventory.');
+            return;
+        }
+        return manager;
+    }
+
+    private async pickDocument(title: string): Promise<string | undefined> {
         const selected = await this.window.showOpenDialog({
             title,
             canSelectFiles: true,
@@ -124,12 +138,6 @@ export class DocumentCommand {
             canSelectMany: false,
         });
         if (!selected?.length || selected[0].scheme !== 'file') {
-            return;
-        }
-        if (this.solutionManager.getDocManager() !== manager || manager.file.fileName !== fileName || manager.file.rootItem !== root
-            || this.solutionManager.getCsolution() !== solution || solution?.getActiveTargetType() !== targetName
-            || solution?.getActiveTargetTypeWrap()?.board !== board || solution?.getActiveTargetTypeWrap()?.device !== device) {
-            await this.window.showWarningMessage('The document inventory or active target changed. Run the command again.');
             return;
         }
         return selected[0].fsPath;
