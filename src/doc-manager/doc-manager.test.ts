@@ -613,10 +613,10 @@ describe('DocManager', () => {
         const importedText = manager.file.stringify();
 
         await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        expect(manager.file.stringify()).toBe(importedText);
         await manager.addUserBook('Vendor::Board', 'board', path.join('build', 'guide.pdf'), 'New title', 'new');
         await manager.addUserBook('Vendor::Board', 'board', docName, 'New title', 'new');
 
-        expect(manager.file.stringify()).toBe(importedText);
         expect(manager.file.getDocs('Vendor::Board', 'board')).toHaveLength(1);
         const saved = manager.file.getDoc(docName, 'Vendor::Board', 'board')!;
         expect(saved.item).toBe(doc.item);
@@ -624,13 +624,12 @@ describe('DocManager', () => {
         expect(saved.category).toBe('stored');
         expect(saved.locationType).toBe('L');
         expect(saved.item!.getValue('locationType')).toBe(locationType);
-        expect(saved.mode).toBeUndefined();
-        expect(saved.item!.getChild('mode')).toBeUndefined();
+        expect(saved.mode).toBe('user');
         expect(saved.error).toBe('Stored error');
         expect(saved.path).toBe(doc.path);
-        expect(files.get(fileName)).toBe(importedText);
+        expect(files.get(fileName)).toBe(manager.file.stringify());
         expect(fileSystem.read).not.toHaveBeenCalled();
-        expect(fileSystem.write).toHaveBeenCalledTimes(1);
+        expect(fileSystem.write).toHaveBeenCalledTimes(2);
         expect(fileSystem.unlink).not.toHaveBeenCalled();
     });
 
@@ -658,7 +657,7 @@ describe('DocManager', () => {
         const rawDuplicate = (await manager.addUserBook(parentId, 'board', legacy.name, 'Replacement'))!;
         expect(rawDuplicate.item).toBe(legacy.item);
         expect(rawDuplicate.title).toBe('Stored title');
-        expect(rawDuplicate.mode).toBeUndefined();
+        expect(rawDuplicate.mode).toBe('user');
         const web = (await manager.addUserBook(parentId, 'board', 'https://example.com/manual.pdf', 'Manual'))!;
         expect(web.item).toBe(manager.file.getDoc(web.name, parentId, 'board')!.item);
         expect(web.path).toBeUndefined();
@@ -671,6 +670,77 @@ describe('DocManager', () => {
         expect(await manager.addUserBook('', 'board', 'guide.pdf', 'Guide')).toBeUndefined();
         expect(await manager.addUserBook(parentId, 'board', '', 'Guide')).toBeUndefined();
         expect(save).toHaveBeenCalledTimes(5);
+    });
+
+    it('sets a local path only for W documents and preserves their identity and metadata after reloading', async () => {
+        const manager = createManager();
+        const name = 'https://example.com/manual.pdf';
+        const doc = manager.file.ensureDoc(name, 'Vendor::Board', 'board');
+        doc.title = 'Manual';
+        doc.item!.setValue('future', 'preserved');
+        const other = manager.file.ensureDoc(name, 'Vendor::Board', 'device');
+        const changed = jest.fn();
+        manager.onDidChange(changed);
+
+        expect(await manager.setLocalPath('Vendor::Board', 'board', name, 'local/manual.pdf')).toBe(true);
+        expect(doc.path).toBe(path.resolve('local/manual.pdf'));
+        expect(doc.locationType).toBe('W');
+        expect(doc.mode).toBeUndefined();
+        expect(other.path).toBeUndefined();
+        expect(changed).toHaveBeenCalledTimes(1);
+        const reloaded = new DocManager();
+        await reloaded.initialize(docsDirectory);
+        const saved = reloaded.file.getDoc(name, 'Vendor::Board', 'board')!;
+        expect(saved.path).toBe(doc.path);
+        expect(saved.title).toBe('Manual');
+        expect(saved.item!.getValue('future')).toBe('preserved');
+    });
+
+    it.each(['https://example.com/manual.html', 'local.pdf', '${CMSIS_PACK_ROOT}/manual.pdf', 'missing'])('rejects Set Local Path for %s without saving', async name => {
+        const manager = createManager();
+        if (name !== 'missing') {
+            manager.file.ensureDoc(name, 'Vendor::Board', 'board');
+        }
+        const save = jest.spyOn(manager.file, 'save');
+        expect(await manager.setLocalPath('Vendor::Board', 'board', name, 'local.pdf')).toBe(false);
+        expect(save).not.toHaveBeenCalled();
+    });
+
+    it.each([undefined, 'future', 'user'])('removes only user documents, never their local file: %s', async mode => {
+        const manager = createManager();
+        const doc = manager.file.ensureDoc('manual.pdf', 'Vendor::Board', 'board');
+        doc.item!.setValue('mode', mode);
+        doc.path = path.resolve('manual.pdf');
+        const other = manager.file.ensureDoc(doc.name, 'Vendor::Board', 'device');
+        const save = jest.spyOn(manager.file, 'save');
+        const changed = jest.fn();
+        manager.onDidChange(changed);
+
+        expect(await manager.removeDocument('Vendor::Board', 'board', doc.name)).toBe(mode === 'user');
+        expect(manager.file.getDoc(doc.name, 'Vendor::Board', 'board')?.item).toBe(mode === 'user' ? undefined : doc.item);
+        expect(manager.file.getDoc(doc.name, 'Vendor::Board', 'device')!.item).toBe(other.item);
+        expect(save).toHaveBeenCalledTimes(mode === 'user' ? 1 : 0);
+        expect(changed).toHaveBeenCalledTimes(mode === 'user' ? 1 : 0);
+        expect(fileSystem.unlink).not.toHaveBeenCalled();
+        if (mode === 'user') {
+            const reloaded = new DocManager();
+            await reloaded.initialize(docsDirectory);
+            expect(reloaded.file.getDocs('Vendor::Board', 'board')).toEqual([]);
+        }
+    });
+
+    it.each([ETextFileResult.Success, ETextFileResult.Error])('notifies only after a successful document save: %s', async result => {
+        const manager = createManager();
+        let completeSave!: (result: ETextFileResult) => void;
+        jest.spyOn(manager.file, 'save').mockReturnValueOnce(new Promise(resolve => { completeSave = resolve; }));
+        const changed = jest.fn();
+        manager.onDidChange(changed);
+        const addition = manager.addUserBook('Vendor::Board', 'board', 'manual.pdf', 'Manual');
+        expect(changed).not.toHaveBeenCalled();
+        completeSave(result);
+        const doc = await addition;
+        expect(changed).toHaveBeenCalledTimes(result === ETextFileResult.Success ? 1 : 0);
+        expect(doc?.mode).toBe(result === ETextFileResult.Success ? 'user' : undefined);
     });
 
     it.each([undefined, 'reference'])('addUserBook scopes manual entries by parent and accepts optional category %s', async category => {

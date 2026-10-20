@@ -48,6 +48,7 @@ export class SolutionOutlineView {
             }),
             this.solutionManager.onDidChangeLoadState(this.handleChangeLoadState, this),
             this.solutionManager.onUpdatedCompileCommands(this.handleUpdatedCompileCommands, this),
+            this.solutionManager.getDocManager().onDidChange(() => this.updateTree(this.solutionManager.loadState)),
         );
         this.treeViewProvider.activate(context);
     }

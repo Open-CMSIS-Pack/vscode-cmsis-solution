@@ -66,6 +66,9 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
 
         hardwareItem.setTag(isBoard ? 'board' : 'device');
         hardwareItem.setAttribute('hardwareName', hardwareName);
+        hardwareItem.setAttribute('docParentTag', isBoard ? 'board' : 'device');
+        hardwareItem.setAttribute('docParentId', cbuild?.getValue(isBoard ? 'board' : 'device') ?? hardwareName);
+        hardwareItem.addFeature('docParent');
         hardwareItem.setAttribute('label', `${isBoard ? 'Board' : 'Device'}: ${hardwareName}`);
         hardwareItem.setAttribute('expandable', '1');
         hardwareItem.setAttribute('iconPath', isBoard ? 'circuit-board' : 'chip');
@@ -90,11 +93,11 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         }
 
         for (const doc of this.docManager.file.getDocs(parentId, parentTag)) {
-            this.createBookNode(hardwareItem, doc);
+            this.createBookNode(hardwareItem, doc, parentId, parentTag);
         }
     }
 
-    private createBookNode(hardwareItem: COutlineItem, doc: IDocRef) {
+    private createBookNode(hardwareItem: COutlineItem, doc: IDocRef, parentId: string, parentTag: string) {
         const title = doc.title;
         if (!title) {
             return;
@@ -110,8 +113,17 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         bookItem.setAttribute('expandable', '0');
         bookItem.setAttribute('resourcePath', filePath);
         bookItem.setAttribute('docPath', filePath);
+        bookItem.setAttribute('docName', doc.name);
+        bookItem.setAttribute('docParentId', parentId);
+        bookItem.setAttribute('docParentTag', parentTag);
         bookItem.setAttribute('tooltip', filePath);
         bookItem.addFeature('docFile');
+        if (doc.locationType === 'W') {
+            bookItem.addFeature('webDoc');
+        }
+        if (doc.mode === 'user') {
+            bookItem.addFeature('userDoc');
+        }
 
         const useCommand = isWebAddress(filePath) || !filePath.toLowerCase().endsWith('.md');
         if (useCommand) {

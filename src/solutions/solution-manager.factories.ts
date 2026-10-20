@@ -24,7 +24,7 @@ import { Severity } from './constants';
 import { solutionRpcDataFactory } from './solution-rpc-data.factory';
 import { DocManager } from '../doc-manager/doc-manager';
 
-export type MockSolutionManager = jest.Mocked<StubEvents<SolutionManager>> & { fireOnDidChangeLoadState: ReturnType<typeof fireOnDidChangeLoadState> };
+export type MockSolutionManager = jest.Mocked<Omit<StubEvents<SolutionManager>, 'getDocManagerEmitter'>> & { fireOnDidChangeLoadState: ReturnType<typeof fireOnDidChangeLoadState> };
 
 export const idleSolutionLoadStateFactory = makeFactory<SolutionLoadState>({
     solutionPath: () => undefined,
