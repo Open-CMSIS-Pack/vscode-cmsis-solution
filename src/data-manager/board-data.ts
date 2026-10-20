@@ -15,12 +15,11 @@
  */
 
 import { Board, MountedDevice, PackFamilyId } from '../solar-search/solar-search-client';
-import { DeviceId } from './device-data';
-import { PackId } from './pack-data';
+import { DeviceId, splitDeviceId } from './device-data';
+import { PackId, splitPackId } from './pack-data';
 import { LazyPromise } from '@open-cmsis-pack/cmsis-common/lazy';
 
 import { Board as CsolutionBoard, Device as CsolutionDevice, DebugInterface as CsolutionDebugInterface } from '../json-rpc/csolution-rpc-client';
-import { splitBoardId, splitDeviceId, splitPackId } from '../json-rpc/csolution-rpc-helper';
 import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 
 export class BoardId {
@@ -33,6 +32,21 @@ export class BoardId {
     ) {
         this.key = `${this.vendor}::${this.name}${this.revision ? `:${this.revision}` : ''}`;
     }
+}
+
+export function splitBoardId(boardId: string): { vendor?: string, name: string, revision?: string };
+export function splitBoardId(boardId: Optional<string>): Optional<{ vendor?: string, name: string, revision?: string }>;
+export function splitBoardId(boardId?: string): Optional<{ vendor?: string, name: string, revision?: string }> {
+    if (boardId === undefined) {
+        return undefined;
+    }
+    // Pattern: vendor::name:revision or name:revision or name
+    const pattern = /^(([^:]+)::)?([^:]+)(:(.*))?$/;
+    const match = boardId.match(pattern);
+    if (!match) {
+        throw new Error(`Invalid board ID format: ${boardId}`);
+    }
+    return { vendor: match[2], name: match[3], revision: match[5] };
 }
 
 export interface DebugInterface {

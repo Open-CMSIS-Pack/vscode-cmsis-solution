@@ -26,6 +26,7 @@ import * as fsUtils from '../../../utils/fs-utils';
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { solutionRpcDataFactory, SolutionRpcDataMock } from '../../../solutions/solution-rpc-data.factory';
 import { DocManager } from '../../../doc-manager/doc-manager';
+import { HardwareItemBuilder } from './solution-outline-hardware-item';
 
 describe('CSolution', () => {
     const testDataHandler = new TestDataHandler();
@@ -140,7 +141,20 @@ describe('CSolution', () => {
         }
 
         // get results from tree
+        const addCbuildBooks = jest.spyOn(docManager, 'addCbuildBooks');
+        const createHardwareNodes = jest.spyOn(HardwareItemBuilder.prototype, 'createHardwareNodes');
         const tree = solutionOutlineTree.createTree();
+        const builds = [...csolution.cbuildYmlRoot.values()].map(root => root.getChildItem()!);
+        expect(builds.length).toBeGreaterThan(1);
+        expect(addCbuildBooks.mock.calls).toEqual(builds.flatMap(cbuild => [
+            [cbuild, 'device'],
+            [cbuild, 'board'],
+        ]));
+        expect(createHardwareNodes).toHaveBeenCalledTimes(builds.length);
+        expect(Math.max(...addCbuildBooks.mock.invocationCallOrder))
+            .toBeLessThan(Math.min(...createHardwareNodes.mock.invocationCallOrder));
+        addCbuildBooks.mockRestore();
+        createHardwareNodes.mockRestore();
         const got = new Map<string, string>();
 
         let count = 1;

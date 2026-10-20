@@ -76,9 +76,10 @@ describe('DocManager', () => {
         expect(fileSystem.write).toHaveBeenCalledTimes(1);
     });
 
-    it('addCbuildBooks appends missing books to an existing board without changing stored docs or performing I/O', async () => {
+    it('addCbuildBooks saves appended books without changing stored docs or rewriting unchanged content', async () => {
         const manager = new DocManager(docsDirectory);
         expect(await manager.initialize()).toBe(ETextFileResult.Success);
+        const save = jest.spyOn(manager.file, 'save');
         const parentItem = manager.file.getDocParent('Vendor::Board', 'board')!.item!;
         parentItem.setValue('future', 'preserved');
         const existing = manager.file.getDoc('manual', 'Vendor::Board', 'board')!;
@@ -117,7 +118,7 @@ describe('DocManager', () => {
         expect(docs[0].title).toBe('Stored manual');
         expect(docs[0].category).toBe('stored');
         expect(docs[0].path).toBe('manual.pdf');
-        expect(docs[0].locationType).toBeUndefined();
+        expect(docs[0].locationType).toBe('L');
         expect(docs[0].item!.getValue('future')).toBe('preserved');
         expect(manager.file.getDocParent('Vendor::Board', 'board')!.item).toBe(parentItem);
         expect(parentItem.getValue('future')).toBe('preserved');
@@ -138,18 +139,16 @@ describe('DocManager', () => {
         manager.addCbuildBooks(cbuild, 'board');
         expect(manager.file.stringify()).toBe(importedText);
         expect(manager.file.getDocs('Vendor::Board', 'board').map(doc => doc.item)).toEqual(docs.map(doc => doc.item));
-        expect(fileSystem.exists).not.toHaveBeenCalled();
+        expect(save).toHaveBeenCalledTimes(3);
+        expect(files.get(fileName)).toBe(importedText);
         expect(fileSystem.read).not.toHaveBeenCalled();
-        expect(fileSystem.write).not.toHaveBeenCalled();
+        expect(fileSystem.write).toHaveBeenCalledTimes(1);
         expect(fileSystem.unlink).not.toHaveBeenCalled();
     });
 
     it.each([
         ['missing board', ['  board-books:', '    - name: manual.pdf']],
         ['empty board', ['  board: ""', '  board-books:', '    - name: manual.pdf']],
-        ['missing books', ['  board: Vendor::Board', '  device-books:', '    - name: device.pdf']],
-        ['empty books', ['  board: Vendor::Board', '  board-books: []']],
-        ['missing names', ['  board: Vendor::Board', '  board-books:', '    - title: Manual', '    - name: ""']],
     ])('addCbuildBooks ignores %s without creating an empty board or performing I/O', (_description, lines) => {
         const manager = new DocManager(docsDirectory);
         const cbuildFile = new CTreeItemYamlFile();
@@ -163,6 +162,178 @@ describe('DocManager', () => {
         expect(fileSystem.read).not.toHaveBeenCalled();
         expect(fileSystem.write).not.toHaveBeenCalled();
         expect(fileSystem.unlink).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['missing books', ['  device-books:', '    - name: device.pdf']],
+        ['empty books', ['  board-books: []']],
+        ['missing names', ['  board-books:', '    - title: Manual', '    - name: ""']],
+    ])('addCbuildBooks saves the parent with %s without adding documents', (_description, lines) => {
+        const manager = new DocManager(docsDirectory);
+        const cbuildFile = new CTreeItemYamlFile();
+        cbuildFile.text = ['build:', '  board: Vendor::Board', ...lines].join('\n');
+        cbuildFile.rootItem = cbuildFile.parse();
+
+        manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+
+        expect(manager.file.getDocParent('Vendor::Board', 'board')?.id).toBe('Vendor::Board');
+        expect(manager.file.getDocs('Vendor::Board', 'board')).toEqual([]);
+        expect(manager.file.getDocParents('device')).toEqual([]);
+        expect(files.get(fileName)).toBe(manager.file.stringify());
+        expect(fileSystem.read).not.toHaveBeenCalled();
+        expect(fileSystem.write).toHaveBeenCalledTimes(1);
+        expect(fileSystem.unlink).not.toHaveBeenCalled();
+    });
+
+    it.each(['board', 'device'])('addCbuildBooks updates %s metadata and clones the processor only for devices', async parentTag => {
+        const manager = new DocManager(docsDirectory);
+        const cbuildFile = new CTreeItemYamlFile(path.resolve('build', 'example.cbuild.yml'));
+        cbuildFile.text = [
+            'build:',
+            '  board: Vendor::Board',
+            '  device: Vendor::Device',
+            '  board-pack: Vendor::BoardPack@1.0.0',
+            '  device-pack: Vendor::DevicePack@2.0.0',
+            '  processor:',
+            '    # Keep processor attributes.',
+            '    core: Cortex-M33',
+            '    future:',
+            '      value: preserved',
+        ].join('\n');
+        cbuildFile.rootItem = cbuildFile.parse();
+        const cbuild = cbuildFile.topItem!;
+        const sourceProcessor = cbuild.getChildItem('processor')!;
+        const sourceText = cbuildFile.stringify();
+        const parentId = cbuild.getValue(parentTag)!;
+
+        manager.addCbuildBooks(cbuild, parentTag);
+
+        const parent = manager.file.getDocParent(parentId, parentTag)!.item!;
+        parent.setValue('future', 'preserved');
+        expect(parent.getValue('pack')).toBe(cbuild.getValue(`${parentTag}-pack`));
+        const processor = parent.getChild('processor');
+        if (parentTag === 'device') {
+            expect(processor).not.toBe(sourceProcessor);
+            expect(processor?.getParent()).toBe(parent);
+            expect(processor?.toObject()).toEqual(sourceProcessor.toObject());
+            expect(processor?.getChild('future')).not.toBe(sourceProcessor.getChild('future'));
+        } else {
+            expect(processor).toBeUndefined();
+        }
+        expect(manager.file.getDocs(parentId, parentTag)).toEqual([]);
+        expect(manager.file.getDocParents()).toHaveLength(1);
+        const importedText = manager.file.stringify();
+
+        manager.addCbuildBooks(cbuild, parentTag);
+        expect(manager.file.stringify()).toBe(importedText);
+        expect(cbuildFile.stringify()).toBe(sourceText);
+        cbuild.setValue(`${parentTag}-pack`, 'Vendor::UpdatedPack@3.0.0');
+        sourceProcessor.setValue('core', 'Cortex-M55');
+        expect(processor?.getValue('core')).toBe(parentTag === 'device' ? 'Cortex-M33' : undefined);
+        manager.addCbuildBooks(cbuild, parentTag);
+        expect(manager.file.getDocParent(parentId, parentTag)!.item).toBe(parent);
+        expect(parent.getValue('pack')).toBe('Vendor::UpdatedPack@3.0.0');
+        expect(parent.getChildren().filter(child => child.getTag() === 'processor')).toHaveLength(parentTag === 'device' ? 1 : 0);
+        expect(parent.getChild('processor')).toBe(processor);
+        expect(processor?.getValue('core')).toBe(parentTag === 'device' ? 'Cortex-M33' : undefined);
+        expect(parent.getValue('future')).toBe('preserved');
+        expect(files.get(fileName)).toBe(manager.file.stringify());
+        expect(fileSystem.read).not.toHaveBeenCalled();
+        expect(fileSystem.write).toHaveBeenCalledTimes(3);
+        expect(fileSystem.unlink).not.toHaveBeenCalled();
+
+        const reloaded = new DocManager(docsDirectory);
+        expect(await reloaded.initialize()).toBe(ETextFileResult.Success);
+        const savedParent = reloaded.file.getDocParent(parentId, parentTag)!.item!;
+        expect(savedParent.toObject()).toEqual(parent.toObject());
+        expect(files.get(fileName)?.includes('# Keep processor attributes.')).toBe(parentTag === 'device');
+        cbuild.setValue(`${parentTag}-pack`, undefined);
+        manager.addCbuildBooks(cbuild, parentTag);
+        expect(parent.getValue('pack')).toBe('Vendor::UpdatedPack@3.0.0');
+        expect(files.get(fileName)).toBe(manager.file.stringify());
+    });
+
+    describe.each(['board', 'device'])('addCbuildBooks %s pack changes', parentTag => {
+        it.each([
+            ['unchanged pack', 'Vendor::Pack@1.0.0', 'Vendor::Pack@1.0.0', true],
+            ['both packs missing', undefined, undefined, true],
+            ['changed pack', 'Vendor::Pack@1.0.0', 'Vendor::Pack@2.0.0', true],
+            ['new pack', undefined, 'Vendor::Pack@2.0.0', true],
+            ['missing pack update', 'Vendor::Pack@1.0.0', undefined, true],
+            ['changed pack without books', 'Vendor::Pack@1.0.0', 'Vendor::Pack@2.0.0', false],
+        ])('preserves user entries and clears imported entries only for %s', async (_description, currentPack, packId, includeBooks) => {
+            const manager = new DocManager(docsDirectory);
+            const parentId = 'Vendor::Hardware';
+            const parent = manager.file.ensureParent(parentId, parentTag);
+            parent.setValue('pack', currentPack);
+            parent.setValue('future', 'preserved');
+            const manual = manager.file.ensureDoc('https://example.com/manual.pdf', parentId, parentTag);
+            manual.mode = 'user';
+            manual.title = 'User title';
+            manual.path = path.resolve('downloaded', 'manual.pdf');
+            manual.error = 'Stored error';
+            const manualText = manual.item!.toObject();
+            const stale = manager.file.ensureDoc('https://example.com/stale.pdf', parentId, parentTag);
+            const shared = manager.file.ensureDoc('https://example.com/shared.pdf', parentId, parentTag);
+            shared.title = 'Old pack title';
+            const otherTag = parentTag === 'board' ? 'device' : 'board';
+            const otherType = manager.file.ensureDoc(stale.name, parentId, otherTag);
+            const otherParent = manager.file.ensureDoc(stale.name, 'Vendor::Other', parentTag);
+            const cbuildFile = new CTreeItemYamlFile();
+            cbuildFile.text = [
+                'build:',
+                `  ${parentTag}: ${parentId}`,
+                ...(includeBooks ? [
+                    `  ${parentTag}-books:`,
+                    '    - name: https://example.com/manual.pdf',
+                    '      title: Pack manual',
+                    '    - name: https://example.com/shared.pdf',
+                    '      title: New pack title',
+                    '    - name: https://example.com/new.pdf',
+                ] : []),
+            ].join('\n');
+            cbuildFile.rootItem = cbuildFile.parse();
+            const cbuild = cbuildFile.topItem!;
+            cbuild.setValue(`${parentTag}-pack`, packId);
+            const expectedPack = packId ?? currentPack;
+            const packChanged = currentPack !== expectedPack;
+
+            manager.addCbuildBooks(cbuild, parentTag);
+
+            expect(manager.file.getDocParent(parentId, parentTag)!.item).toBe(parent);
+            expect(parent.getValue('pack')).toBe(expectedPack);
+            expect(parent.getValue('future')).toBe('preserved');
+            expect(manager.file.getDoc(manual.name, parentId, parentTag)!.item).toBe(manual.item);
+            expect(manual.item!.toObject()).toEqual(manualText);
+            const savedStale = manager.file.getDoc(stale.name, parentId, parentTag);
+            expect(savedStale?.item).toBe(packChanged ? undefined : stale.item);
+            if (includeBooks) {
+                const savedShared = manager.file.getDoc(shared.name, parentId, parentTag)!;
+                expect(savedShared.title).toBe(packChanged ? 'New pack title' : 'Old pack title');
+                expect(savedShared.mode).toBeUndefined();
+                if (packChanged) {
+                    expect(savedShared.item).not.toBe(shared.item);
+                } else {
+                    expect(savedShared.item).toBe(shared.item);
+                }
+                expect(manager.file.getDoc('https://example.com/new.pdf', parentId, parentTag)).toBeDefined();
+            } else {
+                expect(manager.file.getDocs(parentId, parentTag).map(doc => doc.item)).toEqual([manual.item]);
+            }
+            expect(manager.file.getDoc(stale.name, parentId, otherTag)!.item).toBe(otherType.item);
+            expect(manager.file.getDoc(stale.name, 'Vendor::Other', parentTag)!.item).toBe(otherParent.item);
+            expect(files.get(fileName)).toBe(manager.file.stringify());
+            const importedText = manager.file.stringify();
+            manager.addCbuildBooks(cbuild, parentTag);
+            expect(manager.file.stringify()).toBe(importedText);
+            expect(fileSystem.write).toHaveBeenCalledTimes(1);
+
+            const reloaded = new DocManager(docsDirectory);
+            expect(await reloaded.initialize()).toBe(ETextFileResult.Success);
+            expect(reloaded.file.getDoc(manual.name, parentId, parentTag)?.mode).toBe('user');
+            expect(reloaded.file.getDoc(stale.name, parentId, parentTag)?.name).toBe(packChanged ? undefined : stale.name);
+            expect(reloaded.file.getDocParent(parentId, parentTag)?.item!.getValue('pack')).toBe(expectedPack);
+        });
     });
 
     it('addCbuildBooks imports only the selected device collection', () => {
@@ -226,9 +397,9 @@ describe('DocManager', () => {
         manager.addCbuildBooks(cbuildFile.topItem!, 'device');
         expect(manager.file.stringify()).toBe(importedText);
         expect(cbuildFile.stringify()).toBe(sourceText);
-        expect(fileSystem.exists).not.toHaveBeenCalled();
+        expect(files.get(fileName)).toBe(importedText);
         expect(fileSystem.read).not.toHaveBeenCalled();
-        expect(fileSystem.write).not.toHaveBeenCalled();
+        expect(fileSystem.write).toHaveBeenCalledTimes(parentTags.length);
         expect(fileSystem.unlink).not.toHaveBeenCalled();
     });
 
@@ -279,12 +450,14 @@ describe('DocManager', () => {
         expect(doc.category).toBe('reference');
         expect(doc.path).toBe(expectedPath);
         expect(doc.locationType).toBe(locationType);
-        expect(doc.userAdded).toBe(false);
-        expect(doc.item!.getChild('userAdded')).toBeUndefined();
+        expect(doc.item!.getChild('locationType')).toBeUndefined();
+        expect(files.get(fileName)).not.toContain('locationType:');
+        expect(doc.mode).toBeUndefined();
+        expect(doc.item!.getChild('mode')).toBeUndefined();
         expect(cbuildFile.stringify()).toBe(sourceText);
-        expect(fileSystem.exists).not.toHaveBeenCalled();
+        expect(files.get(fileName)).toBe(manager.file.stringify());
         expect(fileSystem.read).not.toHaveBeenCalled();
-        expect(fileSystem.write).not.toHaveBeenCalled();
+        expect(fileSystem.write).toHaveBeenCalledTimes(1);
         expect(fileSystem.unlink).not.toHaveBeenCalled();
     });
 
@@ -322,7 +495,7 @@ describe('DocManager', () => {
         expect(docs[0].title).toBe(hasExisting ? 'Stored title' : 'First title');
         expect(docs[0].category).toBe(hasExisting ? 'stored' : 'reference');
         expect(docs[0].path).toBe(hasExisting ? undefined : docName);
-        expect(docs[0].locationType).toBe(hasExisting ? undefined : 'L');
+        expect(docs[0].locationType).toBe('L');
         if (existing) {
             expect(docs[0].item).toBe(existing.item);
             expect(docs[0].item!.getValue('future')).toBe('preserved');
@@ -332,9 +505,9 @@ describe('DocManager', () => {
         expect(manager.file.stringify()).toBe(importedText);
         expect(manager.file.getDocs('Vendor::Board', 'board')[0].item).toBe(docs[0].item);
         expect(cbuildFile.stringify()).toBe(sourceText);
-        expect(fileSystem.exists).not.toHaveBeenCalled();
+        expect(files.get(fileName)).toBe(importedText);
         expect(fileSystem.read).not.toHaveBeenCalled();
-        expect(fileSystem.write).not.toHaveBeenCalled();
+        expect(fileSystem.write).toHaveBeenCalledTimes(1);
         expect(fileSystem.unlink).not.toHaveBeenCalled();
     });
 
@@ -358,6 +531,7 @@ describe('DocManager', () => {
     ])('addUserBook classifies manual additions and preserves their web predicates: %s', async (name, expectedPath, isWeb, isWebDoc, locationType) => {
         jest.replaceProperty(process, 'env', { ...process.env, CMSIS_PACK_ROOT: path.resolve('packs') });
         const manager = new DocManager(docsDirectory);
+        const save = jest.spyOn(manager.file, 'save');
         const cbuildFile = new CTreeItemYamlFile(path.resolve('example.cbuild.yml'));
         cbuildFile.text = 'build: {board: Vendor::Board, board-books: [{title: Manual}]}\n';
         cbuildFile.rootItem = cbuildFile.parse();
@@ -373,20 +547,23 @@ describe('DocManager', () => {
         expect(doc.category).toBe('reference');
         expect(doc.path).toBe(expectedPath);
         expect(doc.locationType).toBe(locationType);
-        expect(doc.userAdded).toBe(true);
-        expect(doc.item!.getChild('userAdded')?.toObject()).toBe(true);
+        expect(doc.item!.getChild('locationType')).toBeUndefined();
+        expect(files.get(fileName)).not.toContain('locationType:');
+        expect(doc.mode).toBe('user');
+        expect(doc.item!.getChild('mode')?.toObject()).toBe('user');
         expect(doc.isWeb()).toBe(isWeb);
         expect(doc.isWebDoc()).toBe(isWebDoc);
         expect(doc.isDownloaded()).toBe(false);
+        expect(files.get(fileName)).toBe(manager.file.stringify());
         const cbuildManager = new DocManager(path.join(docsDirectory, 'cbuild'));
         cbuildManager.addCbuildBooks(cbuildFile.topItem!, 'board');
         const importedDoc = cbuildManager.file.getDocs('Vendor::Board', 'board')[0];
         expect(importedDoc.name).toBe(doc.name);
         expect(importedDoc.path).toBe(expectedPath);
         expect(importedDoc.locationType).toBe(locationType);
-        expect(importedDoc.userAdded).toBe(false);
-        expect(importedDoc.item!.getChild('userAdded')).toBeUndefined();
-        expect(cbuildManager.file.stringify()).not.toContain('userAdded');
+        expect(importedDoc.mode).toBeUndefined();
+        expect(importedDoc.item!.getChild('mode')).toBeUndefined();
+        expect(cbuildManager.file.stringify()).not.toContain('mode:');
         doc.path = path.resolve('downloaded', 'manual.pdf');
         doc.error = 'Retry failed';
         expect(doc.isDownloaded()).toBe(locationType === 'W');
@@ -395,28 +572,29 @@ describe('DocManager', () => {
         manager.addUserBook('Vendor::Board', 'board', name, 'Replacement', 'other');
         expect(manager.file.stringify()).toBe(importedText);
         expect(cbuildFile.stringify()).toBe(sourceText);
-        expect(fileSystem.exists).not.toHaveBeenCalled();
+        expect(save).toHaveBeenCalledTimes(3);
+        expect(files.get(fileName)).toBe(importedText);
         expect(fileSystem.read).not.toHaveBeenCalled();
-        expect(fileSystem.write).not.toHaveBeenCalled();
+        expect(fileSystem.write).toHaveBeenCalledTimes(3);
         expect(fileSystem.unlink).not.toHaveBeenCalled();
-        expect(await manager.file.save()).toBe(ETextFileResult.Success);
         const reloaded = new DocManager(docsDirectory);
         expect(await reloaded.initialize()).toBe(ETextFileResult.Success);
         const saved = reloaded.file.getDoc(doc.name, 'Vendor::Board', 'board')!;
         expect(saved.locationType).toBe(locationType);
-        expect(saved.userAdded).toBe(true);
-        expect(files.get(fileName)).toContain('userAdded: true');
+        expect(saved.item!.getChild('locationType')).toBeUndefined();
+        expect(saved.mode).toBe('user');
+        expect(files.get(fileName)).toContain('mode: user');
         expect(saved.error).toBe('Retry failed');
         expect(saved.path).toBe(doc.path);
     });
 
-    it.each([undefined, 'W', 'H', 'P', 'L', 'U', 'future'])('addUserBook and addCbuildBooks preserve stored location type %s and errors for raw and normalized duplicates', locationType => {
+    it.each([undefined, 'W', 'H', 'P', 'L', 'U', 'future'])('addUserBook and addCbuildBooks ignore legacy type %s while preserving duplicate metadata', locationType => {
         const manager = new DocManager(docsDirectory);
         const docName = path.resolve('build', 'guide.pdf');
         const doc = manager.file.ensureDoc(docName, 'Vendor::Board', 'board');
         doc.title = 'Stored title';
         doc.category = 'stored';
-        doc.locationType = locationType;
+        doc.item!.setValue('locationType', locationType);
         doc.error = 'Stored error';
         doc.path = path.resolve('downloaded', 'guide.pdf');
         const cbuildFile = new CTreeItemYamlFile(path.resolve('build', 'example.cbuild.yml'));
@@ -436,15 +614,55 @@ describe('DocManager', () => {
         expect(saved.item).toBe(doc.item);
         expect(saved.title).toBe('Stored title');
         expect(saved.category).toBe('stored');
-        expect(saved.locationType).toBe(locationType);
-        expect(saved.userAdded).toBe(false);
-        expect(saved.item!.getChild('userAdded')).toBeUndefined();
+        expect(saved.locationType).toBe('L');
+        expect(saved.item!.getValue('locationType')).toBe(locationType);
+        expect(saved.mode).toBeUndefined();
+        expect(saved.item!.getChild('mode')).toBeUndefined();
         expect(saved.error).toBe('Stored error');
         expect(saved.path).toBe(doc.path);
-        expect(fileSystem.exists).not.toHaveBeenCalled();
+        expect(files.get(fileName)).toBe(importedText);
         expect(fileSystem.read).not.toHaveBeenCalled();
-        expect(fileSystem.write).not.toHaveBeenCalled();
+        expect(fileSystem.write).toHaveBeenCalledTimes(1);
         expect(fileSystem.unlink).not.toHaveBeenCalled();
+    });
+
+    it('addUserBook returns live new and duplicate references without resetting the parent pack', () => {
+        const manager = new DocManager(docsDirectory);
+        const parentId = 'Vendor::Board';
+        const parent = manager.file.ensureParent(parentId, 'board', 'Vendor::Pack@1.0.0');
+        const imported = manager.file.ensureDoc('https://example.com/imported.pdf', parentId, 'board');
+        const save = jest.spyOn(manager.file, 'save');
+
+        const created = manager.addUserBook(parentId, 'board', 'guide.pdf', 'Guide', 'reference')!;
+        expect(created.item).toBe(manager.file.getDoc(path.resolve('guide.pdf'), parentId, 'board')!.item);
+        expect(created.title).toBe('Guide');
+        expect(created.category).toBe('reference');
+        expect(created.path).toBe(path.resolve('guide.pdf'));
+        expect(created.mode).toBe('user');
+        created.error = 'Stored error';
+        const createdObject = created.item!.toObject();
+        const normalizedDuplicate = manager.addUserBook(parentId, 'board', 'guide.pdf', 'Replacement', 'other')!;
+        expect(normalizedDuplicate.item).toBe(created.item);
+        expect(normalizedDuplicate.item!.toObject()).toEqual(createdObject);
+
+        const legacy = manager.file.ensureDoc('legacy.pdf', parentId, 'board');
+        legacy.title = 'Stored title';
+        const rawDuplicate = manager.addUserBook(parentId, 'board', legacy.name, 'Replacement')!;
+        expect(rawDuplicate.item).toBe(legacy.item);
+        expect(rawDuplicate.title).toBe('Stored title');
+        expect(rawDuplicate.mode).toBeUndefined();
+        const web = manager.addUserBook(parentId, 'board', 'https://example.com/manual.pdf', 'Manual')!;
+        expect(web.item).toBe(manager.file.getDoc(web.name, parentId, 'board')!.item);
+        expect(web.path).toBeUndefined();
+        expect(web.mode).toBe('user');
+        expect(manager.addUserBook(parentId, 'board', web.name, 'Replacement')!.item).toBe(web.item);
+        expect(parent.getValue('pack')).toBe('Vendor::Pack@1.0.0');
+        expect(manager.file.getDoc(imported.name, parentId, 'board')!.item).toBe(imported.item);
+        expect(save).toHaveBeenCalledTimes(5);
+        expect(files.get(fileName)).toBe(manager.file.stringify());
+        expect(manager.addUserBook('', 'board', 'guide.pdf', 'Guide')).toBeUndefined();
+        expect(manager.addUserBook(parentId, 'board', '', 'Guide')).toBeUndefined();
+        expect(save).toHaveBeenCalledTimes(5);
     });
 
     it.each([undefined, 'reference'])('addUserBook scopes manual entries by parent and accepts optional category %s', category => {
@@ -466,10 +684,10 @@ describe('DocManager', () => {
         expect(board.item).not.toBe(device.item);
         expect(board.item).not.toBe(other.item);
         expect([board, device, other].map(doc => doc.locationType)).toEqual(['W', 'W', 'W']);
-        expect([board, device, other].map(doc => doc.userAdded)).toEqual([true, true, true]);
-        expect(fileSystem.exists).not.toHaveBeenCalled();
+        expect([board, device, other].map(doc => doc.mode)).toEqual(['user', 'user', 'user']);
+        expect(files.get(fileName)).toBe(manager.file.stringify());
         expect(fileSystem.read).not.toHaveBeenCalled();
-        expect(fileSystem.write).not.toHaveBeenCalled();
+        expect(fileSystem.write).toHaveBeenCalledTimes(3);
     });
 
     it.each([
@@ -486,7 +704,7 @@ describe('DocManager', () => {
         expect(fileSystem.write).not.toHaveBeenCalled();
     });
 
-    it('addCbuildBooks creates separate board references and persists them only when explicitly saved', async () => {
+    it('addCbuildBooks saves separate board references that can be reloaded', async () => {
         const manager = new DocManager(docsDirectory);
         expect(await manager.initialize()).toBe(ETextFileResult.Success);
         const device = manager.file.ensureDoc('manual', 'Vendor::NewBoard', 'device');
@@ -528,9 +746,9 @@ describe('DocManager', () => {
         expect(remote.item!.getChild('category')).toBeUndefined();
         const remoteFile = manager.file.getDoc('file://server/share/manual.pdf', 'Vendor::NewBoard', 'board')!;
         expect(remoteFile.path).toBeUndefined();
-        expect(fileSystem.write).not.toHaveBeenCalled();
+        expect(files.get(fileName)).toBe(existingText);
+        expect(fileSystem.write).toHaveBeenCalledTimes(2);
 
-        expect(await manager.file.save()).toBe(ETextFileResult.Success);
         const reloaded = new DocManager(docsDirectory);
         expect(await reloaded.initialize()).toBe(ETextFileResult.Success);
         expect(reloaded.file.getDocs('Vendor::NewBoard', 'board').map(entry => entry.name))
@@ -542,6 +760,26 @@ describe('DocManager', () => {
         expect(reloaded.file.getDoc(remote.name, 'Vendor::NewBoard', 'board')?.locationType).toBe('W');
         expect(reloaded.file.getDoc(remoteFile.name, 'Vendor::NewBoard', 'board')?.path).toBeUndefined();
         expect(reloaded.file.getDoc(remoteFile.name, 'Vendor::NewBoard', 'board')?.locationType).toBe('W');
+        expect(fileSystem.write).toHaveBeenCalledTimes(2);
+    });
+
+    it.each(['cbuild', 'user'])('reports %s book save errors through the file error reporter', source => {
+        const manager = new DocManager(docsDirectory);
+        const errorReporter = jest.fn();
+        TextFile.setErrorReporter(errorReporter);
+        fileSystem.write.mockImplementationOnce(() => { throw new Error('write failed'); });
+
+        if (source === 'cbuild') {
+            const cbuildFile = new CTreeItemYamlFile();
+            cbuildFile.text = 'build: {board: Vendor::Board, board-books: [{name: manual.pdf}]}\n';
+            cbuildFile.rootItem = cbuildFile.parse();
+            manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        } else {
+            manager.addUserBook('Vendor::Board', 'board', 'manual.pdf', 'Manual');
+        }
+
+        expect(manager.file.errors.join('\n')).toContain('write failed');
+        expect(errorReporter).toHaveBeenCalledWith(expect.stringContaining('write failed'));
         expect(fileSystem.write).toHaveBeenCalledTimes(1);
     });
 

@@ -89,7 +89,6 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
             return;
         }
 
-        this.docManager.addCbuildBooks(cbuild, parentTag);
         for (const doc of this.docManager.file.getDocs(parentId, parentTag)) {
             this.createBookNode(hardwareItem, doc);
         }

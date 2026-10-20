@@ -65,6 +65,10 @@ describe('HardwareItemBuilder', () => {
                   title: Cbuild manual`);
         root!.rootFileName = cSolFile;
 
+        docManager.addCbuildBooks(root!.getChild() as CTreeItem, parentTag);
+        const inventory = docManager.file.stringify();
+        const addCbuildBooks = jest.spyOn(docManager, 'addCbuildBooks');
+        const save = jest.spyOn(docManager.file, 'save');
         const hwItemBuilder = new HardwareItemBuilder(csolution, undefined, docManager);
         const hwNodes = hwItemBuilder.createHardwareNodes(csolution, root?.getChild() as CTreeItem);
         const books = hwNodes.get(parentId)?.getChildren().map(book => ({
@@ -78,6 +82,9 @@ describe('HardwareItemBuilder', () => {
             { tag: 'book', label: 'Inventory reference', docPath: referencePath },
             { tag: 'book', label: 'Cbuild manual', docPath: path.join(path.dirname(cSolFile), 'reported.pdf') },
         ]);
+        expect(addCbuildBooks).not.toHaveBeenCalled();
+        expect(save).not.toHaveBeenCalled();
+        expect(docManager.file.stringify()).toBe(inventory);
     });
 
     it('create dbgconf file node', async () => {

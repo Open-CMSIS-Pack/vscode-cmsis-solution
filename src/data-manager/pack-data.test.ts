@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { PackId } from './pack-data';
+import { comparePackIds, PackId, splitPackId } from './pack-data';
 
 describe('PackId', () => {
 
@@ -80,4 +80,46 @@ describe('PackId', () => {
 
     });
 
+});
+
+describe('splitPackId', () => {
+    it('splits a valid pack ID', () => {
+        const result = splitPackId('vendor::name@1.0.0');
+        expect(result).toEqual({ vendor: 'vendor', name: 'name', version: '1.0.0' });
+    });
+
+    it('splits a valid pack ID without version', () => {
+        const result = splitPackId('vendor::name');
+        expect(result).toEqual({ vendor: 'vendor', name: 'name', version: undefined });
+    });
+
+    it('returns undefined for an undefined pack ID', () => {
+        expect(splitPackId(undefined)).toBeUndefined();
+    });
+
+    it('throws an error for invalid pack ID format', () => {
+        expect(() => splitPackId('invalid-pack-id')).toThrow('Invalid pack ID format: invalid-pack-id');
+    });
+});
+
+describe('comparePackIds', () => {
+    it.each([
+        ['Vendor::Pack@1.0.0', 'Vendor::Pack@1.0.0', 0],
+        ['VENDOR::PACK@1.0.0', 'vendor::pack@1.0.0', 0],
+        ['Alpha::Pack@2.0.0', 'Beta::Pack@1.0.0', -1],
+        ['Beta::Pack@1.0.0', 'Alpha::Pack@2.0.0', 1],
+        ['Vendor::Alpha@2.0.0', 'Vendor::Beta@1.0.0', -1],
+        ['Vendor::Beta@1.0.0', 'Vendor::Alpha@2.0.0', 1],
+        ['Vendor::Pack@1.2.0', 'Vendor::Pack@1.10.0', -1],
+        ['Vendor::Pack@2.0.0', 'Vendor::Pack@1.0.0', 1],
+        ['Vendor::Pack@1.0.0-rc.1', 'Vendor::Pack@1.0.0', -1],
+        ['Vendor::Pack@1.0.0+build.1', 'Vendor::Pack@1.0.0+build.2', 0],
+    ])('compares %s with %s', (first, second, expected) => {
+        expect(Math.sign(comparePackIds(first, second))).toBe(expected);
+    });
+
+    it.each(['', 'Vendor', '::Pack@1.0.0', 'Vendor::Pack@invalid'])('rejects invalid pack ID %s in either position', invalid => {
+        expect(() => comparePackIds(invalid, 'Vendor::Pack@1.0.0')).toThrow();
+        expect(() => comparePackIds('Vendor::Pack@1.0.0', invalid)).toThrow();
+    });
 });

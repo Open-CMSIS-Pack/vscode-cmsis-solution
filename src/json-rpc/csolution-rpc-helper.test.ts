@@ -10,7 +10,8 @@ import * as childProcess from 'node:child_process';
 import * as jsonrpc from 'vscode-jsonrpc/node';
 import * as vscode from 'vscode';
 import { CsolutionService } from './csolution-rpc-client';
-import { splitBoardId, splitDeviceId, splitPackId } from './csolution-rpc-helper';
+import { splitBoardId } from '../data-manager/board-data';
+import { splitDeviceId } from '../data-manager/device-data';
 import { VcpkgManager } from '../vcpkg/vcpkg-manager';
 import { Environment, EnvironmentManager } from '../desktop/env-manager';
 import { SolutionEventHub } from '../solutions/solution-event-hub';
@@ -53,22 +54,6 @@ describe('csolution-rpc-client', () => {
         jest.restoreAllMocks();
     });
 
-    describe('splitPackId', () => {
-        it('splits a valid pack ID', () => {
-            const result = splitPackId('vendor::name@1.0.0');
-            expect(result).toEqual({ vendor: 'vendor', name: 'name', version: '1.0.0' });
-        });
-
-        it('splits a valid pack ID without version', () => {
-            const result = splitPackId('vendor::name');
-            expect(result).toEqual({ vendor: 'vendor', name: 'name', version: undefined });
-        });
-
-        it('throws an error for invalid pack ID format', () => {
-            expect(() => splitPackId('invalid-pack-id')).toThrow('Invalid pack ID format: invalid-pack-id');
-        });
-    });
-
     describe('splitBoardId', () => {
         it('splits a valid full board ID', () => {
             const result = splitBoardId('vendor::name:rev1');
@@ -89,6 +74,14 @@ describe('csolution-rpc-client', () => {
             const result = splitBoardId('name');
             expect(result).toEqual({ vendor: undefined, name: 'name', revision: undefined });
         });
+
+        it('returns undefined for an undefined board ID', () => {
+            expect(splitBoardId(undefined)).toBeUndefined();
+        });
+
+        it('throws an error for invalid board ID format', () => {
+            expect(() => splitBoardId('')).toThrow('Invalid board ID format: ');
+        });
     });
 
     describe('splitDeviceId', () => {
@@ -105,6 +98,14 @@ describe('csolution-rpc-client', () => {
         it('accepts simple name as device id', () => {
             const result = splitDeviceId('name');
             expect(result).toEqual({ vendor: undefined, name: 'name' });
+        });
+
+        it('returns undefined for an undefined device ID', () => {
+            expect(splitDeviceId(undefined)).toBeUndefined();
+        });
+
+        it('throws an error for invalid device ID format', () => {
+            expect(() => splitDeviceId('')).toThrow('Invalid device ID format: ');
         });
     });
 

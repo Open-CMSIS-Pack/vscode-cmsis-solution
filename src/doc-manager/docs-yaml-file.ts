@@ -15,12 +15,14 @@
  */
 
 import * as path from 'node:path';
-import { URL } from 'node:url';
+import { fileURLToPath, URL } from 'node:url';
 import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { CTreeItem, ETreeItemKind, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { CTreeItemWrap, ITreeItemWrap } from '@open-cmsis-pack/cmsis-common/tree-item-wrapper';
+import { comparePackIds } from '../data-manager/pack-data';
 import { isWebAddress } from '../util';
+import { expandRootVars, getCmsisPackRoot } from '../utils/path-utils';
 
 export interface IDocRef extends ITreeItemWrap {
     get name(): string;
@@ -29,9 +31,8 @@ export interface IDocRef extends ITreeItemWrap {
     get title(): string;
     set title(value: string | undefined);
     category: string | undefined;
-    locationType: string | undefined;
-    get userAdded(): boolean;
-    set userAdded(value: boolean | undefined);
+    readonly locationType: string;
+    mode: 'user' | undefined;
     error: string | undefined;
     isWebDoc(): boolean;
     isWeb(): boolean;
@@ -41,6 +42,7 @@ export interface IDocRef extends ITreeItemWrap {
 export interface IDocParent extends ITreeItemWrap {
     readonly tag: string;
     readonly id: string;
+    packId: string | undefined;
     readonly docs: readonly IDocRef[];
     getDoc(name: string): IDocRef | undefined;
     getDocByPath(path: string): IDocRef | undefined;
@@ -56,7 +58,7 @@ export interface DocsYamlFile extends ITreeItemFile {
     getDocByPath(path: string, parentId: string, parentTag?: string): IDocRef | undefined;
     findDocs(name: string, parentTag?: string): IDocRef[];
 
-    ensureParent(parentId: string, parentTag: string): CTreeItem;
+    ensureParent(parentId: string, parentTag: string, packId?: string): CTreeItem;
     ensureDoc(name: string, parentId: string, parentTag: string): IDocRef;
     removeDoc(name: string, parentId: string, parentTag?: string): boolean;
 }
@@ -86,20 +88,29 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
     set title(value: string | undefined) { this.setValue('title', value); }
     get category(): string | undefined { return this.getValue('category'); }
     set category(value: string | undefined) { this.setValue('category', value); }
-    get locationType(): string | undefined { return this.getValue('locationType'); }
-    set locationType(value: string | undefined) { this.setValue('locationType', value); }
-    get userAdded(): boolean { return this.item?.getChild('userAdded')?.toObject() === true; }
-    set userAdded(value: boolean | undefined) {
-        if (value) {
-            this.ensureItem().createChild('userAdded', true).fromObject(true);
-        } else {
-            this.setValue('userAdded', undefined);
+    get locationType(): string {
+        const name = this.name || this.path || '';
+        const webLocationType = getWebLocationType(name);
+        if (webLocationType) {
+            return webLocationType;
         }
+        if (/^\$\{CMSIS_PACK_ROOT\}(?:[/\\]|$)/.test(name)) {
+            return 'P';
+        }
+        const absoluteName = path.resolve(expandRootVars(name.startsWith('file://') ? fileURLToPath(name) : name));
+        const relativeToPackRoot = path.relative(getCmsisPackRoot(), absoluteName);
+        return relativeToPackRoot !== '..' && !relativeToPackRoot.startsWith(`..${path.sep}`)
+            && !path.isAbsolute(relativeToPackRoot) ? 'P' : 'L';
     }
+    get mode(): 'user' | undefined { return this.getValue('mode') === 'user' ? 'user' : undefined; }
+    set mode(value: 'user' | undefined) { this.setValue('mode', value); }
     get error(): string | undefined { return this.getValue('error'); }
     set error(value: string | undefined) { this.setValue('error', value); }
     isWebDoc(): boolean { return getWebLocationType(this.name) === 'W'; }
     isWeb(): boolean { return getWebLocationType(this.name) !== undefined; }
+
+
+
     isDownloaded(): boolean { return this.locationType === 'W' && this.path !== undefined; }
 }
 
@@ -110,6 +121,22 @@ class DocParentWrap extends CTreeItemWrap implements IDocParent {
 
     override get nameKey(): string { return this.tag; }
     get id(): string { return this.getValue(this.tag) ?? ''; }
+    get packId(): string | undefined { return this.getValue('pack'); }
+    set packId(value: string | undefined) {
+        if (!value) {
+            return;
+        }
+        const currentPackId = this.packId;
+        if (currentPackId === value || (currentPackId !== undefined && comparePackIds(currentPackId, value) >= 0)) {
+            return;
+        }
+        for (const doc of this.docs) {
+            if (doc.mode !== 'user') {
+                doc.remove();
+            }
+        }
+        this.setValue('pack', value);
+    }
 
     get docs(): readonly IDocRef[] {
         return (this.item?.getGrandChildren('docs') ?? []).map(item => new DocRefWrap(item));
@@ -186,14 +213,17 @@ class DocsYamlFileImpl extends CTreeItemYamlFile implements DocsYamlFile {
         return this.getDocs(parentId, parentTag).find(doc => doc.path === path);
     }
 
-    ensureParent(parentId: string, parentTag: string): CTreeItem {
-        const existing = this.getDocParent(parentId, parentTag);
-        if (existing) {
-            return existing.item as CTreeItem;
+    ensureParent(parentId: string, parentTag: string, packId?: string): CTreeItem {
+        let parent = this.getDocParent(parentId, parentTag);
+        if (!parent) {
+            const sequence = this.ensureTopItem().createChild(`${parentTag}s`, true).setKind(ETreeItemKind.Sequence);
+            const item = sequence.createSequenceChildWithValue(parentTag, parentId, (itemValue, value) => itemValue === value);
+            parent = new DocParentWrap(item, parentTag);
         }
-        const sequence = this.ensureTopItem().createChild(`${parentTag}s`, true).setKind(ETreeItemKind.Sequence);
-        const item = sequence.createSequenceChildWithValue(parentTag, parentId, (itemValue, value) => itemValue === value);
-        return item as CTreeItem;
+        if (packId) {
+            parent.packId = packId;
+        }
+        return parent.item as CTreeItem;
     }
 
     ensureDoc(name: string, parentId: string, parentTag: string): IDocRef {

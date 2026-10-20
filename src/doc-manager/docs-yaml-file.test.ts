@@ -85,7 +85,7 @@ describe('DocsYamlFile', () => {
         const file = new DocsYamlFile(fileName);
         const doc = file.ensureDoc(name, 'Vendor::Board', 'board');
         for (const locationType of [undefined, 'U', 'W', 'H', 'P', 'L', 'future']) {
-            doc.locationType = locationType;
+            doc.item!.setValue('locationType', locationType);
             doc.path = '/downloaded/manual.pdf';
             const beforeRead = file.stringify();
 
@@ -98,17 +98,20 @@ describe('DocsYamlFile', () => {
         expect(fileSystem.write).not.toHaveBeenCalled();
     });
 
-    it.each([undefined, 'W', 'H', 'P', 'L', 'U', 'future'])('detects downloads independently of manual provenance using location type %s and a defined path', locationType => {
+    it.each([
+        ['https://example.com/manual.pdf', true],
+        ['https://example.com/manual.html', false],
+        ['manual.pdf', false],
+    ])('detects downloads from the current reference %s and a defined path', (name, isWebDoc) => {
         const file = new DocsYamlFile(fileName);
-        const doc = file.ensureDoc('https://example.com/manual.pdf', 'Vendor::Board', 'board');
-        doc.locationType = locationType;
-        for (const userAdded of [false, true]) {
-            doc.userAdded = userAdded;
+        const doc = file.ensureDoc(name, 'Vendor::Board', 'board');
+        for (const mode of [undefined, 'user'] as const) {
+            doc.mode = mode;
             for (const docPath of [undefined, '', '/downloaded/manual.pdf']) {
                 doc.path = docPath;
                 const beforeRead = file.stringify();
 
-                expect(doc.isDownloaded()).toBe(locationType === 'W' && docPath !== undefined);
+                expect(doc.isDownloaded()).toBe(isWebDoc && docPath !== undefined);
                 expect(file.stringify()).toBe(beforeRead);
             }
         }
@@ -117,44 +120,60 @@ describe('DocsYamlFile', () => {
         expect(fileSystem.write).not.toHaveBeenCalled();
     });
 
-    it.each([false, undefined])('persists only a true manual flag and removes it when cleared with %s', async clearedValue => {
+    it('persists user mode and removes it when cleared with undefined', async () => {
         const file = new DocsYamlFile(fileName);
         const doc = file.ensureDoc('manual.pdf', 'Vendor::Board', 'board');
         const beforeRead = file.stringify();
 
-        expect(doc.userAdded).toBe(false);
-        expect(doc.item!.getChild('userAdded')).toBeUndefined();
+        expect(doc.mode).toBeUndefined();
+        expect(doc.item!.getChild('mode')).toBeUndefined();
         expect(file.stringify()).toBe(beforeRead);
-        doc.userAdded = true;
-        expect(doc.userAdded).toBe(true);
-        expect(doc.item!.getChild('userAdded')?.toObject()).toBe(true);
+        doc.mode = 'user';
+        expect(doc.mode).toBe('user');
+        expect(doc.item!.getChild('mode')?.toObject()).toBe('user');
         expect(await file.save()).toBe(ETextFileResult.Success);
-        expect(files.get(fileName)).toContain('userAdded: true');
+        expect(files.get(fileName)).toContain('mode: user');
 
         const reloaded = new DocsYamlFile(fileName);
         expect(await reloaded.load()).toBe(ETextFileResult.Success);
         const saved = reloaded.getDoc(doc.name, 'Vendor::Board', 'board')!;
-        expect(saved.userAdded).toBe(true);
-        saved.item!.getChild('userAdded')!.fromObject(false);
-        expect(saved.userAdded).toBe(false);
-        saved.userAdded = true;
-        saved.userAdded = clearedValue;
-        expect(saved.userAdded).toBe(false);
-        expect(saved.item!.getChild('userAdded')).toBeUndefined();
+        expect(saved.mode).toBe('user');
+        saved.item!.setValue('mode', 'future');
+        const beforeModeRead = reloaded.stringify();
+        expect(saved.mode).toBeUndefined();
+        expect(saved.item!.getValue('mode')).toBe('future');
+        expect(reloaded.stringify()).toBe(beforeModeRead);
+        saved.mode = 'user';
+        saved.mode = undefined;
+        expect(saved.mode).toBeUndefined();
+        expect(saved.item!.getChild('mode')).toBeUndefined();
         expect(await reloaded.save()).toBe(ETextFileResult.Success);
-        expect(files.get(fileName)).not.toContain('userAdded');
+        expect(files.get(fileName)).not.toContain('mode:');
 
         const cleared = new DocsYamlFile(fileName);
         expect(await cleared.load()).toBe(ETextFileResult.Success);
-        expect(cleared.getDoc(doc.name, 'Vendor::Board', 'board')?.userAdded).toBe(false);
+        expect(cleared.getDoc(doc.name, 'Vendor::Board', 'board')?.mode).toBeUndefined();
     });
 
-    it.each(['W', 'H', 'P', 'L', 'U', 'future'])('round-trips and clears live location type %s and errors', async locationType => {
+    it.each([
+        ['https://example.com/manual.pdf', 'W'],
+        ['https://example.com/manual.html', 'H'],
+        ['${CMSIS_PACK_ROOT}/manual.pdf', 'P'],
+        [path.resolve('packs', 'manual.pdf'), 'P'],
+        [path.resolve('packs'), 'P'],
+        [path.resolve('packs', '..manual.pdf'), 'P'],
+        [path.resolve('packs-other', 'manual.pdf'), 'L'],
+        [path.resolve('packs', '..'), 'L'],
+        ['manual.pdf', 'L'],
+    ])('calculates location type for %s without storing it and persists live errors', async (name, locationType) => {
+        jest.replaceProperty(process, 'env', { ...process.env, CMSIS_PACK_ROOT: path.resolve('packs') });
         const file = new DocsYamlFile(fileName);
-        const doc = file.ensureDoc('https://example.com/manual.pdf', 'Vendor::Board', 'board');
-        doc.locationType = locationType;
+        const doc = file.ensureDoc(name, 'Vendor::Board', 'board');
         doc.error = 'Download failed';
-        expect(doc.item!.getValue('locationType')).toBe(locationType);
+        const beforeRead = file.stringify();
+        expect(doc.locationType).toBe(locationType);
+        expect(file.stringify()).toBe(beforeRead);
+        expect(doc.item!.getChild('locationType')).toBeUndefined();
         expect(doc.item!.getValue('error')).toBe('Download failed');
         doc.item!.setValue('error', 'Retry failed');
         expect(doc.error).toBe('Retry failed');
@@ -163,34 +182,51 @@ describe('DocsYamlFile', () => {
         doc.category = 'reference';
         expect(doc.locationType).toBe(locationType);
         expect(await file.save()).toBe(ETextFileResult.Success);
+        expect(files.get(fileName)).not.toContain('locationType:');
 
         const reloaded = new DocsYamlFile(fileName);
         expect(await reloaded.load()).toBe(ETextFileResult.Success);
         const saved = reloaded.getDoc(doc.name, 'Vendor::Board', 'board')!;
         expect(saved.locationType).toBe(locationType);
         expect(saved.error).toBe('Retry failed');
-        saved.locationType = undefined;
         saved.error = undefined;
-        expect(saved.locationType).toBeUndefined();
+        saved.name = 'https://example.com/changed.html';
+        expect(saved.locationType).toBe('H');
+        expect(saved.isDownloaded()).toBe(false);
         expect(saved.error).toBeUndefined();
         expect(saved.item!.getChild('locationType')).toBeUndefined();
         expect(saved.item!.getChild('error')).toBeUndefined();
         expect(await reloaded.save()).toBe(ETextFileResult.Success);
         const cleared = new DocsYamlFile(fileName);
         expect(await cleared.load()).toBe(ETextFileResult.Success);
-        expect(cleared.getDoc(doc.name, 'Vendor::Board', 'board')?.locationType).toBeUndefined();
-        expect(cleared.getDoc(doc.name, 'Vendor::Board', 'board')?.error).toBeUndefined();
+        expect(cleared.getDoc(saved.name, 'Vendor::Board', 'board')?.locationType).toBe('H');
+        expect(cleared.getDoc(saved.name, 'Vendor::Board', 'board')?.error).toBeUndefined();
     });
 
-    it('leaves legacy entries unclassified when reading location and error state', async () => {
+    it('recalculates local location types when the pack root changes without mutating the tree', () => {
+        jest.replaceProperty(process, 'env', { ...process.env, CMSIS_PACK_ROOT: path.resolve('packs') });
+        const file = new DocsYamlFile(fileName);
+        const doc = file.ensureDoc(path.resolve('packs', 'manual.pdf'), 'Vendor::Device', 'device');
+        doc.item!.setValue('locationType', 'future');
+        const beforeRead = file.stringify();
+
+        expect(doc.locationType).toBe('P');
+        process.env.CMSIS_PACK_ROOT = path.resolve('other-packs');
+        expect(doc.locationType).toBe('L');
+        expect(file.stringify()).toBe(beforeRead);
+        expect(doc.item!.getValue('locationType')).toBe('future');
+    });
+
+    it('classifies legacy entries without mutating their location and error state', async () => {
         const file = new DocsYamlFile(fileName);
         expect(await file.load()).toBe(ETextFileResult.Success);
         const beforeRead = file.stringify();
         const doc = file.getDocs('NXP::LPC4300', 'device')[0];
 
-        expect(doc.locationType).toBeUndefined();
-        expect(doc.userAdded).toBe(false);
-        expect(doc.item!.getChild('userAdded')).toBeUndefined();
+        expect(doc.locationType).toBe('L');
+        expect(doc.item!.getChild('locationType')).toBeUndefined();
+        expect(doc.mode).toBeUndefined();
+        expect(doc.item!.getChild('mode')).toBeUndefined();
         expect(doc.error).toBeUndefined();
         expect(doc.isWeb()).toBe(false);
         expect(doc.isWebDoc()).toBe(false);
@@ -301,6 +337,88 @@ describe('DocsYamlFile', () => {
         expect(file.ensureDoc('manual', 'Vendor::Shared', 'board').item).toBe(created.item);
         expect(file.getDoc('manual', 'Vendor::Shared', 'board')?.item).toBe(created.item);
         expect(file.getDocParents()).toHaveLength(2);
+    });
+
+    it.each([
+        ['unchanged pack', 'Vendor::Pack@1.0.0', 'Vendor::Pack@1.0.0', true],
+        ['both packs missing', undefined, undefined, true],
+        ['changed pack', 'Vendor::Pack@1.0.0', 'Vendor::Pack@2.0.0', true],
+        ['new pack', undefined, 'Vendor::Pack@2.0.0', true],
+        ['missing pack update', 'Vendor::Pack@1.0.0', undefined, true],
+        ['omitted pack argument', 'Vendor::Pack@1.0.0', undefined, false],
+    ])('ensures parent pack metadata and preserves user documents for %s', async (_description, currentPack, packId, updatePack) => {
+        const file = new DocsYamlFile(fileName);
+        const parentId = 'Vendor::Hardware';
+        const parent = file.ensureParent(parentId, 'device', currentPack);
+        const docParent = file.getDocParent(parentId, 'device')!;
+        expect(docParent.packId).toBe(currentPack);
+        parent.setValue('future', 'preserved');
+        const manual = file.ensureDoc('manual.pdf', parentId, 'device');
+        manual.mode = 'user';
+        manual.error = 'Stored error';
+        manual.item!.setValue('future', 'preserved');
+        const manualObject = manual.item!.toObject();
+        const imported = docParent.ensureDoc('imported.pdf');
+        const futureMode = docParent.ensureDoc('future.pdf');
+        futureMode.item!.setValue('mode', 'future');
+        const otherParent = file.ensureDoc(imported.name, 'Vendor::Other', 'device');
+        const otherTag = file.ensureDoc(imported.name, parentId, 'board');
+        const expectedPack = updatePack && packId ? packId : currentPack;
+        const packChanged = currentPack !== expectedPack;
+
+        expect(updatePack ? file.ensureParent(parentId, 'device', packId) : file.ensureParent(parentId, 'device')).toBe(parent);
+
+        expect(docParent.packId).toBe(expectedPack);
+        expect(parent.getValue('pack')).toBe(expectedPack);
+        expect(parent.getValue('future')).toBe('preserved');
+        expect(docParent.docs.map(doc => doc.item)).toEqual(packChanged ? [manual.item] : [manual.item, imported.item, futureMode.item]);
+        expect(manual.item!.toObject()).toEqual(manualObject);
+        expect(file.getDoc(imported.name, 'Vendor::Other', 'device')!.item).toBe(otherParent.item);
+        expect(file.getDoc(imported.name, parentId, 'board')!.item).toBe(otherTag.item);
+        const beforeRead = file.stringify();
+        expect(file.ensureParent(parentId, 'device')).toBe(parent);
+        expect(docParent.packId).toBe(expectedPack);
+        expect(file.stringify()).toBe(beforeRead);
+        expect(fileSystem.read).not.toHaveBeenCalled();
+        expect(fileSystem.write).not.toHaveBeenCalled();
+        expect(await file.save()).toBe(ETextFileResult.Success);
+
+        const reloaded = new DocsYamlFile(fileName);
+        expect(await reloaded.load()).toBe(ETextFileResult.Success);
+        expect(reloaded.getDocParent(parentId, 'device')?.packId).toBe(expectedPack);
+        expect(reloaded.getDocs(parentId, 'device').map(doc => doc.name))
+            .toEqual(packChanged ? [manual.name] : [manual.name, imported.name, futureMode.name]);
+    });
+
+    it.each([
+        'Vendor::Pack@1.0.0',
+        'vendor::pack@1.0.0',
+        'Vendor::Pack@1.0.0+build.1',
+    ])('preserves equivalent pack %s and updates changed packs without replacing user documents', equivalentPackId => {
+        const file = new DocsYamlFile(fileName);
+        file.ensureParent('Vendor::Component', 'component', 'Vendor::Pack@1.0.0');
+        const parent = file.getDocParent('Vendor::Component', 'component')!;
+        const imported = parent.ensureDoc('imported.pdf');
+        const manual = parent.ensureDoc('manual.pdf');
+        manual.mode = 'user';
+        const beforeRead = file.stringify();
+
+        expect(parent.packId).toBe('Vendor::Pack@1.0.0');
+        parent.packId = equivalentPackId;
+        expect(parent.packId).toBe('Vendor::Pack@1.0.0');
+        expect(file.stringify()).toBe(beforeRead);
+        expect(parent.docs.map(doc => doc.item)).toEqual([imported.item, manual.item]);
+        parent.packId = 'Vendor::Pack@2.0.0';
+        expect(parent.packId).toBe('Vendor::Pack@2.0.0');
+        expect(parent.docs.map(doc => doc.item)).toEqual([manual.item]);
+        const replacement = parent.ensureDoc('replacement.pdf');
+        const beforeIgnoredUpdate = file.stringify();
+        for (const ignoredPackId of [undefined, '', 'Vendor::Pack@1.0.0']) {
+            parent.packId = ignoredPackId;
+            expect(parent.packId).toBe('Vendor::Pack@2.0.0');
+            expect(file.stringify()).toBe(beforeIgnoredUpdate);
+            expect(parent.docs.map(doc => doc.item)).toEqual([manual.item, replacement.item]);
+        }
     });
 
     it('creates both parents and removes only the requested document', async () => {
