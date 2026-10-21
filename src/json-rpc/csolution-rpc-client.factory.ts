@@ -33,6 +33,7 @@ export const csolutionServiceFactory = makeFactory<
     discoverLayers: () => jest.fn(),
     listMissingPacks: () => jest.fn(),
     getCsolutionBin: () => jest.fn(),
+    getPackRoot: () => jest.fn(),
     waitForExit: () => jest.fn(),
     suspendPackIdxWatcher: () => jest.fn(),
     resumePackIdxWatcher: () => jest.fn(),

@@ -32,7 +32,8 @@ describe('CsolutionExtension', () => {
             {} as SolutionCreator,
             {} as BuildTaskProvider,
             {} as DataManager,
-            { loadState: {} },
+            { getCsolution: jest.fn(), loadState: {} },
+            { getPacksInfo: jest.fn() },
             { getToolsEnvironment: jest.fn() },
         );
 
@@ -49,7 +50,7 @@ describe('CsolutionExtension', () => {
         const api = extension.getApi(3);
         expect(api).not.toBe(extension.getApi(3));
         expect(api).not.toBe(extension.getApi(2));
-        for (const method of ['getBoards', 'getDevices', 'getDraftProjects', 'createNewSolution', 'build', 'getToolsEnvironment']) {
+        for (const method of ['getBoards', 'getDevices', 'getDraftProjects', 'createNewSolution', 'build', 'getToolsEnvironment', 'getPacks']) {
             expect(api).toHaveProperty(method, expect.any(Function));
         }
     });

@@ -19,7 +19,89 @@ if (csolutionExtension) {
 
 V3 is available through `getApi(3)`. It retains `getBoards`, `getDevices`,
 `getDraftProjects`, `createNewSolution`, and `build` with their V2 behavior.
-V2 is unchanged and does not expose `getToolsEnvironment`.
+V2 is unchanged and does not expose `getToolsEnvironment` or `getPacks`.
+
+### Pack Catalogs
+
+```typescript
+const api = (await csolutionExtension.activate()).getApi(3);
+const catalog = await api.getPacks();
+const installed = await api.getPacks({ scope: 'installed' });
+```
+
+Default/`all` merges the local `.Web/index.pidx` catalog with installed RPC packs by
+identifier and version. The index lists only its latest version per pack family,
+may be stale, and does not provide descriptions. Installed packs can supply older
+versions and descriptions. `installed` queries only RPC. Every scope returns `{ packs }`.
+Catalog pack records contain `id`, `version`, and optional `description`,
+`installed` and `path`, sorted by ID. Installation status is unknown when RPC
+fails, rather than falsely claiming that indexed records are uninstalled.
+Successful sources are retained when another source fails, so
+catalog results may be incomplete without an explicit indication.
+Queries wait for pack initialization without loading or activating a solution.
+For solution-free catalog queries, RPC receives `context: ''`.
+
+### Used Packs
+
+```typescript
+const result = await api.getPacks({ scope: 'used', context: 'App.Debug+Board' });
+```
+
+`used` requires an explicit, exact context in the loaded solution's active target
+set. It returns `{ packs }`, retaining only RPC records marked
+used, in RPC order without deduplication. Records contain `id`, `version` from
+the pack ID and optional `description`. A matching non-missing resolved RPC
+reference supplies `installed: true` and its optional `path`. Without that
+evidence these fields are absent, not a claim that the pack is uninstalled.
+
+Missing/blank context, an unloaded solution, unknown context, RPC failure,
+malformed/unversioned used IDs and detected solution/context changes reject.
+A successful query with no used records returns an empty pack array. The query
+does not load a solution, change selection, install packs or write files. It uses
+the shared RPC session and does not guarantee snapshot isolation during editing
+or reloading. V2 is unchanged.
+
+### Missing Packs
+
+```typescript
+const result = await api.getPacks({ scope: 'missing', context: 'App.Debug+Board' });
+```
+
+`missing` returns `{ packs }` with one record per RPC reference
+explicitly marked missing, preserving RPC order and duplicates. Each record has
+`pack` (the original requirement), `origin` and optional `resolvedPack` when supplied
+by RPC. Requirements can be unversioned or contain version ranges, so these are
+not resolved pack identities: no `id`, `version`, installation flag or path is invented.
+All scopes use the same result type with optional pack-record fields; check the
+requested scope before using a field. Parent pack `used` flags do not filter
+missing references.
+
+The query requires an explicit, exact context in the loaded solution's active
+target set. Missing/blank context, an unloaded solution, unknown context, RPC
+failure and detected solution/context changes reject. Success with no missing
+references returns an empty array. It does not load solutions, change selection,
+install packs or write files. Shared RPC access does not provide snapshot isolation.
+V2 remains unchanged.
+
+### Pack Filtering
+
+All four pack scopes accept an optional `filter: { text?: string }`:
+
+```typescript
+const result = await api.getPacks({
+    scope: 'used',
+    context: 'App.Debug+Board',
+    filter: { text: 'cmsis' },
+});
+```
+
+Text is a case-insensitive literal substring, not a regex. All/installed/used
+match `id` or `description`; missing matches only the original `pack` requirement,
+not `origin` or `resolvedPack`. Omitted/empty text means no restriction; whitespace
+is literal. Filtering preserves order and duplicates, and captures
+text before awaiting sources. It runs after existing validation and mapping:
+even a filter that matches nothing does not bypass prerequisites, malformed used
+IDs or source errors. No extra queries are made, and source selection is unchanged.
 
 ### Tools Environment
 
@@ -48,20 +130,50 @@ accept folder/download-consent options.
 ### API V3 Smoke Tests
 
 [The extension-host fixture](../src/api/extension-host-v3-smoke.ts) runs against the
-real extension in a multi-root window. It checks configured variables, built-in
-tools, nonempty PATH, repeatable output, V2 compatibility, unchanged solution
-selection and absence of generated files in both roots. It restores the workspace
-setting and disposes the API in `finally`.
+real extension. Its tools-environment mode uses a multi-root window to check
+configured variables, built-in tools, nonempty PATH, repeatable output, V2
+compatibility, unchanged solution selection and absence of generated files in
+both roots. It restores the workspace setting and disposes the API in `finally`.
 
-Select **API V3 Smoke Tests (Real VS Code)** and press **F5**. The preparation task
-builds the extension, compiles the fixture, and creates a workspace with two fresh
-empty folders under the ignored `.vscode-test/api-v3-smoke` directory on each run.
+Build the extension with `npm run build` and compile the fixture with `npm run compile`
+after a clean checkout or after changing extension or fixture sources. Then select
+**API V3 Smoke Tests**, press **F5**, and choose **Tools Environment** from the picker.
+The preparation task does not rebuild; it creates a workspace with two fresh empty
+folders under the ignored `.vscode-test/api-v3-smoke` directory on each run.
 No manual workspace setup or path input is needed. Previous run folders are retained
-for inspection. The launch uses an isolated user-data directory
+for inspection. Each launch uses an isolated user-data directory
 and requires the repository's bundled tools and the extension's normal dependencies.
 Arm Tools remains responsible for any activation prompts. No installed packs or
 loaded solution are required. Activation waiting/failure and loaded-solution YAML
 parity are covered by the focused unit tests.
+
+#### Pack Smoke Modes
+
+Choose a scenario from the **API V3 Smoke Tests** picker when launching with **F5**.
+The preparation task creates the appropriate disposable workspaces, and the selection runs a scenario in the
+shared [extension-host fixture](../src/api/extension-host-v3-smoke.ts):
+
+- **Installed Packs**: queries only `scope: 'installed'` via RPC in an empty window.
+    Requires installed packs and a backend that accepts `GetPacksInfo` with an
+    empty context without a loaded solution. It does not query the index-backed catalog.
+- **All Packs (Index)**: checks installed packs and the combined default catalog in
+    an empty window. Requires `.Web/index.pidx` and at least one indexed pack not
+    installed locally, in addition to the RPC prerequisites above.
+- **Used Packs (Loaded Solution)** and **Missing Packs (Loaded Solution)**: each opens a fresh disposable copy of
+    [the pack fixture](../test-data/api-v3-packs/Components.csolution.yml), containing
+    only its respective solution file, the shared project and the
+    [.vscode settings](../test-data/api-v3-packs/.vscode/settings.json), which disable
+    pack downloads, web services and automatic conversion. Requires already
+    installed `ARM::CMSIS` and `ARM::CMSIS_DFP`. These modes activate the normal or
+    deliberately missing-pack solution and check used/missing records, literal
+    filters, serialization, repeatability, invalid contexts and unchanged inputs
+    and selection. No component-discovery API is required.
+
+Normal extension activation can generate workspace artifacts in the disposable
+loaded-pack folders. Verify the explicit success message in the host output: the
+VS Code launcher can return zero even when the test runner fails. All modes dispose
+the API. The launch configuration sets `CMSIS_V3_SMOKE_MODE` internally to select
+the shared fixture's scenario; it does not configure the extension or public API.
 
 ## API version 2
 
