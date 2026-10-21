@@ -26,7 +26,6 @@ describe('splitVendorNameId', () => {
         ['Name:core:extra', undefined, 'Name', 'core:extra'],
         ['Vendor::Name:', 'Vendor', 'Name', ''],
         [' Vendor :: Name : suffix ', ' Vendor ', ' Name ', ' suffix '],
-        ['', undefined, '', undefined],
         ['::Name', '', 'Name', undefined],
         ['Vendor::', 'Vendor', '', undefined],
         ['::', '', '', undefined],
@@ -38,17 +37,10 @@ describe('splitVendorNameId', () => {
         expect(splitDeviceId(id!)).toEqual({ vendor, name });
     });
 
-    it('returns undefined only for undefined input', () => {
-        expect(splitVendorNameId(undefined)).toBeUndefined();
-        expect(splitBoardId(undefined)).toBeUndefined();
-        expect(splitDeviceId(undefined)).toBeUndefined();
-    });
-
-    it('rejects malformed IDs in all projections', () => {
-        const id = 'Vendor::Name:invalid\nsuffix';
-        expect(() => splitVendorNameId(id)).toThrow();
-        expect(() => splitBoardId(id)).toThrow();
-        expect(() => splitDeviceId(id)).toThrow();
+    it.each([undefined, '', 'Vendor::Name:invalid\nsuffix'])('returns undefined for absent, empty or malformed input in all projections: %j', id => {
+        expect(splitVendorNameId(id)).toBeUndefined();
+        expect(splitBoardId(id)).toBeUndefined();
+        expect(splitDeviceId(id)).toBeUndefined();
     });
 });
 
@@ -129,12 +121,8 @@ describe('splitPackId', () => {
         expect(result).toEqual({ vendor: 'vendor', name: 'name', version: undefined });
     });
 
-    it('returns undefined for an undefined pack ID', () => {
-        expect(splitPackId(undefined)).toBeUndefined();
-    });
-
-    it('throws an error for invalid pack ID format', () => {
-        expect(() => splitPackId('invalid-pack-id')).toThrow('Invalid pack ID format: invalid-pack-id');
+    it.each([undefined, '', 'invalid-pack-id', '::name', 'vendor::', 'vendor::@1.0.0'])('returns undefined for absent, empty or malformed pack ID: %j', packId => {
+        expect(splitPackId(packId)).toBeUndefined();
     });
 });
 

@@ -74,6 +74,7 @@ class DocManagerImpl implements DocManager {
         if (!parentId) {
             return;
         }
+        await this.file.load(); // refresh inventory, could have been changed externally
         const parent = this.file.ensureParent(parentId, parentTag, cbuild.getValue(`${parentTag}-pack`));
         const processor = cbuild.getChildItem('processor');
         if (parentTag === 'device' && processor && !parent.getChild('processor')) {
@@ -97,6 +98,7 @@ class DocManagerImpl implements DocManager {
         const docPath = name && !getWebLocationType(name)
             ? path.resolve(expandRootVars(name.startsWith('file://') ? fileURLToPath(name) : name))
             : undefined;
+        await this.file.load(); // refresh inventory, could have been changed externally
         const doc = this.addBook(parentId, parentTag, name, title, category, docPath, 'user');
         if (doc) {
             doc.mode = 'user';

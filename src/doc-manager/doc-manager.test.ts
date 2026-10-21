@@ -411,6 +411,57 @@ describe('DocManager', () => {
         expect(fileSystem.unlink).not.toHaveBeenCalled();
     });
 
+    describe.each(['cbuild', 'user'])('independent DocManager instances adding %s books', source => {
+        it.each([
+            { description: 'identical books', firstBooks: ['shared.pdf'], secondBooks: ['shared.pdf'], expectedBooks: ['shared.pdf'] },
+            { description: 'different books', firstBooks: ['first.pdf'], secondBooks: ['second.pdf'], expectedBooks: ['first.pdf', 'second.pdf'] },
+            {
+                description: 'overlapping books',
+                firstBooks: ['first.pdf', 'shared.pdf'],
+                secondBooks: ['shared.pdf', 'second.pdf'],
+                expectedBooks: ['first.pdf', 'shared.pdf', 'second.pdf'],
+            },
+        ])('persist a duplicate-free union of $description', async ({ firstBooks, secondBooks, expectedBooks }) => {
+            const firstManager = new DocManager();
+            const secondManager = new DocManager();
+            expect(await firstManager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
+            expect(await secondManager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
+            expect(firstManager.file).not.toBe(secondManager.file);
+            expect(firstManager.file.rootItem).not.toBe(secondManager.file.rootItem);
+            const addBooks = async (manager: DocManager, books: string[]) => {
+                if (source === 'cbuild') {
+                    const cbuildFile = new CTreeItemYamlFile();
+                    cbuildFile.text = [
+                        'build:',
+                        '  board: Vendor::Board',
+                        '  board-books:',
+                        ...books.map(name => `    - name: https://example.com/${name}`),
+                    ].join('\n');
+                    cbuildFile.rootItem = cbuildFile.parse();
+                    await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+                } else {
+                    for (const name of books) {
+                        expect(await manager.addUserBook('Vendor::Board', 'board', `https://example.com/${name}`, name)).toBeDefined();
+                    }
+                }
+            };
+
+            await addBooks(firstManager, firstBooks);
+            expect(secondManager.file.getDocs('Vendor::Board', 'board').map(doc => doc.name)).toEqual(['manual']);
+            await addBooks(secondManager, secondBooks);
+            await addBooks(firstManager, firstBooks);
+            await addBooks(secondManager, secondBooks);
+
+            const reloaded = new DocManager();
+            expect(await reloaded.initialize(docsDirectory)).toBe(ETextFileResult.Success);
+            expect(reloaded.file.getDocParents('board')).toHaveLength(1);
+            expect(reloaded.file.getDocs('Vendor::Board', 'board').map(doc => doc.name).sort())
+                .toEqual(['manual', ...expectedBooks.map(name => `https://example.com/${name}`)].sort());
+            expect(reloaded.file.getDoc('manual', 'Vendor::Board', 'board')?.path).toBe('manual.pdf');
+            expect(fileSystem.unlink).not.toHaveBeenCalled();
+        });
+    });
+
     it.each([
         ['relative path', '../manual.pdf', path.resolve('manual.pdf'), true, 'L'],
         ['absolute path', path.resolve('books', 'manual.pdf'), path.resolve('books', 'manual.pdf'), false, 'L'],

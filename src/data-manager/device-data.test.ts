@@ -17,7 +17,7 @@
 import { LazyPromise } from '@open-cmsis-pack/cmsis-common/lazy';
 import type { Device as SolarDevice } from '../solar-search/solar-search-client';
 import type { Device as CsolutionDevice } from '../json-rpc/csolution-rpc-client';
-import { CsolutionDeviceData, DeviceId, SolarDeviceData } from './device-data';
+import { CsolutionDeviceData, DeviceId, SolarDeviceData, splitDeviceId } from './device-data';
 import { PackId } from './pack-data';
 
 function solarDevice(overrides: Partial<SolarDevice> = {}): SolarDevice {
@@ -40,6 +40,31 @@ function csolutionDevice(overrides: Partial<CsolutionDevice> = {}): CsolutionDev
         ...overrides,
     };
 }
+
+describe('splitDeviceId', () => {
+    it('splits a valid full device ID', () => {
+        const result = splitDeviceId('vendor::name:core');
+        expect(result).toEqual({ vendor: 'vendor', name: 'name' });
+    });
+
+    it('splits a valid device ID without vendor', () => {
+        const result = splitDeviceId('name:core');
+        expect(result).toEqual({ vendor: undefined, name: 'name' });
+    });
+
+    it('accepts simple name as device id', () => {
+        const result = splitDeviceId('name');
+        expect(result).toEqual({ vendor: undefined, name: 'name' });
+    });
+
+    it('returns undefined for an undefined device ID', () => {
+        expect(splitDeviceId(undefined)).toBeUndefined();
+    });
+
+    it('returns undefined for an empty device ID', () => {
+        expect(splitDeviceId('')).toBeUndefined();
+    });
+});
 
 describe('DeviceId', () => {
 
