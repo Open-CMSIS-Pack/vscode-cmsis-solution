@@ -47,16 +47,6 @@ describe('pack discovery', () => {
         return { solar, rpc, manager };
     }
 
-    it('uses the RPC pack root for the available-pack index', async () => {
-        const { rpc, manager } = setup();
-        rpc.getPackRoot.mockReturnValue('/configured/packs');
-        rpc.getPacksInfo.mockResolvedValue({ success: true, packs: [] });
-
-        await manager.getPacks();
-
-        expect(packIndex.getLatestAvailablePacks).toHaveBeenCalledWith('/configured/packs');
-    });
-
     it('merges latest indexed packs with installed packs and local descriptions', async () => {
         const { rpc, manager } = setup();
         rpc.getPacksInfo.mockResolvedValue({ success: true, packs: [

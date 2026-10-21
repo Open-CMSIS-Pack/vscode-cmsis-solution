@@ -20,6 +20,7 @@ import { configurationProviderFactory, MockConfigurationProvider } from '../vsco
 import path from 'path';
 import { CMSIS_TOOLBOX_FOLDER, CONFIG_ENVIRONMENT_VARIABLES } from '../manifest';
 import { waitTimeout } from '../__test__/test-waits';
+import { getCmsisPackRoot, setPackRootEnvironment } from '../utils/path-utils';
 
 const DEFAULT_PATH_VAR = (process.platform === 'win32') ? 'Path' : 'PATH';
 
@@ -344,7 +345,29 @@ describe('EnvironmentManager', () => {
         environmentManager = new EnvironmentManager(configurationProviderMock);
     });
 
+    afterEach(() => setPackRootEnvironment(() => process.env));
+
     describe('activate', () => {
+        it('provides the current augmented pack root until disposed', async () => {
+            let packRoot = '/configured/packs';
+            mockEnvironmentVariableCollection.forEach.mockImplementation(callback => callback('CMSIS_PACK_ROOT', {
+                type: vscode.EnvironmentVariableMutatorType.Replace,
+                value: packRoot,
+            }));
+
+            const activation = environmentManager.activate(mockContext);
+            expect(mockEnvironmentVariableCollection.clear).not.toHaveBeenCalled();
+            expect(getCmsisPackRoot()).toBe(getCmsisPackRoot(process.env));
+            await activation;
+            expect(getCmsisPackRoot()).toBe('/configured/packs');
+
+            packRoot = '/updated/packs';
+            expect(getCmsisPackRoot()).toBe('/updated/packs');
+
+            mockContext.subscriptions.forEach(subscription => subscription.dispose());
+            expect(getCmsisPackRoot()).toBe(getCmsisPackRoot(process.env));
+        });
+
         it('registers a configuration change listener for env settings', async () => {
             await environmentManager.activate(mockContext);
 
