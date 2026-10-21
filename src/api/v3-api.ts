@@ -20,7 +20,7 @@ import type { SolutionManager } from '../solutions/solution-manager';
 import type { ToolsEnvironment } from '../solutions/tools-environment';
 import type { DataManager } from '../data-manager/data-manager';
 import type { CsolutionService } from '../json-rpc/csolution-rpc-client';
-import { splitPackId } from '../json-rpc/csolution-rpc-helper';
+import { splitPackId } from '../data-manager/pack-data';
 
 export class CsolutionApiV3Impl implements CsolutionApiV3 {
     constructor(

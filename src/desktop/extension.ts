@@ -292,7 +292,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
 
     await envManager.activate(context);
     context.subscriptions.push(docManager);
-    await docManager.initialize(path.join(homedir(), '.cmsis', 'docs'));
+    await docManager.initialize(path.join(homedir(), '.cmsis'));
 
     const activations = [
         eventHub.activate(context),

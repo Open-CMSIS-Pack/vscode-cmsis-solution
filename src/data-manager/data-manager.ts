@@ -20,8 +20,7 @@ import { DeviceData, DeviceId } from './device-data';
 import { BoardData, BoardId } from './board-data';
 import { DraftProjectData } from './draft-project-data';
 import type { CsolutionApiV3 } from '../../api/csolution-api-v3';
-import { PackId } from './pack-data';
-import { splitPackId } from '../json-rpc/csolution-rpc-helper';
+import { PackId, splitPackId } from './pack-data';
 import { getLatestAvailablePacks } from '../packs/index-pidx-file';
 
 /**
