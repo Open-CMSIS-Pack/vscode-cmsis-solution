@@ -217,6 +217,17 @@ describe('CsolutionDeviceData', () => {
         await expect(data.description).resolves.toBe('');
     });
 
+    it('preserves an explicitly empty device vendor instead of using the pack vendor', () => {
+        const data = new CsolutionDeviceData(
+            csolutionDevice({ id: '::DeviceName:core0' }),
+            LazyPromise.resolve(() => Promise.resolve(csolutionDevice())),
+        );
+
+        expect(data.vendor).toBe('');
+        expect(data.name).toBe('DeviceName');
+        expect(data.id).toEqual(new DeviceId('', 'DeviceName'));
+    });
+
     it('marks a csolution device without device or pack vendor as invalid', async () => {
         const data = new CsolutionDeviceData(
             csolutionDevice({

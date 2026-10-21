@@ -48,6 +48,19 @@ export class PackId {
 
 }
 
+export function splitVendorNameId(id: string): { vendor?: string, name: string, suffix?: string };
+export function splitVendorNameId(id: Optional<string>): Optional<{ vendor?: string, name: string, suffix?: string }>;
+export function splitVendorNameId(id?: string): Optional<{ vendor?: string, name: string, suffix?: string }> {
+    if (id === undefined) {
+        return undefined;
+    }
+    const match = id.match(/^(?:([^:]*)::)?([^:]*)(?::(.*))?$/);
+    if (!match) {
+        throw new Error(`Invalid vendor/name ID format: ${id}`);
+    }
+    return { vendor: match[1], name: match[2], suffix: match[3] };
+}
+
 export function splitPackId(packId: string) : { vendor: string, name: string, version?: string };
 export function splitPackId(packId: Optional<string>) : Optional<{ vendor: string, name: string, version?: string }>;
 export function splitPackId(packId?: string) : Optional<{ vendor: string, name: string, version?: string }> {

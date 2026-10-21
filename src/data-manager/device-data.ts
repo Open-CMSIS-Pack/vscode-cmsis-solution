@@ -15,7 +15,7 @@
  */
 
 import { Device } from '../solar-search/solar-search-client';
-import { PackId, splitPackId } from './pack-data';
+import { PackId, splitPackId, splitVendorNameId } from './pack-data';
 import { LazyPromise } from '@open-cmsis-pack/cmsis-common/lazy';
 import { Device as CsolutionDevice } from '../json-rpc/csolution-rpc-client';
 import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
@@ -35,15 +35,11 @@ export class DeviceId {
 export function splitDeviceId(deviceId: string): { vendor?: string, name: string };
 export function splitDeviceId(deviceId: Optional<string>): Optional<{ vendor?: string, name: string }>;
 export function splitDeviceId(deviceId?: string): Optional<{ vendor?: string, name: string }> {
-    if (deviceId === undefined) {
+    const parsed = splitVendorNameId(deviceId);
+    if (parsed === undefined) {
         return undefined;
     }
-    const pattern = /^(([^:]+)::)?([^:]+)(:(.*))?$/;
-    const match = deviceId.match(pattern);
-    if (!match) {
-        throw new Error(`Invalid device ID format: ${deviceId}`);
-    }
-    return { vendor: match[2], name: match[3] };
+    return { vendor: parsed.vendor, name: parsed.name };
 }
 
 export interface DeviceMemory {

@@ -15,6 +15,7 @@
  */
 
 import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { ETextFileResult, TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
 import { ITextFileSystem } from '@open-cmsis-pack/cmsis-common/text-file-system';
 import { DocsYamlFile } from './docs-yaml-file';
@@ -118,6 +119,135 @@ describe('DocsYamlFile', () => {
         expect(fileSystem.exists).not.toHaveBeenCalled();
         expect(fileSystem.read).not.toHaveBeenCalled();
         expect(fileSystem.write).not.toHaveBeenCalled();
+    });
+
+    it.each(['board', 'device', 'foo', 'bar', 'component'])('resolves %s index directories identically for W, P and L without I/O', parentTag => {
+        const inventoryName = path.resolve('..', 'index-inventory', 'docs.yml');
+        const file = new DocsYamlFile(inventoryName);
+        jest.replaceProperty(process, 'env', { ...process.env, CMSIS_PACK_ROOT: path.resolve('packs') });
+        for (const [name, locationType] of [
+            ['https://example.com/reference.manual.pdf?download=1#page=2', 'W'],
+            ['${CMSIS_PACK_ROOT}/reference.manual.pdf', 'P'],
+            [path.resolve('books', 'reference.manual.pdf'), 'L'],
+        ]) {
+            const doc = file.ensureDoc(name, 'Vendor::Hardware:suffix', parentTag);
+            doc.path = '/downloaded/different.pdf';
+            const resolvePath = jest.spyOn(doc.item!, 'resolvePath');
+            const beforeRead = file.stringify();
+
+            expect(doc.locationType).toBe(locationType);
+            expect(doc.indexDir).toBe(path.resolve(path.dirname(inventoryName), 'docs', 'Vendor', 'Hardware', 'reference.manual'));
+            expect(resolvePath).toHaveBeenCalledWith(path.join('docs', 'Vendor', 'Hardware', 'reference.manual'));
+            expect(file.stringify()).toBe(beforeRead);
+            expect(doc.item!.getChild('indexDir')).toBeUndefined();
+        }
+        expect(fileSystem.exists).not.toHaveBeenCalled();
+        expect(fileSystem.read).not.toHaveBeenCalled();
+        expect(fileSystem.write).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['Name', ['Name']],
+        ['::Name', ['Name']],
+        ['Vendor::', ['Vendor']],
+        ['Vendor:::suffix', ['Vendor']],
+        ['', []],
+        ['::', []],
+        [':suffix', []],
+    ] as const)('omits empty vendor/name segments for parent %j', (id, segments) => {
+        const inventoryName = path.resolve('..', 'index-inventory', 'docs.yml');
+        const file = new DocsYamlFile(inventoryName);
+        for (const parentTag of ['board', 'device']) {
+            const doc = file.ensureDoc('manual.pdf', id, parentTag);
+            expect(doc.indexDir).toBe(path.resolve(path.dirname(inventoryName), 'docs', ...segments, 'manual'));
+        }
+    });
+
+    it.each([
+        ['www.example.com/manual.pdf?query=.html#fragment', 'manual'],
+        ['https://example.com/manual%20one.pdf', 'manual%20one'],
+        ['https://example.com/manual%2Fone.pdf', 'manual%2Fone'],
+        ['file://server/share/manual.pdf', 'manual'],
+        [pathToFileURL(path.resolve('books', 'local manual.pdf')).href, 'local manual'],
+        ['books/reference.manual.pdf', 'reference.manual'],
+        ['manual', 'manual'],
+    ])('derives index basename from %s', (name, basename) => {
+        const file = new DocsYamlFile(fileName);
+        const doc = file.ensureDoc(name, 'Vendor::Board:revision', 'board');
+        expect(doc.indexDir).toBe(path.resolve(path.dirname(fileName), 'docs', 'Vendor', 'Board', basename));
+    });
+
+    it.each([
+        'https://example.com/manual.html', 'https://example.com/manual', 'https://',
+    ])('does not index an HTML reference: %j', name => {
+        const file = new DocsYamlFile(fileName);
+        const doc = file.ensureDoc(name, 'Vendor::Board', 'board');
+        const beforeRead = file.stringify();
+        expect(doc.indexDir).toBeUndefined();
+        expect(file.stringify()).toBe(beforeRead);
+    });
+
+    it('propagates malformed file URL errors without mutating the inventory', () => {
+        const file = new DocsYamlFile(fileName);
+        const doc = file.ensureDoc('file:///invalid%2Fmanual.pdf', 'Vendor::Board', 'board');
+        const beforeRead = file.stringify();
+        expect(() => doc.indexDir).toThrow();
+        expect(file.stringify()).toBe(beforeRead);
+    });
+
+    it.each(['board', 'device', 'foo', 'bar', ''])('indexes parents with arbitrary or absent tags and IDs: %j', parentTag => {
+        const file = new DocsYamlFile(fileName);
+        const doc = file.ensureDoc('manual.pdf', 'Vendor::Hardware', parentTag);
+        const parent = file.getDocParent('Vendor::Hardware', parentTag)!;
+        parent.item!.setTag('');
+        parent.item!.getParent()!.setTag('');
+
+        expect(doc.indexDir).toBe(path.resolve(path.dirname(fileName), 'docs', 'Vendor', 'Hardware', 'manual'));
+        expect(parent.docs[0].indexDir).toBe(doc.indexDir);
+        parent.item!.setValue(parentTag, undefined);
+        expect(doc.indexDir).toBe(path.resolve(path.dirname(fileName), 'docs', 'manual'));
+        expect(parent.docs[0].indexDir).toBe(doc.indexDir);
+    });
+
+    it.each([
+        ['CON::Board.', 'invalid?.pdf', ['CON', 'Board.', 'invalid?']],
+        ['Vendor :: Board', 'manual..pdf', ['Vendor ', ' Board', 'manual.']],
+        ['', '', []],
+    ] as const)('joins index components without additional validation: %j, %j', (id, name, segments) => {
+        const file = new DocsYamlFile(fileName);
+        const doc = file.ensureDoc(name, id, 'foo');
+        expect(doc.indexDir).toBe(path.resolve(path.dirname(fileName), 'docs', ...segments));
+    });
+
+    it('recalculates indexes from live parent, document and inventory values and after reload', async () => {
+        const file = new DocsYamlFile(fileName);
+        expect(await file.load()).toBe(ETextFileResult.Success);
+        const parent = file.getDocParent('NXP::LPC4300', 'device')!;
+        const doc = parent.docs[0];
+        expect(doc.indexDir).toBe(path.resolve(path.dirname(fileName), 'docs', 'NXP', 'LPC4300', 'datasheet'));
+        const beforeRead = file.stringify();
+        expect(await file.save()).toBe(ETextFileResult.Unchanged);
+        expect(file.stringify()).toBe(beforeRead);
+        expect(fileSystem.write).not.toHaveBeenCalled();
+
+        parent.name = 'Other::Renamed:processor';
+        doc.name = 'https://example.com/changed.pdf';
+        doc.path = '/downloads/different.pdf';
+        const expectedPath = path.join('docs', 'Other', 'Renamed', 'changed');
+        expect(doc.indexDir).toBe(path.resolve(path.dirname(fileName), expectedPath));
+        file.fileName = path.resolve('..', 'other-inventory', 'docs.yml');
+        expect(doc.indexDir).toBe(path.resolve(path.dirname(file.fileName), expectedPath));
+        doc.name = undefined;
+        expect(doc.indexDir).toBe(path.resolve(path.dirname(file.fileName), 'docs', 'Other', 'Renamed', 'different'));
+        expect(await file.save()).toBe(ETextFileResult.Success);
+        expect(files.get(file.fileName)).not.toContain('indexDir:');
+
+        const reloaded = new DocsYamlFile(file.fileName);
+        expect(await reloaded.load()).toBe(ETextFileResult.Success);
+        const saved = reloaded.getDocs(parent.id, 'device')[0];
+        expect(saved.indexDir).toBe(doc.indexDir);
+        saved.path = 'next.pdf';
+        expect(saved.indexDir).toBe(path.resolve(path.dirname(file.fileName), 'docs', 'Other', 'Renamed', 'next'));
     });
 
     it('persists user mode and removes it when cleared with undefined', async () => {

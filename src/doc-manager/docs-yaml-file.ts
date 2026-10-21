@@ -20,7 +20,7 @@ import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { CTreeItem, ETreeItemKind, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { CTreeItemWrap, ITreeItemWrap } from '@open-cmsis-pack/cmsis-common/tree-item-wrapper';
-import { comparePackIds } from '../data-manager/pack-data';
+import { comparePackIds, splitVendorNameId } from '../data-manager/pack-data';
 import { isWebAddress } from '../util';
 import { expandRootVars, getCmsisPackRoot } from '../utils/path-utils';
 
@@ -32,6 +32,7 @@ export interface IDocRef extends ITreeItemWrap {
     set title(value: string | undefined);
     category: string | undefined;
     readonly locationType: string;
+    readonly indexDir: string | undefined;
     mode: 'user' | undefined;
     error: string | undefined;
     isWebDoc(): boolean;
@@ -81,6 +82,10 @@ export function getWebLocationType(name: string): 'W' | 'H' | undefined {
 }
 
 class DocRefWrap extends CTreeItemWrap implements IDocRef {
+    constructor(item: ITreeItem<CTreeItem>, private readonly parent?: IDocParent) {
+        super(item);
+    }
+
     override get nameKey(): string { return 'name'; }
     get path(): string | undefined { return this.getValue('path'); }
     set path(value: string | undefined) { this.setValue('path', value); }
@@ -102,6 +107,16 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
         return relativeToPackRoot !== '..' && !relativeToPackRoot.startsWith(`..${path.sep}`)
             && !path.isAbsolute(relativeToPackRoot) ? 'P' : 'L';
     }
+    get indexDir(): string | undefined {
+        const locationType = this.locationType;
+        if (locationType === 'H') {
+            return undefined;
+        }
+        const { vendor = '', name } = splitVendorNameId(this.parent?.id ?? '');
+        const source = this.name || this.path || '';
+        const basename = this.getBasename(source, locationType);
+        return this.item?.resolvePath(path.join('docs', vendor, name, basename));
+    }
     get mode(): 'user' | undefined { return this.getValue('mode') === 'user' ? 'user' : undefined; }
     set mode(value: 'user' | undefined) { this.setValue('mode', value); }
     get error(): string | undefined { return this.getValue('error'); }
@@ -109,6 +124,12 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
     isWebDoc(): boolean { return getWebLocationType(this.name) === 'W'; }
     isWeb(): boolean { return getWebLocationType(this.name) !== undefined; }
     isDownloaded(): boolean { return this.locationType === 'W' && this.path !== undefined; }
+
+    private getBasename(source: string, locationType: string): string {
+        return locationType === 'W'
+            ? path.posix.parse(new URL(source.startsWith('www.') ? `https://${source}` : source).pathname).name
+            : path.parse(source.startsWith('file://') ? fileURLToPath(source) : source).name;
+    }
 }
 
 class DocParentWrap extends CTreeItemWrap implements IDocParent {
@@ -136,7 +157,7 @@ class DocParentWrap extends CTreeItemWrap implements IDocParent {
     }
 
     get docs(): readonly IDocRef[] {
-        return (this.item?.getGrandChildren('docs') ?? []).map(item => new DocRefWrap(item));
+        return (this.item?.getGrandChildren('docs') ?? []).map(item => new DocRefWrap(item, this));
     }
 
     getDoc(name: string): IDocRef | undefined {
@@ -155,7 +176,7 @@ class DocParentWrap extends CTreeItemWrap implements IDocParent {
         const sequence = this.item!.createChild('docs', true).setKind(ETreeItemKind.Sequence);
         const item = sequence.createChild('-').setKind(ETreeItemKind.Map);
         item.setValue('name', name);
-        return new DocRefWrap(item);
+        return new DocRefWrap(item, this);
     }
 
     removeDoc(name: string): boolean {
@@ -169,6 +190,20 @@ class DocParentWrap extends CTreeItemWrap implements IDocParent {
 }
 
 class DocsYamlFileImpl extends CTreeItemYamlFile implements DocsYamlFile {
+
+    public override get fileName(): string { return super.fileName; }
+    public override set fileName(value: string) {
+        super.fileName = value;
+        if (this.rootItem) {
+            this.rootItem.rootFileName = value;
+        }
+    }
+
+    public override ensureRootItem(): CTreeItem {
+        const root = super.ensureRootItem();
+        root.rootFileName = this.fileName;
+        return root;
+    }
 
     public override ensureTopItem(): CTreeItem {
         return super.ensureTopItem('docs');

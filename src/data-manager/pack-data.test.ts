@@ -14,7 +14,43 @@
  * limitations under the License.
  */
 
-import { comparePackIds, PackId, splitPackId } from './pack-data';
+import { splitBoardId } from './board-data';
+import { splitDeviceId } from './device-data';
+import { comparePackIds, PackId, splitPackId, splitVendorNameId } from './pack-data';
+
+describe('splitVendorNameId', () => {
+    it.each([
+        ['Vendor::Name:revision', 'Vendor', 'Name', 'revision'],
+        ['Vendor::Name', 'Vendor', 'Name', undefined],
+        ['Name', undefined, 'Name', undefined],
+        ['Name:core:extra', undefined, 'Name', 'core:extra'],
+        ['Vendor::Name:', 'Vendor', 'Name', ''],
+        [' Vendor :: Name : suffix ', ' Vendor ', ' Name ', ' suffix '],
+        ['', undefined, '', undefined],
+        ['::Name', '', 'Name', undefined],
+        ['Vendor::', 'Vendor', '', undefined],
+        ['::', '', '', undefined],
+        [':suffix', undefined, '', 'suffix'],
+        ['Vendor:::suffix', 'Vendor', '', 'suffix'],
+    ])('splits %j and preserves the board/device projections', (id, vendor, name, suffix) => {
+        expect(splitVendorNameId(id!)).toEqual({ vendor, name, suffix });
+        expect(splitBoardId(id!)).toEqual({ vendor, name, revision: suffix });
+        expect(splitDeviceId(id!)).toEqual({ vendor, name });
+    });
+
+    it('returns undefined only for undefined input', () => {
+        expect(splitVendorNameId(undefined)).toBeUndefined();
+        expect(splitBoardId(undefined)).toBeUndefined();
+        expect(splitDeviceId(undefined)).toBeUndefined();
+    });
+
+    it('rejects malformed IDs in all projections', () => {
+        const id = 'Vendor::Name:invalid\nsuffix';
+        expect(() => splitVendorNameId(id)).toThrow();
+        expect(() => splitBoardId(id)).toThrow();
+        expect(() => splitDeviceId(id)).toThrow();
+    });
+});
 
 describe('PackId', () => {
 
