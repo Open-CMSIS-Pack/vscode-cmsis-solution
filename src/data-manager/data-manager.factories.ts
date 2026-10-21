@@ -26,6 +26,7 @@ import { makeFactory, makeGenerator } from '../__test__/test-data-factory';
 export type MockDataManager = jest.Mocked<DataManager>;
 
 export const dataManagerFactory = (): MockDataManager => ({
+    getPacks: jest.fn(),
     errors: [],
     getAllBoards: jest.fn(),
     getAllDevices: jest.fn(),

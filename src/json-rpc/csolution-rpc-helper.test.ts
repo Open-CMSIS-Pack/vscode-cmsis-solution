@@ -369,6 +369,23 @@ describe('csolution-rpc-client', () => {
             expect(service.localRepositoryIdxWatcher).toBeDefined();
         });
 
+        it('watches both indexes under the RPC environment pack root', () => {
+            const environmentManager = {
+                augmentEnv: jest.fn().mockReturnValue(new Environment({ CMSIS_PACK_ROOT: '/configured/packs' })),
+            } as unknown as EnvironmentManager;
+            service = createService(environmentManager);
+            jest.mocked(pathUtils.getCmsisPackRoot).mockImplementation(environment => environment?.CMSIS_PACK_ROOT ?? '/process/packs');
+            (fs.statSync as unknown as jest.Mock).mockReturnValue({ mtimeMs: 1 });
+            (fs.watch as unknown as jest.Mock).mockReturnValue({ close: jest.fn() });
+
+            service.watchPackIdxFile();
+            service.watchLocalRepositoryPidxFile();
+
+            expect(fs.watch).toHaveBeenNthCalledWith(1, path.join('/configured/packs', 'pack.idx'), expect.any(Function));
+            expect(fs.watch).toHaveBeenNthCalledWith(2, path.join('/configured/packs', '.Local', 'local_repository.pidx'), expect.any(Function));
+            expect(environmentManager.augmentEnv).toHaveBeenCalledTimes(2);
+        });
+
         it('watches <packRoot>/pack.idx and reads initial mtime', () => {
             const packIdx = path.join('/cmsis-packs', 'pack.idx');
 

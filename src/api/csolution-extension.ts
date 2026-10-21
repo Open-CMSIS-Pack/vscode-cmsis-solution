@@ -23,6 +23,7 @@ import { DataManager } from '../data-manager/data-manager';
 import { CsolutionApiV3Impl } from './v3-api';
 import type { SolutionManager } from '../solutions/solution-manager';
 import type { ToolsEnvironment } from '../solutions/tools-environment';
+import type { CsolutionService } from '../json-rpc/csolution-rpc-client';
 
 export class CsolutionExtensionImpl implements CsolutionExtension {
     private readonly apis: { dispose: () => unknown }[] = [];
@@ -31,7 +32,8 @@ export class CsolutionExtensionImpl implements CsolutionExtension {
         private readonly solutionCreator: SolutionCreator,
         private readonly buildTaskProvider: BuildTaskProvider,
         private readonly dataManager: DataManager,
-        private readonly solutionManager: Pick<SolutionManager, 'loadState'>,
+        private readonly solutionManager: Pick<SolutionManager, 'getCsolution' | 'loadState'>,
+        private readonly csolutionService: Pick<CsolutionService, 'getPacksInfo'>,
         private readonly toolsEnvironment: Pick<ToolsEnvironment, 'getToolsEnvironment'>,
     ) { }
 
@@ -51,7 +53,7 @@ export class CsolutionExtensionImpl implements CsolutionExtension {
         if (version === 2) {
             api = new CsolutionApiV2Impl(this.dataManager, this.solutionCreator, this.buildTaskProvider);
         } else if (version === 3) {
-            api = new CsolutionApiV3Impl(new CsolutionApiV2Impl(this.dataManager, this.solutionCreator, this.buildTaskProvider), this.solutionManager, this.toolsEnvironment);
+            api = new CsolutionApiV3Impl(new CsolutionApiV2Impl(this.dataManager, this.solutionCreator, this.buildTaskProvider), this.dataManager, this.solutionManager, this.csolutionService, this.toolsEnvironment);
         }
         if (api) {
             this.apis.push(api);
