@@ -27,8 +27,7 @@ import { EnvironmentManagerApiV1 } from '@arm-software/vscode-environment-manage
 import { debounce } from 'lodash';
 import { SolutionRpcData } from './solution-rpc-data';
 import { EnvironmentManager } from '../desktop/env-manager';
-import { getCmsisPackRoot, pathsEqual } from '../utils/path-utils';
-import * as path from 'node:path';
+import { pathsEqual } from '../utils/path-utils';
 import { ToolsEnvironment } from './tools-environment';
 import { DocManager } from '../doc-manager/doc-manager';
 
@@ -169,8 +168,7 @@ export class SolutionManagerImpl implements SolutionManager {
         return !!this.loadState.solutionPath && this.loadState.activated === true;
     }
 
-    private async handleEnvironmentChange(): Promise<void> {
-        await this.docManager.initialize(path.join(getCmsisPackRoot(this.environmentManager.getEnvironmentVariables()), '.docs'));
+    private handleEnvironmentChange(): void {
         if (!this.isSolutionActivated()) {
             return;
         }

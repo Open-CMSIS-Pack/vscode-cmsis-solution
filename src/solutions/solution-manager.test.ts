@@ -716,7 +716,7 @@ describe('SolutionManager', () => {
         );
     });
 
-    it.each([false, true])('updates the document inventory when the pack root changes with activated=%s', async activated => {
+    it.each([false, true])('preserves the document inventory when the pack root changes with activated=%s', async activated => {
         if (activated) {
             await activateTestSolution();
         }
@@ -729,6 +729,7 @@ describe('SolutionManager', () => {
             } as unknown as vscode.GlobalEnvironmentVariableCollection,
         } as unknown as ExtensionContext);
 
+        const inventoryFileName = docManager.file.fileName;
         const packRoot = path.join(tmpSolutionsDir, 'changed-packs');
         jest.mocked(environmentManager.getEnvironmentVariables).mockReturnValue({ CMSIS_PACK_ROOT: packRoot });
         configurationProviderMock.getConfigVariableOrDefault.mockReturnValue({ CMSIS_PACK_ROOT: packRoot });
@@ -736,8 +737,8 @@ describe('SolutionManager', () => {
         configurationProviderMock.fireOnChangeConfiguration(CONFIG_ENVIRONMENT_VARIABLES);
         await waitTimeout(600);
 
-        expect(docManager.initialize).toHaveBeenCalledTimes(1);
-        expect(docManager.initialize).toHaveBeenCalledWith(path.join(packRoot, '.docs'));
+        expect(docManager.initialize).not.toHaveBeenCalled();
+        expect(docManager.file.fileName).toBe(inventoryFileName);
         expect(convertMock).not.toHaveBeenCalled();
     });
 

@@ -15,6 +15,7 @@
  */
 
 import type { EnvironmentManagerApiV1, EnvironmentManagerExtension } from '@arm-software/vscode-environment-manager';
+import { homedir } from 'node:os';
 import * as path from 'node:path';
 import { ExtensionContext, window, workspace } from 'vscode';
 import { CsolutionExtension } from '../../api/csolution';
@@ -100,7 +101,6 @@ import { FileOpenGroupOrchestratorImpl } from '../views/file-open-group-orchestr
 import { OpenArmExamplesCommand } from '../views/solution-outline/commands/open-arm-examples-command';
 import { TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
 import * as vscodeUtils from '../utils/vscode-utils';
-import { getCmsisPackRoot } from '../utils/path-utils';
 
 let installDefaultToolsetProcess: Promise<void> | undefined;
 
@@ -292,7 +292,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
 
     await envManager.activate(context);
     context.subscriptions.push(docManager);
-    await docManager.initialize(path.join(getCmsisPackRoot(envManager.getEnvironmentVariables()), '.docs'));
+    await docManager.initialize(path.join(homedir(), '.cmsis', 'docs'));
 
     const activations = [
         eventHub.activate(context),
