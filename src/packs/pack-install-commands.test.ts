@@ -131,6 +131,16 @@ describe('PackInstallCommands', () => {
             expect(result).toBeUndefined();
         });
 
+        it('reports installation failure and retains the setup warning when cpackget is missing', async () => {
+            mockProcessManager.rejectCode('ENOENT');
+
+            const result = await mockCommandsProvider.mockRunRegistered(PackInstallCommands.installPackCommandId, 'vendor', 'name', '0.0.0');
+
+            expect(mockProcessManager.spawn).toHaveBeenCalled();
+            expect(mockHandleBuildEnoent).toHaveBeenCalled();
+            expect(result).toBeUndefined();
+        });
+
         it('cpackget fails', async () => {
             const errorMessage = 'cpackget fails';
             mockProcessManager.mockOutputLinesAndReject([], errorMessage);

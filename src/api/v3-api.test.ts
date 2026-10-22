@@ -385,6 +385,24 @@ describe('CsolutionApiV3Impl', () => {
         ]);
     });
 
+    it('reports an explicitly empty version as failed and continues installing valid packs', async () => {
+        commandsProvider.executeCommand.mockResolvedValueOnce('/packs/ARM/CMSIS/6.1.0')
+            .mockResolvedValueOnce('/packs/ARM/Cortex_DFP/1.2.0');
+
+        await expect(api.installPacks({
+            packs: ['ARM::CMSIS@', 'ARM::CMSIS', 'ARM::Cortex_DFP@1.2.0'],
+            approved: true,
+        })).resolves.toEqual([
+            { pack: 'ARM::CMSIS@', status: 'failed', error: 'Invalid pack ID format: ARM::CMSIS@' },
+            { pack: 'ARM::CMSIS', status: 'installed', path: '/packs/ARM/CMSIS/6.1.0' },
+            { pack: 'ARM::Cortex_DFP@1.2.0', status: 'installed', path: '/packs/ARM/Cortex_DFP/1.2.0' },
+        ]);
+        expect(commandsProvider.executeCommand.mock.calls).toEqual([
+            ['cmsis-csolution.installPack', 'ARM', 'CMSIS', undefined],
+            ['cmsis-csolution.installPack', 'ARM', 'Cortex_DFP', '1.2.0'],
+        ]);
+    });
+
     it('does not prompt for an empty batch and reports invalid IDs individually', async () => {
         await expect(api.installPacks({ packs: [], approved: false })).resolves.toEqual([]);
         expect(window.showInformationMessage).not.toHaveBeenCalled();

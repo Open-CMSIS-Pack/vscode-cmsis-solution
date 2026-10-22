@@ -120,7 +120,7 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
         for (const pack of packs) {
             try {
                 const packId = splitPackId(pack);
-                if (!packId) {
+                if (!packId || packId.version === '') {
                     throw new Error(`Invalid pack ID format: ${pack}`);
                 }
                 const { vendor, name, version } = packId;

@@ -15,6 +15,24 @@ if (csolutionExtension) {
 }
 ```
 
+## Asynchronous API Methods and Error Handling
+
+Asynchronous API methods return a `Promise` that resolves when the operation completes
+and rejects if it fails, subject to the method-specific behavior documented below.
+This follows standard JavaScript/TypeScript conventions and the asynchronous patterns
+used by the VS Code API.
+
+Consumers should handle rejected Promises using `try/catch` with `await`, `.catch()`,
+or by propagating the rejection to a higher-level error handler. It is not necessary
+to catch errors at every API call, but all rejections should eventually be handled
+to avoid unhandled Promise rejections. Error handlers should not silently discard
+failures; consumers decide how to report or recover from them.
+
+A resolved Promise does not always mean that every requested action succeeded.
+For example, `installPacks` returns per-pack failure or cancellation statuses, and
+pack catalog queries can return partial results when a source fails. Consumers
+should also check returned statuses and the documented limitations of each method.
+
 ## API version 3 (in development)
 
 V3 is available through `getApi(3)`. It retains `getBoards`, `getDevices`,
@@ -31,10 +49,13 @@ const results = await api.installPacks({
 ```
 
 Pack IDs use `vendor::name` or `vendor::name@version`; omitting the version
-installs the latest available version. This API is non-interactive: the caller
+installs the latest available version. This API does not prompt for approval: the caller
 must obtain user approval before passing `approved: true`. The extension does
 not show an approval dialog and uses the existing pack-install command for each
-approved pack. The `approved` boolean is required by the TypeScript API; at runtime
+approved pack. Tooling failures can still display setup warnings, for example when
+`cpackget` cannot be launched because it is missing. These notifications do not
+replace the per-pack `failed` result returned to the caller.
+The `approved` boolean is required by the TypeScript API; at runtime
 only the literal value `true` permits installation. False, omitted or invalid
 approval values cancel the entire batch without running installation commands.
 The returned array follows input order, with one `{ pack, status }` entry per
