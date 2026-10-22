@@ -23,6 +23,8 @@ export interface CsolutionApiV3 extends CsolutionApiV2 {
     getToolsEnvironment(): Promise<string>;
     /** Defaults to all: merge local index packs and installed RPC packs. Used and missing scopes require an explicit context in the loaded solution. Missing records preserve original requirements and origins. Catalog queries reject only when every source fails. */
     getPacks(options?: CsolutionApiV3.PackQuery): Promise<CsolutionApiV3.PackQueryResult>;
+    /** Install without prompting. The caller must obtain user approval and pass approved: true; otherwise all results are cancelled. Returns one result per requested pack, in input order. */
+    installPacks(options: { packs: string[]; approved: boolean }): Promise<CsolutionApiV3.PackInstallResult[]>;
 }
 
 export namespace CsolutionApiV3 {
@@ -66,4 +68,11 @@ export namespace CsolutionApiV3 {
     export interface PackQueryResult {
         packs: PackData[];
     }
+
+    export type PackInstallResult = {
+        pack: string;
+        status: 'installed' | 'failed' | 'cancelled';
+        path?: string;
+        error?: string;
+    };
 }

@@ -5,27 +5,6 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "API V3 Smoke Tests",
-            "type": "extensionHost",
-            "request": "launch",
-            "args": [
-                "${workspaceFolder}/.vscode-test/api-v3-smoke/${input:apiV3SmokeMode}.code-workspace",
-                "--new-window",
-                "--skip-welcome",
-                "--skip-release-notes",
-                "--disable-workspace-trust",
-                "--user-data-dir=${workspaceFolder}/.vscode-test/api-v3-${input:apiV3SmokeMode}-user-data",
-                "--extensionDevelopmentPath=${workspaceFolder}",
-                "--extensionTestsPath=${workspaceFolder}/out/api/extension-host-v3-smoke.js"
-            ],
-            "env": { "CMSIS_V3_SMOKE_MODE": "${input:apiV3SmokeMode}" },
-            "outFiles": [
-                "${workspaceFolder}/out/api/**/*.js",
-                "${workspaceFolder}/dist/**/*.js"
-            ],
-            "preLaunchTask": "Prepare API Smoke Test"
-        },
-        {
             "name": "Desktop Extension",
             "type": "extensionHost",
             "request": "launch",
@@ -185,6 +164,27 @@
               "args": ["${workspaceFolder}/scripts/download-tools.ts", "-f", "debug-adapters"],
               "console": "integratedTerminal",
               "internalConsoleOptions": "neverOpen"
+        },
+        {
+            "name": "API V3 Smoke Tests",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": [
+                "${workspaceFolder}/.vscode-test/api-v3-smoke/${input:apiV3SmokeMode}.code-workspace",
+                "--new-window",
+                "--skip-welcome",
+                "--skip-release-notes",
+                "--disable-workspace-trust",
+                "--user-data-dir=${workspaceFolder}/.vscode-test/api-v3-${input:apiV3SmokeMode}-user-data",
+                "--extensionDevelopmentPath=${workspaceFolder}",
+                "--extensionTestsPath=${workspaceFolder}/out/api/extension-host-v3-smoke.js"
+            ],
+            "env": { "CMSIS_V3_SMOKE_MODE": "${input:apiV3SmokeMode}" },
+            "outFiles": [
+                "${workspaceFolder}/out/api/**/*.js",
+                "${workspaceFolder}/dist/**/*.js"
+            ],
+            "preLaunchTask": "Prepare API Smoke Test"
         }
     ],
     "inputs": [
@@ -197,7 +197,8 @@
                 { "label": "Installed Packs", "value": "installed" },
                 { "label": "All Packs (Index)", "value": "index" },
                 { "label": "Used Packs (Loaded Solution)", "value": "loaded" },
-                { "label": "Missing Packs (Loaded Solution)", "value": "missing" }
+                { "label": "Missing Packs (Loaded Solution)", "value": "missing" },
+                { "label": "Install Packs (Real Installation)", "value": "install" }
             ],
             "default": "tools"
         }

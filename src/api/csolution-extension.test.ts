@@ -35,6 +35,7 @@ describe('CsolutionExtension', () => {
             { getCsolution: jest.fn(), loadState: {} },
             { getPacksInfo: jest.fn() },
             { getToolsEnvironment: jest.fn() },
+            { executeCommand: jest.fn() },
         );
 
         await extension.activate(context as unknown as ExtensionContext);
@@ -50,7 +51,7 @@ describe('CsolutionExtension', () => {
         const api = extension.getApi(3);
         expect(api).not.toBe(extension.getApi(3));
         expect(api).not.toBe(extension.getApi(2));
-        for (const method of ['getBoards', 'getDevices', 'getDraftProjects', 'createNewSolution', 'build', 'getToolsEnvironment', 'getPacks']) {
+        for (const method of ['getBoards', 'getDevices', 'getDraftProjects', 'createNewSolution', 'build', 'getToolsEnvironment', 'getPacks', 'installPacks']) {
             expect(api).toHaveProperty(method, expect.any(Function));
         }
     });

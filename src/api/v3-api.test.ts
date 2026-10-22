@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Disposable } from 'vscode';
+import { Disposable, window } from 'vscode';
 import { CsolutionApiV2 } from '../../api/csolution';
 import { dataManagerFactory, draftProjectDataFactory } from '../data-manager/data-manager.factories';
 import { SolutionManager } from '../solutions/solution-manager';
@@ -30,6 +30,7 @@ describe('CsolutionApiV3Impl', () => {
         getActiveTargetType: () => 'Board',
         getActiveTargetSetWrap: () => ({ projectContexts: contexts.map(name => ({ name: name.replace(/\+Board$/, '') })) }),
     });
+    const commandsProvider = { executeCommand: jest.fn() };
 
     beforeEach(() => {
         existingApi = {
@@ -44,8 +45,12 @@ describe('CsolutionApiV3Impl', () => {
         solutionManager.getCsolution.mockReset();
         csolutionService.getPacksInfo.mockReset();
         toolsEnvironment.getToolsEnvironment.mockReset();
-        api = new CsolutionApiV3Impl(existingApi, dataManagerFactory(), solutionManager, csolutionService, toolsEnvironment);
+        commandsProvider.executeCommand.mockReset();
+        jest.spyOn(window, 'showInformationMessage').mockClear();
+        api = new CsolutionApiV3Impl(existingApi, dataManagerFactory(), solutionManager, csolutionService, toolsEnvironment, commandsProvider);
     });
+
+    afterEach(() => jest.restoreAllMocks());
 
     it('delegates tools export without a loaded solution', async () => {
         solutionManager.loadState = {};
@@ -74,7 +79,7 @@ describe('CsolutionApiV3Impl', () => {
         const dataManager = dataManagerFactory();
         const packs = [{ id: 'ARM::CMSIS@6.0.0', version: '6.0.0', installed: true }];
         const query = jest.spyOn(dataManager, 'getPacks').mockResolvedValue({ packs });
-        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment);
+        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider);
         await expect(catalogApi.getPacks()).resolves.toEqual({ packs });
         await expect(catalogApi.getPacks({ scope: 'installed' })).resolves.toEqual({ packs });
         expect(query).toHaveBeenNthCalledWith(1, undefined);
@@ -246,7 +251,7 @@ describe('CsolutionApiV3Impl', () => {
         ];
         const dataManager = dataManagerFactory();
         const query = jest.spyOn(dataManager, 'getPacks').mockResolvedValue({ packs });
-        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment);
+        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider);
         for (const [text, expected] of [
             [undefined, packs], ['', packs], ['cMsIs', packs.slice(0, 2)],
             ['[uart]', [packs[1]]], ['.*', []], [' CMSIS ', []], ['no match', []],
@@ -321,6 +326,90 @@ describe('CsolutionApiV3Impl', () => {
         expect(csolutionService.getPacksInfo).toHaveBeenLastCalledWith({ context, all: true });
         solutionManager.loadState.loaded = false;
         await expect(api.getPacks({ scope: 'missing', context, filter })).rejects.toThrow('loaded solution');
+    });
+
+    it('installs approved packs without prompting and reports each pack in order, including failures', async () => {
+        commandsProvider.executeCommand.mockResolvedValueOnce('/packs/Arm/First/1.0.0')
+            .mockResolvedValueOnce(undefined)
+            .mockRejectedValueOnce(new Error('offline'));
+
+        await expect(api.installPacks({ packs: ['Arm::First@1.0.0', 'Arm::Second', 'Arm::Third'], approved: true })).resolves.toEqual([
+            { pack: 'Arm::First@1.0.0', status: 'installed', path: '/packs/Arm/First/1.0.0' },
+            { pack: 'Arm::Second', status: 'failed', error: 'Unable to install Arm::Second' },
+            { pack: 'Arm::Third', status: 'failed', error: 'offline' },
+        ]);
+        expect(window.showInformationMessage).not.toHaveBeenCalled();
+        expect(commandsProvider.executeCommand.mock.calls).toEqual([
+            ['cmsis-csolution.installPack', 'Arm', 'First', '1.0.0'],
+            ['cmsis-csolution.installPack', 'Arm', 'Second', undefined],
+            ['cmsis-csolution.installPack', 'Arm', 'Third', undefined],
+        ]);
+    });
+
+    it.each([false, undefined, null, 'true', 1])('reports cancellation for approval %p without prompting or running commands', async approved => {
+        await expect(api.installPacks({ packs: ['Arm::First', 'Arm::Second'], approved: approved as boolean })).resolves.toEqual([
+            { pack: 'Arm::First', status: 'cancelled' },
+            { pack: 'Arm::Second', status: 'cancelled' },
+        ]);
+        expect(window.showInformationMessage).not.toHaveBeenCalled();
+        expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
+    });
+
+    it.each([true, false])('rejects sparse pack arrays with approval %p before running commands', async approved => {
+        const sparsePacks = new Array<string>(3);
+        sparsePacks[0] = 'Arm::First';
+        sparsePacks[2] = 'Arm::Second';
+        for (const packs of [new Array<string>(1), sparsePacks]) {
+            await expect(api.installPacks({ packs, approved })).rejects.toThrow('Pack IDs must be an array of strings');
+        }
+        expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
+    });
+
+    it('installs only the submitted snapshot when the caller mutates the batch', async () => {
+        let completeFirst!: (value: string) => void;
+        commandsProvider.executeCommand.mockReturnValueOnce(new Promise<string>(resolve => {
+            completeFirst = resolve;
+        })).mockResolvedValueOnce('/packs/Arm/Second/1.0.0');
+        const packs = ['Arm::First', 'Arm::Second'];
+        const pending = api.installPacks({ packs, approved: true });
+        packs.splice(1, 1, 'Arm::Replacement', 'Arm::Appended');
+        completeFirst('/packs/Arm/First/1.0.0');
+
+        await expect(pending).resolves.toEqual([
+            { pack: 'Arm::First', status: 'installed', path: '/packs/Arm/First/1.0.0' },
+            { pack: 'Arm::Second', status: 'installed', path: '/packs/Arm/Second/1.0.0' },
+        ]);
+        expect(commandsProvider.executeCommand.mock.calls).toEqual([
+            ['cmsis-csolution.installPack', 'Arm', 'First', undefined],
+            ['cmsis-csolution.installPack', 'Arm', 'Second', undefined],
+        ]);
+    });
+
+    it('reports an explicitly empty version as failed and continues installing valid packs', async () => {
+        commandsProvider.executeCommand.mockResolvedValueOnce('/packs/ARM/CMSIS/6.1.0')
+            .mockResolvedValueOnce('/packs/ARM/Cortex_DFP/1.2.0');
+
+        await expect(api.installPacks({
+            packs: ['ARM::CMSIS@', 'ARM::CMSIS', 'ARM::Cortex_DFP@1.2.0'],
+            approved: true,
+        })).resolves.toEqual([
+            { pack: 'ARM::CMSIS@', status: 'failed', error: 'Invalid pack ID format: ARM::CMSIS@' },
+            { pack: 'ARM::CMSIS', status: 'installed', path: '/packs/ARM/CMSIS/6.1.0' },
+            { pack: 'ARM::Cortex_DFP@1.2.0', status: 'installed', path: '/packs/ARM/Cortex_DFP/1.2.0' },
+        ]);
+        expect(commandsProvider.executeCommand.mock.calls).toEqual([
+            ['cmsis-csolution.installPack', 'ARM', 'CMSIS', undefined],
+            ['cmsis-csolution.installPack', 'ARM', 'Cortex_DFP', '1.2.0'],
+        ]);
+    });
+
+    it('does not prompt for an empty batch and reports invalid IDs individually', async () => {
+        await expect(api.installPacks({ packs: [], approved: false })).resolves.toEqual([]);
+        expect(window.showInformationMessage).not.toHaveBeenCalled();
+        await expect(api.installPacks({ packs: ['bad-id'], approved: true })).resolves.toEqual([
+            { pack: 'bad-id', status: 'failed', error: 'Invalid pack ID format: bad-id' },
+        ]);
+        expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
     });
 
     it('delegates board queries', () => {

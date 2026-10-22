@@ -32,7 +32,7 @@ if (await workspace.save() === ETextFileResult.Error) {
     throw new Error(`Cannot prepare ${workspace.fileName}`);
 }
 
-for (const mode of ['installed', 'index']) {
+for (const mode of ['installed', 'index', 'install']) {
     const catalogWorkspace = new JsonFile(path.join(fixtureDirectory, `${mode}.code-workspace`));
     catalogWorkspace.content = { folders: [], settings: {} };
     if (await catalogWorkspace.save() === ETextFileResult.Error) {
