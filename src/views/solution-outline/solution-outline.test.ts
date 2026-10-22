@@ -81,6 +81,7 @@ describe('SolutionOutlineView', () => {
         await view.activate(context);
 
         const addition = docManager.addUserBook('Vendor::Board', 'board', 'manual.pdf', 'Manual');
+        await Promise.resolve();
         expect(mockTreeViewProvider.updateTree).not.toHaveBeenCalled();
         completeSave(result);
         await addition;
