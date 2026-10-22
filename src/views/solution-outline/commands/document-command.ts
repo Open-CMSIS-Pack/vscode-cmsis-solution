@@ -20,6 +20,7 @@ import { PACKAGE_NAME } from '../../../manifest';
 import { SolutionManager } from '../../../solutions/solution-manager';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
+import { getDocParentId } from '../../../doc-manager/docs-yaml-file';
 
 export class DocumentCommand {
     public static readonly addCommandId = `${PACKAGE_NAME}.addDocument`;
@@ -42,17 +43,18 @@ export class DocumentCommand {
 
     private getTarget(node?: COutlineItem): { parentId: string; parentTag: 'board' | 'device' } | undefined {
         if (node) {
-            const parentTag = node.getAttribute('docParentTag');
-            const parentId = node.getAttribute('docParentId');
+            const hardware = node.getTag() === 'book' ? node.getParent() : node;
+            const parentTag = hardware?.getTag();
+            const parentId = getDocParentId(hardware?.getAttribute('hardwareName'), parentTag);
             return parentId && (parentTag === 'board' || parentTag === 'device')
                 ? { parentId, parentTag } : undefined;
         }
         const solution = this.solutionManager.getCsolution();
         const targetType = solution?.getActiveTargetTypeWrap();
         const parentTag = targetType?.board ? 'board' : 'device';
-        const parentId = parentTag === 'board'
+        const parentId = getDocParentId(parentTag === 'board'
             ? solution?.getBoardName() || targetType?.board
-            : solution?.getDeviceNameWithVendor() || targetType?.device;
+            : solution?.getDeviceNameWithVendor() || targetType?.device, parentTag);
         return parentId ? { parentId, parentTag } : undefined;
     }
 

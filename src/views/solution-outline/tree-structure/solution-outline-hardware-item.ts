@@ -64,10 +64,9 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
             `- ${isBoard ? 'board' : 'device'}: \`${hardwareName}\`\n` +
             `- from pack: \`${hardwarePackName}\`${buildPackOverviewLink(hardwarePackName)}`;
 
-        hardwareItem.setTag(isBoard ? 'board' : 'device');
+        const parentTag = isBoard ? 'board' : 'device';
+        hardwareItem.setTag(parentTag);
         hardwareItem.setAttribute('hardwareName', hardwareName);
-        hardwareItem.setAttribute('docParentTag', isBoard ? 'board' : 'device');
-        hardwareItem.setAttribute('docParentId', cbuild?.getValue(isBoard ? 'board' : 'device') ?? hardwareName);
         hardwareItem.addFeature('docParent');
         hardwareItem.setAttribute('label', `${isBoard ? 'Board' : 'Device'}: ${hardwareName}`);
         hardwareItem.setAttribute('expandable', '1');
@@ -78,26 +77,22 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         this.createDbgConfigNode(hardwareItem, isBoard, cbuild);
 
         // create children
-        this.createBooksNodes(hardwareItem, isBoard ? 'board' : 'device', cbuild);
+        this.createBooksNodes(hardwareItem, hardwareName, parentTag);
 
         return hardwareItem;
     }
 
-    private createBooksNodes(hardwareItem: COutlineItem, parentTag: 'board' | 'device', cbuild?: CTreeItem) {
-        if (!cbuild || !this.docManager) {
-            return;
-        }
-        const parentId = cbuild.getValue(parentTag);
-        if (!parentId) {
+    private createBooksNodes(hardwareItem: COutlineItem, parentId: string, parentTag: 'board' | 'device') {
+        if (!this.docManager) {
             return;
         }
 
         for (const doc of this.docManager.file.getDocs(parentId, parentTag)) {
-            this.createBookNode(hardwareItem, doc, parentId, parentTag);
+            this.createBookNode(hardwareItem, doc);
         }
     }
 
-    private createBookNode(hardwareItem: COutlineItem, doc: IDocRef, parentId: string, parentTag: string) {
+    private createBookNode(hardwareItem: COutlineItem, doc: IDocRef) {
         const title = doc.title;
         if (!title) {
             return;
@@ -114,8 +109,6 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         bookItem.setAttribute('resourcePath', filePath);
         bookItem.setAttribute('docPath', filePath);
         bookItem.setAttribute('docName', doc.name);
-        bookItem.setAttribute('docParentId', parentId);
-        bookItem.setAttribute('docParentTag', parentTag);
         bookItem.setAttribute('tooltip', filePath);
         bookItem.addFeature('docFile');
         if (doc.locationType === 'W') {

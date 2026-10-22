@@ -44,9 +44,9 @@ describe('DocumentCommand', () => {
     let context: ReturnType<typeof extensionContextFactory>;
 
     const nodeFor = (parentTag: 'board' | 'device', tag = parentTag as string): COutlineItem => {
-        const node = new COutlineItem(tag);
-        node.setAttribute('docParentTag', parentTag);
-        node.setAttribute('docParentId', 'Vendor::Selected');
+        const hardware = new COutlineItem(parentTag);
+        hardware.setAttribute('hardwareName', 'Vendor::Selected');
+        const node = tag === parentTag ? hardware : hardware.createChild(tag);
         node.setAttribute('docName', name);
         node.setAttribute('docPath', 'not-the-inventory-identity.pdf');
         return node;
@@ -107,13 +107,62 @@ describe('DocumentCommand', () => {
         });
     });
 
+    it.each([DocumentCommand.addCommandId, DocumentCommand.setLocalPathCommandId, DocumentCommand.removeCommandId])('uses processor-independent device identity for %s', async command => {
+        const parentId = 'Vendor::Selected';
+        if (command !== DocumentCommand.addCommandId) {
+            expect(await manager.addUserBook(parentId, 'device', name, 'Manual')).toBeDefined();
+        }
+        const hardware = nodeFor('device');
+        hardware.setAttribute('hardwareName', `${parentId}:cm33`);
+        const node = command === DocumentCommand.addCommandId ? hardware : hardware.createChild('book');
+        node.setAttribute('docName', name);
+
+        await commands.mockRunRegistered(command, node);
+
+        if (command === DocumentCommand.removeCommandId) {
+            expect(manager.file.getDoc(name, parentId, 'device')).toBeUndefined();
+        } else {
+            const docName = command === DocumentCommand.addCommandId ? localPath : name;
+            expect(manager.file.getDoc(docName, parentId, 'device')?.path).toBe(localPath);
+        }
+        expect(manager.file.getDocParents('device').map(parent => parent.id)).toEqual([parentId]);
+        expect(window.showErrorMessage).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        { description: 'unnamed hardware', createNode: () => new COutlineItem('board') },
+        { description: 'a book under unnamed hardware', createNode: () => new COutlineItem('device').createChild('book') },
+        { description: 'an orphan book', createNode: () => new COutlineItem('book') },
+        { description: 'a book under a non-hardware parent', createNode: () => {
+            const group = nodeFor('board', 'group');
+            group.setAttribute('hardwareName', 'Vendor::Selected');
+            return group.createChild('book');
+        } },
+        { description: 'an unsupported hardware child', createNode: () => nodeFor('board', 'file') },
+    ])('leaves inventory unchanged for $description', async ({ createNode }) => {
+        manager.file.ensureDoc(name, 'Vendor::Selected', 'board').mode = 'user';
+        manager.file.ensureDoc(name, 'Vendor::ResolvedBoard', 'board').mode = 'user';
+        const node = createNode();
+        node.setAttribute('docName', name);
+        const inventory = manager.file.stringify();
+        const save = jest.spyOn(manager.file, 'save');
+
+        for (const command of [DocumentCommand.addCommandId, DocumentCommand.setLocalPathCommandId, DocumentCommand.removeCommandId]) {
+            await commands.mockRunRegistered(command, node);
+            expect(manager.file.stringify()).toBe(inventory);
+            expect(save).not.toHaveBeenCalled();
+        }
+    });
+
     it.each([true, false])('uses explicit target board preference from the palette: %s', async useBoard => {
+        solution.getBoardName.mockReturnValue('Vendor::ResolvedBoard:RevA');
+        solution.getDeviceNameWithVendor.mockReturnValue('Vendor::ResolvedDevice:cm33');
         if (!useBoard) {
             target.board = undefined;
         }
         await commands.mockRunRegistered(DocumentCommand.addCommandId);
         const parentTag = useBoard ? 'board' : 'device';
-        const parentId = useBoard ? 'Vendor::ResolvedBoard' : 'Vendor::ResolvedDevice';
+        const parentId = useBoard ? 'Vendor::ResolvedBoard:RevA' : 'Vendor::ResolvedDevice';
         expect(manager.file.getDoc(localPath, parentId, parentTag)?.mode).toBe('user');
         expect(manager.file.getDocParents()).toHaveLength(1);
     });
@@ -122,6 +171,17 @@ describe('DocumentCommand', () => {
         solution.getBoardName.mockReturnValue('');
         await commands.mockRunRegistered(DocumentCommand.addCommandId);
         expect(manager.file.getDoc(localPath, target.board!, 'board')?.mode).toBe('user');
+    });
+
+    it('uses the unqualified device without its processor before build files exist', async () => {
+        target.board = undefined;
+        target.device = 'UnresolvedDevice:cm33';
+        solution.getDeviceNameWithVendor.mockReturnValue('');
+
+        await commands.mockRunRegistered(DocumentCommand.addCommandId);
+
+        expect(manager.file.getDoc(localPath, 'UnresolvedDevice', 'device')?.mode).toBe('user');
+        expect(manager.file.getDocParents('device').map(parent => parent.id)).toEqual(['UnresolvedDevice']);
     });
 
     it('reports missing hardware after selecting a file', async () => {

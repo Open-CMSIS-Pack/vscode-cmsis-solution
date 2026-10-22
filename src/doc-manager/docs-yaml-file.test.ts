@@ -18,7 +18,7 @@ import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ETextFileResult, TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
 import { ITextFileSystem } from '@open-cmsis-pack/cmsis-common/text-file-system';
-import { DocsYamlFile } from './docs-yaml-file';
+import { DocsYamlFile, getDocParentId } from './docs-yaml-file';
 
 const fileName = '/inventory/docs.yml';
 const inventory = [
@@ -38,6 +38,20 @@ const inventory = [
     '    - future-layer: preserved',
     '',
 ].join('\n');
+
+describe('getDocParentId', () => {
+    it.each([
+        ['Vendor::Device:cm33', 'device', 'Vendor::Device'],
+        ['Device:cm33', 'device', 'Device'],
+        ['Vendor::Device', 'device', 'Vendor::Device'],
+        ['Device', 'device', 'Device'],
+        ['', 'device', ''],
+        ['Vendor::Board:RevA', 'board', 'Vendor::Board:RevA'],
+        ['Vendor::Component:suffix', 'component', 'Vendor::Component:suffix'],
+    ])('normalizes %s only for device parents (%s)', (parentId, parentTag, expected) => {
+        expect(getDocParentId(parentId, parentTag)).toBe(expected);
+    });
+});
 
 describe('DocsYamlFile', () => {
     let files: Map<string, string>;

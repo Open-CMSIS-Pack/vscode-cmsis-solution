@@ -21,7 +21,7 @@ import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { CTreeItem, ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { Event, EventEmitter } from 'vscode';
 import { expandRootVars } from '../utils/path-utils';
-import { DocsYamlFile, getWebLocationType, IDocRef } from './docs-yaml-file';
+import { DocsYamlFile, getDocParentId, getWebLocationType, IDocRef } from './docs-yaml-file';
 
 export interface DocManager {
     readonly file: DocsYamlFile;
@@ -70,32 +70,34 @@ class DocManagerImpl implements DocManager {
     }
 
     async addCbuildBooks(cbuild: CTreeItem, parentTag: string): Promise<void> {
-        const parentId = cbuild.getValue(parentTag);
-        if (!parentId) {
+        const docParentId = getDocParentId(cbuild.getValue(parentTag), parentTag);
+        if (!docParentId) {
             return;
         }
         await this.file.load(); // refresh inventory, could have been changed externally
-        this.file.ensureParent(parentId, parentTag, cbuild.getValue(`${parentTag}-pack`));
+        this.file.ensureParent(docParentId, parentTag, cbuild.getValue(`${parentTag}-pack`));
         for (const book of cbuild.getGrandChildren(`${parentTag}-books`)) {
             const name = book.getValue('name');
             const locationType = getWebLocationType(name ?? '');
             const docPath = name && !locationType
                 ? book.resolvePath(expandRootVars(name.startsWith('file://') ? fileURLToPath(name) : name))
                 : undefined;
-            this.addBook(parentId, parentTag, name, book.getValue('title'), book.getValue('category'), docPath);
+            this.addBook(docParentId, parentTag, name, book.getValue('title'), book.getValue('category'), docPath);
         }
         await this.file.save(); // do not emit, refresh will done on solution state change
     }
 
     async addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): Promise<IDocRef | undefined> {
-        if (!parentId || !name) {
+        const docParentId = getDocParentId(parentId, parentTag);
+
+        if (!docParentId || !name) {
             return;
         }
         const docPath = name && !getWebLocationType(name)
             ? path.resolve(expandRootVars(name.startsWith('file://') ? fileURLToPath(name) : name))
             : undefined;
         await this.file.load(); // refresh inventory, could have been changed externally
-        const doc = this.addBook(parentId, parentTag, name, title, category, docPath, 'user');
+        const doc = this.addBook(docParentId, parentTag, name, title, category, docPath, 'user');
         if (doc) {
             doc.mode = 'user';
         }
