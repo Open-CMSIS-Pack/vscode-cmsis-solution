@@ -28,8 +28,6 @@ import { TreeViewCategory, TreeViewItem } from '../views/common/components/tree-
 import { BoardData, BoardId, SolarBoardData } from './board-data';
 import { DraftProjectFormat, DraftProjectData, DraftProjectId, DraftProjectSource, DraftProjectType } from './draft-project-data';
 import * as packIndex from '../packs/index-pidx-file';
-import * as pathUtils from '../utils/path-utils';
-import * as fsUtils from '../utils/fs-utils';
 
 describe('pack discovery', () => {
     beforeEach(() => {
@@ -101,10 +99,8 @@ describe('pack discovery', () => {
         expect(manager.errors).toEqual(['Error: index unavailable', 'undefined']);
     });
 
-    it('rejects when the index is missing and RPC fails', async () => {
-        jest.restoreAllMocks();
-        jest.spyOn(pathUtils, 'getCmsisPackRoot').mockReturnValue('/mock/pack/root');
-        jest.spyOn(fsUtils, 'fileExists').mockReturnValue(false);
+    it('rejects when index loading and RPC both fail', async () => {
+        jest.mocked(packIndex.getLatestAvailablePacks).mockRejectedValueOnce(new Error('Failed to load pack index'));
         const { rpc, manager } = setup();
         rpc.getPacksInfo.mockRejectedValue(new Error('RPC unavailable'));
 

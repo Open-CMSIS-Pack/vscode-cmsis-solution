@@ -29,6 +29,7 @@ import { SolutionRpcData } from './solution-rpc-data';
 import { EnvironmentManager } from '../desktop/env-manager';
 import { pathsEqual } from '../utils/path-utils';
 import { ToolsEnvironment } from './tools-environment';
+import { DocManager } from '../doc-manager/doc-manager';
 
 const solutionDirtyContextKey = `${manifest.PACKAGE_NAME}.solutionDirty`;
 const refreshDirtyCommandId = `${manifest.PACKAGE_NAME}.refreshDirty`;
@@ -67,6 +68,8 @@ export interface SolutionManager {
     readonly getCsolution: () => CSolution | undefined;
 
     readonly getRpcData: () => SolutionRpcData | undefined;
+
+    readonly getDocManager: () => DocManager;
 
     readonly onDidChangeLoadState: vscode.Event<SolutionLoadStateChangeEvent>;
 
@@ -111,6 +114,7 @@ export class SolutionManagerImpl implements SolutionManager {
         private readonly environmentManagerApiProvider: ExtensionApiProvider<Pick<EnvironmentManagerApiV1,
             'onDidActivate' | 'onDidFailActivation' | 'getActiveTools' | 'isActivating'>>,
         private readonly environmentManager: EnvironmentManager,
+        private readonly docManager: DocManager,
         private readonly toolsEnvironment = new ToolsEnvironment(environmentManager, environmentManagerApiProvider),
     ) { }
 
@@ -127,9 +131,6 @@ export class SolutionManagerImpl implements SolutionManager {
             this.environmentManagerApiProvider.onActivate(environmentManagerApi => {
                 environmentManagerApi.onDidActivate(results => {
                     this.toolsEnvironment.updateVcpkgResults(results);
-                    if (!this.isSolutionActivated()) {
-                        return;
-                    }
                     this.debouncedHandleEnvironmentChange();
                 }, undefined, context.subscriptions);
             }),
@@ -150,6 +151,9 @@ export class SolutionManagerImpl implements SolutionManager {
         return this.rpcData;
     }
 
+    public getDocManager(): DocManager {
+        return this.docManager;
+    }
 
     public get loadState(): SolutionLoadState {
         return this._loadState;
@@ -164,7 +168,7 @@ export class SolutionManagerImpl implements SolutionManager {
         return !!this.loadState.solutionPath && this.loadState.activated === true;
     }
 
-    private async handleEnvironmentChange(): Promise<void> {
+    private handleEnvironmentChange(): void {
         if (!this.isSolutionActivated()) {
             return;
         }
@@ -301,6 +305,7 @@ export class SolutionManagerImpl implements SolutionManager {
         }
         await this.updateRpcData(); // refresh RPC data
         await this.loadSolutionBuildFiles();
+        await this.updateDocs();
         this.setupCompletedEmitter.fire([data.severity, data.detection]);
 
         if (data.severity != 'error' && !data.detection) {
@@ -308,6 +313,16 @@ export class SolutionManagerImpl implements SolutionManager {
             // spawn cbuild setup asynchronously (fire-and-forget)
             // cbuild completion will be signaled via onDidCbuildCompleted event
             void this.eventHub.requestCbuildSetup();
+        }
+    }
+
+    private async updateDocs(): Promise<void> {
+        for (const cbuildYml of this.csolution?.cbuildYmlRoot.values() ?? []) {
+            const cbuild = cbuildYml.getChildItem();
+            if (cbuild) {
+                await this.docManager.addCbuildBooks(cbuild, 'device');
+                await this.docManager.addCbuildBooks(cbuild, 'board');
+            }
         }
     }
 

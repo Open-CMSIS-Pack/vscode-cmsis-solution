@@ -28,6 +28,7 @@ import { csolutionFactory } from '../../solutions/csolution.factory';
 import { TreeViewFileDecorationProvider } from './treeview-decoration-provider';
 import { configurationProviderFactory, MockConfigurationProvider } from '../../vscode-api/configuration-provider.factories';
 import { CONFIG_AUTO_SHOW_CMSIS_VIEW } from '../../manifest';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 
 describe('SolutionOutlineView', () => {
     let mockTreeViewProvider: TreeViewProvider<COutlineItem>;
@@ -62,6 +63,39 @@ describe('SolutionOutlineView', () => {
         executeCommandSpy.mockRestore();
     });
 
+
+    it.each([ETextFileResult.Success, ETextFileResult.Error])('refreshes documentation only after successful persistence without conversion: %s', async result => {
+        const csolution = csolutionFactory();
+        const loadBuildFiles = jest.spyOn(csolution, 'loadBuildFiles');
+        const manager = solutionManagerFactory({
+            loadState: activeSolutionLoadStateFactory(),
+            getCsolution: jest.fn().mockReturnValue(csolution),
+        });
+        const docManager = manager.getDocManager();
+        let completeSave!: (result: ETextFileResult) => void;
+        jest.spyOn(docManager.file, 'save').mockImplementation(() => new Promise(resolve => { completeSave = resolve; }));
+        const view = new SolutionOutlineView(
+            manager, mockTreeViewProvider, globalStateProvider, mockTreeViewFileDecorationProvider, configurationProvider,
+        );
+        const context = extensionContextFactory();
+        await view.activate(context);
+
+        const addition = docManager.addUserBook('Vendor::Board', 'board', 'manual.pdf', 'Manual');
+        await Promise.resolve();
+        expect(mockTreeViewProvider.updateTree).not.toHaveBeenCalled();
+        completeSave(result);
+        await addition;
+        expect(mockTreeViewProvider.updateTree).toHaveBeenCalledTimes(result === ETextFileResult.Success ? 1 : 0);
+        expect(manager.refresh).not.toHaveBeenCalled();
+        expect(manager.markDirty).not.toHaveBeenCalled();
+        expect(loadBuildFiles).not.toHaveBeenCalled();
+
+        context.subscriptions.forEach(disposable => disposable.dispose());
+        expect(context.subscriptions).toHaveLength(4);
+        expect(context.subscriptions[3].dispose).toHaveBeenCalledTimes(1);
+        docManager.dispose();
+        jest.restoreAllMocks();
+    });
 
     it('shows a badge when the solution outline is shown for the first time', async () => {
         const view = new SolutionOutlineView(

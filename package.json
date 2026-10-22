@@ -703,6 +703,24 @@
       },
       {
         "category": "CMSIS",
+        "command": "cmsis-csolution.addDocument",
+        "title": "Add Document",
+        "icon": "$(add)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.setDocumentLocalPath",
+        "title": "Set Local Path",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.removeDocument",
+        "title": "Remove Document",
+        "icon": "$(trash)"
+      },
+      {
+        "category": "CMSIS",
         "command": "cmsis-csolution.copyHeaderFile",
         "title": "Copy Header File",
         "icon": "$(copy)"
@@ -987,6 +1005,17 @@
           "when": "false"
         },
         {
+          "command": "cmsis-csolution.addDocument"
+        },
+        {
+          "command": "cmsis-csolution.setDocumentLocalPath",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.removeDocument",
+          "when": "false"
+        },
+        {
           "command": "cmsis-csolution.copyHeaderFile",
           "when": "false"
         },
@@ -1229,6 +1258,21 @@
           "command": "cmsis-csolution.openDocFile",
           "when": "view == cmsis-csolution.outline && viewItem =~ /docFile/",
           "group": "inline@8"
+        },
+        {
+          "command": "cmsis-csolution.addDocument",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)docParent(;|$)/",
+          "group": "contextMenu"
+        },
+        {
+          "command": "cmsis-csolution.setDocumentLocalPath",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)webDoc(;|$)/",
+          "group": "contextMenu"
+        },
+        {
+          "command": "cmsis-csolution.removeDocument",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)userDoc(;|$)/",
+          "group": "contextMenu"
         },
         {
           "command": "cmsis-csolution.copyHeaderFile",
