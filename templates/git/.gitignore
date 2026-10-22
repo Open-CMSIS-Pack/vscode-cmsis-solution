@@ -1,6 +1,3 @@
-# Prerequisites
-*.d
-
 # Python
 .venv/
 __pycache__/
@@ -35,7 +32,8 @@ tools-environment.yml
 **/.vscode/settings.json
 .cmd.jlink
 
-# Exception for line 2: "*.d"
+# Prerequisites
+*.d
 # CMSIS Solution drop-ins are user managed source files, despite the directory suffix ".d" 
 !.vscode.d/
 
