@@ -15,11 +15,14 @@
  */
 
 import type { EnvironmentManagerApiV1, EnvironmentManagerExtension } from '@arm-software/vscode-environment-manager';
+import { homedir } from 'node:os';
+import * as path from 'node:path';
 import { ExtensionContext, window, workspace } from 'vscode';
 import { CsolutionExtension } from '../../api/csolution';
 import { CsolutionExtensionImpl } from '../api/csolution-extension';
 import { DataManager } from '../data-manager/data-manager';
 import { CsolutionDataSource, SolarDataSource } from '../data-manager/data-source';
+import { DocManager } from '../doc-manager/doc-manager';
 import * as manifest from '../manifest';
 import { OpenFileExternal } from '../open-file-external';
 import { PackInstallCommands } from '../packs/pack-install-commands';
@@ -58,6 +61,7 @@ import { AddToGroupCommand } from '../views/solution-outline/commands/add-to-gro
 import { DeleteCommand } from '../views/solution-outline/commands/delete-command';
 import { EditCommand } from '../views/solution-outline/commands/edit-command';
 import { OpenCommand } from '../views/solution-outline/commands/open-command';
+import { DocumentCommand } from '../views/solution-outline/commands/document-command';
 import { FindCommand } from '../views/solution-outline/commands/find-command';
 import { MergeCommand } from '../views/solution-outline/commands/merge-command';
 import { MergeSessionCoordinatorImpl } from '../views/solution-outline/commands/merge-session-coordinator';
@@ -105,6 +109,8 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
 
     TextFile.setErrorReporter(vscodeUtils.showErrorMessage);
     context.subscriptions.push({ dispose: () => TextFile.setErrorReporter() });
+
+    const docManager = new DocManager();
 
     // Companion Extensions
     type SerialMonitorExtension = {
@@ -160,6 +166,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         commandsProvider,
         environmentManagerApiProvider,
         envManager,
+        docManager,
         toolsEnvironment);
 
     initUtils(configurationProvider, solutionManager);
@@ -240,6 +247,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const editCommand = new EditCommand(commandsProvider);
     const copyHeaderCommand = new CopyHeaderCommand(commandsProvider);
     const openCommand = new OpenCommand(solutionManager, commandsProvider, externalFileOpener, undefined, fileOpenGroupOrchestrator);
+    const documentCommand = new DocumentCommand(solutionManager, commandsProvider);
     const findCommand = new FindCommand(commandsProvider);
     const searchSolutionSourcesCommand = new SearchSolutionSourcesCommand(solutionManager, commandsProvider, workspaceFsProvider, messageProvider);
     const fileDecorationProviderManager = new FileDecorationProviderManagerImpl();
@@ -282,6 +290,10 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const protocolHandler = new ProtocolHandler(cmsisToolboxManager, outputChannelProvider);
     const openArmExamplesCommand = new OpenArmExamplesCommand(commandsProvider, externalFileOpener);
 
+    await envManager.activate(context);
+    context.subscriptions.push(docManager);
+    await docManager.initialize(path.join(homedir(), '.cmsis'));
+
     const activations = [
         eventHub.activate(context),
         csolutionService.activate(context),
@@ -309,6 +321,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         editCommand.activate(context),
         copyHeaderCommand.activate(context),
         openCommand.activate(context),
+        documentCommand.activate(context),
         findCommand.activate(context),
         searchSolutionSourcesCommand.activate(context),
         mergeCommand.activate(context),
@@ -321,7 +334,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         buildStopCommand.activate(context),
         protocolHandler.activate(context),
         debugProvider.activate(context),
-        envManager.activate(context),
         serialMonitorExtension.activate(context),
         solutionRootsWatcher.activate(context),
         openArmExamplesCommand.activate(context),

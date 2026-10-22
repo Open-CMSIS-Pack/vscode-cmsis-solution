@@ -21,7 +21,7 @@ import { LazyPromise } from '@open-cmsis-pack/cmsis-common/lazy';
 import { CsolutionExampleData, CsolutionTemplateData, DraftProjectData, DraftProjectType, SolarExampleData } from './draft-project-data';
 import { CsolutionService } from '../json-rpc/csolution-rpc-client';
 import type { CsolutionApiV3 } from '../../api/csolution-api-v3';
-import { splitPackId } from '../json-rpc/csolution-rpc-helper';
+import { splitPackId } from './pack-data';
 
 /**
  * A Data source to connect Data Manager to a specific data provider.
@@ -161,7 +161,11 @@ export class CsolutionDataSource extends BaseDataSource {
             throw new Error(result.message ?? 'Unable to query installed packs');
         }
         return result.packs.map(pack => {
-            const { version } = splitPackId(pack.id);
+            const packId = splitPackId(pack.id);
+            if (!packId) {
+                throw new Error(`Invalid pack ID format: ${pack.id}`);
+            }
+            const { version } = packId;
             if (!version) {
                 throw new Error('Installed pack has no version');
             }

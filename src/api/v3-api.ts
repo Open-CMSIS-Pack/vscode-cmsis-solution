@@ -20,7 +20,7 @@ import type { SolutionManager } from '../solutions/solution-manager';
 import type { ToolsEnvironment } from '../solutions/tools-environment';
 import type { DataManager } from '../data-manager/data-manager';
 import type { CsolutionService } from '../json-rpc/csolution-rpc-client';
-import { splitPackId } from '../json-rpc/csolution-rpc-helper';
+import { splitPackId } from '../data-manager/pack-data';
 
 export class CsolutionApiV3Impl implements CsolutionApiV3 {
     constructor(
@@ -78,7 +78,11 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
             return { packs: packs.filter(pack => !text || pack.pack.toLowerCase().includes(text)) };
         }
         const packs = result.packs.filter(pack => pack.used === true).map(pack => {
-            const { version } = splitPackId(pack.id);
+            const packId = splitPackId(pack.id);
+            if (!packId) {
+                throw new Error(`Invalid pack ID format: ${pack.id}`);
+            }
+            const { version } = packId;
             if (!version) {
                 throw new Error(`Used pack has no version: ${pack.id}`);
             }

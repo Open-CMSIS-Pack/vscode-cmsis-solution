@@ -14,7 +14,35 @@
  * limitations under the License.
  */
 
-import { PackId } from './pack-data';
+import { splitBoardId } from './board-data';
+import { splitDeviceId } from './device-data';
+import { comparePackIds, PackId, splitPackId, splitVendorNameId } from './pack-data';
+
+describe('splitVendorNameId', () => {
+    it.each([
+        ['Vendor::Name:revision', 'Vendor', 'Name', 'revision'],
+        ['Vendor::Name', 'Vendor', 'Name', undefined],
+        ['Name', undefined, 'Name', undefined],
+        ['Name:core:extra', undefined, 'Name', 'core:extra'],
+        ['Vendor::Name:', 'Vendor', 'Name', ''],
+        [' Vendor :: Name : suffix ', ' Vendor ', ' Name ', ' suffix '],
+        ['::Name', '', 'Name', undefined],
+        ['Vendor::', 'Vendor', '', undefined],
+        ['::', '', '', undefined],
+        [':suffix', undefined, '', 'suffix'],
+        ['Vendor:::suffix', 'Vendor', '', 'suffix'],
+    ])('splits %j and preserves the board/device projections', (id, vendor, name, suffix) => {
+        expect(splitVendorNameId(id!)).toEqual({ vendor, name, suffix });
+        expect(splitBoardId(id!)).toEqual({ vendor, name, revision: suffix });
+        expect(splitDeviceId(id!)).toEqual({ vendor, name });
+    });
+
+    it.each([undefined, '', 'Vendor::Name:invalid\nsuffix'])('returns undefined for absent, empty or malformed input in all projections: %j', id => {
+        expect(splitVendorNameId(id)).toBeUndefined();
+        expect(splitBoardId(id)).toBeUndefined();
+        expect(splitDeviceId(id)).toBeUndefined();
+    });
+});
 
 describe('PackId', () => {
 
@@ -80,4 +108,42 @@ describe('PackId', () => {
 
     });
 
+});
+
+describe('splitPackId', () => {
+    it('splits a valid pack ID', () => {
+        const result = splitPackId('vendor::name@1.0.0');
+        expect(result).toEqual({ vendor: 'vendor', name: 'name', version: '1.0.0' });
+    });
+
+    it('splits a valid pack ID without version', () => {
+        const result = splitPackId('vendor::name');
+        expect(result).toEqual({ vendor: 'vendor', name: 'name', version: undefined });
+    });
+
+    it.each([undefined, '', 'invalid-pack-id', '::name', 'vendor::', 'vendor::@1.0.0'])('returns undefined for absent, empty or malformed pack ID: %j', packId => {
+        expect(splitPackId(packId)).toBeUndefined();
+    });
+});
+
+describe('comparePackIds', () => {
+    it.each([
+        ['Vendor::Pack@1.0.0', 'Vendor::Pack@1.0.0', 0],
+        ['VENDOR::PACK@1.0.0', 'vendor::pack@1.0.0', 0],
+        ['Alpha::Pack@2.0.0', 'Beta::Pack@1.0.0', -1],
+        ['Beta::Pack@1.0.0', 'Alpha::Pack@2.0.0', 1],
+        ['Vendor::Alpha@2.0.0', 'Vendor::Beta@1.0.0', -1],
+        ['Vendor::Beta@1.0.0', 'Vendor::Alpha@2.0.0', 1],
+        ['Vendor::Pack@1.2.0', 'Vendor::Pack@1.10.0', -1],
+        ['Vendor::Pack@2.0.0', 'Vendor::Pack@1.0.0', 1],
+        ['Vendor::Pack@1.0.0-rc.1', 'Vendor::Pack@1.0.0', -1],
+        ['Vendor::Pack@1.0.0+build.1', 'Vendor::Pack@1.0.0+build.2', 0],
+    ])('compares %s with %s', (first, second, expected) => {
+        expect(Math.sign(comparePackIds(first, second))).toBe(expected);
+    });
+
+    it.each(['', 'Vendor', '::Pack@1.0.0', 'Vendor::Pack@invalid'])('rejects invalid pack ID %s in either position', invalid => {
+        expect(() => comparePackIds(invalid, 'Vendor::Pack@1.0.0')).toThrow();
+        expect(() => comparePackIds('Vendor::Pack@1.0.0', invalid)).toThrow();
+    });
 });
