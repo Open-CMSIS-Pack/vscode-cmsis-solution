@@ -161,7 +161,11 @@ export class CsolutionDataSource extends BaseDataSource {
             throw new Error(result.message ?? 'Unable to query installed packs');
         }
         return result.packs.map(pack => {
-            const { version } = splitPackId(pack.id);
+            const packId = splitPackId(pack.id);
+            if (!packId) {
+                throw new Error(`Invalid pack ID format: ${pack.id}`);
+            }
+            const { version } = packId;
             if (!version) {
                 throw new Error('Installed pack has no version');
             }

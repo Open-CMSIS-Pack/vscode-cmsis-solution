@@ -36,7 +36,7 @@ describe('HardwareItemBuilder', () => {
 
     beforeEach(() => {
         docManager = new DocManager();
-        docManager.file.fileName = path.join(testDataHandler.tmpDir, '.docs', 'docs.yml');
+        docManager.file.fileName = testDataHandler.tmpFileName(path.join('.docs', 'docs.yml'));
     });
 
     afterAll(async () => {
@@ -57,6 +57,7 @@ describe('HardwareItemBuilder', () => {
         const reference = docManager.file.ensureDoc(referencePath, parentId, parentTag);
         reference.title = 'Inventory reference';
         reference.path = referencePath;
+        expect(await docManager.file.save()).toBe(ETextFileResult.Success);
 
         const root = parseYamlToCTreeItem(`
             build:

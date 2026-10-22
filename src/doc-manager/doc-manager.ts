@@ -84,7 +84,7 @@ class DocManagerImpl implements DocManager {
                 : undefined;
             this.addBook(parentId, parentTag, name, book.getValue('title'), book.getValue('category'), docPath);
         }
-        await this.save();
+        await this.file.save(); // do not emit, refresh will done on solution state change
     }
 
     async addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): Promise<IDocRef | undefined> {
@@ -104,6 +104,7 @@ class DocManagerImpl implements DocManager {
     }
 
     async setLocalPath(parentId: string, parentTag: string, name: string, localPath: string): Promise<boolean> {
+        await this.file.load(); // refresh inventory, could have been changed externally
         const doc = this.file.getDoc(name, parentId, parentTag);
         if (!doc || doc.locationType !== 'W' || !localPath || getWebLocationType(localPath)) {
             return false;
@@ -113,6 +114,7 @@ class DocManagerImpl implements DocManager {
     }
 
     async removeDocument(parentId: string, parentTag: string, name: string): Promise<boolean> {
+        await this.file.load();
         const doc = this.file.getDoc(name, parentId, parentTag);
         if (doc?.mode !== 'user') {
             return false;

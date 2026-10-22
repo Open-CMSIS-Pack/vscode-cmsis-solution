@@ -78,7 +78,11 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
             return { packs: packs.filter(pack => !text || pack.pack.toLowerCase().includes(text)) };
         }
         const packs = result.packs.filter(pack => pack.used === true).map(pack => {
-            const { version } = splitPackId(pack.id);
+            const packId = splitPackId(pack.id);
+            if (!packId) {
+                throw new Error(`Invalid pack ID format: ${pack.id}`);
+            }
+            const { version } = packId;
             if (!version) {
                 throw new Error(`Used pack has no version: ${pack.id}`);
             }
