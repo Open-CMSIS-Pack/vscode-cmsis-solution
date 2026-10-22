@@ -21,6 +21,8 @@ import type { ToolsEnvironment } from '../solutions/tools-environment';
 import type { DataManager } from '../data-manager/data-manager';
 import type { CsolutionService } from '../json-rpc/csolution-rpc-client';
 import { splitPackId } from '../data-manager/pack-data';
+import type { CommandsProvider } from '../vscode-api/commands-provider';
+import { PackInstallCommands } from '../packs/pack-install-commands';
 
 export class CsolutionApiV3Impl implements CsolutionApiV3 {
     constructor(
@@ -29,6 +31,7 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
         private readonly solutionManager: Pick<SolutionManager, 'getCsolution' | 'loadState'>,
         private readonly csolutionService: Pick<CsolutionService, 'getPacksInfo'>,
         private readonly toolsEnvironment: Pick<ToolsEnvironment, 'getToolsEnvironment'>,
+        private readonly commandsProvider: Pick<CommandsProvider, 'executeCommand'>,
     ) {}
 
     public getToolsEnvironment(): Promise<string> {
@@ -96,6 +99,42 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
             };
         });
         return { packs: packs.filter(matches) };
+    }
+
+    public async installPacks(options: { packs: string[]; approved: boolean }): Promise<CsolutionApiV3.PackInstallResult[]> {
+        const input = options?.packs;
+        if (!Array.isArray(input)) {
+            throw new Error('Pack IDs must be an array of strings');
+        }
+        const packs = Array.from(input);
+        if (!packs.every(pack => typeof pack === 'string')) {
+            throw new Error('Pack IDs must be an array of strings');
+        }
+        if (!packs.length) {
+            return [];
+        }
+        if (options.approved !== true) {
+            return packs.map(pack => ({ pack, status: 'cancelled' }));
+        }
+        const results: CsolutionApiV3.PackInstallResult[] = [];
+        for (const pack of packs) {
+            try {
+                const packId = splitPackId(pack);
+                if (!packId) {
+                    throw new Error(`Invalid pack ID format: ${pack}`);
+                }
+                const { vendor, name, version } = packId;
+                const installedPath = await this.commandsProvider.executeCommand<string | undefined>(
+                    PackInstallCommands.installPackCommandId, vendor, name, version,
+                );
+                results.push(installedPath
+                    ? { pack, status: 'installed', path: installedPath }
+                    : { pack, status: 'failed', error: `Unable to install ${pack}` });
+            } catch (error) {
+                results.push({ pack, status: 'failed', error: error instanceof Error ? error.message : String(error) });
+            }
+        }
+        return results;
     }
 
     public dispose() {

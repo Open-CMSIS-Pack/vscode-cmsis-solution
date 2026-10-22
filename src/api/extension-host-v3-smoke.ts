@@ -194,12 +194,47 @@ async function runPackCatalog(mode: string): Promise<void> {
     }
 }
 
+async function runPackInstall(): Promise<void> {
+    assert.equal(vscode.workspace.workspaceFolders?.length ?? 0, 0, 'Run this test in an empty VS Code window.');
+    const extension = vscode.extensions.getExtension<CsolutionExtension>('Arm.cmsis-csolution');
+    assert.ok(extension);
+    const exports = await extension.activate();
+    const api = exports.getApi(3);
+    try {
+        assert.ok(!('installPacks' in exports.getApi(2)));
+        const selected = await vscode.commands.executeCommand('cmsis-csolution.getSolutionFile');
+        assert.deepEqual(await api.installPacks({ packs: [], approved: false }), []);
+        await assert.rejects(api.installPacks({ packs: [undefined as unknown as string], approved: true }), /array of strings/);
+        const packs = ['ARM::CMSIS@6.0.0', 'ARM::Cortex_DFP@1.2.0'];
+        assert.deepEqual(await api.installPacks({ packs, approved: false }),
+            packs.map(pack => ({ pack, status: 'cancelled' })));
+        console.log(`API V3 install: installing pre-approved packs ${packs.join(', ')}.`);
+        const results = await api.installPacks({ packs, approved: true });
+        assert.deepEqual(results.map(result => result.pack), packs, 'Return one result per pack in input order.');
+        for (const result of results) {
+            assert.equal(result.status, 'installed', `${result.pack}: ${result.error ?? result.status}`);
+            assert.equal(result.error, undefined);
+            assert.ok(result.path, `${result.pack}: installation must return a path.`);
+            const [vendor, name, version] = result.pack.split(/::|@/);
+            assert.equal(path.basename(result.path), version, `${result.pack}: installed version must match.`);
+            const pdsc = path.join(result.path, `${vendor}.${name}.pdsc`);
+            assert.ok((await fs.stat(pdsc)).isFile(), `${result.pack}: expected installed PDSC at ${pdsc}.`);
+        }
+        assert.equal(await vscode.commands.executeCommand('cmsis-csolution.getSolutionFile'), selected);
+        console.log('API V3 install: two real packs, installed files, empty batch, invalid input, V2 compatibility and unchanged selection passed.');
+    } finally {
+        api.dispose();
+    }
+}
+
 export async function run(): Promise<void> {
     const mode = process.env.CMSIS_V3_SMOKE_MODE;
     if (mode === 'loaded' || mode === 'missing') {
         await runLoadedPacks(mode === 'missing');
     } else if (mode === 'index' || mode === 'installed') {
         await runPackCatalog(mode);
+    } else if (mode === 'install') {
+        await runPackInstall();
     } else if (mode === undefined || mode === 'tools') {
         await runToolsEnvironment();
     } else {

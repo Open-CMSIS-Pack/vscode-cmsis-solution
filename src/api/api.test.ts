@@ -99,6 +99,7 @@ describe('Csolution Extension APIv2', () => {
             { getCsolution: jest.fn(), loadState: {} },
             { getPacksInfo: jest.fn() },
             { getToolsEnvironment: jest.fn() },
+            { executeCommand: jest.fn() },
         );
     });
 

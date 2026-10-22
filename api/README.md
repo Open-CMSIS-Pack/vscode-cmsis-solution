@@ -19,7 +19,29 @@ if (csolutionExtension) {
 
 V3 is available through `getApi(3)`. It retains `getBoards`, `getDevices`,
 `getDraftProjects`, `createNewSolution`, and `build` with their V2 behavior.
-V2 is unchanged and does not expose `getToolsEnvironment` or `getPacks`.
+V2 is unchanged and does not expose `getToolsEnvironment`, `getPacks` or `installPacks`.
+
+### Install Packs
+
+```typescript
+const results = await api.installPacks({
+    packs: ['ARM::CMSIS@6.1.0', 'Keil::MDK-Middleware'],
+    approved: true,
+});
+```
+
+Pack IDs use `vendor::name` or `vendor::name@version`; omitting the version
+installs the latest available version. This API is non-interactive: the caller
+must obtain user approval before passing `approved: true`. The extension does
+not show an approval dialog and uses the existing pack-install command for each
+approved pack. The `approved` boolean is required by the TypeScript API; at runtime
+only the literal value `true` permits installation. False, omitted or invalid
+approval values cancel the entire batch without running installation commands.
+The returned array follows input order, with one `{ pack, status }` entry per
+request. `status` is `installed` (with `path`), `failed` (with `error`), or
+`cancelled` when approval is not granted. An empty batch returns an empty array.
+Malformed pack arrays reject the call. For approved batches, invalid pack IDs and
+installation failures are reported individually; remaining packs are still attempted.
 
 ### Pack Catalogs
 
@@ -135,13 +157,16 @@ configured variables, built-in tools, nonempty PATH, repeatable output, V2
 compatibility, unchanged solution selection and absence of generated files in
 both roots. It restores the workspace setting and disposes the API in `finally`.
 
-Build the extension with `npm run build` and compile the fixture with `npm run compile`
-after a clean checkout or after changing extension or fixture sources. Then select
+Build the extension with `npm run build` after a clean checkout or changes to
+extension sources. The launch preparation task compiles the fixture before
+each run. Select
 **API V3 Smoke Tests**, press **F5**, and choose **Tools Environment** from the picker.
-The preparation task does not rebuild; it creates a workspace with two fresh empty
+The preparation task also creates a workspace with two fresh empty
 folders under the ignored `.vscode-test/api-v3-smoke` directory on each run.
 No manual workspace setup or path input is needed. Previous run folders are retained
-for inspection. Each launch uses an isolated user-data directory
+for inspection. The launcher uses `--extensionTestsPath` to invoke the fixture's
+exported `run()` function directly. Launch **API V3 Smoke Tests** again to rerun
+a scenario. Each launch uses an isolated user-data directory
 and requires the repository's bundled tools and the extension's normal dependencies.
 Arm Tools remains responsible for any activation prompts. No installed packs or
 loaded solution are required. Activation waiting/failure and loaded-solution YAML
@@ -153,6 +178,15 @@ Choose a scenario from the **API V3 Smoke Tests** picker when launching with **F
 The preparation task creates the appropriate disposable workspaces, and the selection runs a scenario in the
 shared [extension-host fixture](../src/api/extension-host-v3-smoke.ts):
 
+- **Install Packs (Real Installation)**: runs in an empty window with no installed-pack
+    prerequisite. Checks V3 exposure, V2 isolation, an empty batch, invalid
+    input, cancellation with `approved: false` and unchanged solution selection,
+    then requests `ARM::CMSIS@6.0.0` and `ARM::Cortex_DFP@1.2.0` with `approved: true`.
+    Selecting this mode authorizes these real installations; there is no approval
+    dialog. Checks ordered successful results, version paths and installed PDSC
+    files. Requires network access for packs not already cached. Packs remain in
+    the configured pack cache; existing installations are accepted. Rerunning the
+    scenario also supplies approval automatically.
 - **Installed Packs**: queries only `scope: 'installed'` via RPC in an empty window.
     Requires installed packs and a backend that accepts `GetPacksInfo` with an
     empty context without a loaded solution. It does not query the index-backed catalog.
@@ -170,9 +204,10 @@ shared [extension-host fixture](../src/api/extension-host-v3-smoke.ts):
     and selection. No component-discovery API is required.
 
 Normal extension activation can generate workspace artifacts in the disposable
-loaded-pack folders. Verify the explicit success message in the host output: the
-VS Code launcher can return zero even when the test runner fails. All modes dispose
-the API. The launch configuration sets `CMSIS_V3_SMOKE_MODE` internally to select
+loaded-pack folders. Verify the scenario's explicit success message in the Debug
+Console and check for test errors; the VS Code launcher can return zero even when
+the extension-host test fails. Failures propagate to the extension test runner.
+All modes dispose the API. The launch configuration sets `CMSIS_V3_SMOKE_MODE` internally to select
 the shared fixture's scenario; it does not configure the extension or public API.
 
 ## API version 2
