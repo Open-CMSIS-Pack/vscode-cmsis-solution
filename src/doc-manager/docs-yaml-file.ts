@@ -112,7 +112,7 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
         if (locationType === 'H') {
             return undefined;
         }
-        const { vendor = '', name } = splitVendorNameId(this.parent?.id ?? '');
+        const { vendor = '', name = '' } = splitVendorNameId(this.parent?.id ?? '') ?? {};
         const source = this.name || this.path || '';
         const basename = this.getBasename(source, locationType);
         return this.item?.resolvePath(path.join('docs', vendor, name, basename));
