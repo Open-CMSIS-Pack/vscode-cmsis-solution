@@ -897,8 +897,8 @@ describe('DocManager', () => {
         const completed = jest.fn();
         const completion = addition.then(completed);
 
-        expect(save).toHaveBeenCalledTimes(1);
         await Promise.resolve();
+        expect(save).toHaveBeenCalledTimes(1);
         expect(completed).not.toHaveBeenCalled();
 
         completeSave(ETextFileResult.Success);
