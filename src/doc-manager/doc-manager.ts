@@ -75,11 +75,7 @@ class DocManagerImpl implements DocManager {
             return;
         }
         await this.file.load(); // refresh inventory, could have been changed externally
-        const parent = this.file.ensureParent(parentId, parentTag, cbuild.getValue(`${parentTag}-pack`));
-        const processor = cbuild.getChildItem('processor');
-        if (parentTag === 'device' && processor && !parent.getChild('processor')) {
-            parent.addChild(processor.clone(parent));
-        }
+        this.file.ensureParent(parentId, parentTag, cbuild.getValue(`${parentTag}-pack`));
         for (const book of cbuild.getGrandChildren(`${parentTag}-books`)) {
             const name = book.getValue('name');
             const locationType = getWebLocationType(name ?? '');

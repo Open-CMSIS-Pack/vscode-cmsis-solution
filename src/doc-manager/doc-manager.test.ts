@@ -193,8 +193,10 @@ describe('DocManager', () => {
         expect(fileSystem.unlink).not.toHaveBeenCalled();
     });
 
-    it.each(['board', 'device'])('addCbuildBooks updates %s metadata and clones the processor only for devices', async parentTag => {
+    it.each(['board', 'device'])('addCbuildBooks updates %s metadata without copying the processor', async parentTag => {
+        files.set(fileName, 'docs: {}\n');
         const manager = createManager();
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         const cbuildFile = new CTreeItemYamlFile(path.resolve('build', 'example.cbuild.yml'));
         cbuildFile.text = [
             'build:',
@@ -219,15 +221,7 @@ describe('DocManager', () => {
         const parent = manager.file.getDocParent(parentId, parentTag)!.item!;
         parent.setValue('future', 'preserved');
         expect(parent.getValue('pack')).toBe(cbuild.getValue(`${parentTag}-pack`));
-        const processor = parent.getChild('processor');
-        if (parentTag === 'device') {
-            expect(processor).not.toBe(sourceProcessor);
-            expect(processor?.getParent()).toBe(parent);
-            expect(processor?.toObject()).toEqual(sourceProcessor.toObject());
-            expect(processor?.getChild('future')).not.toBe(sourceProcessor.getChild('future'));
-        } else {
-            expect(processor).toBeUndefined();
-        }
+        expect(parent.getChild('processor')).toBeUndefined();
         expect(manager.file.getDocs(parentId, parentTag)).toEqual([]);
         expect(manager.file.getDocParents()).toHaveLength(1);
         const importedText = manager.file.stringify();
@@ -237,16 +231,12 @@ describe('DocManager', () => {
         expect(cbuildFile.stringify()).toBe(sourceText);
         cbuild.setValue(`${parentTag}-pack`, 'Vendor::UpdatedPack@3.0.0');
         sourceProcessor.setValue('core', 'Cortex-M55');
-        expect(processor?.getValue('core')).toBe(parentTag === 'device' ? 'Cortex-M33' : undefined);
         await manager.addCbuildBooks(cbuild, parentTag);
         expect(manager.file.getDocParent(parentId, parentTag)!.item).toBe(parent);
         expect(parent.getValue('pack')).toBe('Vendor::UpdatedPack@3.0.0');
-        expect(parent.getChildren().filter(child => child.getTag() === 'processor')).toHaveLength(parentTag === 'device' ? 1 : 0);
-        expect(parent.getChild('processor')).toBe(processor);
-        expect(processor?.getValue('core')).toBe(parentTag === 'device' ? 'Cortex-M33' : undefined);
+        expect(parent.getChild('processor')).toBeUndefined();
         expect(parent.getValue('future')).toBe('preserved');
         expect(files.get(fileName)).toBe(manager.file.stringify());
-        expect(fileSystem.read).not.toHaveBeenCalled();
         expect(fileSystem.write).toHaveBeenCalledTimes(3);
         expect(fileSystem.unlink).not.toHaveBeenCalled();
 
@@ -254,7 +244,8 @@ describe('DocManager', () => {
         expect(await reloaded.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         const savedParent = reloaded.file.getDocParent(parentId, parentTag)!.item!;
         expect(savedParent.toObject()).toEqual(parent.toObject());
-        expect(files.get(fileName)?.includes('# Keep processor attributes.')).toBe(parentTag === 'device');
+        expect(savedParent.getChild('processor')).toBeUndefined();
+        expect(files.get(fileName)).not.toContain('# Keep processor attributes.');
         cbuild.setValue(`${parentTag}-pack`, undefined);
         await manager.addCbuildBooks(cbuild, parentTag);
         expect(parent.getValue('pack')).toBe('Vendor::UpdatedPack@3.0.0');

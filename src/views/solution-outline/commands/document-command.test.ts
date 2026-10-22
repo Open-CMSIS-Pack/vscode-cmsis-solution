@@ -197,32 +197,24 @@ describe('DocumentCommand', () => {
         expect(window.showWarningMessage).not.toHaveBeenCalled();
     });
 
-    it('reloads changed document metadata before setting the local path', async () => {
+    it('uses current document metadata after browsing', async () => {
         manager.file.ensureDoc(name, 'Vendor::Selected', 'board');
         await manager.file.save();
         window.showOpenDialog.mockImplementationOnce(async () => {
-            const persisted = new DocManager();
-            await persisted.initialize(path.dirname(manager.file.fileName));
-            persisted.file.getDoc(name, 'Vendor::Selected', 'board')!.title = 'Updated externally';
-            await persisted.file.save();
-            persisted.dispose();
+            manager.file.getDoc(name, 'Vendor::Selected', 'board')!.title = 'Updated while browsing';
             return [vscode.Uri.file(localPath)];
         });
         await commands.mockRunRegistered(DocumentCommand.setLocalPathCommandId, nodeFor('board', 'book'));
         const doc = manager.file.getDoc(name, 'Vendor::Selected', 'board');
-        expect(doc?.title).toBe('Updated externally');
+        expect(doc?.title).toBe('Updated while browsing');
         expect(doc?.path).toBe(localPath);
     });
 
-    it('does not recreate a document deleted from disk while browsing', async () => {
+    it('does not recreate a document removed from the manager while browsing', async () => {
         manager.file.ensureDoc(name, 'Vendor::Selected', 'board');
         await manager.file.save();
         window.showOpenDialog.mockImplementationOnce(async () => {
-            const persisted = new DocManager();
-            await persisted.initialize(path.dirname(manager.file.fileName));
-            persisted.file.removeDoc(name, 'Vendor::Selected', 'board');
-            await persisted.file.save();
-            persisted.dispose();
+            manager.file.removeDoc(name, 'Vendor::Selected', 'board');
             return [vscode.Uri.file(localPath)];
         });
         const save = jest.spyOn(manager.file, 'save');
@@ -231,15 +223,11 @@ describe('DocumentCommand', () => {
         expect(save).not.toHaveBeenCalled();
     });
 
-    it('checks the reloaded mode before removing a document', async () => {
+    it('checks the current mode before removing a document', async () => {
         const doc = manager.file.ensureDoc(name, 'Vendor::Selected', 'board');
         doc.mode = 'user';
         await manager.file.save();
-        const persisted = new DocManager();
-        await persisted.initialize(path.dirname(manager.file.fileName));
-        persisted.file.getDoc(name, 'Vendor::Selected', 'board')!.mode = undefined;
-        await persisted.file.save();
-        persisted.dispose();
+        doc.mode = undefined;
         const save = jest.spyOn(manager.file, 'save');
 
         await commands.mockRunRegistered(DocumentCommand.removeCommandId, nodeFor('board', 'book'));
@@ -248,16 +236,15 @@ describe('DocumentCommand', () => {
         expect(save).not.toHaveBeenCalled();
     });
 
-    it.each([DocumentCommand.addCommandId, DocumentCommand.setLocalPathCommandId, DocumentCommand.removeCommandId])('does not mutate after a failed reload: %s', async command => {
+    it.each([DocumentCommand.addCommandId, DocumentCommand.setLocalPathCommandId, DocumentCommand.removeCommandId])('uses the existing manager without reinitializing: %s', async command => {
         const doc = manager.file.ensureDoc(name, 'Vendor::Selected', 'board');
         doc.mode = 'user';
-        const before = manager.file.stringify();
-        jest.spyOn(manager.file, 'load').mockResolvedValueOnce(ETextFileResult.Error);
-        const save = jest.spyOn(manager.file, 'save');
+        await manager.file.save();
+        const initialize = jest.spyOn(manager, 'initialize');
         await commands.mockRunRegistered(command, nodeFor('board', command === DocumentCommand.addCommandId ? 'board' : 'book'));
-        expect(manager.file.stringify()).toBe(before);
-        expect(save).not.toHaveBeenCalled();
-        expect(window.showErrorMessage).toHaveBeenCalledWith('Failed to load the document inventory.');
+        expect(solutionManager.getDocManager).toHaveBeenCalledTimes(1);
+        expect(initialize).not.toHaveBeenCalled();
+        expect(window.showErrorMessage).not.toHaveBeenCalled();
     });
 
     it.each([DocumentCommand.addCommandId, DocumentCommand.setLocalPathCommandId, DocumentCommand.removeCommandId])('reports save failures: %s', async command => {

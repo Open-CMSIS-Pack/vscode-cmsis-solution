@@ -16,8 +16,6 @@
 
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
-import { DocManager } from '../../../doc-manager/doc-manager';
 import { PACKAGE_NAME } from '../../../manifest';
 import { SolutionManager } from '../../../solutions/solution-manager';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
@@ -63,10 +61,7 @@ export class DocumentCommand {
         if (!localPath) {
             return;
         }
-        const manager = await this.loadDocs();
-        if (!manager) {
-            return;
-        }
+        const manager = this.solutionManager.getDocManager();
         const target = (!node || node.getTag() === 'board' || node.getTag() === 'device') ? this.getTarget(node) : undefined;
         if (!target) {
             await this.window.showWarningMessage('Select a board or device, or activate a target type with board or device hardware.');
@@ -85,10 +80,7 @@ export class DocumentCommand {
         if (!localPath) {
             return;
         }
-        const manager = await this.loadDocs();
-        if (!manager) {
-            return;
-        }
+        const manager = this.solutionManager.getDocManager();
         const target = node?.getTag() === 'book' ? this.getTarget(node) : undefined;
         const name = node?.getAttribute('docName');
         if (!target || !name) {
@@ -104,10 +96,7 @@ export class DocumentCommand {
     }
 
     private async removeDocument(node?: COutlineItem): Promise<void> {
-        const manager = await this.loadDocs();
-        if (!manager) {
-            return;
-        }
+        const manager = this.solutionManager.getDocManager();
         const target = node?.getTag() === 'book' ? this.getTarget(node) : undefined;
         const name = node?.getAttribute('docName');
         if (!target || !name) {
@@ -119,15 +108,6 @@ export class DocumentCommand {
         if (!await manager.removeDocument(target.parentId, target.parentTag, name)) {
             await this.window.showErrorMessage('Failed to save the document inventory.');
         }
-    }
-
-    private async loadDocs(): Promise<DocManager | undefined> {
-        const manager = this.solutionManager.getDocManager();
-        if (await manager.initialize(path.dirname(manager.file.fileName)) === ETextFileResult.Error) {
-            await this.window.showErrorMessage('Failed to load the document inventory.');
-            return;
-        }
-        return manager;
     }
 
     private async pickDocument(title: string): Promise<string | undefined> {
