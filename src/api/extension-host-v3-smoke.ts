@@ -17,7 +17,7 @@
 import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { YamlFile } from '@open-cmsis-pack/cmsis-common';
+import { ETextFileResult, JsonFile, YamlFile } from '@open-cmsis-pack/cmsis-common';
 import * as vscode from 'vscode';
 import type { CsolutionApiV3, CsolutionExtension } from '../../api/csolution';
 
@@ -204,6 +204,10 @@ async function runPackInstall(): Promise<void> {
         assert.ok(!('installPacks' in exports.getApi(2)));
         const selected = await vscode.commands.executeCommand('cmsis-csolution.getSolutionFile');
         assert.deepEqual(await api.installPacks({ packs: [], approved: false }), []);
+        await assert.rejects(api.installPacks({ packs: 'ARM::CMSIS@6.0.0' as unknown as string[], approved: true }), {
+            name: 'Error',
+            message: 'Pack IDs must be an array of strings',
+        });
         await assert.rejects(api.installPacks({ packs: [undefined as unknown as string], approved: true }), /array of strings/);
         const packs = ['ARM::CMSIS@6.0.0', 'ARM::Cortex_DFP@1.2.0'];
         assert.deepEqual(await api.installPacks({ packs, approved: false }),
@@ -227,9 +231,172 @@ async function runPackInstall(): Promise<void> {
     }
 }
 
+const solutionGetters = [
+    'getSolutionFile', 'getActiveTarget', 'getDeviceName', 'getBoardName',
+    'getDfpName', 'getBspName', 'getDfpPath', 'getBspPath', 'getPackRootPath', 'getCbuildRunFile',
+] as const;
+
+function checkSolutionApi(exports: CsolutionExtension, api: CsolutionApiV3): void {
+    const v2 = exports.getApi(2);
+    for (const method of [...solutionGetters, 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution'] as const) {
+        assert.equal(typeof api[method], 'function', `V3 must expose ${method}.`);
+        assert.ok(!(method in v2), `V2 must not expose ${method}.`);
+    }
+}
+
+async function runEmptySolutionGetters(): Promise<void> {
+    assert.equal(vscode.workspace.workspaceFolders?.length ?? 0, 0, 'Run in an empty window.');
+    const extension = vscode.extensions.getExtension<CsolutionExtension>('Arm.cmsis-csolution');
+    assert.ok(extension);
+    const exports = await extension.activate();
+    const api = exports.getApi(3);
+    const configuration = vscode.workspace.getConfiguration('cmsis-csolution');
+    const previousVariables = configuration.inspect<Record<string, string>>('environmentVariables')?.workspaceValue;
+    try {
+        checkSolutionApi(exports, api);
+        await api.deactivateSolution();
+        assert.equal(await api.getSolutionFile(), undefined);
+        for (const method of solutionGetters.filter(method => method !== 'getSolutionFile' && method !== 'getPackRootPath')) {
+            const expected = method === 'getDfpPath' || method === 'getBspPath' ? '<not found>' : '';
+            assert.equal(await api[method](), expected, `${method} without a solution`);
+        }
+        assert.deepEqual(await api.getTargets(), []);
+        await assert.rejects(api.setActiveTarget('CM3'), /requires a loaded solution/);
+        const originalRoot = await api.getPackRootPath();
+        assert.ok(path.isAbsolute(originalRoot));
+        for (const name of ['pack-root-one', 'pack-root-two']) {
+            const root = path.join(path.dirname(vscode.workspace.workspaceFile!.fsPath), name);
+            await configuration.update('environmentVariables', { ...previousVariables, CMSIS_PACK_ROOT: root },
+                vscode.ConfigurationTarget.Workspace);
+            assert.equal(await api.getPackRootPath(), root, 'Pack root must use the current extension-supplied environment.');
+        }
+        await configuration.update('environmentVariables', previousVariables, vscode.ConfigurationTarget.Workspace);
+        assert.equal(await api.getPackRootPath(), originalRoot);
+        assert.equal(await api.getSolutionFile(), undefined);
+        console.log('API V3 solution getters: empty-window defaults, dynamic pack-root environment, setter rejection and V2 isolation passed.');
+    } finally {
+        try {
+            await configuration.update('environmentVariables', previousVariables, vscode.ConfigurationTarget.Workspace);
+        } finally {
+            api.dispose();
+        }
+    }
+}
+
+async function runTargetSelection(): Promise<void> {
+    assert.equal(vscode.workspace.workspaceFolders?.length, 1, 'Open the disposable selection fixture.');
+    const folder = vscode.workspace.workspaceFolders![0].uri;
+    const solution = vscode.Uri.joinPath(folder, 'Selection.csolution.yml');
+    const project = vscode.Uri.joinPath(folder, 'Components.cproject.yml');
+    const originals = await Promise.all([solution, project].map(uri => vscode.workspace.fs.readFile(uri)));
+    const configuration = vscode.workspace.getConfiguration('cmsis-csolution', folder);
+    assert.equal(configuration.get('downloadPacks'), false);
+    assert.equal(configuration.get('useWebServices'), false);
+    const extension = vscode.extensions.getExtension<CsolutionExtension>('Arm.cmsis-csolution');
+    assert.ok(extension);
+    const exports = await extension.activate();
+    const api = exports.getApi(3);
+    let originalSelection: string | undefined;
+    try {
+        checkSolutionApi(exports, api);
+        await api.activateSolution(solution.fsPath);
+        assert.equal(await api.getSolutionFile(), solution.fsPath, 'Activation must select the solution before resolving.');
+        await api.activateSolution(solution.fsPath);
+        assert.equal(await api.getSolutionFile(), solution.fsPath, 'Repeated activation must preserve the selection.');
+        const deadline = Date.now() + 60000;
+        // Activation converts asynchronously; wait for observable generated hardware data, not just selection.
+        while (await api.getDeviceName() !== 'ARMCM3' || !await api.getCbuildRunFile()) {
+            assert.ok(Date.now() < deadline, 'Fixture conversion must provide ARMCM3 hardware data and a cbuild-run file. Check installed ARM::CMSIS and ARM::CMSIS_DFP packs/tooling.');
+            await new Promise(resolve => setTimeout(resolve, 250));
+        }
+        originalSelection = await api.getActiveTarget();
+        assert.equal(originalSelection, 'CM3');
+        const targets = ['CM3', 'CM3@Smoke'];
+        assert.deepEqual(await api.getTargets(), targets);
+        assert.equal(await api.getActiveTarget(), originalSelection, 'Enumeration must not change selection.');
+        assert.equal(await api.getSolutionFile(), solution.fsPath);
+        assert.equal(await api.getBoardName(), '');
+        assert.equal(await api.getBspName(), '');
+        assert.equal(await api.getBspPath(), '<not found>');
+        const dfp = await api.getDfpName();
+        assert.match(dfp, /^ARM::CMSIS_DFP@\d/);
+        const dfpPath = await api.getDfpPath();
+        assert.equal(path.normalize(dfpPath), path.join(await api.getPackRootPath(), 'ARM', 'CMSIS_DFP', dfp.split('@')[1]));
+        assert.ok((await fs.stat(path.join(dfpPath, 'ARM.CMSIS_DFP.pdsc'))).isFile());
+        const cbuildRun = await api.getCbuildRunFile();
+        assert.ok(path.normalize(cbuildRun).startsWith(path.normalize(folder.fsPath) + path.sep));
+        assert.match(cbuildRun, /\.cbuild-run\.yml$/);
+        assert.ok((await fs.stat(cbuildRun)).isFile());
+        for (const method of solutionGetters) {
+            const command = method === 'getActiveTarget' ? 'getActiveTargetSet' : method;
+            assert.equal(await api[method](), await vscode.commands.executeCommand(`cmsis-csolution.${command}`),
+                `${method} must match the registered command.`);
+        }
+        for (const [selection, index] of [['CM3@Smoke', 1], ['CM3@Smoke', 1], ['CM3', 0]] as const) {
+            await api.setActiveTarget(selection);
+            assert.equal(await api.getActiveTarget(), selection, 'Setter must refresh selection before resolving.');
+            const settings = new JsonFile(path.join(folder.fsPath, '.vscode', 'cmsis.json'));
+            assert.notEqual(await settings.load(), ETextFileResult.Error);
+            assert.deepEqual(settings.errors, []);
+            const content = settings.content as {
+                activeTarget: string;
+                targetSet: { Selection: { activeTargetType: string; CM3: number } };
+            };
+            assert.equal(content.activeTarget, selection);
+            assert.equal(content.targetSet.Selection.activeTargetType, 'CM3');
+            assert.equal(content.targetSet.Selection.CM3, index);
+            await vscode.commands.executeCommand('cmsis-csolution.refresh');
+            assert.equal(await api.getActiveTarget(), selection, 'Selection must survive a fresh settings reload.');
+            assert.deepEqual(await api.getTargets(), targets, 'Available targets must not depend on selection.');
+        }
+        const settingsUri = vscode.Uri.joinPath(folder, '.vscode', 'cmsis.json');
+        const settingsBefore = await vscode.workspace.fs.readFile(settingsUri);
+        for (const invalid of ['', 'CM3@', 'CM3@Smoke@extra', 'CM3@Unknown', 'Unknown']) {
+            await assert.rejects(api.setActiveTarget(invalid), /non-empty string|Invalid target set|Unknown target set/);
+            assert.equal(await api.getActiveTarget(), 'CM3');
+        }
+        assert.deepEqual(await vscode.workspace.fs.readFile(settingsUri), settingsBefore, 'Rejected selections must not change settings.');
+        assert.deepEqual(await Promise.all([solution, project].map(uri => vscode.workspace.fs.readFile(uri))), originals,
+            'Getters and selection must not rewrite solution/project inputs.');
+        assert.equal(await api.getSolutionFile(), solution.fsPath);
+        await api.deactivateSolution();
+        assert.equal(await api.getSolutionFile(), undefined, 'Deactivation must clear selection before resolving.');
+        assert.equal(await api.getActiveTarget(), '');
+        assert.equal(await api.getDeviceName(), '');
+        assert.equal(await api.getCbuildRunFile(), '');
+        assert.deepEqual(await api.getTargets(), []);
+        await assert.rejects(api.setActiveTarget('CM3'), /requires a loaded solution/);
+        await api.deactivateSolution();
+        assert.equal(await api.getSolutionFile(), undefined, 'Repeated deactivation must leave selection cleared.');
+        await api.activateSolution(solution.fsPath);
+        assert.equal(await api.getSolutionFile(), solution.fsPath, 'Activation must restore the cleared selection.');
+        const reactivationDeadline = Date.now() + 60000;
+        while (await api.getDeviceName() !== 'ARMCM3' || await api.getActiveTarget() !== 'CM3') {
+            assert.ok(Date.now() < reactivationDeadline, 'Reactivated fixture must load its hardware data and persisted target selection.');
+            await new Promise(resolve => setTimeout(resolve, 250));
+        }
+        await api.deactivateSolution();
+        assert.equal(await api.getSolutionFile(), undefined);
+        console.log('API V3 solution getters and selection: API activation/deactivation, repeated lifecycle calls, target enumeration, hardware data, paths, command parity, named/default persistence, refresh, repeat selection, invalid input and unchanged sources passed.');
+    } finally {
+        try {
+            if (originalSelection && await api.getSolutionFile() === solution.fsPath
+                && await api.getActiveTarget() !== originalSelection) {
+                await api.setActiveTarget(originalSelection);
+            }
+        } finally {
+            api.dispose();
+        }
+    }
+}
+
 export async function run(): Promise<void> {
     const mode = process.env.CMSIS_V3_SMOKE_MODE;
-    if (mode === 'loaded' || mode === 'missing') {
+    if (mode === 'getters') {
+        await runEmptySolutionGetters();
+    } else if (mode === 'selection') {
+        await runTargetSelection();
+    } else if (mode === 'loaded' || mode === 'missing') {
         await runLoadedPacks(mode === 'missing');
     } else if (mode === 'index' || mode === 'installed') {
         await runPackCatalog(mode);

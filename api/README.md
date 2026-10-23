@@ -37,7 +37,102 @@ should also check returned statuses and the documented limitations of each metho
 
 V3 is available through `getApi(3)`. It retains `getBoards`, `getDevices`,
 `getDraftProjects`, `createNewSolution`, and `build` with their V2 behavior.
-V2 is unchanged and does not expose `getToolsEnvironment`, `getPacks` or `installPacks`.
+V2 is unchanged; the additional methods below are available only in V3.
+
+### Solution and Hardware Getters
+
+```typescript
+const api = (await csolutionExtension.activate()).getApi(3);
+const solutionFile = await api.getSolutionFile();
+const activeTarget = await api.getActiveTarget();
+const deviceName = await api.getDeviceName();
+const boardName = await api.getBoardName();
+const dfpName = await api.getDfpName();
+const bspName = await api.getBspName();
+const dfpPath = await api.getDfpPath();
+const bspPath = await api.getBspPath();
+const packRootPath = await api.getPackRootPath();
+const cbuildRunFile = await api.getCbuildRunFile();
+```
+
+These no-argument getters return promises and delegate to the corresponding
+`cmsis-csolution.<method>` commands, except `getActiveTarget`, which delegates to
+`cmsis-csolution.getActiveTargetSet`. They are headless and non-interactive: they do
+not prompt, open views, select or load solutions, build, install packs or generate
+files. Command failures reject the returned promise.
+
+| Method | Result | When unavailable |
+| --- | --- | --- |
+| `getSolutionFile` | Absolute path of the selected solution file | `undefined` |
+| `getActiveTarget` | Loaded solution's active target type, with `@set` when named | `''` |
+| `getDeviceName` | Loaded solution's device name | `''` |
+| `getBoardName` | Loaded solution's board name | `''` |
+| `getDfpName` | Loaded solution's device family pack ID | `''` |
+| `getBspName` | Loaded solution's board support pack ID | `''` |
+| `getDfpPath` | Device family pack path, expanding `${CMSIS_PACK_ROOT}` | `'<not found>'` |
+| `getBspPath` | Board support pack path, expanding `${CMSIS_PACK_ROOT}` | `'<not found>'` |
+| `getPackRootPath` | Current CMSIS pack root path; no solution required | Uses the existing pack-root fallback |
+| `getCbuildRunFile` | Loaded solution's cbuild-run file path; does not generate or check the file | `''` |
+
+### Activate or Deactivate a Solution
+
+```typescript
+await api.activateSolution('C:\\workspace\\App.csolution.yml');
+const solutionFile = await api.getSolutionFile();
+await api.deactivateSolution();
+```
+
+`activateSolution(solutionPath: string): Promise<void>` and
+`deactivateSolution(): Promise<void>` delegate directly to the existing
+`cmsis-csolution.activateSolution` and `cmsis-csolution.deactivateSolution`
+commands. Command failures reject the returned promise; these wrappers do not
+add validation or change command behavior.
+
+Activation accepts a solution file path or a directory containing a solution in
+the current workspace. It does not open a workspace or new window. Input that
+cannot be matched to a discovered workspace solution can show the existing
+solution picker; cancellation leaves selection unchanged. Filesystem errors can
+reject instead. Callers seeking non-interactive activation should pass a known
+workspace solution file path.
+
+The promises resolve when the command completes selection or clears selection,
+not when asynchronous solution loading, unloading or conversion finishes.
+Repeating activation of the already-active solution does not force a reload.
+Deactivation is also safe when no solution is selected. Neither method is
+available through V2.
+
+### List and Select Targets
+
+```typescript
+const targets = await api.getTargets();
+await api.setActiveTarget('Board@Debug');
+await api.setActiveTarget('Board'); // Select the existing unnamed/default set.
+```
+
+`getTargets(): Promise<string[]>` lists all available targets in the loaded
+solution as `<target-type>[@<target-set>]`, in target-type and target-set declaration
+order. Named sets include the suffix (for example `Board@Debug`); unnamed sets
+return only the target type (for example `Board`). It returns `[]` when no solution
+is loaded or there are no targets. This V3-only query reads the current solution
+model without changing selection, loading a solution, generating files or running
+a command. Each call returns a new array.
+
+`setActiveTarget(activeTarget: string): Promise<void>` accepts the format
+`<target-type>[@<target-set>]` returned by `getActiveTarget`. The target type is
+required; the optional `@<target-set>` suffix selects a named target set, for
+example `Board@Debug`. A bare target type, for example `Board`, selects its
+unnamed set; it rejects if that target has no unnamed set. Names are exact and
+case-sensitive. The method only selects existing targets and sets; it does not
+create them or open an editor.
+
+The method requires a loaded solution. Empty or malformed names, unknown target
+sets, settings-file errors and refresh failures reject the promise. It persists
+selection in the existing CMSIS settings file, preserving unrelated settings,
+updates the loaded solution's selection, then awaits the existing refresh command.
+The command reloads solution files and requests build-information conversion;
+conversion itself can finish after this method resolves. If refresh fails, the
+selection remains persisted. Settings-file failures may also be reported by the
+extension's standard file-error reporter.
 
 ### Install Packs
 
@@ -193,6 +288,39 @@ Arm Tools remains responsible for any activation prompts. No installed packs or
 loaded solution are required. Activation waiting/failure and loaded-solution YAML
 parity are covered by the focused unit tests.
 
+#### Solution Getter and Target Selection Smoke Modes
+
+- **Solution Getters (Empty Window)**: checks all ten solution/hardware getters
+    without a solution, V3 availability and V2 isolation, repeated deactivation
+    without a selected solution, setter rejection without a loaded solution, and two successive `CMSIS_PACK_ROOT` overrides supplied
+    through the extension's environment configuration after activation. Restores
+    the configuration and verifies the original pack root. No packs are required.
+- **Solution Getters and Target Selection (Loaded Solution)**: opens a fresh copy
+    of [the selection fixture](../test-data/api-v3-packs/Selection.csolution.yml).
+    Requires installed `ARM::CMSIS` and `ARM::CMSIS_DFP` packs and working Toolbox
+    conversion; downloads and web services are disabled. Activates the fixture
+    through the API, repeats activation, and checks
+    selection immediately after each awaited call. Waits for generated hardware
+    data, checks device/DFP values, absent board/BSP values, actual pack
+    and cbuild-run paths, and parity with registered commands for command-backed getters.
+    Enumerates `CM3` and `CM3@Smoke` through `getTargets`, verifies the list remains
+    unchanged across selections, and checks an empty list after deactivation.
+    Switches to `CM3@Smoke`, repeats that selection, then returns to the unnamed
+    `CM3` set. Checks persisted settings and getter results immediately after
+    each setter and after an explicit refresh. Invalid selections must reject
+    without changing settings. Solution/project inputs remain byte-for-byte
+    unchanged. Finally deactivates through the API, verifies cleared selection and
+    hardware data and setter rejection, then repeats deactivation. Reactivates the
+    fixture, waits for its hardware data and persisted target selection, and clears
+    selection again. Cleanup restores
+    the original target selection if the fixture is still active after a failure.
+
+Choose either mode from the same **API V3 Smoke Tests** picker. Both dispose the
+API in `finally` and use disposable workspaces prepared by the launch task.
+These are extension-host integration checks, not mocked unit tests or hardware
+flash/debug tests. Target selection waits for refresh, not background conversion
+completion; the initial hardware assertions explicitly wait for conversion data.
+
 #### Pack Smoke Modes
 
 Choose a scenario from the **API V3 Smoke Tests** picker when launching with **F5**.
@@ -200,8 +328,9 @@ The preparation task creates the appropriate disposable workspaces, and the sele
 shared [extension-host fixture](../src/api/extension-host-v3-smoke.ts):
 
 - **Install Packs (Real Installation)**: runs in an empty window with no installed-pack
-    prerequisite. Checks V3 exposure, V2 isolation, an empty batch, invalid
-    input, cancellation with `approved: false` and unchanged solution selection,
+    prerequisite. Checks V3 exposure, V2 isolation, an empty batch, exact promise
+    rejection for non-array input, rejection for non-string array entries,
+    cancellation with `approved: false` and unchanged solution selection,
     then requests `ARM::CMSIS@6.0.0` and `ARM::Cortex_DFP@1.2.0` with `approved: true`.
     Selecting this mode authorizes these real installations; there is no approval
     dialog. Checks ordered successful results, version paths and installed PDSC

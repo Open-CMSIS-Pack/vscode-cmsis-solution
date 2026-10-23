@@ -15,6 +15,10 @@
  */
 
 import { Disposable } from 'vscode';
+import { Mutex } from 'async-mutex';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { CmsisSettingsJsonFile } from '../global/cmsis-settings-json-file';
+import { REFRESH_COMMAND_ID } from '../manifest';
 import { CsolutionApiV2, CsolutionApiV3 } from '../../api/csolution';
 import type { SolutionManager } from '../solutions/solution-manager';
 import type { ToolsEnvironment } from '../solutions/tools-environment';
@@ -23,8 +27,12 @@ import type { CsolutionService } from '../json-rpc/csolution-rpc-client';
 import { splitPackId } from '../data-manager/pack-data';
 import type { CommandsProvider } from '../vscode-api/commands-provider';
 import { PackInstallCommands } from '../packs/pack-install-commands';
+import { COMMAND_ACTIVATE_SOLUTION, COMMAND_DEACTIVATE_SOLUTION, COMMAND_GET_SOLUTION_FILE } from '../solutions/active-solution-tracker';
+import { DebugHardwareCommands } from '../solutions/hardware/debug-hardware-commands';
 
 export class CsolutionApiV3Impl implements CsolutionApiV3 {
+    private static readonly targetSelectionMutex = new Mutex();
+
     constructor(
         private readonly existingApi: CsolutionApiV2 & Disposable,
         private readonly dataManager: DataManager,
@@ -33,6 +41,112 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
         private readonly toolsEnvironment: Pick<ToolsEnvironment, 'getToolsEnvironment'>,
         private readonly commandsProvider: Pick<CommandsProvider, 'executeCommand'>,
     ) {}
+
+    public async activateSolution(solutionPath: string): Promise<void> {
+        await this.commandsProvider.executeCommand(COMMAND_ACTIVATE_SOLUTION, solutionPath);
+    }
+
+    public async deactivateSolution(): Promise<void> {
+        await this.commandsProvider.executeCommand(COMMAND_DEACTIVATE_SOLUTION);
+    }
+
+    public async getSolutionFile(): Promise<string | undefined> {
+        return this.commandsProvider.executeCommand<string | undefined>(COMMAND_GET_SOLUTION_FILE);
+    }
+
+    public async getActiveTarget(): Promise<string> {
+        return this.commandsProvider.executeCommand<string>(DebugHardwareCommands.ACTIVE_TARGET_SET_COMMAND_ID);
+    }
+
+    public async getTargets(): Promise<string[]> {
+        const solution = this.solutionManager.getCsolution();
+        if (!solution || !this.solutionManager.loadState.loaded) {
+            return [];
+        }
+        return solution.csolutionYml.targetTypes.flatMap(target =>
+            target.targetSetNames.map(set => set ? `${target.name}@${set}` : target.name));
+    }
+
+    public async setActiveTarget(activeTarget: string): Promise<void> {
+        await CsolutionApiV3Impl.targetSelectionMutex.runExclusive(() => this.updateActiveTarget(activeTarget));
+    }
+
+    private async updateActiveTarget(activeTarget: string): Promise<void> {
+        if (typeof activeTarget !== 'string' || !activeTarget.trim()) {
+            throw new Error('Target set must be a non-empty string');
+        }
+        const [targetType, set, ...extra] = activeTarget.split('@');
+        if (!targetType || (set !== undefined && !set) || extra.length) {
+            throw new Error(`Invalid target set: ${activeTarget}`);
+        }
+        const solution = this.solutionManager.getCsolution();
+        if (!solution || !this.solutionManager.loadState.loaded) {
+            throw new Error('Setting the active target set requires a loaded solution');
+        }
+        const target = solution.csolutionYml.getTargetType(targetType);
+        const setIndex = target?.targetSetNames.indexOf(set ?? '') ?? -1;
+        if (!target || setIndex < 0) {
+            throw new Error(`Unknown target set: ${activeTarget}`);
+        }
+        const settings = new CmsisSettingsJsonFile(solution.cmsisJsonFile.fileName);
+        settings.solutionPath = solution.solutionPath;
+        const loadResult = await settings.load();
+        if (loadResult !== ETextFileResult.NotExists && (loadResult === ETextFileResult.Error || settings.errors.length)) {
+            throw new Error(`Unable to load target selection: ${settings.errors.join('; ')}`);
+        }
+        if (loadResult === ETextFileResult.NotExists) {
+            settings.clear();
+        }
+        if (this.solutionManager.getCsolution() !== solution || !this.solutionManager.loadState.loaded) {
+            throw new Error('Solution changed while setting the active target set');
+        }
+        settings.activeTargetTypeName = targetType;
+        settings.set(`targetSet.${settings.solutionDisplayName}.${targetType}`, setIndex);
+        settings.setActiveSelection(targetType, set);
+        const saveResult = await settings.save();
+        if (saveResult !== ETextFileResult.Success && saveResult !== ETextFileResult.Unchanged) {
+            throw new Error(`Unable to save target selection: ${settings.errors.join('; ')}`);
+        }
+        if (this.solutionManager.getCsolution() !== solution || !this.solutionManager.loadState.loaded) {
+            throw new Error('Solution changed while setting the active target set');
+        }
+        if (solution.cmsisJsonFile.copyFrom(settings) === ETextFileResult.Error) {
+            throw new Error(`Unable to update target selection: ${solution.cmsisJsonFile.errors.join('; ')}`);
+        }
+        await this.commandsProvider.executeCommand(REFRESH_COMMAND_ID);
+    }
+
+    public async getDeviceName(): Promise<string> {
+        return this.commandsProvider.executeCommand<string>(DebugHardwareCommands.DEVICE_NAME_COMMAND_ID);
+    }
+
+    public async getBoardName(): Promise<string> {
+        return this.commandsProvider.executeCommand<string>(DebugHardwareCommands.BOARD_NAME_COMMAND_ID);
+    }
+
+    public async getDfpName(): Promise<string> {
+        return this.commandsProvider.executeCommand<string>(DebugHardwareCommands.DFP_NAME_COMMAND_ID);
+    }
+
+    public async getBspName(): Promise<string> {
+        return this.commandsProvider.executeCommand<string>(DebugHardwareCommands.BSP_NAME_COMMAND_ID);
+    }
+
+    public async getDfpPath(): Promise<string> {
+        return this.commandsProvider.executeCommand<string>(DebugHardwareCommands.DFP_PATH_COMMAND_ID);
+    }
+
+    public async getBspPath(): Promise<string> {
+        return this.commandsProvider.executeCommand<string>(DebugHardwareCommands.BSP_PATH_COMMAND_ID);
+    }
+
+    public async getPackRootPath(): Promise<string> {
+        return this.commandsProvider.executeCommand<string>(DebugHardwareCommands.PACK_ROOT_PATH_COMMAND_ID);
+    }
+
+    public async getCbuildRunFile(): Promise<string> {
+        return this.commandsProvider.executeCommand<string>(DebugHardwareCommands.CBUILD_RUN_PATH_COMMAND_ID);
+    }
 
     public getToolsEnvironment(): Promise<string> {
         const state = this.solutionManager.loadState;
