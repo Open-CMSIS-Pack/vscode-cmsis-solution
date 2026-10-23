@@ -15,6 +15,7 @@
  */
 
 import * as vscode from 'vscode';
+import { gte, valid } from 'semver';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 import { PACKAGE_NAME, README_FILE_PATH } from '../../../manifest';
@@ -40,6 +41,7 @@ export class OpenCommand {
     public static readonly openDocCommandId = `${PACKAGE_NAME}.openDocFile`;
     public static readonly openSourceSmartCommandId = openSourceSmartCommandId;
     public static readonly openHelpCommandId = `${PACKAGE_NAME}.openHelp`;
+    public static readonly showWhatsNewCommandId = `${PACKAGE_NAME}.showWhatsNew`;
     public static readonly openZephyrTerminalCommandId = `${PACKAGE_NAME}.openZephyrTerminal`;
     public static readonly openCMakeTerminalCommandId = `${PACKAGE_NAME}.openCMakeTerminal`;
     private static readonly configWizardViewType = `${PACKAGE_NAME}.configWizard`;
@@ -61,6 +63,18 @@ export class OpenCommand {
         }
 
         context.subscriptions.push(
+            this.commandsProvider.registerCommand(OpenCommand.showWhatsNewCommandId, async () => {
+                const version = vscode.extensions.getExtension('arm.keil-studio-pack')?.packageJSON.version;
+                if (typeof version !== 'string' || !valid(version) || !gte(version, '1.22.0')) {
+                    await vscode.window.showInformationMessage("What's New requires Keil Studio Pack version 1.22.0 or later.");
+                    return;
+                }
+                try {
+                    await this.commandsProvider.executeCommand('keil-studio.showWhatsNew');
+                } catch {
+                    await vscode.window.showInformationMessage("Unable to open What's New in Keil Studio Pack.");
+                }
+            }, this),
             this.commandsProvider.registerCommand(OpenCommand.openSolutionCommandId, () =>
                 (this.solutionManager.loadState.solutionPath) ? this.openFile(this.solutionManager.loadState.solutionPath) : undefined, this),
             this.commandsProvider.registerCommand(OpenCommand.openProjectCommandId, (node: COutlineItem) =>

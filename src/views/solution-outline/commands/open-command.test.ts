@@ -62,12 +62,25 @@ describe('OpenCommand', () => {
         const expectedCommands = [OpenCommand.openSolutionCommandId, OpenCommand.openProjectCommandId, OpenCommand.openPrjConfCommandId,
             OpenCommand.openPrjCmakeCommandId,
             OpenCommand.openLayerCommandId, OpenCommand.openLinkerCommandId, OpenCommand.openDocCommandId, OpenCommand.openSourceSmartCommandId, OpenCommand.openHelpCommandId,
-            OpenCommand.openZephyrTerminalCommandId, OpenCommand.openCMakeTerminalCommandId];
+            OpenCommand.openZephyrTerminalCommandId, OpenCommand.openCMakeTerminalCommandId, OpenCommand.showWhatsNewCommandId];
 
         expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(expectedCommands.length);
         expectedCommands.forEach(commandId => {
             expect(commandsProvider.registerCommand).toHaveBeenCalledWith(commandId, expect.any(Function), expect.anything());
         });
+    });
+
+    it.each([undefined, '1.21.9', 'invalid', '1.22.0', '1.23.0'])('checks Keil Studio Pack version %s for What\'s New', async version => {
+        jest.mocked(vscode.extensions.getExtension).mockReturnValue(version === undefined ? undefined : { packageJSON: { version } } as vscode.Extension<void>);
+        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
+        await openCommand.activate(extensionContextFactory());
+        await commandsProvider.mockRunRegistered(OpenCommand.showWhatsNewCommandId);
+        if (version === '1.22.0' || version === '1.23.0') {
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith('keil-studio.showWhatsNew');
+        } else {
+            expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
+            expect(vscode.window.showInformationMessage).toHaveBeenCalledWith("What's New requires Keil Studio Pack version 1.22.0 or later.");
+        }
     });
 
     it('opens and shows the csolution file from the path', async () => {
