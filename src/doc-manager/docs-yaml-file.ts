@@ -26,12 +26,18 @@ import { isWebAddress } from '../util';
 import { expandRootVars, getCmsisPackRoot } from '../utils/path-utils';
 
 export interface IDocRef extends ITreeItemWrap {
+    readonly parentId: string;
+    readonly parentTag: string;
     get name(): string;
     set name(value: string | undefined);
     path: string | undefined;
     get title(): string;
     set title(value: string | undefined);
     category: string | undefined;
+    id: string | undefined;
+    version: string | undefined;
+    format: string | undefined;
+    metadataUrl: string | undefined;
     readonly locationType: string;
     readonly indexDir: string | undefined;
     mode: 'user' | undefined;
@@ -78,7 +84,7 @@ export function getDocParentId(parentId?: string, parentTag?: string) {
         : deviceId.name;
 }
 
-export function getWebLocationType(name: string): 'W' | 'H' | undefined {
+export function getWebLocationType(name: string, format?: string): 'W' | 'H' | undefined {
     const isFileUrl = name.startsWith('file://');
     if (!isWebAddress(name) && !isFileUrl) {
         return undefined;
@@ -87,6 +93,9 @@ export function getWebLocationType(name: string): 'W' | 'H' | undefined {
         const url = new URL(name.startsWith('www.') ? `https://${name}` : name);
         if (isFileUrl && (!url.hostname || url.hostname === 'localhost')) {
             return undefined;
+        }
+        if (format?.toLowerCase() === 'pdf') {
+            return 'W';
         }
         const extension = url.pathname.endsWith('/') ? '' : path.posix.extname(url.pathname).toLowerCase();
         return extension && extension !== '.' && extension !== '.html' && extension !== '.htm' ? 'W' : 'H';
@@ -101,15 +110,25 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
     }
 
     override get nameKey(): string { return 'name'; }
+    get parentId(): string { return this.parent?.id ?? ''; }
+    get parentTag(): string { return this.parent?.tag ?? ''; }
     get path(): string | undefined { return this.getValue('path'); }
     set path(value: string | undefined) { this.setValue('path', value); }
     get title(): string { return this.getValue('title') || this.name || this.path || ''; }
     set title(value: string | undefined) { this.setValue('title', value); }
     get category(): string | undefined { return this.getValue('category'); }
     set category(value: string | undefined) { this.setValue('category', value); }
+    get id(): string | undefined { return this.getValue('id'); }
+    set id(value: string | undefined) { this.setValue('id', value); }
+    get version(): string | undefined { return this.getValue('version'); }
+    set version(value: string | undefined) { this.setValue('version', value); }
+    get format(): string | undefined { return this.getValue('format'); }
+    set format(value: string | undefined) { this.setValue('format', value); }
+    get metadataUrl(): string | undefined { return this.getValue('metadataUrl'); }
+    set metadataUrl(value: string | undefined) { this.setValue('metadataUrl', value); }
     get locationType(): string {
         const name = this.name || this.path || '';
-        const webLocationType = getWebLocationType(name);
+        const webLocationType = getWebLocationType(name, this.format);
         if (webLocationType) {
             return webLocationType;
         }
@@ -135,7 +154,7 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
     set mode(value: 'user' | undefined) { this.setValue('mode', value); }
     get error(): string | undefined { return this.getValue('error'); }
     set error(value: string | undefined) { this.setValue('error', value); }
-    isWebDoc(): boolean { return getWebLocationType(this.name) === 'W'; }
+    isWebDoc(): boolean { return getWebLocationType(this.name, this.format) === 'W'; }
     isWeb(): boolean { return getWebLocationType(this.name) !== undefined; }
     isDownloaded(): boolean { return this.locationType === 'W' && this.path !== undefined; }
 

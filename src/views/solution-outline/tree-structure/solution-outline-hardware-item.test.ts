@@ -48,6 +48,28 @@ describe('HardwareItemBuilder', () => {
         testDataHandler.dispose();
     });
 
+    it('shows matching core documents with their inventory owner and filters NPU entries per device', async () => {
+        const csolution = new CSolution();
+        await csolution.load(cSolFile);
+        const manager = new DocManager(path.resolve('src/doc-manager/arm-docs.json'));
+        await manager.initialize(testDataHandler.tmpFileName('.arm-docs'));
+        const build = new CTreeItem('build');
+        build.createChild('processor').setValue('core', 'Cortex-M55');
+        build.setValue('device', 'ARM::SSE-315');
+        await manager.addBooks(build);
+        const save = jest.spyOn(manager.file, 'save');
+        const builder = new HardwareItemBuilder(csolution, undefined, manager);
+        const hardware = [...builder.createHardwareNodes(csolution, build).values()].find(item => item.getTag() === 'device')!;
+        const books = hardware.getChildren();
+        expect(books.some(book => book.getAttribute('docName')?.includes('/102023/'))).toBe(true);
+        expect(books.every(book => book.getAttribute('docParentTag') === 'core' && book.getAttribute('docParentId') === 'cortex-m55')).toBe(true);
+        build.setValue('device', 'Vendor::Other');
+        const otherHardware = [...builder.createHardwareNodes(csolution, build).values()].find(item => item.getTag() === 'device')!;
+        expect(otherHardware.getChildren().some(book => book.getAttribute('docName')?.includes('/102023/'))).toBe(false);
+        expect(save).not.toHaveBeenCalled();
+        manager.dispose();
+    });
+
     it.each(['board', 'device'] as const)('includes inventory-only documents in %s books', async parentTag => {
         const csolution = new CSolution();
         const loadResult = await csolution.load(cSolFile);
@@ -72,9 +94,9 @@ describe('HardwareItemBuilder', () => {
                   title: Cbuild manual`);
         root!.rootFileName = cSolFile;
 
-        await docManager.addCbuildBooks(root!.getChild() as CTreeItem, parentTag);
+        await docManager.addBooks(root!.getChild() as CTreeItem);
         const inventory = docManager.file.stringify();
-        const addCbuildBooks = jest.spyOn(docManager, 'addCbuildBooks');
+        const addBooks = jest.spyOn(docManager, 'addBooks');
         const save = jest.spyOn(docManager.file, 'save');
         const hwItemBuilder = new HardwareItemBuilder(csolution, undefined, docManager);
         const hwNodes = hwItemBuilder.createHardwareNodes(csolution, root?.getChild() as CTreeItem);
@@ -89,7 +111,7 @@ describe('HardwareItemBuilder', () => {
             { tag: 'book', label: 'Inventory reference', docPath: referencePath },
             { tag: 'book', label: 'Cbuild manual', docPath: path.join(path.dirname(cSolFile), 'reported.pdf') },
         ]);
-        expect(addCbuildBooks).not.toHaveBeenCalled();
+        expect(addBooks).not.toHaveBeenCalled();
         expect(save).not.toHaveBeenCalled();
         expect(docManager.file.stringify()).toBe(inventory);
     });
@@ -124,9 +146,9 @@ describe('HardwareItemBuilder', () => {
             expect(book.getParent()?.getTag()).toBe(parentTag);
             expect(book.getParent()?.getAttribute('hardwareName')).toBe(parentId);
         }
-        for (const item of [hardware, ...books]) {
-            expect(item.getAttribute('docParentId')).toBeUndefined();
-            expect(item.getAttribute('docParentTag')).toBeUndefined();
+        for (const book of books) {
+            expect(book.getAttribute('docParentId')).toBe(parentId);
+            expect(book.getAttribute('docParentTag')).toBe(parentTag);
         }
         expect(books.map(book => book.getAttribute('features'))).toEqual(['docFile;webDoc;userDoc', 'docFile', 'docFile', 'docFile;userDoc']);
         expect(books[0].getAttribute('docPath')).toBe(path.resolve('selected.md'));
@@ -143,7 +165,7 @@ describe('HardwareItemBuilder', () => {
         docManager.file.ensureDoc(name, parentId, 'device').title = 'Device manual';
         const inventory = docManager.file.stringify();
         const save = jest.spyOn(docManager.file, 'save');
-        const addCbuildBooks = jest.spyOn(docManager, 'addCbuildBooks');
+        const addBooks = jest.spyOn(docManager, 'addBooks');
         const builder = new HardwareItemBuilder(csolution, undefined, docManager);
 
         for (const deviceId of [parentId, `${parentId}:cm33`, `${parentId}:cm0plus`]) {
@@ -158,7 +180,7 @@ describe('HardwareItemBuilder', () => {
             expect(books[0].getParent()).toBe(hardware);
         }
         expect(save).not.toHaveBeenCalled();
-        expect(addCbuildBooks).not.toHaveBeenCalled();
+        expect(addBooks).not.toHaveBeenCalled();
         expect(docManager.file.stringify()).toBe(inventory);
     });
 

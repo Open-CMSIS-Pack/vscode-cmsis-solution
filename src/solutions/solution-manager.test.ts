@@ -205,7 +205,7 @@ describe('SolutionManager', () => {
     });
 
     it('imports device and board books after loading build files and before setup completes', async () => {
-        const addCbuildBooks = jest.spyOn(docManager, 'addCbuildBooks');
+        const addBooks = jest.spyOn(docManager, 'addBooks');
         let completeSave!: (result: ETextFileResult) => void;
         const pendingSave = new Promise<ETextFileResult>(resolve => { completeSave = resolve; });
         const save = jest.spyOn(docManager.file, 'save').mockReturnValueOnce(pendingSave);
@@ -215,12 +215,12 @@ describe('SolutionManager', () => {
         const loadSolutionBuildFiles = solutionManager.loadSolutionBuildFiles.bind(solutionManager);
         const loadBuildFiles = jest.spyOn(solutionManager, 'loadSolutionBuildFiles').mockImplementation(async () => {
             await loadSolutionBuildFiles();
-            expect(addCbuildBooks).not.toHaveBeenCalled();
+            expect(addBooks).not.toHaveBeenCalled();
         });
 
         await activateTestSolution();
 
-        expect(addCbuildBooks).toHaveBeenCalledTimes(1);
+        expect(addBooks).toHaveBeenCalledTimes(1);
         expect(loadBuildFilesListener).not.toHaveBeenCalled();
         expect(cbuildSetupRequestedListener).not.toHaveBeenCalled();
 
@@ -230,15 +230,12 @@ describe('SolutionManager', () => {
         const builds = [...solutionManager.getCsolution()!.cbuildYmlRoot.values()]
             .map(root => root.getChildItem()!);
         expect(builds.length).toBeGreaterThan(1);
-        expect(addCbuildBooks.mock.calls).toEqual(builds.flatMap(cbuild => [
-            [cbuild, 'device'],
-            [cbuild, 'board'],
-        ]));
-        expect(Math.max(...addCbuildBooks.mock.invocationCallOrder))
+        expect(addBooks.mock.calls).toEqual(builds.map(cbuild => [cbuild]));
+        expect(Math.max(...addBooks.mock.invocationCallOrder))
             .toBeLessThan(loadBuildFilesListener.mock.invocationCallOrder[0]);
         loadBuildFiles.mockRestore();
         save.mockRestore();
-        addCbuildBooks.mockRestore();
+        addBooks.mockRestore();
     });
 
     it('register the command on activation', async () => {

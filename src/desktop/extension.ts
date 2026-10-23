@@ -108,9 +108,13 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     console.log(`Activating extension ${manifest.PACKAGE_NAME}`);
 
     TextFile.setErrorReporter(vscodeUtils.showErrorMessage);
-    context.subscriptions.push({ dispose: () => TextFile.setErrorReporter() });
+    DocManager.setErrorReporter(vscodeUtils.showErrorMessage);
+    context.subscriptions.push({ dispose: () => {
+        TextFile.setErrorReporter();
+        DocManager.setErrorReporter();
+    } });
 
-    const docManager = new DocManager();
+    const docManager = new DocManager(path.join(context.extensionPath, 'dist', 'arm-docs.json'));
 
     // Companion Extensions
     type SerialMonitorExtension = {
