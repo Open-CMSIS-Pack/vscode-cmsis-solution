@@ -2,7 +2,7 @@ solution:
   compiler: AC6
   packs:
     - pack: ARM::CMSIS
-    - pack: ARM::CMSIS_DFP
+    - pack: ARM::Cortex_DFP
     - pack: ApiV3Fixture::DeliberatelyMissing@1.0.0
   target-types:
     - type: CM3
