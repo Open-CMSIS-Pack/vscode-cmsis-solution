@@ -1,0 +1,15 @@
+solution:
+  compiler: AC6
+  packs:
+    - pack: ARM::CMSIS
+    - pack: ARM::Cortex_DFP
+  target-types:
+    - type: CM3
+      device: ARMCM3
+      target-set:
+        - set: ''
+        - set: Smoke
+  build-types:
+    - type: Debug
+  projects:
+    - project: Components.cproject.yml
