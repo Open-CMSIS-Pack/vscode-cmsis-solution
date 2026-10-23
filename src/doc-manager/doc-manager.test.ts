@@ -156,6 +156,37 @@ describe('DocManager', () => {
         expect(fileSystem.unlink).not.toHaveBeenCalled();
     });
 
+    it.each(['Vendor::Device', 'Device'])('addCbuildBooks shares the persisted %s inventory across processors', async parentId => {
+        const manager = createManager();
+        expect(await manager.initialize(emptyDirectory)).toBe(ETextFileResult.Success);
+        const processors = ['cm33', 'cm0plus'];
+        for (const processor of processors) {
+            const cbuildFile = new CTreeItemYamlFile(path.resolve('build', 'example.cbuild.yml'));
+            cbuildFile.text = [
+                'build:',
+                `  device: ${parentId}:${processor}`,
+                '  device-pack: Vendor::DevicePack@1.0.0',
+                '  device-books:',
+                `    - name: https://example.com/${processor}.pdf`,
+            ].join('\n');
+            cbuildFile.rootItem = cbuildFile.parse();
+            const sourceText = cbuildFile.stringify();
+
+            await manager.addCbuildBooks(cbuildFile.topItem!, 'device');
+
+            expect(cbuildFile.stringify()).toBe(sourceText);
+        }
+        const reloaded = createManager();
+        expect(await reloaded.initialize(emptyDirectory)).toBe(ETextFileResult.Success);
+        expect(reloaded.file.getDocParents('device').map(parent => parent.id)).toEqual([parentId]);
+        expect(reloaded.file.getDocParent(parentId, 'device')?.packId).toBe('Vendor::DevicePack@1.0.0');
+        expect(reloaded.file.getDocs(parentId, 'device').map(doc => doc.name)).toEqual(
+            processors.map(processor => `https://example.com/${processor}.pdf`),
+        );
+        manager.dispose();
+        reloaded.dispose();
+    });
+
     it.each([
         ['missing board', ['  board-books:', '    - name: manual.pdf']],
         ['empty board', ['  board: ""', '  board-books:', '    - name: manual.pdf']],
@@ -215,6 +246,7 @@ describe('DocManager', () => {
         cbuildFile.rootItem = cbuildFile.parse();
         const cbuild = cbuildFile.topItem!;
         const sourceProcessor = cbuild.getChildItem('processor')!;
+        cbuild.setValue('board', 'Vendor::Board:RevA');
         const sourceText = cbuildFile.stringify();
         const parentId = cbuild.getValue(parentTag)!;
 

@@ -1,8 +1,6 @@
 solution
   device
     hardwareName=ARM::RteTest_ARMCM0_Dual
-    docParentTag=device
-    docParentId=ARM::RteTest_ARMCM0_Dual
     features=docParent
     label=Device: ARM::RteTest_ARMCM0_Dual
     expandable=1
@@ -21,8 +19,6 @@ solution
       resourcePath=http://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
       docPath=http://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
       docName=http://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
-      docParentId=ARM::RteTest_ARMCM0_Dual
-      docParentTag=device
       tooltip=http://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
       features=docFile
       command=cmsis-csolution.openDocFile

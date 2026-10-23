@@ -214,7 +214,7 @@ describe('CSolution', () => {
 
         expect(csolution.getProcessorName()).toEqual('Core1');
         expect(csolution.getBoardName()).toEqual('STMicroelectronics::B-U585I-IOT02A');
-        expect(csolution.getDeviceNameWithVendor()).toEqual('STM32U585AIIx:Core1');
+        expect(csolution.getDeviceNameWithVendor()).toEqual('STM32U585AIIx');
         expect(csolution.getDevicePack()).toEqual('Keil::STM32U5xx_DFP@3.0.0-dev');
         expect(csolution.getBoardPack()).toEqual('Keil::B-U585I-IOT02A_BSP@2.0.0');
 
@@ -222,7 +222,7 @@ describe('CSolution', () => {
         expect(csolution.getDeviceName()).toEqual('STM32U585AIIx');
         expect(csolution.getProcessorName()).toEqual('Core1');
         expect(csolution.getBoardName()).toEqual('STMicroelectronics::B-U585I-IOT02A');
-        expect(csolution.getDeviceNameWithVendor()).toEqual('STM32U585AIIx:Core1');
+        expect(csolution.getDeviceNameWithVendor()).toEqual('STM32U585AIIx');
         expect(csolution.getBoardPack()).toEqual('Keil::B-U585I-IOT02A_BSP@2.0.0');
         expect(csolution.getDevicePack()).toEqual('Keil::STM32U5xx_DFP@3.0.0-dev');
 
@@ -230,6 +230,36 @@ describe('CSolution', () => {
 
         // check cbuild-run reference
         expect(csolution.cbuildRunYml?.fileName).toContain(path.join('out', 'USB_Device+B-U585I-IOT02A.cbuild-run.yml'));
+    });
+
+    describe('getDeviceNameWithVendor', () => {
+        it.each([
+            ['Vendor::Device:cm33', 'Vendor::Device'],
+            ['Vendor::Device', 'Vendor::Device'],
+            ['Device:cm33', 'Device'],
+            ['Device', 'Device'],
+            ['', ''],
+        ])('returns %s without a processor suffix as %s', async (device, expected) => {
+            const csolution = new CSolution();
+            const fileName = path.join(testDataHandler.tmpDir, 'solutions', 'USBD', 'USB_Device.csolution.yml');
+            expect(await csolution.load(fileName)).toBe(ETextFileResult.Success);
+            const context = 'HID.Release+B-U585I-IOT02A';
+            const cbuild = csolution.getCbuildTop(context)!;
+            cbuild.setValue('device', device);
+
+            expect(csolution.getDeviceNameWithVendor()).toBe(expected);
+            csolution.actionContext = 'MassStorage.Debug+B-U585I-IOT02A';
+            expect(csolution.getDeviceNameWithVendor()).toBe('STM32U585AIIx');
+            expect(csolution.getDeviceNameWithVendor(context)).toBe(expected);
+            csolution.actionContext = context;
+            expect(csolution.getDeviceNameWithVendor()).toBe(expected);
+            expect(csolution.getDeviceNameWithVendor('undefined_context')).toBe('');
+            expect(cbuild.getValueAsString('device')).toBe(device);
+        });
+
+        it('returns an empty name without build files', () => {
+            expect(new CSolution().getDeviceNameWithVendor()).toBe('');
+        });
     });
 
     describe('getActiveTargetSetName', () => {

@@ -21,6 +21,7 @@ import { CTreeItem, ETreeItemKind, ITreeItem } from '@open-cmsis-pack/cmsis-comm
 import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { CTreeItemWrap, ITreeItemWrap } from '@open-cmsis-pack/cmsis-common/tree-item-wrapper';
 import { comparePackIds, splitVendorNameId } from '../data-manager/pack-data';
+import { splitDeviceId } from '../data-manager/device-data';
 import { isWebAddress } from '../util';
 import { expandRootVars, getCmsisPackRoot } from '../utils/path-utils';
 
@@ -62,6 +63,19 @@ export interface DocsYamlFile extends ITreeItemFile {
     ensureParent(parentId: string, parentTag: string, packId?: string): CTreeItem;
     ensureDoc(name: string, parentId: string, parentTag: string): IDocRef;
     removeDoc(name: string, parentId: string, parentTag?: string): boolean;
+}
+
+export function getDocParentId(parentId?: string, parentTag?: string) {
+    if (!parentId || parentTag !== 'device') {
+        return parentId;
+    }
+    const deviceId = splitDeviceId(parentId);
+    if (!deviceId) {
+        return parentId;
+    }
+    return deviceId.vendor
+        ? `${deviceId.vendor}::${deviceId.name}`
+        : deviceId.name;
 }
 
 export function getWebLocationType(name: string): 'W' | 'H' | undefined {

@@ -29,6 +29,7 @@ import { CmsisSettingsJsonFile } from '../global/cmsis-settings-json-file';
 import { CSolutionYamlFile } from './files/csolution-yaml-file';
 import { CProjectYamlFile } from './files/cproject-yaml-file';
 import { CbuildPackFile } from './files/cbuild-pack-file';
+import { splitDeviceId } from '../data-manager/device-data';
 
 export const targetTypeSchema = new Schema({
     'type': string,
@@ -196,6 +197,11 @@ export class CSolution {
         return this.getCbuildValue('device-pack', context);
     }
 
+    public getDeviceNameWithVendor(context?: string): string {
+        const device = splitDeviceId(this.getCbuildValue('device', context));
+        return device?.vendor ? `${device.vendor}::${device.name}` : device?.name ?? '';
+    }
+
     public getFullDeviceName(context?: string): string {
         return stripPrefix(this.getCbuildValue('device', context), '::');
     }
@@ -211,10 +217,6 @@ export class CSolution {
 
     public getBoardName(context?: string): string {
         return this.getCbuildValue('board', context);
-    }
-
-    public getDeviceNameWithVendor(context?: string): string {
-        return this.getCbuildValue('device', context);
     }
 
     public getBoardPack(context?: string): string {
