@@ -134,7 +134,7 @@ async function runLoadedPacks(missingFixture: boolean): Promise<void> {
         assert.deepEqual(await api.getPacks({ scope: 'missing', context }), missingPacks);
         await assert.rejects(api.getPacks({ scope: 'missing', context: 'Missing.Debug+CM3' }), /Unknown pack context/);
         assert.ok(usedPacks.packs.some(pack => pack.id?.startsWith('ARM::CMSIS@')),
-            'Fixture requires installed ARM::CMSIS and ARM::CMSIS_DFP packs.');
+            'Fixture requires installed ARM::CMSIS and ARM::Cortex_DFP packs.');
         for (const pack of usedPacks.packs) {
             assert.equal(typeof pack.id, 'string');
             assert.ok(pack.version && pack.version.length > 0);
@@ -306,7 +306,7 @@ async function runTargetSelection(): Promise<void> {
         const deadline = Date.now() + 60000;
         // Activation converts asynchronously; wait for observable generated hardware data, not just selection.
         while (await api.getDeviceName() !== 'ARMCM3' || !await api.getCbuildRunFile()) {
-            assert.ok(Date.now() < deadline, 'Fixture conversion must provide ARMCM3 hardware data and a cbuild-run file. Check installed ARM::CMSIS and ARM::CMSIS_DFP packs/tooling.');
+            assert.ok(Date.now() < deadline, 'Fixture conversion must provide ARMCM3 hardware data and a cbuild-run file. Check installed ARM::CMSIS and ARM::Cortex_DFP packs/tooling.');
             await new Promise(resolve => setTimeout(resolve, 250));
         }
         originalSelection = await api.getActiveTarget();
@@ -319,10 +319,10 @@ async function runTargetSelection(): Promise<void> {
         assert.equal(await api.getBspName(), '');
         assert.equal(await api.getBspPath(), '<not found>');
         const dfp = await api.getDfpName();
-        assert.match(dfp, /^ARM::CMSIS_DFP@\d/);
+        assert.match(dfp, /^ARM::Cortex_DFP@\d/);
         const dfpPath = await api.getDfpPath();
-        assert.equal(path.normalize(dfpPath), path.join(await api.getPackRootPath(), 'ARM', 'CMSIS_DFP', dfp.split('@')[1]));
-        assert.ok((await fs.stat(path.join(dfpPath, 'ARM.CMSIS_DFP.pdsc'))).isFile());
+        assert.equal(path.normalize(dfpPath), path.join(await api.getPackRootPath(), 'ARM', 'Cortex_DFP', dfp.split('@')[1]));
+        assert.ok((await fs.stat(path.join(dfpPath, 'ARM.Cortex_DFP.pdsc'))).isFile());
         const cbuildRun = await api.getCbuildRunFile();
         assert.ok(path.normalize(cbuildRun).startsWith(path.normalize(folder.fsPath) + path.sep));
         assert.match(cbuildRun, /\.cbuild-run\.yml$/);

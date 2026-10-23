@@ -297,7 +297,7 @@ parity are covered by the focused unit tests.
     the configuration and verifies the original pack root. No packs are required.
 - **Solution Getters and Target Selection (Loaded Solution)**: opens a fresh copy
     of [the selection fixture](../test-data/api-v3-packs/Selection.csolution.yml).
-    Requires installed `ARM::CMSIS` and `ARM::CMSIS_DFP` packs and working Toolbox
+    Requires installed `ARM::CMSIS` and `ARM::Cortex_DFP` packs and working Toolbox
     conversion; downloads and web services are disabled. Activates the fixture
     through the API, repeats activation, and checks
     selection immediately after each awaited call. Waits for generated hardware
@@ -348,7 +348,7 @@ shared [extension-host fixture](../src/api/extension-host-v3-smoke.ts):
     only its respective solution file, the shared project and the
     [.vscode settings](../test-data/api-v3-packs/.vscode/settings.json), which disable
     pack downloads, web services and automatic conversion. Requires already
-    installed `ARM::CMSIS` and `ARM::CMSIS_DFP`. These modes activate the normal or
+    installed `ARM::CMSIS` and `ARM::Cortex_DFP`. These modes activate the normal or
     deliberately missing-pack solution and check used/missing records, literal
     filters, serialization, repeatability, invalid contexts and unchanged inputs
     and selection. No component-discovery API is required.
