@@ -16,6 +16,8 @@
 
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createHash } from 'node:crypto';
+import { JsonFile } from '@open-cmsis-pack/cmsis-common/json-file';
 import { ETextFileResult, TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
 import { ITextFileSystem } from '@open-cmsis-pack/cmsis-common/text-file-system';
 import { CTreeItemYamlFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
@@ -23,7 +25,7 @@ import { DocManager } from './doc-manager';
 import { DocsYamlFile } from './docs-yaml-file';
 import { textFileSystemFactory } from '../__test__/text-file-system';
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
-import { readFile, readdir } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import nock from 'nock';
 import { TestDataHandler } from '../__test__/test-data';
 
@@ -39,13 +41,11 @@ describe('DocManager downloads', () => {
         reporter = jest.fn();
         DocManager.setErrorReporter(reporter);
         await manager.initialize(testData.tmpDir);
-        for (const core of ['Cortex-M4', 'Cortex-M33']) {
-            const build = new CTreeItem('build');
-            build.createChild('processor').setValue('core', core);
-            await manager.addBooks(build);
-        }
         const shared = manager.file.ensureDoc(name, 'cortex-m33', 'core');
         shared.format = 'pdf';
+        shared.id = 'ddi0439';
+        shared.version = 'b';
+        shared.metadataUrl = 'https://documentation-service.arm.com/documentation/ddi0439/b';
         await manager.file.save();
     });
 
@@ -62,22 +62,26 @@ describe('DocManager downloads', () => {
             .reply(200, { metadata: { contentFormat: 'HTMLPDF' }, _links: { resources } });
     }
 
-    it('fills in the catalog format for an existing Arm book so opening it downloads the PDF', async () => {
+    it('initializes missing download fields on an existing Arm book without a build', async () => {
         const existing = manager.file.getDoc(name, 'cortex-m4', 'core')!;
         existing.format = undefined;
+        existing.id = undefined;
+        existing.version = undefined;
+        existing.metadataUrl = undefined;
         existing.title = 'Stored manual';
         existing.category = 'stored';
         await manager.file.save();
         expect(existing.locationType).toBe('H');
 
-        const build = new CTreeItem('build');
-        build.createChild('processor').setValue('core', 'Cortex-M4');
-        await manager.addBooks(build);
+        await manager.initialize(testData.tmpDir);
 
         const reloaded = new DocsYamlFile(manager.file.fileName);
         await reloaded.load();
         const doc = reloaded.getDoc(name, 'cortex-m4', 'core')!;
         expect(doc.format).toBe('pdf');
+        expect([doc.id, doc.version, doc.metadataUrl]).toEqual([
+            'ddi0439', 'b', 'https://documentation-service.arm.com/documentation/ddi0439/b',
+        ]);
         expect(doc.locationType).toBe('W');
         expect(doc.title).toBe('Stored manual');
         expect(doc.category).toBe('stored');
@@ -91,7 +95,10 @@ describe('DocManager downloads', () => {
     });
 
     it('shares concurrent downloads, follows redirects and reuses the persisted PDF', async () => {
-        const scope = metadata([{ name: '../ddi0439b.pdf', extension: 'PDF', href: '/static/object' }]);
+        const scope = metadata([
+            { name: 'other.pdf', extension: 'pdf', href: '/other' },
+            { name: 'ddi0439b.pdf', contentType: 'application/pdf', href: '/static/object' },
+        ]);
         const pdf = nock('https://documentation-service.arm.com')
             .get('/static/object').reply(302, '', { location: 'https://documentation-service.arm.com/static/pdf' })
             .get('/static/pdf').reply(200, '%PDF-1.7\nmanual');
@@ -107,6 +114,78 @@ describe('DocManager downloads', () => {
         const reloaded = new DocsYamlFile(manager.file.fileName);
         await reloaded.load();
         expect(reloaded.findDocs(name).every(doc => doc.path === downloaded && !doc.error)).toBe(true);
+    });
+
+    it('creates all catalog books during initialization and never changes them when registering a build', async () => {
+        const cores = manager.file.getDocParents('core');
+        expect(cores.map(parent => parent.id)).toEqual(expect.arrayContaining(['cortex-m0+', 'cortex-m4', 'cortex-m85']));
+        expect(cores.every(parent => parent.docs.every(doc => doc.id && doc.version && doc.format === 'pdf' && doc.metadataUrl))).toBe(true);
+        const coreBooks = cores.map(parent => parent.item!.toObject());
+        const build = new CTreeItem('build');
+        build.createChild('processor').setValue('core', 'Cortex-M55');
+        build.setValue('device', 'ARM::SSE-315');
+        await manager.addBooks(build);
+        expect(manager.file.getDocParents('core').map(parent => parent.item!.toObject())).toEqual(coreBooks);
+        const saved = manager.file.stringify();
+        expect(await manager.initialize(testData.tmpDir)).toBe(ETextFileResult.Unchanged);
+        expect(manager.file.stringify()).toBe(saved);
+        expect(manager.getBooks('ARM::SSE-315', 'device', build).filter(doc => doc.category === 'npu').map(doc => doc.id)).toEqual(['102023']);
+        expect(manager.getBooks('ARM::SSE-315', 'device', build).some(doc => doc.category === 'gug')).toBe(false);
+        expect(reporter).not.toHaveBeenCalled();
+    });
+
+    it('downloads from persisted reference data without an Arm catalog or an Arm document URL', async () => {
+        const location = 'https://example.com/stored-manual';
+        const doc = manager.file.ensureDoc(location, 'Vendor::Device', 'device');
+        doc.id = 'ddi0439';
+        doc.version = 'b';
+        doc.format = 'pdf';
+        doc.metadataUrl = 'https://documentation-service.arm.com/documentation/ddi0439/b';
+        await manager.file.save();
+        manager.dispose();
+        manager = new DocManager(testData.tmpFileName('missing-catalog.json'));
+        expect(await manager.initialize(testData.tmpDir)).not.toBe(ETextFileResult.Error);
+
+        const scope = metadata([{ name: 'ddi0439b.pdf', extension: 'pdf', href: '/static/pdf' }]);
+        const pdf = nock('https://documentation-service.arm.com').get('/static/pdf').reply(200, '%PDF-1.7\nstored');
+        const downloaded = await manager.resolveDocument('Vendor::Device', 'device', location);
+        expect(await readFile(downloaded!, 'utf8')).toBe('%PDF-1.7\nstored');
+        expect(scope.isDone() && pdf.isDone()).toBe(true);
+    });
+
+    it.each(['valid', 'invalid', 'wrong-version'])('recovers only a valid version-specific cached PDF during initialization: %s', async state => {
+        const cachedName = state === 'wrong-version' ? name.replace(/\/b$/, '/c') : name;
+        const hash = createHash('sha256').update(cachedName).digest('hex').slice(0, 12);
+        const version = state === 'wrong-version' ? 'c' : 'b';
+        const directory = path.join(testData.tmpDir, 'docs', 'arm', 'ddi0439');
+        const cached = path.join(directory, `ddi0439_${version}-${hash}.pdf`);
+        await mkdir(directory, { recursive: true });
+        await writeFile(cached, state === 'invalid' ? '<html>failure</html>' : '%PDF-1.7\nexisting');
+        const changed = jest.fn();
+        manager.onDidChange(changed);
+        expect(await manager.initialize(testData.tmpDir)).toBe(state === 'valid' ? ETextFileResult.Success : ETextFileResult.Unchanged);
+        const expected = state === 'valid' ? cached : undefined;
+        expect(manager.file.findDocs(name).map(doc => doc.path)).toEqual([expected, expected]);
+        expect(changed).not.toHaveBeenCalled();
+        const reloaded = new DocsYamlFile(manager.file.fileName);
+        await reloaded.load();
+        expect(reloaded.findDocs(name).map(doc => doc.path)).toEqual([expected, expected]);
+        expect(reporter).not.toHaveBeenCalled();
+    });
+
+    it('reuses a valid recorded legacy path and clears missing paths without downloading', async () => {
+        const legacy = testData.tmpFileName('legacy.pdf');
+        await writeFile(legacy, '%PDF-1.7\nlegacy');
+        manager.file.getDoc(name, 'cortex-m4', 'core')!.path = legacy;
+        manager.file.getDoc(name, 'cortex-m33', 'core')!.path = testData.tmpFileName('missing.pdf');
+        const missing = manager.file.getDoc('https://developer.arm.com/documentation/100230/latest', 'cortex-m33', 'core')!;
+        missing.path = testData.tmpFileName('not-downloaded.pdf');
+        await manager.file.save();
+        await manager.initialize(testData.tmpDir);
+        expect(manager.file.findDocs(name).map(doc => doc.path)).toEqual([legacy, legacy]);
+        expect(manager.file.getDoc(missing.name, 'cortex-m33', 'core')!.path).toBeUndefined();
+        expect(await manager.resolveDocument('cortex-m4', 'core', name)).toBe(legacy);
+        expect(reporter).not.toHaveBeenCalled();
     });
 
     it('records one shared failure, resolves without throwing and clears errors on retry', async () => {
@@ -226,7 +305,11 @@ describe('DocManager downloads', () => {
 
     it('keeps version URLs distinct when service filenames collide', async () => {
         const versionName = name.replace(/\/b$/, '/c');
-        manager.file.ensureDoc(versionName, 'cortex-m4', 'core').format = 'pdf';
+        const versionDoc = manager.file.ensureDoc(versionName, 'cortex-m4', 'core');
+        versionDoc.format = 'pdf';
+        versionDoc.id = 'ddi0439';
+        versionDoc.version = 'c';
+        versionDoc.metadataUrl = 'https://documentation-service.arm.com/documentation/ddi0439/c';
         await manager.file.save();
         for (const version of ['b', 'c']) {
             nock('https://documentation-service.arm.com').get(`/documentation/ddi0439/${version}`)
@@ -281,6 +364,47 @@ describe('DocManager', () => {
         expect(fileSystem.exists).not.toHaveBeenCalled();
         expect(fileSystem.read).not.toHaveBeenCalled();
         expect(fileSystem.write).not.toHaveBeenCalled();
+    });
+
+    it.each([true, false])('loads the catalog only during the first initialization (available: %s)', async available => {
+        const catalogFileName = path.resolve('arm-docs.json');
+        const catalogFile = new JsonFile(catalogFileName);
+        catalogFile.content = {
+            docs: [{ docId: 'ddi0439', version: 'b', title: 'Arm manual', kind: 'trm', format: 'pdf', cores: ['cortex-m4'] }],
+            coreArch: {}, kindOrder: {}, knownNpus: [],
+        };
+        const catalog = catalogFile.stringify();
+        if (available) {
+            files.set(catalogFileName, catalog);
+        }
+        const load = jest.spyOn(JsonFile.prototype, 'load');
+        const manager = new DocManager(catalogFileName);
+        expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
+        expect(load).toHaveBeenCalledTimes(1);
+        expect(manager.file.getDocs('cortex-m4', 'core')).toHaveLength(available ? 1 : 0);
+
+        files.set(catalogFileName, catalog);
+        expect(await manager.initialize(emptyDirectory)).toBe(ETextFileResult.Success);
+        await manager.initialize(emptyDirectory);
+        const coreBooks = manager.file.getDocs('cortex-m4', 'core').map(doc => doc.item!.toObject());
+        const build = new CTreeItem('build');
+        build.createChild('processor').setValue('core', 'Cortex-M4');
+        for (const parentTag of ['device', 'board']) {
+            build.setValue(parentTag, `Vendor::${parentTag}`);
+            build.createChild(`${parentTag}-books`).createChild('-').setValue('name', `https://example.com/${parentTag}.pdf`);
+        }
+        await manager.addBooks(build);
+        await manager.addBooks(build);
+
+        expect(load).toHaveBeenCalledTimes(1);
+        expect(manager.file.getDocs('cortex-m4', 'core').map(doc => doc.item!.toObject())).toEqual(coreBooks);
+        expect(manager.file.getDocs('cortex-m4', 'core')).toHaveLength(available ? 1 : 0);
+        expect(manager.getBooks('Vendor::device', 'device', build).map(doc => doc.name)).toEqual([
+            'https://example.com/device.pdf',
+            ...(available ? ['https://developer.arm.com/documentation/ddi0439/b'] : []),
+        ]);
+        expect(manager.getBooks('Vendor::board', 'board', build).map(doc => doc.name)).toEqual(['https://example.com/board.pdf']);
+        manager.dispose();
     });
 
     it('loads the existing inventory without writing and exposes it for direct editing and saving', async () => {
@@ -1219,6 +1343,8 @@ describe('DocManager', () => {
     it('creates a missing inventory with an empty docs map that can be reloaded', async () => {
         files.clear();
         const manager = new DocManager();
+        const changed = jest.fn();
+        manager.onDidChange(changed);
         expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         expect(manager.file.topItem?.getTag()).toBe('docs');
         expect(manager.file.topItem?.isMap()).toBe(true);
@@ -1233,15 +1359,19 @@ describe('DocManager', () => {
         expect(reloaded.file.topItem?.isMap()).toBe(true);
         expect(reloaded.file.getDocParents()).toEqual([]);
         expect(fileSystem.write).toHaveBeenCalledTimes(1);
+        expect(changed).not.toHaveBeenCalled();
     });
 
     it('does not rewrite an unchanged inventory on repeated initialization', async () => {
         const manager = new DocManager();
+        const changed = jest.fn();
+        manager.onDidChange(changed);
         expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         const parentItem = manager.file.getDocParent('Vendor::Board', 'board')?.item;
         expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Unchanged);
         expect(manager.file.getDocParent('Vendor::Board', 'board')?.item).toBe(parentItem);
         expect(fileSystem.write).not.toHaveBeenCalled();
+        expect(changed).not.toHaveBeenCalled();
     });
 
     it('propagates read errors without creating an inventory and supports retry', async () => {

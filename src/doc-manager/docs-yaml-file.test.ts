@@ -123,6 +123,7 @@ describe('DocsYamlFile', () => {
         doc.id = 'ddi0419';
         doc.version = 'latest';
         doc.format = 'pdf';
+        doc.metadataUrl = 'https://documentation-service.arm.com/documentation/ddi0419/latest';
         expect(doc.locationType).toBe('W');
         expect(doc.isWebDoc()).toBe(true);
         expect(doc.indexDir).toBeDefined();
@@ -137,6 +138,7 @@ describe('DocsYamlFile', () => {
         expect(saved.item!.getChild('parentId')).toBeUndefined();
         expect(saved.item!.getChild('parentTag')).toBeUndefined();
         expect([saved.id, saved.version, saved.format, saved.path]).toEqual(['ddi0419', 'latest', 'pdf', doc.path]);
+        expect(saved.metadataUrl).toBe(doc.metadataUrl);
         expect(reloaded.getDocs('NXP::LPC4300', 'device')[0].item!.toObject()).toEqual(existing.item!.toObject());
         saved.name = '/local/manual';
         expect(saved.locationType).toBe('L');

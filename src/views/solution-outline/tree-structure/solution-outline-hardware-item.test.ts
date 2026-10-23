@@ -52,7 +52,7 @@ describe('HardwareItemBuilder', () => {
         const csolution = new CSolution();
         await csolution.load(cSolFile);
         const manager = new DocManager(path.resolve('src/doc-manager/arm-docs.json'));
-        manager.file.fileName = testDataHandler.tmpFileName(path.join('.arm-docs', 'docs.yml'));
+        await manager.initialize(testDataHandler.tmpFileName('.arm-docs'));
         const build = new CTreeItem('build');
         build.createChild('processor').setValue('core', 'Cortex-M55');
         build.setValue('device', 'ARM::SSE-315');

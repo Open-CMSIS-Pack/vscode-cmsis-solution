@@ -37,6 +37,7 @@ export interface IDocRef extends ITreeItemWrap {
     id: string | undefined;
     version: string | undefined;
     format: string | undefined;
+    metadataUrl: string | undefined;
     readonly locationType: string;
     readonly indexDir: string | undefined;
     mode: 'user' | undefined;
@@ -123,6 +124,8 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
     set version(value: string | undefined) { this.setValue('version', value); }
     get format(): string | undefined { return this.getValue('format'); }
     set format(value: string | undefined) { this.setValue('format', value); }
+    get metadataUrl(): string | undefined { return this.getValue('metadataUrl'); }
+    set metadataUrl(value: string | undefined) { this.setValue('metadataUrl', value); }
     get locationType(): string {
         const name = this.name || this.path || '';
         const webLocationType = getWebLocationType(name, this.format);

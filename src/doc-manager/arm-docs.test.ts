@@ -45,11 +45,24 @@ describe('ArmDocs', () => {
         const fileName = testData.tmpFileName('catalog.json');
         const catalog = new JsonFile(fileName);
         const lazy = new ArmDocs(fileName);
+        expect(lazy.isLoaded).toBe(false);
+        expect(lazy.forAllCores().size).toBe(0);
         expect(lazy.forTarget(['Cortex-M4'])).toEqual([]);
         await expect(lazy.load()).rejects.toThrow('Failed to load');
         catalog.content = { docs: [], coreArch: {}, kindOrder: {}, knownNpus: [] };
         await catalog.save();
         await expect(lazy.load()).rejects.toThrow('Failed to load');
+    });
+
+    it('enumerates all core books without a build, including hidden guides and all NPU books', () => {
+        expect(docs.isLoaded).toBe(true);
+        const cores = docs.forAllCores();
+        const books = cores.get('cortex-m4')!;
+        expect(cores.has('cortex-m0+')).toBe(true);
+        expect(cores.has('cortex-m0plus')).toBe(false);
+        expect(books.filter(doc => doc.kind === 'npu').map(doc => doc.docId)).toEqual(['102420', '102023', '102685', '102684']);
+        expect(books.find(doc => doc.kind === 'gug')?.docId).toBe('dui0553');
+        expect(books.filter(doc => !['gug', 'npu'].includes(doc.kind))).toEqual(docs.forTarget(['cortex-m4']));
     });
 
     it('selects NPUs from the target device or explicit capabilities, never from the CPU alone', () => {
@@ -60,13 +73,8 @@ describe('ArmDocs', () => {
 
     const name = armDocName({ docId: 'ddi0439', version: 'b', title: 'M4', kind: 'trm' });
 
-    it('supplies metadata and preferred PDF resource information without downloading', () => {
+    it('supplies metadata endpoints without downloading', () => {
         expect(docs.metadataUrl(name)).toBe('https://documentation-service.arm.com/documentation/ddi0439/b');
-        expect(docs.resource(name, { _links: { resources: [
-            { name: 'other.pdf', extension: 'pdf', href: '/other' },
-            { name: 'ddi0439b.pdf', contentType: 'application/pdf', href: '/preferred' },
-        ] } })).toEqual({ url: 'https://documentation-service.arm.com/preferred', name: 'ddi0439b.pdf' });
-        expect(() => docs.resource(name, { _links: { resources: [{ href: '/html', extension: 'html' }] } }))
-            .toThrow('no PDF');
+        expect(docs.metadataUrl('https://example.com/manual.pdf')).toBeUndefined();
     });
 });

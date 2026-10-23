@@ -38,13 +38,6 @@ interface ArmCatalog {
     knownNpus: { pattern: string; npu: string }[];
 }
 
-interface ArmResource {
-    href?: string;
-    name?: string;
-    extension?: string;
-    contentType?: string;
-}
-
 export function normalizeCore(core: string): string {
     return core.trim().toLowerCase().replace(/^cortex-m0(?:plus|p)$/, 'cortex-m0+');
 }
@@ -68,6 +61,10 @@ export class ArmDocs {
 
     constructor(private readonly catalogFileName = path.join(__dirname, 'arm-docs.json')) { }
 
+    get isLoaded(): boolean {
+        return this.catalog !== undefined;
+    }
+
     async load(): Promise<void> {
         this.loading ??= this.loadCatalog();
         await this.loading;
@@ -80,6 +77,20 @@ export class ArmDocs {
             throw new Error('Failed to load the Arm document catalog.');
         }
         this.catalog = file.content as ArmCatalog;
+    }
+
+    forAllCores(): Map<string, ArmDoc[]> {
+        const catalog = this.catalog;
+        if (!catalog) {
+            return new Map();
+        }
+        const cores = new Set([...Object.keys(catalog.coreArch), ...catalog.docs.flatMap(doc => doc.cores ?? [])]
+            .map(normalizeCore));
+        return new Map([...cores].map(core => [core, catalog.docs
+            .filter(doc => doc.kind === 'npu' || doc.all
+                || doc.cores?.some(name => normalizeCore(name) === core)
+                || doc.archs?.includes(catalog.coreArch[core]))
+            .sort((left, right) => (catalog.kindOrder[left.kind] ?? 99) - (catalog.kindOrder[right.kind] ?? 99))]));
     }
 
     forTarget(cores: readonly string[], device = '', npus: readonly string[] = []): ArmDoc[] {
@@ -115,22 +126,5 @@ export class ArmDocs {
     metadataUrl(name: string): string | undefined {
         const ref = armDocRef(name);
         return ref ? `https://documentation-service.arm.com/documentation/${ref.id}/${ref.version}` : undefined;
-    }
-
-    resource(name: string, metadata: unknown): { url: string; name: string } {
-        const ref = armDocRef(name);
-        const metadataUrl = this.metadataUrl(name);
-        if (!ref || !metadataUrl) {
-            throw new Error('Not an Arm document URL.');
-        }
-        const document = metadata as { _links?: { resources?: ArmResource[] } } | undefined;
-        const resources = document?._links?.resources;
-        const pdfs = Array.isArray(resources) ? resources.filter(resource => typeof resource.href === 'string'
-            && (resource.extension?.toLowerCase() === 'pdf' || resource.contentType?.toLowerCase() === 'application/pdf')) : [];
-        const resource = pdfs.find(pdf => pdf.name?.toLowerCase().startsWith(ref.id)) ?? pdfs[0];
-        if (!resource?.href) {
-            throw new Error('This Arm document has no PDF resource.');
-        }
-        return { url: new URL(resource.href, metadataUrl).href, name: resource.name ?? `${ref.id}_${ref.version}.pdf` };
     }
 }
