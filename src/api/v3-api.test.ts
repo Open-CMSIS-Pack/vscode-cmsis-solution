@@ -24,13 +24,14 @@ import { CsolutionApiV2 } from '../../api/csolution';
 import { dataManagerFactory, draftProjectDataFactory } from '../data-manager/data-manager.factories';
 import { SolutionManager } from '../solutions/solution-manager';
 import { CsolutionApiV3Impl } from './v3-api';
+import * as debugAdapters from '../debug/debug-adapters-yaml-file';
 
 describe('CsolutionApiV3Impl', () => {
     let existingApi: jest.Mocked<CsolutionApiV2 & Disposable>;
     let api: CsolutionApiV3Impl;
     const solutionManager: { getCsolution: jest.Mock; loadState: SolutionManager['loadState'] } = { getCsolution: jest.fn(), loadState: {} };
     const csolutionService = { getPacksInfo: jest.fn() };
-    const toolsEnvironment = { getToolsEnvironment: jest.fn() };
+    const toolsEnvironment = { getToolsEnvironment: jest.fn(), getToolchains: jest.fn() };
     const solutionWithContexts = (contexts: string[]) => ({
         getActiveTargetType: () => 'Board',
         getActiveTargetSetWrap: () => ({ projectContexts: contexts.map(name => ({ name: name.replace(/\+Board$/, '') })) }),
@@ -50,12 +51,48 @@ describe('CsolutionApiV3Impl', () => {
         solutionManager.getCsolution.mockReset();
         csolutionService.getPacksInfo.mockReset();
         toolsEnvironment.getToolsEnvironment.mockReset();
+        toolsEnvironment.getToolchains.mockReset();
         commandsProvider.executeCommand.mockReset();
         jest.spyOn(window, 'showInformationMessage').mockClear();
         api = new CsolutionApiV3Impl(existingApi, dataManagerFactory(), solutionManager, csolutionService, toolsEnvironment, commandsProvider);
     });
 
     afterEach(() => jest.restoreAllMocks());
+
+    it('lists toolchains without a solution and propagates provider failures', async () => {
+        solutionManager.loadState = {};
+        const toolchains = [{ name: 'AC6', version: '6.24.0', path: '/compiler/bin', registrationVariable: 'AC6_TOOLCHAIN_6_24_0' }];
+        toolsEnvironment.getToolchains.mockResolvedValueOnce(toolchains).mockResolvedValueOnce([])
+            .mockRejectedValueOnce(new Error('activation failed'));
+        await expect(api.getToolchains()).resolves.toEqual(toolchains);
+        await expect(api.getToolchains()).resolves.toEqual([]);
+        await expect(api.getToolchains()).rejects.toThrow('activation failed');
+        expect(toolsEnvironment.getToolchains).toHaveBeenCalledWith();
+        expect(solutionManager.getCsolution).not.toHaveBeenCalled();
+        expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
+    });
+
+    describe('getDebuggers', () => {
+        it('returns exact canonical adapter names without a loaded solution', async () => {
+            solutionManager.loadState = {};
+            const catalog = new debugAdapters.DebugAdaptersYamlFile();
+            catalog.text = 'debug-adapters:\n  - name: CMSIS-DAP@pyOCD\n    alias-name: [CMSIS-DAP]\n    template: pyocd.json\n  - name: J-Link Server\n    template: jlink.json\n';
+            catalog.rootItem = catalog.parse() as CTreeItem;
+            jest.spyOn(debugAdapters, 'loadDebugAdaptersYml').mockResolvedValue(catalog);
+
+            const names = await api.getDebuggers();
+            expect(names).toEqual(['CMSIS-DAP@pyOCD', 'J-Link Server']);
+            names.push('changed');
+            await expect(api.getDebuggers()).resolves.toEqual(['CMSIS-DAP@pyOCD', 'J-Link Server']);
+            expect(solutionManager.getCsolution).not.toHaveBeenCalled();
+            expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
+        });
+
+        it('rejects when the adapter catalog cannot be loaded', async () => {
+            jest.spyOn(debugAdapters, 'loadDebugAdaptersYml').mockResolvedValue(undefined);
+            await expect(api.getDebuggers()).rejects.toThrow('Unable to load debugger adapters');
+        });
+    });
 
     describe('non-interactive command getters', () => {
         const getters = [

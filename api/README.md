@@ -241,6 +241,38 @@ text before awaiting sources. It runs after existing validation and mapping:
 even a filter that matches nothing does not bypass prerequisites, malformed used
 IDs or source errors. No extra queries are made, and source selection is unchanged.
 
+### Debuggers and Toolchains
+
+```typescript
+const debuggers = await api.getDebuggers();
+const toolchains = await api.getToolchains();
+// { name: 'AC6', version: '6.24.0', path: 'C:\\ArmCompiler\\bin',
+//   registrationVariable: 'AC6_TOOLCHAIN_6_24_0' }
+```
+
+`getDebuggers(): Promise<string[]>` returns the exact canonical adapter names
+from the extension's shipped `debug-adapters.yml`, in declaration order. Casing,
+spaces and punctuation are preserved, for example `CMSIS-DAP@pyOCD`. Alias names
+are not included. An empty catalog returns `[]`; failure to load it rejects the
+promise. This lists supported adapter configurations, not connected probes.
+
+`getToolchains(): Promise<CsolutionApiV3.Toolchain[]>` returns registered
+toolchains from the resolved current window environment. Each record contains
+`name`, `version`, `path` and `registrationVariable`, all strings. Registrations
+match `<NAME>_TOOLCHAIN_<major>_<minor>_<patch>` case-insensitively; `NAME` starts
+with a letter and contains only letters and digits. The name and registration
+variable retain their original case, version components are joined with dots,
+and paths retain their original separators. Undefined, empty or whitespace-only
+paths and malformed registration variables are excluded. Multiple registered
+versions remain separate records; no registrations returns `[]`.
+
+Toolchain listing uses the same environment owner and activation wait as
+`getToolsEnvironment`. Arm Tools contributions override matching environment
+variables case-insensitively. It does not scan PATH, inspect compiler binaries,
+check path existence or verify that a registered toolchain works. Array ordering
+does not indicate compiler preference. Provider errors reject the promise;
+Arm Tools activation failure uses the available environment as described below.
+
 ### Tools Environment
 
 ```typescript
@@ -269,9 +301,12 @@ accept folder/download-consent options.
 
 [The extension-host fixture](../src/api/extension-host-v3-smoke.ts) runs against the
 real extension. Its tools-environment mode uses a multi-root window to check
-configured variables, built-in tools, nonempty PATH, repeatable output, V2
-compatibility, unchanged solution selection and absence of generated files in
-both roots. It restores the workspace setting and disposes the API in `finally`.
+configured variables, built-in tools, nonempty PATH, exact debugger names against
+the shipped catalog, toolchain record shape and serialization, live registration
+updates, fresh results, repeatable output, V2 compatibility, unchanged solution
+selection and absence of generated files in both roots. It uses a controlled
+toolchain registration, so no compiler installation is required. It restores the
+workspace setting and disposes the API in `finally`.
 
 Build the extension with `npm run build` after a clean checkout or changes to
 extension sources. The launch preparation task compiles the fixture before

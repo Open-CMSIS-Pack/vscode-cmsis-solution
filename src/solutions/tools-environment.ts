@@ -30,6 +30,7 @@ const CMSIS_DEBUGGER_EXTENSION_ID = 'arm.vscode-cmsis-debugger';
 const CMSIS_SDS_EXTENSION_ID = 'arm.cmsis-sds';
 const DOCUMENT_VERSION = '1.1.0';
 const CMSIS_ENVIRONMENT_VARIABLES = ['CMSIS_PACK_ROOT', 'CMSIS_COMPILER_ROOT'];
+const TOOLCHAIN_REGISTRATION = /^([A-Z][A-Z0-9]*)_TOOLCHAIN_(\d+)_(\d+)_(\d+)$/i;
 
 type EnvironmentManagerToolsApi = Pick<EnvironmentManagerApiV1, 'getActiveTools'>
     & Partial<Pick<EnvironmentManagerApiV1, 'isActivating' | 'onDidActivate' | 'onDidFailActivation'>>;
@@ -101,6 +102,26 @@ export class ToolsEnvironment {
 
     public updateVcpkgResults(results: VcpkgResults): void {
         this.vcpkgResults = results;
+    }
+
+    public async getToolchains(): Promise<{ name: string; version: string; path: string; registrationVariable: string }[]> {
+        const environmentManagerApi = await this.environmentManagerApiProvider.activateIfEnabled();
+        if (environmentManagerApi) {
+            await this.waitUntilReady(environmentManagerApi);
+        }
+        const variables = this.mergeEnvironmentVariables(
+            this.environmentManager.getEnvironmentVariables(),
+            this.vcpkgResults?.variables,
+        );
+        return Object.entries(variables).flatMap(([registrationVariable, registeredPath]) => {
+            const match = TOOLCHAIN_REGISTRATION.exec(registrationVariable);
+            return match && registeredPath?.trim() ? [{
+                name: match[1],
+                version: match.slice(2).join('.'),
+                path: registeredPath,
+                registrationVariable,
+            }] : [];
+        });
     }
 
     public async captureAndQueueWrite(solutionPath: string): Promise<void> {
@@ -435,7 +456,7 @@ export class ToolsEnvironment {
             ...CMSIS_ENVIRONMENT_VARIABLES,
             ...Object.keys(configuredVariables),
             ...Object.keys(vcpkgResults?.variables ?? {}),
-            ...Object.keys(variables).filter(name => /^[A-Z][A-Z0-9]*_TOOLCHAIN_\d+_\d+_\d+$/i.test(name)),
+            ...Object.keys(variables).filter(name => TOOLCHAIN_REGISTRATION.test(name)),
         ].map(name => name.toLowerCase()));
         return Object.fromEntries(
             Object.entries(variables).filter(([name]) => name.toLowerCase() !== 'path' && selectedNames.has(name.toLowerCase())),

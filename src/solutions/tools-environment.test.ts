@@ -64,6 +64,78 @@ describe('ToolsEnvironment', () => {
         testDataHandler.dispose();
     });
 
+    it('lists current toolchain registrations with contribution precedence and original paths', async () => {
+        const variables: NodeJS.ProcessEnv = {
+            AC6_TOOLCHAIN_6_24_0: 'C:\\Arm Compiler\\bin',
+            GCC_TOOLCHAIN_14_3_1: '/old/gcc/bin',
+            GCC_TOOLCHAIN_13_2_0: '/gcc13/bin',
+            CLANG_TOOLCHAIN_1_2_3: '',
+            IAR_TOOLCHAIN_1_2_3: '   ',
+            OTHER_TOOLCHAIN_1_2_3: undefined,
+            GCC_TOOLCHAIN_14_3: '/invalid/bin',
+            GCC_TOOLCHAIN_14_3_1_EXTRA: '/invalid/bin',
+            PATH: '/unregistered/compiler/bin',
+            CMSIS_COMPILER_ROOT: '/compiler/configs',
+        };
+        const environmentManager = {
+            getEnvironmentVariables: jest.fn(() => variables),
+        } as unknown as EnvironmentManager;
+        const owner = new ToolsEnvironment(environmentManager, extensionApiProviderFactory(), {
+            version: 1, variables: { gcc_TOOLCHAIN_14_3_1: '/new/gcc/bin' }, paths: { PATH: [] }, tools: {},
+        });
+        const expected = [
+            { name: 'AC6', version: '6.24.0', path: 'C:\\Arm Compiler\\bin', registrationVariable: 'AC6_TOOLCHAIN_6_24_0' },
+            { name: 'gcc', version: '14.3.1', path: '/new/gcc/bin', registrationVariable: 'gcc_TOOLCHAIN_14_3_1' },
+            { name: 'GCC', version: '13.2.0', path: '/gcc13/bin', registrationVariable: 'GCC_TOOLCHAIN_13_2_0' },
+        ];
+        const result = await owner.getToolchains();
+        expect(result).toEqual(expected);
+        result[0].path = 'changed';
+        await expect(owner.getToolchains()).resolves.toEqual(expected);
+        delete variables.AC6_TOOLCHAIN_6_24_0;
+        owner.updateVcpkgResults({ version: 1, variables: {}, paths: { PATH: [] }, tools: {} });
+        await expect(owner.getToolchains()).resolves.toEqual([
+            { name: 'GCC', version: '14.3.1', path: '/old/gcc/bin', registrationVariable: 'GCC_TOOLCHAIN_14_3_1' },
+            expected[2],
+        ]);
+        expect(fileSystem.read).not.toHaveBeenCalled();
+        expect(fileSystem.write).not.toHaveBeenCalled();
+    });
+
+    it('waits for activation before listing contributed toolchains and returns empty when unregistered', async () => {
+        const onDidActivate = new vscode.EventEmitter<VcpkgResults>();
+        const onDidFailActivation = new vscode.EventEmitter<vscode.Uri>();
+        let subscribed!: () => void;
+        const subscriptionReady = new Promise<void>(resolve => { subscribed = resolve; });
+        let isActivating = true;
+        const environmentManager = { getEnvironmentVariables: jest.fn().mockReturnValue({}) } as unknown as EnvironmentManager;
+        const owner = new ToolsEnvironment(environmentManager, extensionApiProviderFactory({
+            getActiveTools: jest.fn(),
+            isActivating: () => isActivating,
+            onDidActivate: listener => {
+                const subscription = onDidActivate.event(listener);
+                subscribed();
+                return subscription;
+            },
+            onDidFailActivation: onDidFailActivation.event,
+        }));
+        try {
+            const pending = owner.getToolchains();
+            await subscriptionReady;
+            expect(environmentManager.getEnvironmentVariables).not.toHaveBeenCalled();
+            isActivating = false;
+            onDidActivate.fire({ version: 1, variables: { AC6_TOOLCHAIN_6_24_0: '/arm/bin' }, paths: { PATH: [] }, tools: {} });
+            await expect(pending).resolves.toEqual([
+                { name: 'AC6', version: '6.24.0', path: '/arm/bin', registrationVariable: 'AC6_TOOLCHAIN_6_24_0' },
+            ]);
+            owner.updateVcpkgResults({ version: 1, variables: {}, paths: { PATH: [] }, tools: {} });
+            await expect(owner.getToolchains()).resolves.toEqual([]);
+        } finally {
+            onDidActivate.dispose();
+            onDidFailActivation.dispose();
+        }
+    });
+
     it('renders a solution-free snapshot without global activation state or writes', () => {
         const toolsEnvironment = new ToolsEnvironment(
             {} as EnvironmentManager,
