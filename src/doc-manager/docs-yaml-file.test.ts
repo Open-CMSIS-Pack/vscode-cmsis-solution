@@ -113,6 +113,35 @@ describe('DocsYamlFile', () => {
         expect(fileSystem.write).not.toHaveBeenCalled();
     });
 
+    it('round-trips optional metadata and classifies extensionless PDF URLs without changing other documents', async () => {
+        const file = new DocsYamlFile(fileName);
+        expect(await file.load()).toBe(ETextFileResult.Success);
+        const existing = file.getDocs('NXP::LPC4300', 'device')[0];
+        expect([existing.id, existing.version, existing.format]).toEqual([undefined, undefined, undefined]);
+        const doc = file.ensureDoc('https://developer.arm.com/documentation/ddi0419/latest', 'cortex-m0', 'core');
+        expect(doc.locationType).toBe('H');
+        doc.id = 'ddi0419';
+        doc.version = 'latest';
+        doc.format = 'pdf';
+        expect(doc.locationType).toBe('W');
+        expect(doc.isWebDoc()).toBe(true);
+        expect(doc.indexDir).toBeDefined();
+        expect(doc.isDownloaded()).toBe(false);
+        doc.path = '/downloaded/manual.pdf';
+        expect(doc.isDownloaded()).toBe(true);
+        expect(await file.save()).toBe(ETextFileResult.Success);
+        const reloaded = new DocsYamlFile(fileName);
+        expect(await reloaded.load()).toBe(ETextFileResult.Success);
+        const saved = reloaded.getDocs('cortex-m0', 'core')[0];
+        expect([saved.parentId, saved.parentTag]).toEqual(['cortex-m0', 'core']);
+        expect(saved.item!.getChild('parentId')).toBeUndefined();
+        expect(saved.item!.getChild('parentTag')).toBeUndefined();
+        expect([saved.id, saved.version, saved.format, saved.path]).toEqual(['ddi0419', 'latest', 'pdf', doc.path]);
+        expect(reloaded.getDocs('NXP::LPC4300', 'device')[0].item!.toObject()).toEqual(existing.item!.toObject());
+        saved.name = '/local/manual';
+        expect(saved.locationType).toBe('L');
+    });
+
     it.each([
         ['https://example.com/manual.pdf', true],
         ['https://example.com/manual.html', false],

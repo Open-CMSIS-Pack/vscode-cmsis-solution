@@ -212,6 +212,24 @@ describe('DocumentCommand', () => {
         expect(doc.mode).toBeUndefined();
     });
 
+    it('uses a core document owner and shares its selected path with all references', async () => {
+        const armName = 'https://developer.arm.com/documentation/ddi0553/latest';
+        for (const core of ['cortex-m23', 'cortex-m33']) {
+            manager.file.ensureDoc(armName, core, 'core').format = 'pdf';
+        }
+        await manager.file.save();
+        const node = nodeFor('device', 'book');
+        node.setAttribute('docName', armName);
+        node.setAttribute('docParentId', 'cortex-m33');
+        node.setAttribute('docParentTag', 'core');
+
+        await commands.mockRunRegistered(DocumentCommand.setLocalPathCommandId, node);
+
+        expect(manager.file.findDocs(armName).map(doc => doc.path)).toEqual([localPath, localPath]);
+        expect(manager.file.getDoc(armName, 'Vendor::Selected', 'device')).toBeUndefined();
+        expect(window.showErrorMessage).not.toHaveBeenCalled();
+    });
+
     it.each(['https://example.com/manual.html', 'local.pdf'])('does not update a non-W document %s after selecting a file', async docName => {
         const node = nodeFor('board', 'book');
         node.setAttribute('docName', docName);

@@ -41,8 +41,13 @@ export class DocumentCommand {
         );
     }
 
-    private getTarget(node?: COutlineItem): { parentId: string; parentTag: 'board' | 'device' } | undefined {
+    private getTarget(node?: COutlineItem): { parentId: string; parentTag: 'board' | 'device' | 'core' } | undefined {
         if (node) {
+            const ownerId = node.getAttribute('docParentId');
+            const ownerTag = node.getAttribute('docParentTag');
+            if (node.getTag() === 'book' && ownerId && (ownerTag === 'board' || ownerTag === 'device' || ownerTag === 'core')) {
+                return { parentId: ownerId, parentTag: ownerTag };
+            }
             const hardware = node.getTag() === 'book' ? node.getParent() : node;
             const parentTag = hardware?.getTag();
             const parentId = getDocParentId(hardware?.getAttribute('hardwareName'), parentTag);

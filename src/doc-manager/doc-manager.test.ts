@@ -22,6 +22,197 @@ import { CTreeItemYamlFile } from '@open-cmsis-pack/cmsis-common/tree-item-file'
 import { DocManager } from './doc-manager';
 import { DocsYamlFile } from './docs-yaml-file';
 import { textFileSystemFactory } from '../__test__/text-file-system';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { readFile, readdir } from 'node:fs/promises';
+import nock from 'nock';
+import { TestDataHandler } from '../__test__/test-data';
+
+describe('DocManager downloads', () => {
+    const testData = new TestDataHandler();
+    const name = 'https://developer.arm.com/documentation/ddi0439/b';
+    let manager: DocManager;
+    let reporter: jest.Mock;
+
+    beforeEach(async () => {
+        nock.disableNetConnect();
+        manager = new DocManager(path.join(__dirname, 'arm-docs.json'));
+        reporter = jest.fn();
+        DocManager.setErrorReporter(reporter);
+        await manager.initialize(testData.tmpDir);
+        for (const core of ['Cortex-M4', 'Cortex-M33']) {
+            const build = new CTreeItem('build');
+            build.createChild('processor').setValue('core', core);
+            await manager.addBooks(build);
+        }
+        const shared = manager.file.ensureDoc(name, 'cortex-m33', 'core');
+        shared.format = 'pdf';
+        await manager.file.save();
+    });
+
+    afterEach(() => {
+        manager.dispose();
+        DocManager.setErrorReporter();
+        nock.cleanAll();
+        nock.enableNetConnect();
+        testData.rmTmpDir();
+    });
+
+    function metadata(resources: object[]) {
+        return nock('https://documentation-service.arm.com').get('/documentation/ddi0439/b')
+            .reply(200, { metadata: { contentFormat: 'HTMLPDF' }, _links: { resources } });
+    }
+
+    it('shares concurrent downloads, follows redirects and reuses the persisted PDF', async () => {
+        const scope = metadata([{ name: '../ddi0439b.pdf', extension: 'PDF', href: '/static/object' }]);
+        const pdf = nock('https://documentation-service.arm.com')
+            .get('/static/object').reply(302, '', { location: 'https://documentation-service.arm.com/static/pdf' })
+            .get('/static/pdf').reply(200, '%PDF-1.7\nmanual');
+        const first = manager.resolveDocument('cortex-m4', 'core', name);
+        expect(manager.resolveDocument('cortex-m33', 'core', name)).toBe(first);
+        const downloaded = (await first)!;
+        expect(path.dirname(downloaded)).toBe(path.join(testData.tmpDir, 'docs', 'arm', 'ddi0439'));
+        expect(await readFile(downloaded, 'utf8')).toBe('%PDF-1.7\nmanual');
+        expect(await readdir(path.dirname(downloaded))).toEqual([path.basename(downloaded)]);
+        expect(scope.isDone() && pdf.isDone()).toBe(true);
+        expect(manager.file.findDocs(name).map(doc => doc.path)).toEqual([downloaded, downloaded]);
+        expect(await manager.resolveDocument('cortex-m4', 'core', name)).toBe(downloaded);
+        const reloaded = new DocsYamlFile(manager.file.fileName);
+        await reloaded.load();
+        expect(reloaded.findDocs(name).every(doc => doc.path === downloaded && !doc.error)).toBe(true);
+    });
+
+    it('records one shared failure, resolves without throwing and clears errors on retry', async () => {
+        nock('https://documentation-service.arm.com').get('/documentation/ddi0439/b').reply(503);
+        const first = manager.resolveDocument('cortex-m4', 'core', name);
+        expect(manager.resolveDocument('cortex-m33', 'core', name)).toBe(first);
+        await expect(first).resolves.toBeUndefined();
+        expect(reporter).toHaveBeenCalledTimes(1);
+        expect(reporter).toHaveBeenCalledWith(expect.stringContaining('Status Code: 503'));
+        expect(manager.file.findDocs(name).every(doc => !doc.path && doc.error?.includes('Status Code: 503'))).toBe(true);
+        metadata([{ name: 'manual.pdf', extension: 'pdf', href: '/static/pdf' }]);
+        nock('https://documentation-service.arm.com').get('/static/pdf').reply(200, '%PDF-1.7\nretry');
+        expect(await manager.resolveDocument('cortex-m4', 'core', name)).toBeDefined();
+        expect(manager.file.findDocs(name).every(doc => doc.path && !doc.error)).toBe(true);
+    });
+
+    it('opens local files and browser links without network access', async () => {
+        for (const location of ['local.pdf', 'https://example.com/manual.html']) {
+            manager.file.ensureDoc(location, 'Vendor::Device', 'device');
+            expect(await manager.resolveDocument('Vendor::Device', 'device', location)).toBe(location);
+        }
+        expect(await manager.resolveDocument('Vendor::Device', 'device', 'missing')).toBeUndefined();
+        expect(reporter).not.toHaveBeenCalled();
+    });
+
+    it('downloads ordinary HTTPS PDF books with shared URL identity', async () => {
+        const location = 'https://example.com/manual.pdf';
+        for (const parentTag of ['device', 'board']) {
+            manager.file.ensureDoc(location, 'Vendor::Hardware', parentTag);
+        }
+        await manager.file.save();
+        const scope = nock('https://example.com').get('/manual.pdf').reply(200, '%PDF-1.7\nordinary');
+        const first = manager.resolveDocument('Vendor::Hardware', 'device', location);
+        expect(manager.resolveDocument('Vendor::Hardware', 'board', location)).toBe(first);
+        const downloaded = await first;
+        expect(downloaded).toBeDefined();
+        expect(await readFile(downloaded!, 'utf8')).toBe('%PDF-1.7\nordinary');
+        expect(scope.isDone()).toBe(true);
+        expect(manager.file.findDocs(location).every(doc => doc.path === downloaded)).toBe(true);
+    });
+
+    it('records unsupported HTTP downloads as errors without throwing', async () => {
+        const location = 'http://example.com/manual.pdf';
+        manager.file.ensureDoc(location, 'Vendor::Device', 'device');
+        await manager.file.save();
+        await expect(manager.resolveDocument('Vendor::Device', 'device', location)).resolves.toBeUndefined();
+        expect(reporter).toHaveBeenCalledTimes(1);
+        const saved = manager.file.getDoc(location, 'Vendor::Device', 'device')!;
+        expect(saved.error).toBe(reporter.mock.calls[0][0]);
+        expect(saved.error).toBe('Document download requires HTTPS.');
+        expect(saved.path).toBeUndefined();
+        expect(await readdir(testData.tmpDir)).toEqual(['docs.yml']);
+    });
+
+    it('retains ordinary non-PDF web file contents', async () => {
+        const location = 'https://example.com/manual.txt';
+        manager.file.ensureDoc(location, 'Vendor::Device', 'device');
+        await manager.file.save();
+        nock('https://example.com').get('/manual.txt').reply(200, 'manual');
+        const downloaded = await manager.resolveDocument('Vendor::Device', 'device', location);
+        expect(await readFile(downloaded!, 'utf8')).toBe('manual');
+        expect(await manager.resolveDocument('Vendor::Device', 'device', location)).toBe(downloaded);
+    });
+
+    it('resets the reporter to a no-op and contains inventory or reporter failures', async () => {
+        DocManager.setErrorReporter();
+        nock('https://documentation-service.arm.com').get('/documentation/ddi0439/b').reply(503);
+        await expect(manager.resolveDocument('cortex-m4', 'core', name)).resolves.toBeUndefined();
+        expect(reporter).not.toHaveBeenCalled();
+        const load = jest.spyOn(manager.file, 'load').mockRejectedValueOnce(new Error('inventory unavailable'));
+        const save = jest.spyOn(manager.file, 'save').mockRejectedValueOnce(new Error('write unavailable'));
+        const throwingReporter = jest.fn(() => { throw new Error('reporter unavailable'); });
+        DocManager.setErrorReporter(throwingReporter);
+        await expect(manager.resolveDocument('cortex-m4', 'core', name)).resolves.toBeUndefined();
+        expect(throwingReporter).toHaveBeenCalledWith('inventory unavailable');
+        expect(manager.file.findDocs(name).every(doc => doc.error === 'inventory unavailable')).toBe(true);
+        load.mockRestore();
+        save.mockRestore();
+    });
+
+    it.each(['<html>failure</html>', '%PD'])('removes partial invalid PDF downloads: %s', async content => {
+        metadata([{ name: 'manual.pdf', contentType: 'application/pdf', href: '/static/pdf' }]);
+        nock('https://documentation-service.arm.com').get('/static/pdf').reply(200, content);
+        await expect(manager.resolveDocument('cortex-m4', 'core', name)).resolves.toBeUndefined();
+        expect(reporter).toHaveBeenCalledWith(expect.stringContaining('Invalid'));
+        expect(await readdir(path.join(testData.tmpDir, 'docs', 'arm', 'ddi0439'))).toEqual([]);
+    });
+
+    it('removes downloaded metadata when it exceeds the size limit', async () => {
+        nock('https://documentation-service.arm.com').get('/documentation/ddi0439/b')
+            .reply(200, { padding: 'x'.repeat(2 * 1024 * 1024) });
+        await expect(manager.resolveDocument('cortex-m4', 'core', name)).resolves.toBeUndefined();
+        expect(reporter).toHaveBeenCalledWith('Arm document metadata is too large.');
+        expect(manager.file.findDocs(name).every(doc => !doc.path && doc.error === 'Arm document metadata is too large.')).toBe(true);
+        expect(await readdir(testData.tmpDir)).toEqual(['docs.yml']);
+    });
+
+    it('reports resource download failures without retaining temporary files', async () => {
+        metadata([{ name: 'manual.pdf', extension: 'pdf', href: '/static/pdf' }]);
+        nock('https://documentation-service.arm.com').get('/static/pdf').reply(503);
+        await expect(manager.resolveDocument('cortex-m4', 'core', name)).resolves.toBeUndefined();
+        expect(reporter).toHaveBeenCalledWith(expect.stringContaining('Status Code: 503'));
+        expect(manager.file.findDocs(name).every(doc => !doc.path && doc.error?.includes('Status Code: 503'))).toBe(true);
+        expect(await readdir(testData.tmpDir)).toEqual(['docs', 'docs.yml']);
+        expect(await readdir(path.join(testData.tmpDir, 'docs', 'arm', 'ddi0439'))).toEqual([]);
+    });
+
+    it('reports HTML-only resources and malformed metadata without creating a PDF', async () => {
+        metadata([{ href: '/html', extension: 'html' }]);
+        await expect(manager.resolveDocument('cortex-m4', 'core', name)).resolves.toBeUndefined();
+        expect(reporter).toHaveBeenLastCalledWith(expect.stringContaining('no PDF'));
+        nock('https://documentation-service.arm.com').get('/documentation/ddi0439/b').reply(200, 'not json');
+        await expect(manager.resolveDocument('cortex-m4', 'core', name)).resolves.toBeUndefined();
+        expect(reporter).toHaveBeenLastCalledWith('Invalid Arm document metadata.');
+        expect(await readdir(testData.tmpDir)).toEqual(['docs.yml']);
+    });
+
+    it('keeps version URLs distinct when service filenames collide', async () => {
+        const versionName = name.replace(/\/b$/, '/c');
+        manager.file.ensureDoc(versionName, 'cortex-m4', 'core').format = 'pdf';
+        await manager.file.save();
+        for (const version of ['b', 'c']) {
+            nock('https://documentation-service.arm.com').get(`/documentation/ddi0439/${version}`)
+                .reply(200, { _links: { resources: [{ name: 'manual.pdf', extension: 'pdf', href: `/static/${version}` }] } })
+                .get(`/static/${version}`).reply(200, `%PDF-1.7\n${version}`);
+        }
+        const [first, second] = await Promise.all([
+            manager.resolveDocument('cortex-m4', 'core', name), manager.resolveDocument('cortex-m4', 'core', versionName),
+        ]);
+        expect(first).not.toBe(second);
+        expect(await readFile(first!, 'utf8')).toBe('%PDF-1.7\nb');
+        expect(await readFile(second!, 'utf8')).toBe('%PDF-1.7\nc');
+    });
+});
 
 describe('DocManager', () => {
     const docsDirectory = path.resolve('inventory');
@@ -49,6 +240,7 @@ describe('DocManager', () => {
     afterEach(() => {
         TextFile.setFileSystem();
         TextFile.setErrorReporter();
+        DocManager.setErrorReporter();
         jest.restoreAllMocks();
     });
 
@@ -120,9 +312,9 @@ describe('DocManager', () => {
         const sourceText = cbuildFile.stringify();
         jest.clearAllMocks();
 
-        await manager.addCbuildBooks(cbuild, 'board');
+        await manager.addBooks(cbuild);
         const docs = manager.file.getDocs('Vendor::Board', 'board');
-        expect(manager.file.getDocParent('Vendor::Device', 'device')).toBeUndefined();
+        expect(manager.file.getDocs('Vendor::Device', 'device')).toHaveLength(1);
         expect(docs.map(doc => doc.name)).toEqual(['manual', path.resolve('build', 'guide.pdf'), 'https://example.com/guide.pdf']);
         expect(docs[0].item).toBe(existing.item);
         expect(docs[0].title).toBe('Stored manual');
@@ -143,10 +335,10 @@ describe('DocManager', () => {
         const importedText = manager.file.stringify();
         expect(importedText).not.toBe(existingText);
 
-        await manager.addCbuildBooks(cbuild, 'board');
+        await manager.addBooks(cbuild);
         expect(cbuildFile.stringify()).toBe(sourceText);
         cbuild.removeChild(cbuild.getChild('board-books'));
-        await manager.addCbuildBooks(cbuild, 'board');
+        await manager.addBooks(cbuild);
         expect(manager.file.stringify()).toBe(importedText);
         expect(manager.file.getDocs('Vendor::Board', 'board').map(doc => doc.item)).toEqual(docs.map(doc => doc.item));
         expect(save).toHaveBeenCalledTimes(3);
@@ -172,7 +364,7 @@ describe('DocManager', () => {
             cbuildFile.rootItem = cbuildFile.parse();
             const sourceText = cbuildFile.stringify();
 
-            await manager.addCbuildBooks(cbuildFile.topItem!, 'device');
+            await manager.addBooks(cbuildFile.topItem!);
 
             expect(cbuildFile.stringify()).toBe(sourceText);
         }
@@ -196,7 +388,7 @@ describe('DocManager', () => {
         cbuildFile.text = ['build:', ...lines].join('\n');
         cbuildFile.rootItem = cbuildFile.parse();
 
-        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addBooks(cbuildFile.topItem!);
 
         expect(manager.file.rootItem).toBeUndefined();
         expect(fileSystem.exists).not.toHaveBeenCalled();
@@ -215,7 +407,7 @@ describe('DocManager', () => {
         cbuildFile.text = ['build:', '  board: Vendor::Board', ...lines].join('\n');
         cbuildFile.rootItem = cbuildFile.parse();
 
-        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addBooks(cbuildFile.topItem!);
 
         expect(manager.file.getDocParent('Vendor::Board', 'board')?.id).toBe('Vendor::Board');
         expect(manager.file.getDocs('Vendor::Board', 'board')).toEqual([]);
@@ -246,11 +438,15 @@ describe('DocManager', () => {
         cbuildFile.rootItem = cbuildFile.parse();
         const cbuild = cbuildFile.topItem!;
         const sourceProcessor = cbuild.getChildItem('processor')!;
-        cbuild.setValue('board', 'Vendor::Board:RevA');
+        cbuild.removeChild(cbuild.getChild(parentTag === 'board' ? 'device' : 'board'));
+        sourceProcessor.setValue('core', undefined);
+        if (parentTag === 'board') {
+            cbuild.setValue('board', 'Vendor::Board:RevA');
+        }
         const sourceText = cbuildFile.stringify();
         const parentId = cbuild.getValue(parentTag)!;
 
-        await manager.addCbuildBooks(cbuild, parentTag);
+        await manager.addBooks(cbuild);
 
         const parent = manager.file.getDocParent(parentId, parentTag)!.item!;
         parent.setValue('future', 'preserved');
@@ -261,12 +457,12 @@ describe('DocManager', () => {
         expect(await manager.file.save()).toBe(ETextFileResult.Success);
         const importedText = manager.file.stringify();
 
-        await manager.addCbuildBooks(cbuild, parentTag);
+        await manager.addBooks(cbuild);
         expect(manager.file.stringify()).toBe(importedText);
         expect(cbuildFile.stringify()).toBe(sourceText);
         cbuild.setValue(`${parentTag}-pack`, 'Vendor::UpdatedPack@3.0.0');
-        sourceProcessor.setValue('core', 'Cortex-M55');
-        await manager.addCbuildBooks(cbuild, parentTag);
+        sourceProcessor.setValue('future-core', 'Cortex-M55');
+        await manager.addBooks(cbuild);
         expect(manager.file.getDocParent(parentId, parentTag)!.item).toBe(parent);
         expect(parent.getValue('pack')).toBe('Vendor::UpdatedPack@3.0.0');
         expect(parent.getChild('processor')).toBeUndefined();
@@ -282,7 +478,7 @@ describe('DocManager', () => {
         expect(savedParent.getChild('processor')).toBeUndefined();
         expect(files.get(fileName)).not.toContain('# Keep processor attributes.');
         cbuild.setValue(`${parentTag}-pack`, undefined);
-        await manager.addCbuildBooks(cbuild, parentTag);
+        await manager.addBooks(cbuild);
         expect(parent.getValue('pack')).toBe('Vendor::UpdatedPack@3.0.0');
         expect(files.get(fileName)).toBe(manager.file.stringify());
     });
@@ -335,7 +531,7 @@ describe('DocManager', () => {
             const expectedPack = packId ?? currentPack;
             const packChanged = currentPack !== expectedPack;
 
-            await manager.addCbuildBooks(cbuild, parentTag);
+            await manager.addBooks(cbuild);
 
             expect(manager.file.getDocParent(parentId, parentTag)!.item).toBe(parent);
             expect(parent.getValue('pack')).toBe(expectedPack);
@@ -361,7 +557,7 @@ describe('DocManager', () => {
             expect(manager.file.getDoc(stale.name, 'Vendor::Other', parentTag)!.item).toBe(otherParent.item);
             expect(files.get(manager.file.fileName)).toBe(manager.file.stringify());
             const importedText = manager.file.stringify();
-            await manager.addCbuildBooks(cbuild, parentTag);
+            await manager.addBooks(cbuild);
             expect(manager.file.stringify()).toBe(importedText);
             expect(fileSystem.read.mock.calls).toEqual([[manager.file.fileName], [manager.file.fileName]]);
             expect(fileSystem.write).toHaveBeenCalledTimes(1);
@@ -374,7 +570,7 @@ describe('DocManager', () => {
         });
     });
 
-    it('addCbuildBooks imports only the selected device collection', async () => {
+    it('addBooks imports both hardware collections in one transaction', async () => {
         const manager = createManager();
         const cbuildFile = new CTreeItemYamlFile(path.resolve('build', 'example.cbuild.yml'));
         cbuildFile.text = [
@@ -389,12 +585,12 @@ describe('DocManager', () => {
         ].join('\n');
         cbuildFile.rootItem = cbuildFile.parse();
 
-        await manager.addCbuildBooks(cbuildFile.topItem!, 'device');
+        await manager.addBooks(cbuildFile.topItem!);
 
         const docs = manager.file.getDocs('Vendor::Device', 'device');
         expect(docs.map(doc => doc.name)).toEqual([path.resolve('build', 'device.pdf')]);
         expect(docs[0].title).toBe('Device manual');
-        expect(manager.file.getDocParents('board')).toEqual([]);
+        expect(manager.file.getDocs('Vendor::Board', 'board').map(doc => doc.name)).toEqual([path.resolve('build', 'board.pdf')]);
     });
 
     it.each([
@@ -418,8 +614,7 @@ describe('DocManager', () => {
         const sourceText = cbuildFile.stringify();
         const docName = path.resolve('build', 'manual.pdf');
 
-        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
-        await manager.addCbuildBooks(cbuildFile.topItem!, 'device');
+        await manager.addBooks(cbuildFile.topItem!);
 
         for (const parentTag of ['board', 'device']) {
             const docs = manager.file.getDocs('Vendor::Hardware', parentTag);
@@ -431,13 +626,12 @@ describe('DocManager', () => {
             }
         }
         const importedText = manager.file.stringify();
-        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
-        await manager.addCbuildBooks(cbuildFile.topItem!, 'device');
+        await manager.addBooks(cbuildFile.topItem!);
         expect(manager.file.stringify()).toBe(importedText);
         expect(cbuildFile.stringify()).toBe(sourceText);
         expect(files.get(manager.file.fileName)).toBe(importedText);
-        expect(fileSystem.read.mock.calls).toEqual(Array.from({ length: parentTags.length * 2 - 1 }, () => [manager.file.fileName]));
-        expect(fileSystem.write).toHaveBeenCalledTimes(parentTags.length);
+        expect(fileSystem.read.mock.calls).toEqual([[manager.file.fileName]]);
+        expect(fileSystem.write).toHaveBeenCalledTimes(1);
         expect(fileSystem.unlink).not.toHaveBeenCalled();
     });
 
@@ -468,7 +662,7 @@ describe('DocManager', () => {
                         ...books.map(name => `    - name: https://example.com/${name}`),
                     ].join('\n');
                     cbuildFile.rootItem = cbuildFile.parse();
-                    await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+                    await manager.addBooks(cbuildFile.topItem!);
                 } else {
                     for (const name of books) {
                         expect(await manager.addUserBook('Vendor::Board', 'board', `https://example.com/${name}`, name)).toBeDefined();
@@ -531,7 +725,7 @@ describe('DocManager', () => {
         cbuildFile.topItem!.getGrandChildren('board-books')[0].setValue('name', name);
         const sourceText = cbuildFile.stringify();
 
-        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addBooks(cbuildFile.topItem!);
 
         const doc = manager.file.getDocs('Vendor::Board', 'board')[0];
         expect(doc.name).toBe(expectedPath ?? name);
@@ -579,7 +773,7 @@ describe('DocManager', () => {
         books[2].setValue('name', pathToFileURL(docName).href);
         const sourceText = cbuildFile.stringify();
 
-        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addBooks(cbuildFile.topItem!);
 
         const docs = manager.file.getDocs('Vendor::Board', 'board');
         expect(docs).toHaveLength(1);
@@ -593,7 +787,7 @@ describe('DocManager', () => {
             expect(docs[0].item!.getValue('future')).toBe('preserved');
         }
         const importedText = manager.file.stringify();
-        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addBooks(cbuildFile.topItem!);
         expect(manager.file.stringify()).toBe(importedText);
         expect(manager.file.getDocs('Vendor::Board', 'board')[0].item).toBe(docs[0].item);
         expect(cbuildFile.stringify()).toBe(sourceText);
@@ -648,7 +842,7 @@ describe('DocManager', () => {
         expect(doc.isDownloaded()).toBe(false);
         expect(files.get(manager.file.fileName)).toBe(manager.file.stringify());
         const cbuildManager = createManager(path.join(docsDirectory, 'cbuild'));
-        await cbuildManager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await cbuildManager.addBooks(cbuildFile.topItem!);
         const importedDoc = cbuildManager.file.getDocs('Vendor::Board', 'board')[0];
         expect(importedDoc.name).toBe(doc.name);
         expect(importedDoc.path).toBe(expectedPath);
@@ -661,7 +855,7 @@ describe('DocManager', () => {
         expect(doc.isDownloaded()).toBe(locationType === 'W');
         expect(await manager.file.save()).toBe(ETextFileResult.Success);
         const importedText = manager.file.stringify();
-        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addBooks(cbuildFile.topItem!);
         await manager.addUserBook('Vendor::Board', 'board', name, 'Replacement', 'other');
         expect(manager.file.stringify()).toBe(importedText);
         expect(cbuildFile.stringify()).toBe(sourceText);
@@ -700,7 +894,7 @@ describe('DocManager', () => {
         books[1].setValue('name', docName);
         const importedText = manager.file.stringify();
 
-        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addBooks(cbuildFile.topItem!);
         expect(manager.file.stringify()).toBe(importedText);
         await manager.addUserBook('Vendor::Board', 'board', path.join('build', 'guide.pdf'), 'New title', 'new');
         await manager.addUserBook('Vendor::Board', 'board', docName, 'New title', 'new');
@@ -780,7 +974,7 @@ describe('DocManager', () => {
         expect(doc.path).toBe(path.resolve('local/manual.pdf'));
         expect(doc.locationType).toBe('W');
         expect(doc.mode).toBeUndefined();
-        expect(other.path).toBeUndefined();
+        expect(other.path).toBe(doc.path);
         expect(changed).toHaveBeenCalledTimes(1);
         const reloaded = new DocManager();
         await reloaded.initialize(manager.file.fileDir);
@@ -899,7 +1093,7 @@ describe('DocManager', () => {
             '    - name: file://server/share/manual.pdf',
         ].join('\n');
         cbuildFile.rootItem = cbuildFile.parse();
-        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addBooks(cbuildFile.topItem!);
         const docName = path.resolve('build', 'manual');
         const doc = manager.file.getDoc(docName, 'Vendor::NewBoard', 'board')!;
         expect(doc.item).not.toBe(device.item);
@@ -917,7 +1111,7 @@ describe('DocManager', () => {
         const book = cbuildFile.topItem!.getGrandChildren('board-books')[1];
         book.setValue('title', 'New title');
         book.setValue('category', 'new category');
-        await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+        await manager.addBooks(cbuildFile.topItem!);
         expect(manager.file.stringify()).toBe(existingText);
         expect(manager.file.getDoc(remote.name, 'Vendor::NewBoard', 'board')!.item).toBe(remote.item);
         expect(remote.path).toBeUndefined();
@@ -956,7 +1150,7 @@ describe('DocManager', () => {
         cbuildFile.text = 'build: {board: Vendor::Board, board-books: [{name: manual.pdf}]}\n';
         cbuildFile.rootItem = cbuildFile.parse();
         const addition = source === 'cbuild'
-            ? manager.addCbuildBooks(cbuildFile.topItem!, 'board')
+            ? manager.addBooks(cbuildFile.topItem!)
             : manager.addUserBook('Vendor::Board', 'board', 'manual.pdf', 'Manual');
         const completed = jest.fn();
         const completion = addition.then(completed);
@@ -984,7 +1178,7 @@ describe('DocManager', () => {
             const cbuildFile = new CTreeItemYamlFile();
             cbuildFile.text = 'build: {board: Vendor::Board, board-books: [{name: manual.pdf}]}\n';
             cbuildFile.rootItem = cbuildFile.parse();
-            await manager.addCbuildBooks(cbuildFile.topItem!, 'board');
+            await manager.addBooks(cbuildFile.topItem!);
         } else {
             await manager.addUserBook('Vendor::Board', 'board', 'manual.pdf', 'Manual');
         }

@@ -16,7 +16,6 @@
 
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
 import { OpenCommand } from './open-command';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 import { IOpenFileExternal } from '../../../open-file-external-if';
@@ -31,6 +30,8 @@ import type { CSolution } from '../../../solutions/csolution';
 import { README_FILE_PATH } from '../../../manifest';
 import { faker } from '@faker-js/faker';
 import { ConfigWizardAnnotationChecker } from '../../../utils/config-wizard-checker';
+import { DocManager } from '../../../doc-manager/doc-manager';
+import { TestDataHandler } from '../../../__test__/test-data';
 
 describe('OpenCommand', () => {
     let commandsProvider: MockCommandsProvider;
@@ -38,20 +39,45 @@ describe('OpenCommand', () => {
     let mockAnnotationChecker: ConfigWizardAnnotationChecker;
     let testFolder: string;
     let testFile: string;
+    const testData = new TestDataHandler();
 
     beforeEach(async () => {
         commandsProvider = commandsProviderFactory();
         mockAnnotationChecker = {
             hasAnnotations: jest.fn().mockResolvedValue(false),
         };
-        testFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'jest-'));
+        testFolder = testData.tmpDir;
         testFile = `${testFolder}/jtest.txt`;
         fs.writeFileSync(testFile, 'test content');
     });
 
     afterEach(() => {
         jest.restoreAllMocks();
-        fs.rmSync(testFolder, { recursive: true, force: true });
+        testData.rmTmpDir();
+    });
+
+    it.each(['/cache/manual.pdf', undefined])('resolves an inventory book and opens only a successful result: %s', async localPath => {
+        const open = jest.spyOn(mockOpenFileExternal, 'openFile');
+        open.mockClear();
+        const manager = new DocManager();
+        const resolve = jest.spyOn(manager, 'resolveDocument').mockResolvedValue(localPath);
+        const solution = solutionManagerFactory({ getDocManager: jest.fn().mockReturnValue(manager) });
+        const command = new OpenCommand(solution, commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+        await command.activate(extensionContextFactory());
+        const item = new COutlineItem('book');
+        const name = 'https://developer.arm.com/documentation/ddi0439/b';
+        item.setAttribute('docName', name);
+        item.setAttribute('docPath', name);
+        item.setAttribute('docParentId', 'cortex-m4');
+        item.setAttribute('docParentTag', 'core');
+        await commandsProvider.mockRunRegistered(OpenCommand.openDocCommandId, item);
+        expect(resolve).toHaveBeenCalledWith('cortex-m4', 'core', name);
+        if (localPath) {
+            expect(open).toHaveBeenCalledWith(localPath);
+        } else {
+            expect(open).not.toHaveBeenCalled();
+        }
+        manager.dispose();
     });
 
     it('registers the command on activation', async () => {

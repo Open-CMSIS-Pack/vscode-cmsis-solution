@@ -72,6 +72,7 @@ describe('SolutionOutlineView', () => {
             getCsolution: jest.fn().mockReturnValue(csolution),
         });
         const docManager = manager.getDocManager();
+        jest.spyOn(docManager.file, 'load').mockResolvedValue(ETextFileResult.Unchanged);
         let completeSave!: (result: ETextFileResult) => void;
         jest.spyOn(docManager.file, 'save').mockImplementation(() => new Promise(resolve => { completeSave = resolve; }));
         const view = new SolutionOutlineView(
@@ -81,7 +82,7 @@ describe('SolutionOutlineView', () => {
         await view.activate(context);
 
         const addition = docManager.addUserBook('Vendor::Board', 'board', 'manual.pdf', 'Manual');
-        await Promise.resolve();
+        await waitForPromises();
         expect(mockTreeViewProvider.updateTree).not.toHaveBeenCalled();
         completeSave(result);
         await addition;

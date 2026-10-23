@@ -320,8 +320,7 @@ export class SolutionManagerImpl implements SolutionManager {
         for (const cbuildYml of this.csolution?.cbuildYmlRoot.values() ?? []) {
             const cbuild = cbuildYml.getChildItem();
             if (cbuild) {
-                await this.docManager.addCbuildBooks(cbuild, 'device');
-                await this.docManager.addCbuildBooks(cbuild, 'board');
+                await this.docManager.addBooks(cbuild);
             }
         }
     }
