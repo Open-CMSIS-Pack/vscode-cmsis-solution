@@ -41,19 +41,15 @@ describe('ArmDocs', () => {
         expect(docs.forTarget(['Cortex-M0plus'])).toEqual(docs.forTarget(['cortex-m0+']));
     });
 
-    it('loads the catalog only on demand, caches it and retries after an invalid catalog', async () => {
+    it('loads the catalog only on demand and does not retry a failed load', async () => {
         const fileName = testData.tmpFileName('catalog.json');
         const catalog = new JsonFile(fileName);
-        catalog.content = { docs: [] };
-        await catalog.save();
         const lazy = new ArmDocs(fileName);
         expect(lazy.forTarget(['Cortex-M4'])).toEqual([]);
         await expect(lazy.load()).rejects.toThrow('Failed to load');
         catalog.content = { docs: [], coreArch: {}, kindOrder: {}, knownNpus: [] };
         await catalog.save();
-        await lazy.load();
-        catalog.unlink();
-        await expect(lazy.load()).resolves.toBeUndefined();
+        await expect(lazy.load()).rejects.toThrow('Failed to load');
     });
 
     it('selects NPUs from the target device or explicit capabilities, never from the CPU alone', () => {

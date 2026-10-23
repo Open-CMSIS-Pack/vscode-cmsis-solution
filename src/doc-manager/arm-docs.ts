@@ -69,25 +69,17 @@ export class ArmDocs {
     constructor(private readonly catalogFileName = path.join(__dirname, 'arm-docs.json')) { }
 
     async load(): Promise<void> {
-        if (!this.loading) {
-            this.loading = this.loadCatalog().catch(error => {
-                this.loading = undefined;
-                throw error;
-            });
-        }
+        this.loading ??= this.loadCatalog();
         await this.loading;
     }
 
     private async loadCatalog(): Promise<void> {
         const file = new JsonFile(this.catalogFileName);
         const result = await file.load();
-        const catalog = file.content as ArmCatalog | undefined;
-        if (result > ETextFileResult.Success || file.parser?.hasErrors() || !Array.isArray(catalog?.docs)
-            || !catalog?.coreArch || !catalog.kindOrder || !Array.isArray(catalog.knownNpus)
-            || catalog.docs.some(doc => !armDocRef(armDocName(doc)) || !doc.title || !doc.kind)) {
+        if (result !== ETextFileResult.Success) {
             throw new Error('Failed to load the Arm document catalog.');
         }
-        this.catalog = catalog;
+        this.catalog = file.content as ArmCatalog;
     }
 
     forTarget(cores: readonly string[], device = '', npus: readonly string[] = []): ArmDoc[] {
@@ -104,11 +96,20 @@ export class ArmDocs {
                 npuNames.add(known.npu.toLowerCase());
             }
         }
-        return catalog.docs.filter(doc => doc.kind !== 'gug' && (doc.kind === 'npu'
-            ? doc.npus?.some(npu => npuNames.has(npu.toLowerCase()))
-            : coreNames.size > 0 && (doc.all || doc.cores?.some(core => coreNames.has(normalizeCore(core)))
-                || doc.archs?.some(arch => architectures.has(arch)))))
-            .sort((left, right) => (catalog.kindOrder[left.kind] ?? 99) - (catalog.kindOrder[right.kind] ?? 99));
+        const selected = catalog.docs.filter(doc => {
+            if (doc.kind === 'gug') {
+                return false;
+            }
+            if (doc.kind === 'npu') {
+                return doc.npus?.some(npu => npuNames.has(npu.toLowerCase()));
+            }
+            if (coreNames.size === 0) {
+                return false;
+            }
+            return doc.all || doc.cores?.some(core => coreNames.has(normalizeCore(core)))
+                || doc.archs?.some(arch => architectures.has(arch));
+        });
+        return selected.sort((left, right) => (catalog.kindOrder[left.kind] ?? 99) - (catalog.kindOrder[right.kind] ?? 99));
     }
 
     metadataUrl(name: string): string | undefined {

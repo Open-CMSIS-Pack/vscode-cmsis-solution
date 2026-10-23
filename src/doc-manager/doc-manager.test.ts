@@ -62,6 +62,34 @@ describe('DocManager downloads', () => {
             .reply(200, { metadata: { contentFormat: 'HTMLPDF' }, _links: { resources } });
     }
 
+    it('fills in the catalog format for an existing Arm book so opening it downloads the PDF', async () => {
+        const existing = manager.file.getDoc(name, 'cortex-m4', 'core')!;
+        existing.format = undefined;
+        existing.title = 'Stored manual';
+        existing.category = 'stored';
+        await manager.file.save();
+        expect(existing.locationType).toBe('H');
+
+        const build = new CTreeItem('build');
+        build.createChild('processor').setValue('core', 'Cortex-M4');
+        await manager.addBooks(build);
+
+        const reloaded = new DocsYamlFile(manager.file.fileName);
+        await reloaded.load();
+        const doc = reloaded.getDoc(name, 'cortex-m4', 'core')!;
+        expect(doc.format).toBe('pdf');
+        expect(doc.locationType).toBe('W');
+        expect(doc.title).toBe('Stored manual');
+        expect(doc.category).toBe('stored');
+
+        const scope = metadata([{ name: 'manual.pdf', extension: 'pdf', href: '/static/pdf' }]);
+        const pdf = nock('https://documentation-service.arm.com').get('/static/pdf').reply(200, '%PDF-1.7\nmanual');
+        const downloaded = await manager.resolveDocument('cortex-m4', 'core', name);
+        expect(downloaded).toBeDefined();
+        expect(await readFile(downloaded!, 'utf8')).toBe('%PDF-1.7\nmanual');
+        expect(scope.isDone() && pdf.isDone()).toBe(true);
+    });
+
     it('shares concurrent downloads, follows redirects and reuses the persisted PDF', async () => {
         const scope = metadata([{ name: '../ddi0439b.pdf', extension: 'PDF', href: '/static/object' }]);
         const pdf = nock('https://documentation-service.arm.com')

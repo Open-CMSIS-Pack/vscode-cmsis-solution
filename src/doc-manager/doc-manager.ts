@@ -136,8 +136,8 @@ class DocManagerImpl implements DocManager {
                 doc.category = entry.kind;
                 doc.id = entry.docId;
                 doc.version = entry.version;
-                doc.format = entry.format;
             }
+            doc.format ??= entry.format;
             if (!doc.path && sharedPath) {
                 doc.path = sharedPath;
             }
