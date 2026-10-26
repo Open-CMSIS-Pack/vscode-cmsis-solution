@@ -57,4 +57,30 @@ describe('DocDownload', () => {
         expect(fileStat.isFile()).toBe(true);
         expect(fileStat.size).toBeGreaterThan(100);
     }, 150_000);
+
+    it('downloads a device web document to its vendor and device directory', async () => {
+        const destinationRoot = path.join(testData.tmpDir, 'device-docs');
+        const downloader = new DocDownload(destinationRoot);
+        const name = 'https://raw.githubusercontent.com/Open-CMSIS-Pack/vscode-cmsis-solution/refs/heads/main/README.md';
+        const inventory = new DocsYamlFile();
+        const doc = inventory.ensureDoc(name, 'MyVendor::MyDevice', 'device');
+        doc.title = 'My dummy manual';
+        doc.error = 'A previous download failed.';
+
+        expect(doc.isWebDoc()).toBe(true);
+        await downloader.downloadDoc(doc);
+
+        const destination = path.join(destinationRoot, 'MyVendor', 'MyDevice', 'README.md');
+        expect(doc.path).toBe(destination);
+        expect(path.isAbsolute(doc.path ?? '')).toBe(true);
+        expect(doc.error).toBeUndefined();
+        expect(doc.isDownloaded()).toBe(true);
+        expect(doc.name).toBe(name);
+        expect(doc.title).toBe('My dummy manual');
+        expect(doc.parentId).toBe('MyVendor::MyDevice');
+        expect(doc.parentTag).toBe('device');
+        const fileStat = await stat(destination);
+        expect(fileStat.isFile()).toBe(true);
+        expect(fileStat.size).toBeGreaterThan(100);
+    }, 150_000);
 });

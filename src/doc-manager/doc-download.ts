@@ -54,20 +54,23 @@ export class DocDownload {
     }
 
     async downloadDoc(doc: IDocRef): Promise<void> {
-        const destination = this.getDestinationPath(doc);
-        if (doc.parentTag !== 'common') {
-            throw new Error(`Document download is not implemented: ${destination}`);
-        }
         try {
-            if (doc.format?.toLowerCase() !== 'pdf') {
-                throw new Error('Only PDF downloads are supported for common Arm documents.');
-            }
+            const destination = this.getDestinationPath(doc);
             const signal = AbortSignal.timeout(120_000);
-            const metadataUrl = new URL(
-                `https://documentation-service.arm.com/documentation/${encodeURIComponent(doc.id!)}/${encodeURIComponent(doc.version!)}`,
-            );
-            const pdfUrl = await this.getArmPdfUrl(metadataUrl, doc.id!, signal);
-            await this.downloadPdf(pdfUrl, destination, signal);
+            const isCommon = doc.parentTag === 'common';
+            let downloadUrl: URL;
+            if (isCommon) {
+                if (doc.format?.toLowerCase() !== 'pdf') {
+                    throw new Error('Only PDF downloads are supported for common Arm documents.');
+                }
+                const metadataUrl = new URL(
+                    `https://documentation-service.arm.com/documentation/${encodeURIComponent(doc.id!)}/${encodeURIComponent(doc.version!)}`,
+                );
+                downloadUrl = await this.getArmPdfUrl(metadataUrl, doc.id!, signal);
+            } else {
+                downloadUrl = this.getHardwareDownloadUrl(doc);
+            }
+            await this.downloadFile(downloadUrl, destination, signal, isCommon);
             doc.path = destination;
             doc.error = undefined;
         } catch (error) {
@@ -111,12 +114,16 @@ export class DocDownload {
         throw new Error('Document request exceeded five redirects.');
     }
 
-    private async downloadPdf(url: URL, destination: string, signal: AbortSignal): Promise<void> {
+    private getHardwareDownloadUrl(doc: IDocRef): URL {
+        return new URL(doc.name.startsWith('www.') ? `https://${doc.name}` : doc.name);
+    }
+
+    private async downloadFile(url: URL, destination: string, signal: AbortSignal, requirePdf: boolean): Promise<void> {
         await mkdir(path.dirname(destination), { recursive: true });
         const temporary = `${destination}.${randomUUID()}.part`;
         try {
-            const response = await this.fetchResponse(url, signal, 'application/pdf');
-            await pipeline(this.pdfChunks(response), createWriteStream(temporary, { flags: 'wx' }), { signal });
+            const response = await this.fetchResponse(url, signal, requirePdf ? 'application/pdf' : '*/*');
+            await pipeline(this.fileChunks(response, requirePdf), createWriteStream(temporary, { flags: 'wx' }), { signal });
             signal.throwIfAborted();
             await rename(temporary, destination);
         } finally {
@@ -124,20 +131,22 @@ export class DocDownload {
         }
     }
 
-    private async *pdfChunks(response: Response): AsyncGenerator<Uint8Array> {
+    private async *fileChunks(response: Response, requirePdf: boolean): AsyncGenerator<Uint8Array> {
         if (!response.body) {
-            throw new Error('Document response has no PDF body.');
+            throw new Error('Document response has no body.');
         }
         const reader = response.body.getReader();
         const signature = Buffer.from('%PDF-');
         let prefix = Buffer.alloc(0);
-        let validated = false;
+        let validated = !requirePdf;
+        let size = 0;
         try {
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) {
                     break;
                 }
+                size += value.length;
                 if (validated) {
                     yield value;
                 } else {
@@ -151,8 +160,11 @@ export class DocDownload {
                     }
                 }
             }
+            if (size === 0) {
+                throw new Error('Document response is empty.');
+            }
             if (!validated) {
-                throw new Error('Document response is empty or has an incomplete PDF header.');
+                throw new Error('Document response has an incomplete PDF header.');
             }
         } finally {
             await reader.cancel().catch(() => undefined);

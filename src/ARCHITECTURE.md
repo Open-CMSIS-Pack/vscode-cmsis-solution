@@ -56,7 +56,7 @@ The Data Manager abstracts access.
 ### Document Download
 
 [`DocDownload`](doc-manager/doc-download.ts) constructs absolute destination paths
-and downloads common Arm PDF documents for
+and downloads common Arm PDFs and board/device web files for
 [`IDocRef`](doc-manager/docs-yaml-file.ts) references. Its default root is
 `~/.cmsis/docs`; callers can supply another root, for example a temporary directory.
 
@@ -74,19 +74,26 @@ URL is transient: the reference retains its canonical name and requested version
 Documents without a downloadable PDF are rejected.
 
 Requests follow at most five HTTP(S) redirects and share a two-minute timeout.
-Downloads stream to a unique temporary sibling, validate the `%PDF-` header, then
-rename to the final destination. Only successful completion sets the reference's
+Downloads stream to a unique temporary sibling, reject empty responses, validate
+the `%PDF-` header for common Arm PDFs, then rename to the final destination. Only successful completion sets the reference's
 absolute `path` and clears its `error`. Failed downloads reject, set `error`, remove
 temporary files, and leave any previous destination and reference path unchanged.
 
-Board and device destination construction is available, but downloading those
-files still rejects with a not-implemented error. No UI action or inventory
-persistence is connected.
+Board and device web documents download directly from their HTTP(S) URLs, without
+Arm metadata lookup or PDF-only restrictions. URLs are used without host-specific
+rewriting, and the reference retains its original URL and title. Callers must supply
+a direct file URL rather than a hosting service's HTML viewer URL. Local files and
+HTML-only references are not supported. No UI action or inventory persistence is
+connected.
 
-The focused test performs a real network download of `100230/latest` into a real
-temporary directory managed by `TestDataHandler`, without mocks. Run it with
+The focused tests perform real network downloads of `100230/latest` and a device
+reference to the repository's GitHub `README.md`, using real temporary directories
+managed by `TestDataHandler`, without mocks. File assertions use only filesystem
+metadata to verify regular files larger than 100 bytes, without reading contents
+or listing directories. Run them with
 `npx jest --runInBand --runTestsByPath src/doc-manager/doc-download.test.ts --collectCoverage=false`.
-It requires network access to Arm's documentation service.
+They require network access to Arm's documentation service and GitHub's raw content
+host.
 
 ### Solar Search Client
 

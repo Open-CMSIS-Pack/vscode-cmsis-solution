@@ -123,7 +123,7 @@ export class OpenCommand {
             const openExternal = command === OpenCommand.openDocCommandId;
             return this.openFile(filePath, openExternal);
         }
-
+        return undefined;
     }
 
     private openSourceFile(uri: vscode.Uri | undefined): Promise<void> | undefined {
