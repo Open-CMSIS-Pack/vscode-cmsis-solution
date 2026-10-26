@@ -637,6 +637,10 @@
       },
       {
         "category": "CMSIS",
+        "command": "cmsis-csolution.showWhatsNew",
+        "title": "What's New"
+      },
+      {
         "command": "cmsis-csolution.openHelp",
         "title": "Help",
         "shortTitle": "Help"
@@ -1175,12 +1179,17 @@
         {
           "command": "cmsis-csolution.openHelp",
           "when": "view == cmsis-csolution.outline",
+          "group": "SolutionHelp@3"
+        },
+        {
+          "command": "cmsis-csolution.showWhatsNew",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.whatsNewAvailable",
           "group": "SolutionHelp@2"
         },
         {
           "command": "cmsis-csolution.list.find",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
-          "group": "SolutionHelp@1"
+          "group": "SolutionFind@1"
         },
         {
           "command": "cmsis-csolution.clean",
