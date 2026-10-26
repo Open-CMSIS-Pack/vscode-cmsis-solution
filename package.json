@@ -1189,7 +1189,7 @@
         {
           "command": "cmsis-csolution.list.find",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
-          "group": "SolutionHelp@1"
+          "group": "SolutionFind@1"
         },
         {
           "command": "cmsis-csolution.clean",
