@@ -1,0 +1,8 @@
+layer:
+  type: ApiV3SmokeBoard
+  description: API V3 smoke board layer
+  for-device: ARMCM3
+  connections:
+    - connect: Smoke board
+      provides:
+        - ApiV3Smoke: 1

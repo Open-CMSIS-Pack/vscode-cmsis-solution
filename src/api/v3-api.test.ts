@@ -25,12 +25,13 @@ import { dataManagerFactory, draftProjectDataFactory } from '../data-manager/dat
 import { SolutionManager } from '../solutions/solution-manager';
 import { CsolutionApiV3Impl } from './v3-api';
 import * as debugAdapters from '../debug/debug-adapters-yaml-file';
+import { solutionConversionMutex } from '../solutions/solution-converter';
 
 describe('CsolutionApiV3Impl', () => {
     let existingApi: jest.Mocked<CsolutionApiV2 & Disposable>;
     let api: CsolutionApiV3Impl;
     const solutionManager: { getCsolution: jest.Mock; loadState: SolutionManager['loadState'] } = { getCsolution: jest.fn(), loadState: {} };
-    const csolutionService = { getPacksInfo: jest.fn() };
+    const csolutionService = { getPacksInfo: jest.fn(), discoverLayers: jest.fn(), convertSolution: jest.fn() };
     const toolsEnvironment = { getToolsEnvironment: jest.fn(), getToolchains: jest.fn() };
     const solutionWithContexts = (contexts: string[]) => ({
         getActiveTargetType: () => 'Board',
@@ -54,6 +55,8 @@ describe('CsolutionApiV3Impl', () => {
         toolsEnvironment.getToolchains.mockReset();
         commandsProvider.executeCommand.mockReset();
         jest.spyOn(window, 'showInformationMessage').mockClear();
+        csolutionService.discoverLayers.mockReset();
+        csolutionService.convertSolution.mockReset();
         api = new CsolutionApiV3Impl(existingApi, dataManagerFactory(), solutionManager, csolutionService, toolsEnvironment, commandsProvider);
     });
 
@@ -170,6 +173,102 @@ describe('CsolutionApiV3Impl', () => {
         });
     });
 
+    describe('layer queries', () => {
+        let solution: CSolution;
+
+        beforeEach(() => {
+            solution = new CSolution();
+            solution.solutionPath = path.resolve('workspace', 'App.csolution.yml');
+            solution.solutionDir = path.dirname(solution.solutionPath);
+            solution.csolutionYml.fileName = solution.solutionPath;
+            solution.csolutionYml.rootItem = new CTreeItem().fromObject({ solution: {
+                layers: [{ layer: 'local.clayer.yml' }, { layer: '$Board-Layer$' }],
+            } });
+            solutionManager.getCsolution.mockReturnValue(solution);
+            solutionManager.loadState = { loaded: true, converted: false };
+        });
+
+        it('discovers compatible configurations directly after failed conversion, preserving RPC fields and order', async () => {
+            const configurations = [
+                { variables: [
+                    { name: 'Board-Layer', clayer: 'Vendor::Board.Layer', description: 'Board layer',
+                        settings: [{ set: 'Debug' }, { set: 'Release' }], path: '/source/layer',
+                        file: 'Board.clayer.yml', 'copy-to': 'Config/Layer' },
+                    { name: 'Driver-Layer', clayer: '$SolutionDir()$/Driver.clayer.yml' },
+                ] },
+                { variables: [{ name: 'Board-Layer', clayer: '$SolutionDir()$/local.clayer.yml' }] },
+            ];
+            jest.spyOn(solution, 'getActiveTargetSetName').mockReturnValue('Board');
+            csolutionService.discoverLayers.mockResolvedValue({ success: true, configurations });
+            const result = await api.getLayers();
+            expect(result).toEqual(configurations);
+            result[0].variables[0].settings![0].set = 'changed';
+            result[0].variables.push({ name: 'changed', clayer: 'changed' });
+            expect(configurations[0].variables[0].settings![0].set).toBe('Debug');
+            expect(configurations[0].variables).toHaveLength(2);
+            expect(csolutionService.discoverLayers).toHaveBeenCalledWith({ solution: solution.solutionPath, activeTarget: 'Board' });
+            expect(csolutionService.convertSolution).not.toHaveBeenCalled();
+        });
+
+        it.each([undefined, []])('returns an empty array when discovery has no configurations: %s', async configurations => {
+            csolutionService.discoverLayers.mockResolvedValue({ success: true, configurations });
+            await expect(api.getLayers()).resolves.toEqual([]);
+        });
+
+        it('revalidates queued discovery before making an RPC request', async () => {
+            let release!: () => void;
+            let started!: () => void;
+            const ready = new Promise<void>(resolve => { started = resolve; });
+            const blocker = solutionConversionMutex.runExclusive(() => new Promise<void>(resolve => {
+                release = resolve;
+                started();
+            }));
+            await ready;
+            const pending = api.getLayers();
+            const rejected = expect(pending).rejects.toThrow('changed during');
+            solutionManager.getCsolution.mockReturnValue(new CSolution());
+            release();
+            await blocker;
+            await rejected;
+            expect(csolutionService.discoverLayers).not.toHaveBeenCalled();
+            expect(csolutionService.convertSolution).not.toHaveBeenCalled();
+        });
+
+        it('rejects missing solutions, discovery failures and transport failures', async () => {
+            solutionManager.loadState = {};
+            await expect(api.getLayers()).rejects.toThrow('loaded solution');
+            solutionManager.loadState = { loaded: true };
+            solutionManager.getCsolution.mockReturnValue(undefined);
+            await expect(api.getLayers()).rejects.toThrow('loaded solution');
+            expect(csolutionService.discoverLayers).not.toHaveBeenCalled();
+            solutionManager.getCsolution.mockReturnValue(solution);
+            csolutionService.discoverLayers.mockResolvedValue({ success: false, message: 'discovery failed' });
+            await expect(api.getLayers()).rejects.toThrow('discovery failed');
+            csolutionService.discoverLayers.mockResolvedValue({});
+            await expect(api.getLayers()).rejects.toThrow('Unable to discover compatible layers');
+            csolutionService.discoverLayers.mockRejectedValue(new Error('RPC failed'));
+            await expect(api.getLayers()).rejects.toThrow('RPC failed');
+        });
+
+        it('rejects discovery when the active target changes', async () => {
+            jest.spyOn(solution, 'getActiveTargetSetName').mockReturnValue('Board');
+            csolutionService.discoverLayers.mockImplementation(async () => {
+                jest.spyOn(solution, 'getActiveTargetSetName').mockReturnValue('Other');
+                return { success: true };
+            });
+            await expect(api.getLayers()).rejects.toThrow('changed during');
+        });
+
+        it('rejects stale discovery responses', async () => {
+            const respond = async () => {
+                solutionManager.getCsolution.mockReturnValue(new CSolution());
+                return { success: true };
+            };
+            csolutionService.discoverLayers.mockImplementation(respond);
+            await expect(api.getLayers()).rejects.toThrow('changed during');
+        });
+    });
+
     describe('getTargets', () => {
         it('lists every named and unnamed set in declaration order without changing the solution', async () => {
             const solution = new CSolution();
@@ -238,23 +337,13 @@ describe('CsolutionApiV3Impl', () => {
             ['Board@Release', 'Board', 2],
             ['Board', 'Board', 1],
             ['Other@Debug', 'Other', 0],
-        ])('persists %s and refreshes before resolving', async (selection, type, index) => {
+        ])('persists %s and refreshes using the existing command', async (selection, type, index) => {
             const initial = new CmsisSettingsJsonFile(settingsPath);
             initial.set('unrelated', 'preserved');
             expect(await initial.save()).toBe(ETextFileResult.Success);
-            let finishRefresh!: () => void;
-            let startRefresh!: () => void;
-            const refreshStarted = new Promise<void>(resolve => { startRefresh = resolve; });
-            commandsProvider.executeCommand.mockImplementation(() => new Promise<void>(resolve => {
-                finishRefresh = resolve;
-                startRefresh();
-            }));
-            let completed = false;
-            const change = api.setActiveTarget(selection).then(() => { completed = true; });
-            await refreshStarted;
-
+            await api.setActiveTarget(selection);
             expect(commandsProvider.executeCommand).toHaveBeenCalledWith('cmsis-csolution.refresh');
-            expect(completed).toBe(false);
+            expect(csolutionService.convertSolution).not.toHaveBeenCalled();
             expect(solution.getActiveTargetSetName()).toBe(selection);
             const saved = new CmsisSettingsJsonFile(settingsPath);
             expect(await saved.load()).toBe(ETextFileResult.Success);
@@ -263,8 +352,6 @@ describe('CsolutionApiV3Impl', () => {
             saved.solutionPath = solution.solutionPath;
             expect(saved.activeTargetTypeName).toBe(type);
             expect(saved.getSelectedSet(type)).toBe(index);
-            finishRefresh();
-            await change;
         });
 
         it.each(['', ' ', '@Debug', 'Board@', 'Board@Debug@extra', 'Missing', 'Board@Missing', 'Other'])('rejects invalid or unknown selection %j without saving or refreshing', async selection => {
@@ -316,20 +403,12 @@ describe('CsolutionApiV3Impl', () => {
             await api.setActiveTarget('Board@Debug');
             expect(solution.getActiveTargetSetName()).toBe('Board@Debug');
             expect(commandsProvider.executeCommand).toHaveBeenCalledTimes(2);
+            expect(commandsProvider.executeCommand).toHaveBeenLastCalledWith('cmsis-csolution.refresh');
         });
 
-        it('serializes overlapping selections across API instances through refresh', async () => {
+        it('serializes overlapping selections across API instances', async () => {
             const otherApi = new CsolutionApiV3Impl(existingApi, dataManagerFactory(), solutionManager,
                 csolutionService, toolsEnvironment, commandsProvider);
-            commandsProvider.executeCommand.mockImplementation(async () => {
-                const refreshed = new CSolution();
-                refreshed.solutionPath = solution.solutionPath;
-                refreshed.csolutionYml.rootItem = solution.csolutionYml.rootItem;
-                refreshed.cmsisJsonFile = new CmsisSettingsJsonFile(settingsPath);
-                refreshed.cmsisJsonFile.solutionPath = refreshed.solutionPath;
-                await refreshed.cmsisJsonFile.load();
-                solutionManager.getCsolution.mockReturnValue(refreshed);
-            });
 
             await expect(Promise.all([
                 api.setActiveTarget('Board@Release'),
@@ -337,6 +416,7 @@ describe('CsolutionApiV3Impl', () => {
             ])).resolves.toEqual([undefined, undefined]);
 
             expect(commandsProvider.executeCommand).toHaveBeenCalledTimes(2);
+            expect(commandsProvider.executeCommand).toHaveBeenLastCalledWith('cmsis-csolution.refresh');
             expect(solutionManager.getCsolution().getActiveTargetSetName()).toBe('Other@Debug');
             const saved = new CmsisSettingsJsonFile(settingsPath);
             saved.solutionPath = solution.solutionPath;
@@ -346,11 +426,6 @@ describe('CsolutionApiV3Impl', () => {
             expect(saved.getSelectedSet('Other')).toBe(0);
         });
 
-        it('propagates refresh failures after persisting the selection', async () => {
-            commandsProvider.executeCommand.mockRejectedValue(new Error('refresh failed'));
-            await expect(api.setActiveTarget('Board@Debug')).rejects.toThrow('refresh failed');
-            expect(solution.getActiveTargetSetName()).toBe('Board@Debug');
-        });
     });
 
     it('delegates tools export without a loaded solution', async () => {

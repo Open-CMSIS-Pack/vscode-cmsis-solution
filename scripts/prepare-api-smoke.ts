@@ -49,12 +49,15 @@ for (const [mode, solution] of [
     ['loaded', 'Components.csolution.yml'],
     ['missing', 'Missing.csolution.yml'],
     ['selection', 'Selection.csolution.yml'],
+    ['layers', 'Layers.csolution.yml'],
 ] as const) {
     const folder = path.join(runDirectory, mode);
     await fs.mkdir(folder);
     await Promise.all([
         fs.copyFile(path.join(packFixture, solution), path.join(folder, solution)),
-        fs.copyFile(path.join(packFixture, 'Components.cproject.yml'), path.join(folder, 'Components.cproject.yml')),
+        ...(mode === 'layers'
+            ? ['Layers.cproject.yml', 'SmokeBoard.clayer.yml', 'ApiV3Fixture.Layers.pdsc']
+            : ['Components.cproject.yml']).map(file => fs.copyFile(path.join(packFixture, file), path.join(folder, file))),
         fs.cp(path.join(packFixture, '.vscode'), path.join(folder, '.vscode'), { recursive: true }),
     ]);
     const packWorkspace = new JsonFile(path.join(fixtureDirectory, `${mode}.code-workspace`));

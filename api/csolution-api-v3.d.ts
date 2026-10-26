@@ -55,6 +55,8 @@ export interface CsolutionApiV3 extends CsolutionApiV2 {
     getToolchains(): Promise<CsolutionApiV3.Toolchain[]>;
     /** Defaults to all: merge local index packs and installed RPC packs. Used and missing scopes require an explicit context in the loaded solution. Missing records preserve original requirements and origins. Catalog queries reject only when every source fails. */
     getPacks(options?: CsolutionApiV3.PackQuery): Promise<CsolutionApiV3.PackQueryResult>;
+    /** Discover compatible layer configurations for the loaded solution's active target set. Preserves RPC DiscoverLayers variable fields and ordering. Requires a loaded solution, not successful conversion. Never converts the solution. */
+    getLayers(): Promise<CsolutionApiV3.LayerConfiguration[]>;
     /** Install without prompting. The caller must obtain user approval and pass approved: true; otherwise all results are cancelled. Returns one result per requested pack, in input order. */
     installPacks(options: { packs: string[]; approved: boolean }): Promise<CsolutionApiV3.PackInstallResult[]>;
 }
@@ -69,6 +71,20 @@ export namespace CsolutionApiV3 {
         path: string;
         /** Exact environment variable name, such as AC6_TOOLCHAIN_6_24_0. */
         registrationVariable: string;
+    }
+
+    export interface LayerVariable {
+        name: string;
+        clayer: string;
+        description?: string;
+        settings?: { set: string }[];
+        path?: string;
+        file?: string;
+        'copy-to'?: string;
+    }
+
+    export interface LayerConfiguration {
+        variables: LayerVariable[];
     }
 
     export interface PackFilter {

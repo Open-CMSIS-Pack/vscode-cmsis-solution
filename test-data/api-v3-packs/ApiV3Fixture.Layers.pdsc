@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package schemaVersion="1.7.54">
+  <vendor>ApiV3Fixture</vendor>
+  <name>Layers</name>
+  <description>Controlled API V3 layer discovery fixture</description>
+  <url>https://example.invalid/</url>
+  <releases>
+    <release version="1.0.0">Smoke fixture</release>
+  </releases>
+  <csolution>
+    <clayer type="ApiV3SmokeBoard" path="." file="SmokeBoard.clayer.yml" copy-to="Board"/>
+  </csolution>
+</package>

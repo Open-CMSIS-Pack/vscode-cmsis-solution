@@ -1,0 +1,10 @@
+project:
+  connections:
+    - connect: Smoke board
+      consumes:
+        - ApiV3Smoke: 1
+  components:
+    - component: ARM::CMSIS:CORE
+  layers:
+    - layer: $Board-Layer$
+      type: ApiV3SmokeBoard

@@ -198,6 +198,52 @@ async function runLoadedPacks(missingFixture: boolean): Promise<void> {
     }
 }
 
+async function runLayers(): Promise<void> {
+    assert.equal(vscode.workspace.workspaceFolders?.length, 1, 'Open the disposable layers fixture.');
+    const folder = vscode.workspace.workspaceFolders![0].uri;
+    const inputs = ['Layers.csolution.yml', 'Layers.cproject.yml', 'SmokeBoard.clayer.yml', 'ApiV3Fixture.Layers.pdsc']
+        .map(file => vscode.Uri.joinPath(folder, file));
+    const configuration = vscode.workspace.getConfiguration('cmsis-csolution', folder);
+    assert.equal(configuration.get('downloadPacks'), false);
+    assert.equal(configuration.get('useWebServices'), false);
+    assert.equal(configuration.get('autoConvertOnFileChange'), false);
+    const extension = vscode.extensions.getExtension<CsolutionExtension>('Arm.cmsis-csolution');
+    assert.ok(extension);
+    const exports = await extension.activate();
+    const api = exports.getApi(3);
+    try {
+        checkSolutionApi(exports, api);
+        await api.activateSolution(inputs[0].fsPath);
+        const deadline = Date.now() + 60000;
+        while (!(await api.getTargets()).includes('CM3')) {
+            assert.ok(Date.now() < deadline, 'Fixture loading must expose the CM3 target before layer discovery.');
+            await new Promise(resolve => setTimeout(resolve, 250));
+        }
+        const layers = await api.getLayers();
+        const selectedTarget = await api.getActiveTarget();
+        assert.equal(await api.getSolutionFile(), inputs[0].fsPath);
+        assert.equal(selectedTarget, 'CM3');
+        assert.deepEqual(layers, [{ variables: [{
+            name: 'Board-Layer',
+            clayer: '$SolutionDir()$/SmokeBoard.clayer.yml',
+            description: 'API V3 smoke board layer',
+            path: (await fs.realpath(folder.fsPath)).replaceAll('\\', '/'),
+            file: 'SmokeBoard.clayer.yml',
+            'copy-to': 'Board',
+        }] }], 'Discovery must preserve the controlled RPC configuration and variable fields.');
+        assert.deepEqual(await api.getLayers(), layers);
+        layers[0].variables[0].name = 'changed';
+        layers[0].variables.push({ ...layers[0].variables[0], name: 'extra' });
+        assert.equal((await api.getLayers())[0].variables.length, 1);
+        assert.equal((await api.getLayers())[0].variables[0].name, 'Board-Layer');
+        assert.equal(await api.getSolutionFile(), inputs[0].fsPath);
+        assert.equal(await api.getActiveTarget(), selectedTarget);
+        console.log('API V3 layers: compatible RPC fields, fresh results, stable selection and V2 isolation passed.');
+    } finally {
+        api.dispose();
+    }
+}
+
 async function runPackCatalog(mode: string): Promise<void> {
     assert.equal(vscode.workspace.workspaceFolders?.length ?? 0, 0, 'Run this test in an empty VS Code window.');
     const extension = vscode.extensions.getExtension<CsolutionExtension>('Arm.cmsis-csolution');
@@ -273,7 +319,7 @@ const solutionGetters = [
 
 function checkSolutionApi(exports: CsolutionExtension, api: CsolutionApiV3): void {
     const v2 = exports.getApi(2);
-    for (const method of [...solutionGetters, 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution'] as const) {
+    for (const method of [...solutionGetters, 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution', 'getLayers'] as const) {
         assert.equal(typeof api[method], 'function', `V3 must expose ${method}.`);
         assert.ok(!(method in v2), `V2 must not expose ${method}.`);
     }
@@ -296,6 +342,7 @@ async function runEmptySolutionGetters(): Promise<void> {
             assert.equal(await api[method](), expected, `${method} without a solution`);
         }
         assert.deepEqual(await api.getTargets(), []);
+        await assert.rejects(api.getLayers(), /requires a loaded solution/);
         await assert.rejects(api.setActiveTarget('CM3'), /requires a loaded solution/);
         const originalRoot = await api.getPackRootPath();
         assert.ok(path.isAbsolute(originalRoot));
@@ -308,7 +355,7 @@ async function runEmptySolutionGetters(): Promise<void> {
         await configuration.update('environmentVariables', previousVariables, vscode.ConfigurationTarget.Workspace);
         assert.equal(await api.getPackRootPath(), originalRoot);
         assert.equal(await api.getSolutionFile(), undefined);
-        console.log('API V3 solution getters: empty-window defaults, dynamic pack-root environment, setter rejection and V2 isolation passed.');
+        console.log('API V3 solution getters: empty-window defaults, dynamic pack-root environment, setter/layer rejection and V2 isolation passed.');
     } finally {
         try {
             await configuration.update('environmentVariables', previousVariables, vscode.ConfigurationTarget.Workspace);
@@ -429,6 +476,8 @@ export async function run(): Promise<void> {
     const mode = process.env.CMSIS_V3_SMOKE_MODE;
     if (mode === 'getters') {
         await runEmptySolutionGetters();
+    } else if (mode === 'layers') {
+        await runLayers();
     } else if (mode === 'selection') {
         await runTargetSelection();
     } else if (mode === 'loaded' || mode === 'missing') {

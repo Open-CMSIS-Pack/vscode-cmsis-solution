@@ -32,8 +32,8 @@ describe('CsolutionExtension', () => {
             {} as SolutionCreator,
             {} as BuildTaskProvider,
             {} as DataManager,
-            { getCsolution: jest.fn(), loadState: {} },
-            { getPacksInfo: jest.fn() },
+            { getCsolution: jest.fn(), loadState: {}, onDidChangeLoadState: jest.fn() },
+            { getPacksInfo: jest.fn(), discoverLayers: jest.fn() },
             { getToolsEnvironment: jest.fn(), getToolchains: jest.fn() },
             { executeCommand: jest.fn() },
         );
@@ -44,6 +44,7 @@ describe('CsolutionExtension', () => {
     const commandGetters = [
         'getSolutionFile', 'getActiveTarget', 'getDeviceName', 'getBoardName',
         'getDfpName', 'getBspName', 'getDfpPath', 'getBspPath', 'getPackRootPath', 'getCbuildRunFile',
+        'getLayers',
     ];
 
     it('returns the APIv2', () => {

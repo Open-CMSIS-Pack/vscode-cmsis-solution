@@ -18,7 +18,7 @@ import { expect, it, describe } from '@jest/globals';
 import * as path from 'path';
 import * as manifest from '../manifest';
 import * as vscode from 'vscode';
-import { SolutionConverterImpl } from './solution-converter';
+import { SolutionConverterImpl, solutionConversionMutex } from './solution-converter';
 import { MockOutputChannelProvider, outputChannelProviderFactory } from '../vscode-api/output-channel-provider.factories';
 import { MockConfigurationProvider, configurationProviderFactory } from '../vscode-api/configuration-provider.factories';
 import { MockProcessManager, processManagerFactory } from '../vscode-api/runner/process-manager.factories';
@@ -147,6 +147,27 @@ describe('SolutionConverter', () => {
         mockCsolutionService.shutdown.mockResolvedValue({ success: true });
         mockCsolutionService.loadPacks.mockResolvedValue({ success: true });
         mockCsolutionService.getCsolutionBin.mockReturnValue('path/to/csolution');
+    });
+
+    it('keeps layer queries behind conversion diagnostic collection', async () => {
+        let finishLogs!: () => void;
+        let logsStarted!: () => void;
+        const ready = new Promise<void>(resolve => { logsStarted = resolve; });
+        mockCsolutionService.getLogMessages.mockImplementation(() => {
+            logsStarted();
+            return new Promise(resolve => { finishLogs = () => resolve({ success: true }); });
+        });
+        const completed = waitForNCompletions(1);
+        await eventHub.fireConvertRequest(convertRequestData);
+        await ready;
+        const apiCall = solutionConversionMutex.runExclusive(() => mockCsolutionService.discoverLayers({
+            solution: ACTIVE_SOLUTION, activeTarget: '',
+        }));
+        expect(mockCsolutionService.discoverLayers).not.toHaveBeenCalled();
+        finishLogs();
+        await expect(apiCall).resolves.toEqual({ success: true });
+        await completed;
+        expect(mockCsolutionService.discoverLayers).toHaveBeenCalledTimes(1);
     });
 
     it('run solution convert without --update-rte if not specified', async () => {

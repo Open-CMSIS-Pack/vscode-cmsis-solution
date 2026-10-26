@@ -33,8 +33,8 @@ export class CsolutionExtensionImpl implements CsolutionExtension {
         private readonly solutionCreator: SolutionCreator,
         private readonly buildTaskProvider: BuildTaskProvider,
         private readonly dataManager: DataManager,
-        private readonly solutionManager: Pick<SolutionManager, 'getCsolution' | 'loadState'>,
-        private readonly csolutionService: Pick<CsolutionService, 'getPacksInfo'>,
+        private readonly solutionManager: Pick<SolutionManager, 'getCsolution' | 'loadState' | 'onDidChangeLoadState'>,
+        private readonly csolutionService: Pick<CsolutionService, 'getPacksInfo' | 'discoverLayers'>,
         private readonly toolsEnvironment: Pick<ToolsEnvironment, 'getToolsEnvironment' | 'getToolchains'>,
         private readonly commandsProvider: Pick<CommandsProvider, 'executeCommand'>,
     ) { }

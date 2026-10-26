@@ -27,6 +27,7 @@ import { getSeverity } from './solution-problems';
 const OPEN_SETTINGS_ACTION = 'Open Environment Variables Settings';
 const ENV_VAR_SETTINGS_NAME = `${manifest.PACKAGE_NAME}.${manifest.CONFIG_ENVIRONMENT_VARIABLES}`;
 
+export const solutionConversionMutex = new Mutex();
 
 export interface SolutionConverter {
     activate(context: vscode.ExtensionContext): void;
@@ -82,7 +83,7 @@ export class SolutionConverterImpl implements SolutionConverter {
         };
 
         try {
-            await this.convertSolution(signal);
+            await solutionConversionMutex.runExclusive(() => this.convertSolution(signal));
         } catch (error) {
             if (!signal.aborted) {
                 await this.handleConvertFailure(error);

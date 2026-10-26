@@ -1,0 +1,14 @@
+solution:
+  compiler: AC6
+  packs:
+    - pack: ARM::CMSIS
+    - pack: ARM::Cortex_DFP
+    - pack: ApiV3Fixture::Layers
+      path: .
+  target-types:
+    - type: CM3
+      device: ARMCM3
+  build-types:
+    - type: Debug
+  projects:
+    - project: Layers.cproject.yml

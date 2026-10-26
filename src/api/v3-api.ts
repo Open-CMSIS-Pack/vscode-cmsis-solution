@@ -15,6 +15,8 @@
  */
 
 import { Disposable } from 'vscode';
+import type { CSolution } from '../solutions/csolution';
+import { solutionConversionMutex } from '../solutions/solution-converter';
 import { Mutex } from 'async-mutex';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { CmsisSettingsJsonFile } from '../global/cmsis-settings-json-file';
@@ -38,7 +40,7 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
         private readonly existingApi: CsolutionApiV2 & Disposable,
         private readonly dataManager: DataManager,
         private readonly solutionManager: Pick<SolutionManager, 'getCsolution' | 'loadState'>,
-        private readonly csolutionService: Pick<CsolutionService, 'getPacksInfo'>,
+        private readonly csolutionService: Pick<CsolutionService, 'getPacksInfo' | 'discoverLayers'>,
         private readonly toolsEnvironment: Pick<ToolsEnvironment, 'getToolsEnvironment' | 'getToolchains'>,
         private readonly commandsProvider: Pick<CommandsProvider, 'executeCommand'>,
     ) {}
@@ -226,6 +228,41 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
             };
         });
         return { packs: packs.filter(matches) };
+    }
+
+    private requireLayerSolution(): CSolution {
+        const solution = this.solutionManager.getCsolution();
+        if (!solution || !this.solutionManager.loadState.loaded) {
+            throw new Error('Layer discovery requires a loaded solution');
+        }
+        return solution;
+    }
+
+    private checkLayerSolution(solution: CSolution, solutionPath: string, activeTarget: string): void {
+        if (this.solutionManager.getCsolution() !== solution || !this.solutionManager.loadState.loaded
+            || solution.solutionPath !== solutionPath || (solution.getActiveTargetSetName() ?? '') !== activeTarget) {
+            throw new Error('Solution or target changed during layer query');
+        }
+    }
+
+    public async getLayers(): Promise<CsolutionApiV3.LayerConfiguration[]> {
+        const solution = this.requireLayerSolution();
+        const solutionPath = solution.solutionPath;
+        const activeTarget = solution.getActiveTargetSetName() ?? '';
+        const result = await solutionConversionMutex.runExclusive(() => {
+            this.checkLayerSolution(solution, solutionPath, activeTarget);
+            return this.csolutionService.discoverLayers({ solution: solutionPath, activeTarget });
+        });
+        this.checkLayerSolution(solution, solutionPath, activeTarget);
+        if (!result.success) {
+            throw new Error(result.message ?? 'Unable to discover compatible layers');
+        }
+        return (result.configurations ?? []).map(configuration => ({
+            variables: configuration.variables.map(variable => ({
+                ...variable,
+                ...(variable.settings === undefined ? {} : { settings: variable.settings.map(setting => ({ ...setting })) }),
+            })),
+        }));
     }
 
     public async installPacks(options: { packs: string[]; approved: boolean }): Promise<CsolutionApiV3.PackInstallResult[]> {

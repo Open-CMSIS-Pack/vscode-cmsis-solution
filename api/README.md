@@ -134,6 +134,32 @@ conversion itself can finish after this method resolves. If refresh fails, the
 selection remains persisted. Settings-file failures may also be reported by the
 extension's standard file-error reporter.
 
+### Layer Discovery
+
+```typescript
+const compatible = await api.getLayers();
+for (const configuration of compatible) {
+    for (const variable of configuration.variables) {
+        console.log(variable.name, variable.clayer);
+    }
+}
+```
+
+`getLayers()` calls RPC `DiscoverLayers` directly for the loaded solution's active
+target set. It returns only the compatible configurations as an array, preserving
+RPC configuration and variable ordering. Each configuration contains `variables`
+with `name`, `clayer`, and optional `description`, `settings` (`{ set }` entries),
+`path`, `file`, and `copy-to` fields, unchanged from discovery. It does not flatten
+or deduplicate assignments, rewrite paths, or add pack metadata. When discovery
+returns no configurations, the result is an empty array.
+
+Discovery requires a loaded solution, but not a successful conversion: it also
+works when layer variables remain undefined. It does not call `ConvertSolution`
+or install packs.
+
+Layer queries reject tool failures or changes to the loaded solution or active
+target while awaiting results.
+
 ### Install Packs
 
 ```typescript
@@ -327,7 +353,8 @@ parity are covered by the focused unit tests.
 
 - **Solution Getters (Empty Window)**: checks all ten solution/hardware getters
     without a solution, V3 availability and V2 isolation, repeated deactivation
-    without a selected solution, setter rejection without a loaded solution, and two successive `CMSIS_PACK_ROOT` overrides supplied
+    without a selected solution, setter rejection and `getLayers`
+    rejection without a loaded solution, and two successive `CMSIS_PACK_ROOT` overrides supplied
     through the extension's environment configuration after activation. Restores
     the configuration and verifies the original pack root. No packs are required.
 - **Solution Getters and Target Selection (Loaded Solution)**: opens a fresh copy
@@ -355,6 +382,25 @@ API in `finally` and use disposable workspaces prepared by the launch task.
 These are extension-host integration checks, not mocked unit tests or hardware
 flash/debug tests. Target selection waits for refresh, not background conversion
 completion; the initial hardware assertions explicitly wait for conversion data.
+
+#### Layer Discovery Smoke Mode
+
+**Layer Discovery** opens a disposable copy of
+[the layers solution](../test-data/api-v3-packs/Layers.csolution.yml), its project,
+and a local fixture pack containing a compatible board layer. Requires installed
+`ARM::CMSIS` and `ARM::Cortex_DFP` packs and the bundled Toolbox; no compiler,
+hardware, downloads or shared pack-cache changes are required. Downloads, web
+services and automatic conversion on file changes are disabled.
+
+Checks V3 exposure and V2 isolation, discovers the controlled configuration, and
+verifies native RPC variable fields (including the unexpanded layer expression
+and pack path/copy metadata). Repeated queries return fresh results and retain
+the active selection. Activation retains normal configuration UI and may update
+files or generate artifacts in the disposable workspace. Leave compiler/layer
+choices unchanged while running the discovery assertions.
+
+Choose this mode from **API V3 Smoke Tests**; the preparation task copies the
+fixture pack by path without installing it. The API is disposed in `finally`.
 
 #### Pack Smoke Modes
 
