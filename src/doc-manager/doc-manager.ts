@@ -83,8 +83,8 @@ class DocManagerImpl implements DocManager {
         if (result === ETextFileResult.NotExists) {
             this.file.ensureTopItem().setKind(ETreeItemKind.Map);
         }
-        const booksAdded = this.addArmBooks();
-        return result === ETextFileResult.NotExists || booksAdded ? this.file.save() : result;
+        this.addArmBooks();
+        return this.file.save();
     }
 
     async addBooks(cbuild: CTreeItem): Promise<void> {
@@ -114,25 +114,16 @@ class DocManagerImpl implements DocManager {
         }
     }
 
-    private addArmBooks(): boolean {
-        let changed = false;
+    private addArmBooks(): void {
         for (const entry of this.armDocs.all()) {
-            const name = armDocName(entry);
-            const existing = this.file.getDoc(name, 'arm-docs', 'common');
-            const doc = existing ?? this.file.ensureDoc(name, 'arm-docs', 'common');
-            changed ||= !existing || doc.id === undefined || doc.version === undefined
-                || doc.item!.getValue('title') === undefined || doc.category === undefined
-                || (doc.format === undefined && entry.format !== undefined) || doc.metadataUrl === undefined;
-            if (doc.item!.getValue('title') === undefined) {
-                doc.title = entry.title;
-            }
-            doc.category ??= entry.kind;
-            doc.id ??= entry.docId;
-            doc.version ??= entry.version;
-            doc.format ??= entry.format;
-            doc.metadataUrl ??= `https://documentation-service.arm.com/documentation/${entry.docId}/${entry.version}`;
+            const doc = this.file.ensureDoc(armDocName(entry), 'arm-docs', 'common');
+            doc.title = entry.title;
+            doc.category = entry.kind;
+            doc.id = entry.docId;
+            doc.version = entry.version;
+            doc.format = entry.format;
+            doc.metadataUrl = `https://documentation-service.arm.com/documentation/${entry.docId}/${entry.version}`;
         }
-        return changed;
     }
 
     getBooks(parentId: string, parentTag: string, cbuild?: CTreeItem): readonly IDocRef[] {
@@ -155,10 +146,7 @@ class DocManagerImpl implements DocManager {
     }
 
     private async reload(): Promise<void> {
-        const result = await this.file.load();
-        if (result === ETextFileResult.Error || this.file.parser?.hasErrors()) {
-            throw new Error('Failed to load the document inventory.');
-        }
+        await this.file.load();
     }
 
     async addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): Promise<IDocRef | undefined> {
