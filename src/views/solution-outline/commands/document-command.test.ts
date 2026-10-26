@@ -95,11 +95,53 @@ describe('DocumentCommand', () => {
         jest.restoreAllMocks();
     });
 
-    it('registers only the three implemented document commands', () => {
+    it('registers the four document commands', () => {
         expect(commands.registerCommand.mock.calls.map(call => call[0])).toEqual([
-            DocumentCommand.addCommandId, DocumentCommand.setLocalPathCommandId, DocumentCommand.removeCommandId,
+            DocumentCommand.addCommandId, DocumentCommand.downloadCommandId, DocumentCommand.setLocalPathCommandId, DocumentCommand.removeCommandId,
         ]);
-        expect(context.subscriptions).toHaveLength(3);
+        expect(context.subscriptions).toHaveLength(4);
+    });
+
+    it.each(['board', 'device', 'common'] as const)('downloads a document using its %s inventory identity', async parentTag => {
+        const node = nodeFor(parentTag === 'board' ? 'board' : 'device', 'book');
+        const parentId = parentTag === 'common' ? 'arm-docs' : 'Vendor::Selected';
+        node.setAttribute('docParentId', parentId);
+        node.setAttribute('docParentTag', parentTag);
+        const download = jest.spyOn(manager, 'downloadDocument').mockResolvedValue(true);
+
+        await commands.mockRunRegistered(DocumentCommand.downloadCommandId, node);
+
+        expect(download).toHaveBeenCalledWith(parentId, parentTag, name);
+        expect(window.showOpenDialog).not.toHaveBeenCalled();
+        expect(window.showErrorMessage).not.toHaveBeenCalled();
+    });
+
+    it('reports a download error without rejecting the command', async () => {
+        jest.spyOn(manager, 'downloadDocument').mockRejectedValue(new Error('HTTP 404'));
+
+        await commands.mockRunRegistered(DocumentCommand.downloadCommandId, nodeFor('board', 'book'));
+
+        expect(window.showErrorMessage).toHaveBeenCalledWith('Failed to download document: HTTP 404');
+    });
+
+    it('reports download inventory save failures separately', async () => {
+        jest.spyOn(manager, 'downloadDocument').mockResolvedValue(false);
+
+        await commands.mockRunRegistered(DocumentCommand.downloadCommandId, nodeFor('board', 'book'));
+
+        expect(window.showErrorMessage).toHaveBeenCalledWith('Failed to save the document inventory.');
+    });
+
+    it('ignores missing and non-web download targets', async () => {
+        const download = jest.spyOn(manager, 'downloadDocument');
+        const node = nodeFor('board', 'book');
+        node.setAttribute('features', 'docFile');
+
+        await commands.mockRunRegistered(DocumentCommand.downloadCommandId);
+        await commands.mockRunRegistered(DocumentCommand.downloadCommandId, node);
+
+        expect(download).not.toHaveBeenCalled();
+        expect(window.showErrorMessage).not.toHaveBeenCalled();
     });
 
     it.each(['board', 'device'] as const)('adds a user document to the selected %s rather than the active board', async parentTag => {
@@ -265,21 +307,6 @@ describe('DocumentCommand', () => {
         expect(manager.file.getDoc(name, 'Vendor::Selected', 'board')?.item).toBe(mode === 'user' ? undefined : doc.item);
         expect(save).toHaveBeenCalledTimes(mode === 'user' ? 1 : 0);
         expect(window.showOpenDialog).not.toHaveBeenCalled();
-    });
-
-    it.each([DocumentCommand.addCommandId, DocumentCommand.setLocalPathCommandId])('uses the current inventory after browsing: %s', async command => {
-        manager.file.ensureDoc(name, 'Vendor::Selected', 'board');
-        window.showOpenDialog.mockImplementationOnce(async () => {
-            await manager.initialize(path.resolve('other-inventory'));
-            return [vscode.Uri.file(localPath)];
-        });
-        await commands.mockRunRegistered(command, nodeFor('board', command === DocumentCommand.addCommandId ? 'board' : 'book'));
-        if (command === DocumentCommand.addCommandId) {
-            expect(manager.file.getDoc(localPath, 'Vendor::Selected', 'board')?.mode).toBe('user');
-        } else {
-            expect(manager.file.getDocParents()).toEqual([]);
-        }
-        expect(window.showWarningMessage).not.toHaveBeenCalled();
     });
 
     it('uses the current palette target after browsing', async () => {

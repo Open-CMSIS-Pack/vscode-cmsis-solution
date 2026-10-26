@@ -29,6 +29,20 @@ describe('DocDownload', () => {
         testData.dispose();
     });
 
+    it('clears a previous path and records the error when a download fails', async () => {
+        const downloader = new DocDownload(path.join(testData.tmpDir, 'failed-docs'));
+        const inventory = new DocsYamlFile();
+        const doc = inventory.ensureDoc('https://developer.arm.com/documentation/100230/latest', 'arm-docs', 'common');
+        doc.path = path.join(testData.tmpDir, 'previous.pdf');
+        doc.error = 'Previous error';
+
+        await expect(downloader.downloadDoc(doc)).rejects.toThrow('Invalid document id: (missing)');
+
+        expect(doc.path).toBeUndefined();
+        expect(doc.error).toBe('Invalid document id: (missing)');
+        expect(doc.isDownloaded()).toBe(false);
+    });
+
     it('downloads Arm document 100230/latest to a real PDF file', async () => {
         const destinationRoot = path.join(testData.tmpDir, 'docs');
         const downloader = new DocDownload(destinationRoot);

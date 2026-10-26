@@ -55,23 +55,38 @@ describe('OpenCommand', () => {
         testData.rmTmpDir();
     });
 
-    it.each(['/manual.pdf', 'https://developer.arm.com/documentation/ddi0439/b', undefined])('opens the recorded document path when present: %s', async docPath => {
+    it.each(['existing', 'missing', 'unset'] as const)('opens the local document only when its path exists: %s', async state => {
+        const open = jest.spyOn(mockOpenFileExternal, 'openFile');
+        open.mockClear();
+        const solutionManager = solutionManagerFactory();
+        const name = 'https://developer.arm.com/documentation/ddi0439/b';
+        const doc = solutionManager.getDocManager().file.ensureDoc(name, 'arm-docs', 'common');
+        doc.path = state === 'existing' ? testFile : state === 'missing' ? path.join(testFolder, 'missing.pdf') : undefined;
+        const command = new OpenCommand(solutionManager, commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+        await command.activate(extensionContextFactory());
+        const item = new COutlineItem('book');
+        item.setAttribute('docName', name);
+        item.setAttribute('docPath', 'stale-outline-path.pdf');
+        item.setAttribute('docParentId', 'arm-docs');
+        item.setAttribute('docParentTag', 'common');
+        await commandsProvider.mockRunRegistered(OpenCommand.openDocCommandId, item);
+
+        expect(open).toHaveBeenCalledWith(state === 'existing' ? testFile : name);
+    });
+
+    it('falls back to the document name when its inventory entry is unavailable', async () => {
         const open = jest.spyOn(mockOpenFileExternal, 'openFile');
         open.mockClear();
         const command = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
         await command.activate(extensionContextFactory());
         const item = new COutlineItem('book');
-        const name = 'https://developer.arm.com/documentation/ddi0439/b';
+        const name = 'https://example.com/manual.pdf';
         item.setAttribute('docName', name);
-        item.setAttribute('docPath', docPath);
-        item.setAttribute('docParentId', 'arm-docs');
-        item.setAttribute('docParentTag', 'common');
+        item.setAttribute('docPath', path.join(testFolder, 'missing.pdf'));
+
         await commandsProvider.mockRunRegistered(OpenCommand.openDocCommandId, item);
-        if (docPath) {
-            expect(open).toHaveBeenCalledWith(docPath);
-        } else {
-            expect(open).not.toHaveBeenCalled();
-        }
+
+        expect(open).toHaveBeenCalledWith(name);
     });
 
     it('registers the command on activation', async () => {

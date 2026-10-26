@@ -155,7 +155,7 @@ describe('HardwareItemBuilder', () => {
         expect(books.map(book => book.getAttribute('features'))).toEqual(['docFile;webDoc;userDoc', 'docFile', 'docFile', 'docFile;userDoc']);
         expect(books[0].getAttribute('docPath')).toBe(path.resolve('selected.md'));
         expect(books[0].getAttribute('resourcePath')).toBe(path.resolve('selected.md'));
-        expect(books[0].getAttribute('command')).toBeUndefined();
+        expect(books[0].getAttribute('command')).toBe('cmsis-csolution.openDocFile');
         expect(books[1].getAttribute('command')).toBe('cmsis-csolution.openDocFile');
     });
 

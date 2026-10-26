@@ -75,18 +75,26 @@ Documents without a downloadable PDF are rejected.
 
 Requests follow at most five HTTP(S) redirects and share a two-minute timeout.
 Downloads stream to a unique temporary sibling, reject empty responses, validate
-the `%PDF-` header for common Arm PDFs, then rename to the final destination. Only successful completion sets the reference's
-absolute `path` and clears its `error`. Failed downloads reject, set `error`, remove
-temporary files, and leave any previous destination and reference path unchanged.
+the `%PDF-` header for common Arm PDFs, then rename to the final destination.
+Successful completion sets the reference's absolute `path` and clears its `error`.
+Failed downloads reject, clear `path`, set `error`, and remove temporary files
+without deleting a previous destination file.
 
 Board and device web documents download directly from their HTTP(S) URLs, without
 Arm metadata lookup or PDF-only restrictions. URLs are used without host-specific
 rewriting, and the reference retains its original URL and title. Callers must supply
 a direct file URL rather than a hosting service's HTML viewer URL. Local files and
-HTML-only references are not supported. No UI action or inventory persistence is
-connected.
+HTML-only references are not supported.
 
-The focused tests perform real network downloads of `100230/latest` and a device
+The outline's Download Document command delegates to `DocManager.downloadDocument`,
+which serializes the operation with other inventory updates, saves both successful
+and failed download state, and notifies the outline after a successful save.
+Set Local Path updates matching references and clears their errors only when the
+selected destination exists. Open Documentation checks the current inventory and
+opens `path` only when the destination exists, otherwise falling back to `name`.
+Web documents, including downloaded Markdown files, use this open command.
+
+The download tests include an offline failure-state regression and real network downloads of `100230/latest` and a device
 reference to the repository's GitHub `README.md`, using real temporary directories
 managed by `TestDataHandler`, without mocks. File assertions use only filesystem
 metadata to verify regular files larger than 100 bytes, without reading contents

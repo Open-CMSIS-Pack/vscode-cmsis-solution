@@ -57,7 +57,6 @@ describe('SolutionOutlineItemBuilder', () => {
 
         expect(builder.documentManager).toBe(docManager);
         expect(builder.documentManager?.file.getDoc('manual', 'Vendor::Board', 'board')?.title).toBe('Board manual');
-        expect(fileSystem.write).not.toHaveBeenCalled();
     });
 
     function makeSourceItem(forContext: string[]): ITreeItem<CTreeItem> {

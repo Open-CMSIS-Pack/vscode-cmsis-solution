@@ -24,6 +24,7 @@ import { getDocParentId } from '../../../doc-manager/docs-yaml-file';
 
 export class DocumentCommand {
     public static readonly addCommandId = `${PACKAGE_NAME}.addDocument`;
+    public static readonly downloadCommandId = `${PACKAGE_NAME}.downloadDocument`;
     public static readonly setLocalPathCommandId = `${PACKAGE_NAME}.setDocumentLocalPath`;
     public static readonly removeCommandId = `${PACKAGE_NAME}.removeDocument`;
 
@@ -36,6 +37,7 @@ export class DocumentCommand {
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>): Promise<void> {
         context.subscriptions.push(
             this.commandsProvider.registerCommand(DocumentCommand.addCommandId, this.addDocument, this),
+            this.commandsProvider.registerCommand(DocumentCommand.downloadCommandId, this.downloadDocument, this),
             this.commandsProvider.registerCommand(DocumentCommand.setLocalPathCommandId, this.setLocalPath, this),
             this.commandsProvider.registerCommand(DocumentCommand.removeCommandId, this.removeDocument, this),
         );
@@ -75,6 +77,22 @@ export class DocumentCommand {
         );
         if (!doc) {
             await this.window.showErrorMessage('Failed to save the document inventory.');
+        }
+    }
+
+    private async downloadDocument(node?: COutlineItem): Promise<void> {
+        const target = node?.getFeatures().split(';').includes('webDoc') ? this.getTarget(node) : undefined;
+        const name = node?.getAttribute('docName');
+        if (!target || !name) {
+            return;
+        }
+        const manager = this.solutionManager.getDocManager();
+        try {
+            if (!await manager.downloadDocument(target.parentId, target.parentTag, name)) {
+                await this.window.showErrorMessage('Failed to save the document inventory.');
+            }
+        } catch (error) {
+            await this.window.showErrorMessage(`Failed to download document: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 

@@ -21,8 +21,10 @@ import { ETextFileResult, TextFileErrorReporter } from '@open-cmsis-pack/cmsis-c
 import { CTreeItem, ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { Event, EventEmitter } from 'vscode';
 import { expandRootVars } from '../utils/path-utils';
+import { fileExists } from '../utils/fs-utils';
 import { DocsYamlFile, getDocParentId, getWebLocationType, IDocRef } from './docs-yaml-file';
 import { ArmDocs, armDocName, cbuildCore } from './arm-docs';
+import { DocDownload } from './doc-download';
 
 export interface DocManager {
     readonly file: DocsYamlFile;
@@ -33,6 +35,7 @@ export interface DocManager {
     getBooks(parentId: string, parentTag: string, cbuild?: CTreeItem): readonly IDocRef[];
     getArmBooks(cbuild?: CTreeItem): readonly IDocRef[];
     addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): Promise<IDocRef | undefined>;
+    downloadDocument(parentId: string, parentTag: string, name: string): Promise<boolean>;
     setLocalPath(parentId: string, parentTag: string, name: string, localPath: string): Promise<boolean>;
     removeDocument(parentId: string, parentTag: string, name: string): Promise<boolean>;
 }
@@ -46,7 +49,7 @@ class DocManagerImpl implements DocManager {
 
     private readonly armDocs: ArmDocs;
 
-    constructor(catalogFileName?: string) {
+    constructor(catalogFileName?: string, private readonly downloader = new DocDownload()) {
         this.armDocs = new ArmDocs(catalogFileName);
     }
 
@@ -169,6 +172,27 @@ class DocManagerImpl implements DocManager {
         });
     }
 
+    async downloadDocument(parentId: string, parentTag: string, name: string): Promise<boolean> {
+        return this.update(async () => {
+            if (await this.file.load() === ETextFileResult.Error) {
+                return false;
+            }
+            const doc = this.file.getDoc(name, parentId, parentTag);
+            if (!doc?.isWebDoc()) {
+                return false;
+            }
+            try {
+                await this.downloader.downloadDoc(doc);
+            } catch (error) {
+                if (await this.save() === ETextFileResult.Error) {
+                    return false;
+                }
+                throw error;
+            }
+            return await this.save() !== ETextFileResult.Error;
+        });
+    }
+
     async setLocalPath(parentId: string, parentTag: string, name: string, localPath: string): Promise<boolean> {
         return this.update(async () => {
             await this.file.load(); // refresh inventory, could have been changed externally
@@ -177,9 +201,12 @@ class DocManagerImpl implements DocManager {
                 return false;
             }
             const resolved = path.resolve(expandRootVars(localPath.startsWith('file://') ? fileURLToPath(localPath) : localPath));
+            const exists = fileExists(resolved);
             for (const reference of this.file.findDocs(name)) {
                 reference.path = resolved;
-                reference.error = undefined;
+                if (exists) {
+                    reference.error = undefined;
+                }
             }
             return await this.save() !== ETextFileResult.Error;
         });

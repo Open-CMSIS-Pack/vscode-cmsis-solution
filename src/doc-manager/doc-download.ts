@@ -74,6 +74,7 @@ export class DocDownload {
             doc.path = destination;
             doc.error = undefined;
         } catch (error) {
+            doc.path = undefined;
             doc.error = error instanceof Error ? error.message : String(error);
             throw error;
         }

@@ -28,6 +28,7 @@ import type { ConfigWizardAnnotationChecker } from '../../../utils/config-wizard
 import { configWizardAnnotationChecker } from '../../../utils/config-wizard-checker';
 import { openFileWithPolicy } from '../../file-open-policy';
 import { FileOpenGroupOrchestrator, FileOpenGroupOrchestratorImpl } from '../../file-open-group-orchestrator';
+import { fileExists } from '../../../utils/fs-utils';
 
 export const openSourceSmartCommandId = `${PACKAGE_NAME}.openSourceFileSmart`;
 
@@ -136,7 +137,14 @@ export class OpenCommand {
 
     private getFilePathForCommand(command: string, node: COutlineItem): string | undefined {
         if (command === OpenCommand.openDocCommandId) {
-            return node.getAttribute('docPath');
+            const name = node.getAttribute('docName');
+            const parentId = node.getAttribute('docParentId');
+            const parentTag = node.getAttribute('docParentTag');
+            const doc = name && parentId && parentTag
+                ? this.solutionManager.getDocManager().file.getDoc(name, parentId, parentTag)
+                : undefined;
+            const localPath = doc ? doc.path : node.getAttribute('docPath');
+            return localPath && fileExists(localPath) ? localPath : doc?.name || name;
         } else if (command === OpenCommand.openPrjConfCommandId) {
             return node.getAttribute('prjConfPath');
         } else if (command === OpenCommand.openPrjCmakeCommandId) {

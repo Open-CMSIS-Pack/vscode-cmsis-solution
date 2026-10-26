@@ -112,7 +112,7 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
             bookItem.addFeature('userDoc');
         }
 
-        const useCommand = isWebAddress(filePath) || !filePath.toLowerCase().endsWith('.md');
+        const useCommand = doc.isWeb() || isWebAddress(filePath) || !filePath.toLowerCase().endsWith('.md');
         if (useCommand) {
             bookItem.setAttribute('command', 'cmsis-csolution.openDocFile');
         }

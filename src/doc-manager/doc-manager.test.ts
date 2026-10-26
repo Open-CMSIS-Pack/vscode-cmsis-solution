@@ -23,6 +23,8 @@ import { DocsYamlFile } from './docs-yaml-file';
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { TestDataHandler } from '../__test__/test-data';
 import { ArmDoc, armDocName } from './arm-docs';
+import { DocDownload } from './doc-download';
+import { writeTextFile } from '../utils/fs-utils';
 
 describe('DocManager catalog registration', () => {
     const testData = new TestDataHandler();
@@ -257,8 +259,9 @@ describe('DocManager', () => {
             doc.error = 'Download failed';
         }
         expect(await manager.file.save()).toBe(ETextFileResult.Success);
-        const localPath = path.join('downloads', 'manual.pdf');
+        const localPath = path.relative(process.cwd(), path.join(testData.tmpDir, 'downloads', 'manual.pdf'));
         const resolved = path.resolve(localPath);
+        writeTextFile(resolved, 'manual');
         const input = source === 'file URL' ? pathToFileURL(resolved).href : localPath;
 
         expect(await manager.setLocalPath(boardId, 'board', webName, input)).toBe(true);
@@ -268,6 +271,78 @@ describe('DocManager', () => {
             expect.objectContaining({ name: webName, title: 'Device manual', path: resolved, error: undefined, mode: 'user' }),
         ]);
         expect(manager.file.getDoc(otherName, boardId, 'board')?.path).toBeUndefined();
+    });
+
+    it('retains errors when setting a local path that does not exist', async () => {
+        const doc = await manager.addUserBook(boardId, 'board', webName, 'Manual');
+        doc!.error = 'Download failed';
+        await manager.file.save();
+        const missingPath = path.join(testData.tmpDir, 'missing.pdf');
+
+        expect(await manager.setLocalPath(boardId, 'board', webName, missingPath)).toBe(true);
+
+        const stored = new DocsYamlFile(manager.file.fileName);
+        expect(await stored.load()).toBe(ETextFileResult.Success);
+        expect(stored.getDoc(webName, boardId, 'board')).toEqual(expect.objectContaining({
+            path: missingPath, error: 'Download failed',
+        }));
+    });
+
+    it('persists failed downloads and notifies before rejecting', async () => {
+        const name = 'https://developer.arm.com/documentation/invalid/latest';
+        const doc = manager.file.ensureDoc(name, 'arm-docs', 'common');
+        doc.format = 'pdf';
+        doc.path = path.join(testData.tmpDir, 'old.pdf');
+        await manager.file.save();
+        const changed = jest.fn();
+        manager.onDidChange(changed);
+
+        await expect(manager.downloadDocument('arm-docs', 'common', name)).rejects.toThrow('Invalid document id: (missing)');
+
+        const stored = new DocsYamlFile(manager.file.fileName);
+        expect(await stored.load()).toBe(ETextFileResult.Success);
+        expect(stored.getDoc(name, 'arm-docs', 'common')).toEqual(expect.objectContaining({
+            path: undefined, error: 'Invalid document id: (missing)',
+        }));
+        expect(changed).toHaveBeenCalledTimes(1);
+    });
+
+    it('persists successful download state and preserves document metadata', async () => {
+        manager.dispose();
+        const downloader = new DocDownload(testData.tmpDir);
+        const download = jest.spyOn(downloader, 'downloadDoc').mockImplementation(async doc => {
+            doc.path = path.join(testData.tmpDir, 'manual.pdf');
+            doc.error = undefined;
+        });
+        manager = new DocManager(path.join(__dirname, 'arm-docs.json'), downloader);
+        await manager.initialize(testData.tmpDir);
+        const doc = await manager.addUserBook(boardId, 'board', webName, 'Manual');
+        doc!.error = 'Previous error';
+        await manager.file.save();
+        const changed = jest.fn();
+        manager.onDidChange(changed);
+
+        expect(await manager.downloadDocument(boardId, 'board', webName)).toBe(true);
+
+        const stored = new DocsYamlFile(manager.file.fileName);
+        expect(await stored.load()).toBe(ETextFileResult.Success);
+        expect(stored.getDoc(webName, boardId, 'board')).toEqual(expect.objectContaining({
+            name: webName, title: 'Manual', mode: 'user', path: path.join(testData.tmpDir, 'manual.pdf'), error: undefined,
+        }));
+        expect(download).toHaveBeenCalledTimes(1);
+        expect(changed).toHaveBeenCalledTimes(1);
+        download.mockRestore();
+    });
+
+    it.each(['missing', 'https://example.com/manual.html'])('does not download an unsupported document: %s', async name => {
+        if (name !== 'missing') {
+            await manager.addUserBook(boardId, 'board', name, 'Manual');
+        }
+        const changed = jest.fn();
+        manager.onDidChange(changed);
+
+        expect(await manager.downloadDocument(boardId, 'board', name)).toBe(false);
+        expect(changed).not.toHaveBeenCalled();
     });
 
     it.each([
