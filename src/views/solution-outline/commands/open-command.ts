@@ -62,10 +62,14 @@ export class OpenCommand {
             helpFilePath = path.join(keilPack.extensionPath, 'guide');
         }
 
+        const updateWhatsNewAvailability = () => this.commandsProvider.executeCommand(
+            'setContext', `${PACKAGE_NAME}.whatsNewAvailable`, this.isWhatsNewAvailable());
+        await updateWhatsNewAvailability();
+        context.subscriptions.push(vscode.extensions.onDidChange(updateWhatsNewAvailability));
+
         context.subscriptions.push(
             this.commandsProvider.registerCommand(OpenCommand.showWhatsNewCommandId, async () => {
-                const version = vscode.extensions.getExtension('arm.keil-studio-pack')?.packageJSON.version;
-                if (typeof version !== 'string' || !valid(version) || !gte(version, '1.22.0')) {
+                if (!this.isWhatsNewAvailable()) {
                     await vscode.window.showInformationMessage("What's New requires Keil Studio Pack version 1.22.0 or later.");
                     return;
                 }
@@ -106,6 +110,11 @@ export class OpenCommand {
                 }
             }, this),
         );
+    }
+
+    private isWhatsNewAvailable(): boolean {
+        const version = vscode.extensions.getExtension('arm.keil-studio-pack')?.packageJSON?.version;
+        return typeof version === 'string' && !!valid(version) && gte(version, '1.22.0');
     }
 
     private commandHandler(command: string, node: COutlineItem): Promise<void> | undefined {

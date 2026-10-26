@@ -1183,7 +1183,7 @@
         },
         {
           "command": "cmsis-csolution.showWhatsNew",
-          "when": "view == cmsis-csolution.outline",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.whatsNewAvailable",
           "group": "SolutionHelp@2"
         },
         {

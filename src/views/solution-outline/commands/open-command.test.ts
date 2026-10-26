@@ -75,10 +75,12 @@ describe('OpenCommand', () => {
         const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
         await openCommand.activate(extensionContextFactory());
         await commandsProvider.mockRunRegistered(OpenCommand.showWhatsNewCommandId);
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith(
+            'setContext', 'cmsis-csolution.whatsNewAvailable', version === '1.22.0' || version === '1.23.0');
         if (version === '1.22.0' || version === '1.23.0') {
             expect(commandsProvider.executeCommand).toHaveBeenCalledWith('keil-studio.showWhatsNew');
         } else {
-            expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
+            expect(commandsProvider.executeCommand).not.toHaveBeenCalledWith('keil-studio.showWhatsNew');
             expect(vscode.window.showInformationMessage).toHaveBeenCalledWith("What's New requires Keil Studio Pack version 1.22.0 or later.");
         }
     });
