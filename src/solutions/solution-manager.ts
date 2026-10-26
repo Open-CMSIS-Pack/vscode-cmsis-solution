@@ -320,7 +320,11 @@ export class SolutionManagerImpl implements SolutionManager {
         for (const cbuildYml of this.csolution?.cbuildYmlRoot.values() ?? []) {
             const cbuild = cbuildYml.getChildItem();
             if (cbuild) {
-                await this.docManager.addBooks(cbuild);
+                try {
+                    await this.docManager.addBooks(cbuild);
+                } catch (error) {
+                    console.error('Failed to update the document inventory:', error);
+                }
             }
         }
     }
