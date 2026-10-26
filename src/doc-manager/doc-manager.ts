@@ -17,7 +17,7 @@
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
-import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { ETextFileResult, TextFileErrorReporter } from '@open-cmsis-pack/cmsis-common/text-file';
 import { CTreeItem, ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { Event, EventEmitter } from 'vscode';
 import { expandRootVars } from '../utils/path-utils';
@@ -37,6 +37,7 @@ export interface DocManager {
 }
 
 class DocManagerImpl implements DocManager {
+    protected static errorReporter: TextFileErrorReporter = () => {};
     public readonly file = new DocsYamlFile();
     private readonly changeEmitter = new EventEmitter<void>();
     public readonly onDidChange = this.changeEmitter.event;
@@ -46,6 +47,10 @@ class DocManagerImpl implements DocManager {
 
     constructor(catalogFileName?: string) {
         this.armDocs = new ArmDocs(catalogFileName);
+    }
+
+    static setErrorReporter(reporter?: TextFileErrorReporter): void {
+        DocManagerImpl.errorReporter = reporter ?? (() => {});
     }
 
     dispose(): void {
@@ -248,4 +253,5 @@ class DocManagerImpl implements DocManager {
     }
 }
 
-export const DocManager = constructor<typeof DocManagerImpl, DocManager>(DocManagerImpl);
+export const DocManager = constructor<typeof DocManagerImpl, DocManager>(DocManagerImpl) as
+    ReturnType<typeof constructor<typeof DocManagerImpl, DocManager>> & Pick<typeof DocManagerImpl, 'setErrorReporter'>;
