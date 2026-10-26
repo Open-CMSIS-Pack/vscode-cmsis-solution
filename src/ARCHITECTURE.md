@@ -53,6 +53,23 @@ The Data Manager abstracts access.
 
 [Design Documentation](data-manager/DESIGN.md)
 
+### Document Download
+
+[`DocDownload`](doc-manager/doc-download.ts) prepares absolute destination paths for
+[`IDocRef`](doc-manager/docs-yaml-file.ts) references. Its default root is
+`~/.cmsis/docs`; callers can supply another root, for example a temporary directory.
+
+- Common documents use `<root>/<id>-<version>[.<format>]`, preserving the requested
+  version token. For example, `100230/latest` in PDF format uses `100230-latest.pdf`.
+- Board and device documents require `isWebDoc()` and an HTTP(S) URL. They use
+  `<root>/<Vendor>/<Name>/<FileName.ext>`, excluding hardware revision or processor
+  suffixes and URL query parameters and fragments.
+- Missing or unsafe path components are rejected rather than rewritten.
+
+At this preparation stage, `downloadDoc(doc)` validates the destination and rejects
+with a not-implemented error. It performs no network or filesystem operations and
+leaves the reference unchanged. No UI action or inventory persistence is connected.
+
 ### Solar Search Client
 
 [TO BE DOCUMENTED](solar-search)
