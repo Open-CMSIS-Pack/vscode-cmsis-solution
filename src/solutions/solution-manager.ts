@@ -306,6 +306,14 @@ export class SolutionManagerImpl implements SolutionManager {
         await this.updateRpcData(); // refresh RPC data
         await this.loadSolutionBuildFiles();
         await this.updateDocs();
+        const newState: SolutionLoadState = {
+            ...this.loadState,
+            activated: true,
+            converted: true,
+            dirty: false,
+        };
+        // Always emit so subscribers are notified when conversion completes
+        this.setLoadState(newState, true);
         this.setupCompletedEmitter.fire([data.severity, data.detection]);
 
         if (data.severity != 'error' && !data.detection) {
@@ -344,14 +352,6 @@ export class SolutionManagerImpl implements SolutionManager {
     public async loadSolutionBuildFiles() {
         if (this.csolution) {
             await this.csolution.loadBuildFiles();
-            const newState: SolutionLoadState = {
-                ...this.loadState,
-                activated: true,
-                converted: true,
-                dirty: false,
-            };
-            // Always emit so subscribers are notified when conversion completes
-            this.setLoadState(newState, true);
         }
     }
 
