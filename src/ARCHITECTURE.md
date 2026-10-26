@@ -55,7 +55,8 @@ The Data Manager abstracts access.
 
 ### Document Download
 
-[`DocDownload`](doc-manager/doc-download.ts) prepares absolute destination paths for
+[`DocDownload`](doc-manager/doc-download.ts) constructs absolute destination paths
+and downloads common Arm PDF documents for
 [`IDocRef`](doc-manager/docs-yaml-file.ts) references. Its default root is
 `~/.cmsis/docs`; callers can supply another root, for example a temporary directory.
 
@@ -66,9 +67,26 @@ The Data Manager abstracts access.
   suffixes and URL query parameters and fragments.
 - Missing or unsafe path components are rejected rather than rewritten.
 
-At this preparation stage, `downloadDoc(doc)` validates the destination and rejects
-with a not-implemented error. It performs no network or filesystem operations and
-leaves the reference unchanged. No UI action or inventory persistence is connected.
+For common PDF documents, `downloadDoc(doc)` retrieves metadata from
+`https://documentation-service.arm.com/documentation/<id>/<version>` and selects a
+PDF resource, preferring a filename matching the document ID. The resolved resource
+URL is transient: the reference retains its canonical name and requested version.
+Documents without a downloadable PDF are rejected.
+
+Requests follow at most five HTTP(S) redirects and share a two-minute timeout.
+Downloads stream to a unique temporary sibling, validate the `%PDF-` header, then
+rename to the final destination. Only successful completion sets the reference's
+absolute `path` and clears its `error`. Failed downloads reject, set `error`, remove
+temporary files, and leave any previous destination and reference path unchanged.
+
+Board and device destination construction is available, but downloading those
+files still rejects with a not-implemented error. No UI action or inventory
+persistence is connected.
+
+The focused test performs a real network download of `100230/latest` into a real
+temporary directory managed by `TestDataHandler`, without mocks. Run it with
+`npx jest --runInBand --runTestsByPath src/doc-manager/doc-download.test.ts --collectCoverage=false`.
+It requires network access to Arm's documentation service.
 
 ### Solar Search Client
 

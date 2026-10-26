@@ -14,12 +14,27 @@
  * limitations under the License.
  */
 
+import { randomUUID } from 'node:crypto';
+import { createWriteStream } from 'node:fs';
+import { mkdir, rename, rm } from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { URL } from 'node:url';
 import { splitBoardId } from '../data-manager/board-data';
 import { splitDeviceId } from '../data-manager/device-data';
 import { IDocRef } from './docs-yaml-file';
+
+interface ArmResource {
+    href?: string;
+    name?: string;
+    extension?: string;
+    contentType?: string;
+}
+
+interface ArmMetadata {
+    _links?: { resources?: ArmResource[] };
+}
 
 export class DocDownload {
     private readonly destinationRoot: string;
@@ -40,7 +55,109 @@ export class DocDownload {
 
     async downloadDoc(doc: IDocRef): Promise<void> {
         const destination = this.getDestinationPath(doc);
-        throw new Error(`Document download is not implemented: ${destination}`);
+        if (doc.parentTag !== 'common') {
+            throw new Error(`Document download is not implemented: ${destination}`);
+        }
+        try {
+            if (doc.format?.toLowerCase() !== 'pdf') {
+                throw new Error('Only PDF downloads are supported for common Arm documents.');
+            }
+            const signal = AbortSignal.timeout(120_000);
+            const metadataUrl = new URL(
+                `https://documentation-service.arm.com/documentation/${encodeURIComponent(doc.id!)}/${encodeURIComponent(doc.version!)}`,
+            );
+            const pdfUrl = await this.getArmPdfUrl(metadataUrl, doc.id!, signal);
+            await this.downloadPdf(pdfUrl, destination, signal);
+            doc.path = destination;
+            doc.error = undefined;
+        } catch (error) {
+            doc.error = error instanceof Error ? error.message : String(error);
+            throw error;
+        }
+    }
+
+    private async getArmPdfUrl(metadataUrl: URL, id: string, signal: AbortSignal): Promise<URL> {
+        const response = await this.fetchResponse(metadataUrl, signal, 'application/json');
+        const metadata = await response.json() as ArmMetadata;
+        const resources = metadata._links?.resources?.filter(resource => resource.href
+            && (resource.extension?.toLowerCase() === 'pdf' || resource.contentType?.toLowerCase() === 'application/pdf')) ?? [];
+        const resource = resources.find(candidate => candidate.name?.toLowerCase().startsWith(id.toLowerCase())) ?? resources[0];
+        if (!resource?.href) {
+            throw new Error(`No downloadable PDF resource is available for Arm document ${id}.`);
+        }
+        return new URL(resource.href, response.url);
+    }
+
+    private async fetchResponse(url: URL, signal: AbortSignal, accept: string): Promise<Response> {
+        for (let redirects = 0; redirects <= 5; redirects++) {
+            if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+                throw new Error('Document downloads require an HTTP or HTTPS URL.');
+            }
+            const response = await fetch(url, { signal, redirect: 'manual', headers: { Accept: accept } });
+            if ([301, 302, 303, 307, 308].includes(response.status)) {
+                await response.body?.cancel();
+                const location = response.headers.get('location');
+                if (!location) {
+                    throw new Error('Document redirect has no location.');
+                }
+                url = new URL(location, url);
+            } else if (!response.ok) {
+                await response.body?.cancel();
+                throw new Error(`Document request failed: HTTP ${response.status} ${response.statusText}`);
+            } else {
+                return response;
+            }
+        }
+        throw new Error('Document request exceeded five redirects.');
+    }
+
+    private async downloadPdf(url: URL, destination: string, signal: AbortSignal): Promise<void> {
+        await mkdir(path.dirname(destination), { recursive: true });
+        const temporary = `${destination}.${randomUUID()}.part`;
+        try {
+            const response = await this.fetchResponse(url, signal, 'application/pdf');
+            await pipeline(this.pdfChunks(response), createWriteStream(temporary, { flags: 'wx' }), { signal });
+            signal.throwIfAborted();
+            await rename(temporary, destination);
+        } finally {
+            await rm(temporary, { force: true });
+        }
+    }
+
+    private async *pdfChunks(response: Response): AsyncGenerator<Uint8Array> {
+        if (!response.body) {
+            throw new Error('Document response has no PDF body.');
+        }
+        const reader = response.body.getReader();
+        const signature = Buffer.from('%PDF-');
+        let prefix = Buffer.alloc(0);
+        let validated = false;
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                    break;
+                }
+                if (validated) {
+                    yield value;
+                } else {
+                    prefix = Buffer.concat([prefix, value]);
+                    if (prefix.length >= signature.length) {
+                        if (!prefix.subarray(0, signature.length).equals(signature)) {
+                            throw new Error('Document response is not a PDF.');
+                        }
+                        validated = true;
+                        yield prefix;
+                    }
+                }
+            }
+            if (!validated) {
+                throw new Error('Document response is empty or has an incomplete PDF header.');
+            }
+        } finally {
+            await reader.cancel().catch(() => undefined);
+            reader.releaseLock();
+        }
     }
 
     private getCommonDestinationPath(doc: IDocRef): string {
