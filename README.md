@@ -52,14 +52,11 @@ Action buttons allow you to build, run, and debug your application, [edit *csolu
 
 Arm architecture, core, debug, and applicable NPU documents appear under the device.
 Initialization registers all core catalog entries in `~/.cmsis/docs.yml` under
-`docs.cores`, without a build or network request, and restores valid cached paths.
-PDFs download on first open to
-`~/.cmsis/docs/arm/<document-id>/<document-id>_<version>-<url-hash>.pdf`;
-references with the same document URL share one local file across cores and solutions.
+`docs.cores`, without a build or network request.
 NPU documents are selected for the current device, not inferred from its CPU core.
-Catalog entries persist `id`, `version`, `format`, and `metadataUrl`, so downloads
-do not need the catalog. These fields are optional for other documents. An explicit
-`format: pdf` marks a web reference as downloadable even when its URL has no file extension.
+Catalog entries persist `id`, `version`, and `format`; these fields are optional
+for other documents. Documents open using their recorded local path when set,
+or their URL otherwise. Documents are not downloaded automatically.
 
 ## Action buttons
 

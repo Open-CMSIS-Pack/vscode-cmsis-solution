@@ -95,13 +95,7 @@ export class OpenCommand {
     }
 
     private async commandHandler(command: string, node: COutlineItem): Promise<void> {
-        let filePath = this.getFilePathForCommand(command, node);
-        const name = node.getAttribute('docName');
-        const parentId = node.getAttribute('docParentId');
-        const parentTag = node.getAttribute('docParentTag');
-        if (command === OpenCommand.openDocCommandId && name && parentId && parentTag) {
-            filePath = await this.solutionManager.getDocManager().resolveDocument(parentId, parentTag, name);
-        }
+        const filePath = this.getFilePathForCommand(command, node);
         if (filePath) {
             const openExternal = command === OpenCommand.openDocCommandId;
             return this.openFile(filePath, openExternal);

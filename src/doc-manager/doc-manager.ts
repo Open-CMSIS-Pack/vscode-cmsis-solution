@@ -15,25 +15,14 @@
  */
 
 import * as path from 'node:path';
-import { link, mkdir, open, rm, stat } from 'node:fs/promises';
-import { createHash, randomUUID } from 'node:crypto';
-import { JsonFile } from '@open-cmsis-pack/cmsis-common/json-file';
 import { fileURLToPath } from 'node:url';
 import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
-import { ETextFileResult, TextFileErrorReporter } from '@open-cmsis-pack/cmsis-common/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { CTreeItem, ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { Event, EventEmitter } from 'vscode';
-import { downloadFile } from '../file-download';
 import { expandRootVars } from '../utils/path-utils';
 import { DocsYamlFile, getDocParentId, getWebLocationType, IDocRef } from './docs-yaml-file';
 import { ArmDocs, armDocName, armDocRef, cbuildCore } from './arm-docs';
-
-interface DocResource {
-    href?: string;
-    name?: string;
-    extension?: string;
-    contentType?: string;
-}
 
 export interface DocManager {
     readonly file: DocsYamlFile;
@@ -42,28 +31,21 @@ export interface DocManager {
     initialize(docsDirectory: string): Promise<ETextFileResult>;
     addBooks(cbuild: CTreeItem): Promise<void>;
     getBooks(parentId: string, parentTag: string, cbuild?: CTreeItem): readonly IDocRef[];
-    resolveDocument(parentId: string, parentTag: string, name: string): Promise<string | undefined>;
     addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): Promise<IDocRef | undefined>;
     setLocalPath(parentId: string, parentTag: string, name: string, localPath: string): Promise<boolean>;
     removeDocument(parentId: string, parentTag: string, name: string): Promise<boolean>;
 }
 
 class DocManagerImpl implements DocManager {
-    private static errorReporter: TextFileErrorReporter = () => {};
     public readonly file = new DocsYamlFile();
     private readonly changeEmitter = new EventEmitter<void>();
     public readonly onDidChange = this.changeEmitter.event;
-    private readonly downloads = new Map<string, Promise<string | undefined>>();
     private pendingUpdate: Promise<unknown> = Promise.resolve();
 
     private armDocs?: ArmDocs;
 
     constructor(catalogFileName?: string) {
         this.armDocs = new ArmDocs(catalogFileName);
-    }
-
-    static setErrorReporter(reporter?: TextFileErrorReporter): void {
-        DocManagerImpl.errorReporter = reporter ?? (() => {});
     }
 
     dispose(): void {
@@ -98,8 +80,7 @@ class DocManagerImpl implements DocManager {
             this.file.ensureTopItem().setKind(ETreeItemKind.Map);
         }
         const booksAdded = this.addArmBooks();
-        const pathsRestored = await this.restoreArmPaths();
-        return result === ETextFileResult.NotExists || booksAdded || pathsRestored ? this.file.save() : result;
+        return result === ETextFileResult.NotExists || booksAdded ? this.file.save() : result;
     }
 
     async addBooks(cbuild: CTreeItem): Promise<void> {
@@ -139,7 +120,7 @@ class DocManagerImpl implements DocManager {
                 const name = armDocName(entry);
                 const existing = this.file.getDoc(name, core, 'core');
                 const doc = existing ?? this.file.ensureDoc(name, core, 'core');
-                changed ||= !existing || doc.id === undefined || doc.version === undefined || doc.metadataUrl === undefined
+                changed ||= !existing || doc.id === undefined || doc.version === undefined
                     || (doc.format === undefined && entry.format !== undefined);
                 if (!existing) {
                     doc.title = entry.title;
@@ -148,25 +129,6 @@ class DocManagerImpl implements DocManager {
                 doc.id ??= entry.docId;
                 doc.version ??= entry.version;
                 doc.format ??= entry.format;
-                doc.metadataUrl ??= this.armDocs.metadataUrl(name);
-            }
-        }
-        return changed;
-    }
-
-    private async restoreArmPaths(): Promise<boolean> {
-        let changed = false;
-        const books = new Map(this.file.getDocParents('core').flatMap(parent => parent.docs)
-            .filter(doc => doc.metadataUrl).map(doc => [doc.name, doc]));
-        for (const [name, reference] of books) {
-            const docs = this.file.findDocs(name);
-            const localPath = await this.cachedPath(reference, docs);
-            for (const doc of docs) {
-                changed ||= doc.path !== localPath || (localPath !== undefined && doc.error !== undefined);
-                doc.path = localPath;
-                if (localPath) {
-                    doc.error = undefined;
-                }
             }
         }
         return changed;
@@ -185,147 +147,10 @@ class DocManagerImpl implements DocManager {
         return [...hardwareBooks, ...selected, ...stored.filter(doc => !armDocRef(doc.name))];
     }
 
-    resolveDocument(parentId: string, parentTag: string, name: string): Promise<string | undefined> {
-        const doc = this.file.getDoc(name, parentId, parentTag);
-        if (!doc || doc.locationType !== 'W') {
-            return Promise.resolve(doc?.path ?? doc?.name);
-        }
-        const existing = this.downloads.get(name);
-        if (existing) {
-            return existing;
-        }
-        const pending = this.downloadDocument(doc).finally(() => this.downloads.delete(name));
-        this.downloads.set(name, pending);
-        return pending;
-    }
-
-    private async downloadDocument(reference: IDocRef): Promise<string | undefined> {
-        const name = reference.name;
-        try {
-            const docs = await this.update(async () => {
-                await this.reload();
-                return this.file.findDocs(name);
-            });
-            const localPath = await this.cachedPath(reference, docs) ?? await this.download(reference);
-            await this.update(async () => {
-                await this.reload();
-                for (const doc of this.file.findDocs(name)) {
-                    doc.path = localPath;
-                    doc.error = undefined;
-                }
-                if (await this.save() === ETextFileResult.Error) {
-                    throw new Error('Failed to save the downloaded document path.');
-                }
-            });
-            return localPath;
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            await this.update(async () => {
-                for (const doc of this.file.findDocs(name)) {
-                    doc.path = undefined;
-                    doc.error = message;
-                }
-                await this.save();
-            }).catch(() => undefined);
-            try {
-                DocManagerImpl.errorReporter(message);
-            } catch {
-                return undefined;
-            }
-            return undefined;
-        }
-    }
-
     private update<T>(operation: () => Promise<T>): Promise<T> {
         const result = this.pendingUpdate.then(operation);
         this.pendingUpdate = result.catch(() => {});
         return result;
-    }
-
-    private async cachedPath(doc: IDocRef, references: readonly IDocRef[]): Promise<string | undefined> {
-        const candidates = new Set([...references.map(reference => reference.path), this.downloadPath(doc)]);
-        for (const candidate of candidates) {
-            if (await isCachedFile(candidate, isPdfDoc(doc))) {
-                return candidate;
-            }
-        }
-        return undefined;
-    }
-
-    private downloadPath(doc: IDocRef): string {
-        const hash = createHash('sha256').update(doc.name).digest('hex').slice(0, 12);
-        const identity = doc.metadataUrl && doc.id ? doc.id.replace(/[^a-z0-9_-]/gi, '_') : hash;
-        const pdf = isPdfDoc(doc);
-        const fileName = doc.metadataUrl
-            ? `${identity}_${doc.version ?? 'latest'}-${hash}`
-            : path.posix.basename(new URL(doc.name.startsWith('www.') ? `https://${doc.name}` : doc.name).pathname);
-        const safeName = fileName.replace(/[^a-z0-9._-]/gi, '_').replace(/[. ]+$/, '');
-        const baseName = (/^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i.test(safeName) ? `${identity}_${safeName}` : safeName)
-            .replace(/\.pdf$/i, pdf ? '' : '.pdf').slice(0, 160) || identity;
-        return path.join(this.file.fileDir, 'docs', doc.metadataUrl ? 'arm' : 'web', identity, `${baseName}${pdf ? '.pdf' : ''}`);
-    }
-
-    private resourceUrl(doc: IDocRef, metadata: unknown): string {
-        const document = metadata as { _links?: { resources?: DocResource[] } } | undefined;
-        const resources = document?._links?.resources;
-        const pdfs = Array.isArray(resources) ? resources.filter(resource => typeof resource.href === 'string'
-            && (resource.extension?.toLowerCase() === 'pdf' || resource.contentType?.toLowerCase() === 'application/pdf')) : [];
-        const resource = pdfs.find(pdf => doc.id && pdf.name?.toLowerCase().startsWith(doc.id.toLowerCase())) ?? pdfs[0];
-        if (!resource?.href) {
-            throw new Error('This Arm document has no PDF resource.');
-        }
-        return new URL(resource.href, doc.metadataUrl).href;
-    }
-
-    private async download(doc: IDocRef): Promise<string> {
-        let resourceUrl = doc.name.startsWith('www.') ? `https://${doc.name}` : doc.name;
-        if (doc.metadataUrl) {
-            const metadata = new JsonFile(path.join(this.file.fileDir, `${randomUUID()}.json`));
-            try {
-                await mkdir(this.file.fileDir, { recursive: true });
-                await downloadFile(doc.metadataUrl, metadata.fileName);
-                if ((await stat(metadata.fileName)).size > 2 * 1024 * 1024) {
-                    throw new Error('Arm document metadata is too large.');
-                }
-                const result = await metadata.load();
-                if (result === ETextFileResult.Error || metadata.parser?.hasErrors()) {
-                    throw new Error('Invalid Arm document metadata.');
-                }
-                resourceUrl = this.resourceUrl(doc, metadata.content);
-            } finally {
-                await rm(metadata.fileName, { force: true });
-            }
-        }
-        if (new URL(resourceUrl).protocol !== 'https:') {
-            throw new Error('Document download requires HTTPS.');
-        }
-        const pdf = isPdfDoc(doc);
-        const target = this.downloadPath(doc);
-        await mkdir(path.dirname(target), { recursive: true });
-        const temporary = `${target}.${randomUUID()}.part`;
-        try {
-            await downloadFile(resourceUrl, temporary);
-            if ((await stat(temporary)).size > 100 * 1024 * 1024) {
-                throw new Error('Document is too large.');
-            }
-            if (pdf && !await isCachedFile(temporary, true)) {
-                throw new Error('Invalid PDF response.');
-            }
-            try {
-                await link(temporary, target);
-            } catch (error) {
-                if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-                    throw error;
-                }
-                if (!await isCachedFile(target, pdf)) {
-                    await rm(target, { force: true });
-                    await link(temporary, target);
-                }
-            }
-            return target;
-        } finally {
-            await rm(temporary, { force: true });
-        }
     }
 
     private async reload(): Promise<void> {
@@ -423,31 +248,4 @@ class DocManagerImpl implements DocManager {
     }
 }
 
-export const DocManager = constructor<typeof DocManagerImpl, DocManager>(DocManagerImpl) as
-    ReturnType<typeof constructor<typeof DocManagerImpl, DocManager>> & Pick<typeof DocManagerImpl, 'setErrorReporter'>;
-
-function isPdfDoc(doc: IDocRef): boolean {
-    return doc.format?.toLowerCase() === 'pdf'
-        || /\.pdf$/i.test(new URL(doc.name.startsWith('www.') ? `https://${doc.name}` : doc.name).pathname);
-}
-
-async function isCachedFile(fileName: string | undefined, pdf: boolean): Promise<boolean> {
-    if (!fileName) {
-        return false;
-    }
-    try {
-        if (!pdf) {
-            return (await stat(fileName)).isFile();
-        }
-        const file = await open(fileName, 'r');
-        try {
-            const signature = Buffer.alloc(5);
-            await file.read(signature, 0, 5, 0);
-            return signature.toString('ascii') === '%PDF-';
-        } finally {
-            await file.close();
-        }
-    } catch {
-        return false;
-    }
-}
+export const DocManager = constructor<typeof DocManagerImpl, DocManager>(DocManagerImpl);

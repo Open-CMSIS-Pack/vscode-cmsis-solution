@@ -30,7 +30,6 @@ import type { CSolution } from '../../../solutions/csolution';
 import { README_FILE_PATH } from '../../../manifest';
 import { faker } from '@faker-js/faker';
 import { ConfigWizardAnnotationChecker } from '../../../utils/config-wizard-checker';
-import { DocManager } from '../../../doc-manager/doc-manager';
 import { TestDataHandler } from '../../../__test__/test-data';
 
 describe('OpenCommand', () => {
@@ -56,28 +55,23 @@ describe('OpenCommand', () => {
         testData.rmTmpDir();
     });
 
-    it.each(['/cache/manual.pdf', undefined])('resolves an inventory book and opens only a successful result: %s', async localPath => {
+    it.each(['/manual.pdf', 'https://developer.arm.com/documentation/ddi0439/b', undefined])('opens the recorded document path when present: %s', async docPath => {
         const open = jest.spyOn(mockOpenFileExternal, 'openFile');
         open.mockClear();
-        const manager = new DocManager();
-        const resolve = jest.spyOn(manager, 'resolveDocument').mockResolvedValue(localPath);
-        const solution = solutionManagerFactory({ getDocManager: jest.fn().mockReturnValue(manager) });
-        const command = new OpenCommand(solution, commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+        const command = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
         await command.activate(extensionContextFactory());
         const item = new COutlineItem('book');
         const name = 'https://developer.arm.com/documentation/ddi0439/b';
         item.setAttribute('docName', name);
-        item.setAttribute('docPath', name);
+        item.setAttribute('docPath', docPath);
         item.setAttribute('docParentId', 'cortex-m4');
         item.setAttribute('docParentTag', 'core');
         await commandsProvider.mockRunRegistered(OpenCommand.openDocCommandId, item);
-        expect(resolve).toHaveBeenCalledWith('cortex-m4', 'core', name);
-        if (localPath) {
-            expect(open).toHaveBeenCalledWith(localPath);
+        if (docPath) {
+            expect(open).toHaveBeenCalledWith(docPath);
         } else {
             expect(open).not.toHaveBeenCalled();
         }
-        manager.dispose();
     });
 
     it('registers the command on activation', async () => {
