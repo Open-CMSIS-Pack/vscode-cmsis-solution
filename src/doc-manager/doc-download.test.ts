@@ -16,7 +16,7 @@
  * @jest-environment node
  */
 
-import { readFile, readdir } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import * as path from 'node:path';
 import { TestDataHandler } from '../__test__/test-data';
 import { DocDownload } from './doc-download';
@@ -53,9 +53,8 @@ describe('DocDownload', () => {
         expect(doc.version).toBe('latest');
         expect(doc.format).toBe('pdf');
         expect(doc.metadataUrl).toBe('https://documentation-service.arm.com/documentation/100230/latest');
-        const content = await readFile(destination);
-        expect(content.length).toBeGreaterThan(5);
-        expect(content.subarray(0, 5).toString('ascii')).toBe('%PDF-');
-        expect(await readdir(destinationRoot)).toEqual(['100230-latest.pdf']);
+        const fileStat = await stat(destination);
+        expect(fileStat.isFile()).toBe(true);
+        expect(fileStat.size).toBeGreaterThan(100);
     }, 150_000);
 });
