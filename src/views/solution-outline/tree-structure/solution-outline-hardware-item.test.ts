@@ -48,24 +48,24 @@ describe('HardwareItemBuilder', () => {
         testDataHandler.dispose();
     });
 
-    it('shows matching core documents with their inventory owner and filters NPU entries per device', async () => {
+    it('shows matching core documents with their shared inventory owner', async () => {
         const csolution = new CSolution();
         await csolution.load(cSolFile);
         const manager = new DocManager(path.resolve('src/doc-manager/arm-docs.json'));
         await manager.initialize(testDataHandler.tmpFileName('.arm-docs'));
         const build = new CTreeItem('build');
-        build.createChild('processor').setValue('core', 'Cortex-M55');
+        build.createChild('processor').setValue('core', 'Cortex-M4');
         build.setValue('device', 'ARM::SSE-315');
         await manager.addBooks(build);
         const save = jest.spyOn(manager.file, 'save');
         const builder = new HardwareItemBuilder(csolution, undefined, manager);
         const hardware = [...builder.createHardwareNodes(csolution, build).values()].find(item => item.getTag() === 'device')!;
         const books = hardware.getChildren();
-        expect(books.some(book => book.getAttribute('docName')?.includes('/102023/'))).toBe(true);
-        expect(books.every(book => book.getAttribute('docParentTag') === 'core' && book.getAttribute('docParentId') === 'cortex-m55')).toBe(true);
+        expect(books.some(book => book.getAttribute('docName')?.includes('/ddi0439/b'))).toBe(true);
+        expect(books.every(book => book.getAttribute('docParentTag') === 'common' && book.getAttribute('docParentId') === 'arm-docs')).toBe(true);
         build.setValue('device', 'Vendor::Other');
         const otherHardware = [...builder.createHardwareNodes(csolution, build).values()].find(item => item.getTag() === 'device')!;
-        expect(otherHardware.getChildren().some(book => book.getAttribute('docName')?.includes('/102023/'))).toBe(false);
+        expect(otherHardware.getChildren().map(book => book.getAttribute('docName'))).toEqual(books.map(book => book.getAttribute('docName')));
         expect(save).not.toHaveBeenCalled();
         manager.dispose();
     });
@@ -139,6 +139,8 @@ describe('HardwareItemBuilder', () => {
         expect(hardware.getFeatures()).toBe('docParent');
         expect(hardware.getTag()).toBe(parentTag);
         expect(hardware.getAttribute('hardwareName')).toBe(parentId);
+        expect(hardware.getAttribute('docParentId')).toBeUndefined();
+        expect(hardware.getAttribute('docParentTag')).toBeUndefined();
         const books = hardware.getChildren();
         expect(books.map(book => book.getAttribute('docName'))).toEqual(names);
         for (const book of books) {

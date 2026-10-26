@@ -118,7 +118,7 @@ describe('DocsYamlFile', () => {
         expect(await file.load()).toBe(ETextFileResult.Success);
         const existing = file.getDocs('NXP::LPC4300', 'device')[0];
         expect([existing.id, existing.version, existing.format]).toEqual([undefined, undefined, undefined]);
-        const doc = file.ensureDoc('https://developer.arm.com/documentation/ddi0419/latest', 'cortex-m0', 'core');
+        const doc = file.ensureDoc('https://developer.arm.com/documentation/ddi0419/latest', 'arm-docs', 'common');
         expect(doc.locationType).toBe('H');
         doc.id = 'ddi0419';
         doc.version = 'latest';
@@ -133,8 +133,8 @@ describe('DocsYamlFile', () => {
         expect(await file.save()).toBe(ETextFileResult.Success);
         const reloaded = new DocsYamlFile(fileName);
         expect(await reloaded.load()).toBe(ETextFileResult.Success);
-        const saved = reloaded.getDocs('cortex-m0', 'core')[0];
-        expect([saved.parentId, saved.parentTag]).toEqual(['cortex-m0', 'core']);
+        const saved = reloaded.getDocs('arm-docs', 'common')[0];
+        expect([saved.parentId, saved.parentTag]).toEqual(['arm-docs', 'common']);
         expect(saved.item!.getChild('parentId')).toBeUndefined();
         expect(saved.item!.getChild('parentTag')).toBeUndefined();
         expect([saved.id, saved.version, saved.format, saved.path]).toEqual(['ddi0419', 'latest', 'pdf', doc.path]);

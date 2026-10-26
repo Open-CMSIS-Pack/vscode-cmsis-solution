@@ -50,13 +50,13 @@ The **CMSIS** view gives you access to the source code of your application. The 
 
 Action buttons allow you to build, run, and debug your application, [edit *csolution project files*](#yml-editor-support) or [manage the solution configuration](#manage-solution-view). The [Configuration Wizard](#configuration-wizard) offers a graphical view to configuration file options.
 
-Arm architecture, core, debug, and applicable NPU documents appear under the device.
-Initialization registers all core catalog entries in `~/.cmsis/docs.yml` under
-`docs.cores`, without a build or network request.
-NPU documents are selected for the current device, not inferred from its CPU core.
-Catalog entries persist `id`, `version`, and `format`; these fields are optional
-for other documents. Documents open using their recorded local path when set,
-or their URL otherwise. Documents are not downloaded automatically.
+Arm documents matching the current core or its architecture appear under the device,
+including matching Generic User Guides.
+Initialization registers the complete catalog once in `~/.cmsis/docs.yml` under
+`docs.commons` with `common: arm-docs`, without a build or network request.
+Catalog entries persist `id`, `version`, `format`, and `metadataUrl`; these fields
+are optional for other documents. Documents open using their recorded local path
+when set, or their URL otherwise. Documents are not downloaded automatically.
 
 ## Action buttons
 

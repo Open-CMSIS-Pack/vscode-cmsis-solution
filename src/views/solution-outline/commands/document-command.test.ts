@@ -46,7 +46,15 @@ describe('DocumentCommand', () => {
     const nodeFor = (parentTag: 'board' | 'device', tag = parentTag as string): COutlineItem => {
         const hardware = new COutlineItem(parentTag);
         hardware.setAttribute('hardwareName', 'Vendor::Selected');
+        hardware.addFeature('docParent');
         const node = tag === parentTag ? hardware : hardware.createChild(tag);
+        if (tag === 'book') {
+            node.setAttribute('docParentId', 'Vendor::Selected');
+            node.setAttribute('docParentTag', parentTag);
+            node.addFeature('docFile');
+            node.addFeature('webDoc');
+            node.addFeature('userDoc');
+        }
         node.setAttribute('docName', name);
         node.setAttribute('docPath', 'not-the-inventory-identity.pdf');
         return node;
@@ -116,6 +124,12 @@ describe('DocumentCommand', () => {
         hardware.setAttribute('hardwareName', `${parentId}:cm33`);
         const node = command === DocumentCommand.addCommandId ? hardware : hardware.createChild('book');
         node.setAttribute('docName', name);
+        if (command !== DocumentCommand.addCommandId) {
+            node.setAttribute('docParentId', parentId);
+            node.setAttribute('docParentTag', 'device');
+            node.addFeature('webDoc');
+            node.addFeature('userDoc');
+        }
 
         await commands.mockRunRegistered(command, node);
 
@@ -212,20 +226,18 @@ describe('DocumentCommand', () => {
         expect(doc.mode).toBeUndefined();
     });
 
-    it('uses a core document owner and shares its selected path with all references', async () => {
+    it('uses the shared document owner supplied by the outline item', async () => {
         const armName = 'https://developer.arm.com/documentation/ddi0553/latest';
-        for (const core of ['cortex-m23', 'cortex-m33']) {
-            manager.file.ensureDoc(armName, core, 'core').format = 'pdf';
-        }
+        manager.file.ensureDoc(armName, 'arm-docs', 'common').format = 'pdf';
         await manager.file.save();
         const node = nodeFor('device', 'book');
         node.setAttribute('docName', armName);
-        node.setAttribute('docParentId', 'cortex-m33');
-        node.setAttribute('docParentTag', 'core');
+        node.setAttribute('docParentId', 'arm-docs');
+        node.setAttribute('docParentTag', 'common');
 
         await commands.mockRunRegistered(DocumentCommand.setLocalPathCommandId, node);
 
-        expect(manager.file.findDocs(armName).map(doc => doc.path)).toEqual([localPath, localPath]);
+        expect(manager.file.findDocs(armName).map(doc => doc.path)).toEqual([localPath]);
         expect(manager.file.getDoc(armName, 'Vendor::Selected', 'device')).toBeUndefined();
         expect(window.showErrorMessage).not.toHaveBeenCalled();
     });
@@ -233,6 +245,7 @@ describe('DocumentCommand', () => {
     it.each(['https://example.com/manual.html', 'local.pdf'])('does not update a non-W document %s after selecting a file', async docName => {
         const node = nodeFor('board', 'book');
         node.setAttribute('docName', docName);
+        node.setAttribute('features', 'docFile');
         const doc = manager.file.ensureDoc(docName, 'Vendor::Selected', 'board');
         const save = jest.spyOn(manager.file, 'save');
         await commands.mockRunRegistered(DocumentCommand.setLocalPathCommandId, node);
@@ -244,7 +257,11 @@ describe('DocumentCommand', () => {
         const doc = manager.file.ensureDoc(name, 'Vendor::Selected', 'board');
         doc.item!.setValue('mode', mode);
         const save = jest.spyOn(manager.file, 'save');
-        await commands.mockRunRegistered(DocumentCommand.removeCommandId, nodeFor('board', 'book'));
+        const node = nodeFor('board', 'book');
+        if (mode !== 'user') {
+            node.setAttribute('features', 'docFile;webDoc');
+        }
+        await commands.mockRunRegistered(DocumentCommand.removeCommandId, node);
         expect(manager.file.getDoc(name, 'Vendor::Selected', 'board')?.item).toBe(mode === 'user' ? undefined : doc.item);
         expect(save).toHaveBeenCalledTimes(mode === 'user' ? 1 : 0);
         expect(window.showOpenDialog).not.toHaveBeenCalled();

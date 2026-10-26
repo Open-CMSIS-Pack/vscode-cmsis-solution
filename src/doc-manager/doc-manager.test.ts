@@ -25,10 +25,10 @@ import { DocsYamlFile } from './docs-yaml-file';
 import { textFileSystemFactory } from '../__test__/text-file-system';
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { TestDataHandler } from '../__test__/test-data';
+import { ArmDoc, armDocName } from './arm-docs';
 
 describe('DocManager catalog registration', () => {
     const testData = new TestDataHandler();
-    const name = 'https://developer.arm.com/documentation/ddi0439/b';
     let manager: DocManager;
 
     beforeEach(async () => {
@@ -41,43 +41,32 @@ describe('DocManager catalog registration', () => {
         testData.rmTmpDir();
     });
 
-    it('initializes missing catalog metadata on an existing Arm book without a build', async () => {
-        const existing = manager.file.getDoc(name, 'cortex-m4', 'core')!;
-        existing.format = undefined;
-        existing.id = undefined;
-        existing.version = undefined;
-        existing.title = 'Stored manual';
-        existing.category = 'stored';
-        await manager.file.save();
-        expect(existing.locationType).toBe('H');
-
-        await manager.initialize(testData.tmpDir);
-
+    it('writes every catalog entry once to the shared owner during initialization', async () => {
+        const catalog = new JsonFile(path.join(__dirname, 'arm-docs.json'));
+        expect(await catalog.load()).toBe(ETextFileResult.Success);
         const reloaded = new DocsYamlFile(manager.file.fileName);
-        await reloaded.load();
-        const doc = reloaded.getDoc(name, 'cortex-m4', 'core')!;
-        expect(doc.format).toBe('pdf');
-        expect([doc.id, doc.version]).toEqual(['ddi0439', 'b']);
-        expect(doc.locationType).toBe('W');
-        expect(doc.title).toBe('Stored manual');
-        expect(doc.category).toBe('stored');
-    });
-
-    it('creates all catalog books during initialization and never changes them when registering a build', async () => {
-        const cores = manager.file.getDocParents('core');
-        expect(cores.map(parent => parent.id)).toEqual(expect.arrayContaining(['cortex-m0+', 'cortex-m4', 'cortex-m85']));
-        expect(cores.every(parent => parent.docs.every(doc => doc.id && doc.version && doc.format === 'pdf'))).toBe(true);
-        const coreBooks = cores.map(parent => parent.item!.toObject());
-        const build = new CTreeItem('build');
-        build.createChild('processor').setValue('core', 'Cortex-M55');
-        build.setValue('device', 'ARM::SSE-315');
-        await manager.addBooks(build);
-        expect(manager.file.getDocParents('core').map(parent => parent.item!.toObject())).toEqual(coreBooks);
-        const saved = manager.file.stringify();
-        expect(await manager.initialize(testData.tmpDir)).toBe(ETextFileResult.Unchanged);
-        expect(manager.file.stringify()).toBe(saved);
-        expect(manager.getBooks('ARM::SSE-315', 'device', build).filter(doc => doc.category === 'npu').map(doc => doc.id)).toEqual(['102023']);
-        expect(manager.getBooks('ARM::SSE-315', 'device', build).some(doc => doc.category === 'gug')).toBe(false);
+        expect(await reloaded.load()).toBe(ETextFileResult.Success);
+        const entries = (catalog.content as { docs: ArmDoc[] }).docs;
+        const books = reloaded.getDocs('arm-docs', 'common');
+        expect(books.map(doc => ({
+            name: doc.name,
+            title: doc.title,
+            category: doc.category,
+            id: doc.id,
+            version: doc.version,
+            format: doc.format,
+            metadataUrl: doc.metadataUrl,
+        }))).toEqual(entries.map(entry => ({
+            name: armDocName(entry),
+            title: entry.title,
+            category: entry.kind,
+            id: entry.docId,
+            version: entry.version,
+            format: entry.format,
+            metadataUrl: `https://documentation-service.arm.com/documentation/${entry.docId}/${entry.version}`,
+        })));
+        expect(new Set(books.map(doc => doc.name)).size).toBe(entries.length);
+        expect(reloaded.getDocParents('common')).toHaveLength(1);
     });
 });
 
@@ -136,12 +125,12 @@ describe('DocManager', () => {
         const manager = new DocManager(catalogFileName);
         expect(await manager.initialize(docsDirectory)).toBe(ETextFileResult.Success);
         expect(load).toHaveBeenCalledTimes(1);
-        expect(manager.file.getDocs('cortex-m4', 'core')).toHaveLength(available ? 1 : 0);
+        expect(manager.file.getDocs('arm-docs', 'common')).toHaveLength(available ? 1 : 0);
 
         files.set(catalogFileName, catalog);
         expect(await manager.initialize(emptyDirectory)).toBe(ETextFileResult.Success);
         await manager.initialize(emptyDirectory);
-        const coreBooks = manager.file.getDocs('cortex-m4', 'core').map(doc => doc.item!.toObject());
+        const commonBooks = manager.file.getDocs('arm-docs', 'common').map(doc => doc.item!.toObject());
         const build = new CTreeItem('build');
         build.createChild('processor').setValue('core', 'Cortex-M4');
         for (const parentTag of ['device', 'board']) {
@@ -152,8 +141,8 @@ describe('DocManager', () => {
         await manager.addBooks(build);
 
         expect(load).toHaveBeenCalledTimes(1);
-        expect(manager.file.getDocs('cortex-m4', 'core').map(doc => doc.item!.toObject())).toEqual(coreBooks);
-        expect(manager.file.getDocs('cortex-m4', 'core')).toHaveLength(available ? 1 : 0);
+        expect(manager.file.getDocs('arm-docs', 'common').map(doc => doc.item!.toObject())).toEqual(commonBooks);
+        expect(manager.file.getDocs('arm-docs', 'common')).toHaveLength(available ? 1 : 0);
         expect(manager.getBooks('Vendor::device', 'device', build).map(doc => doc.name)).toEqual([
             'https://example.com/device.pdf',
             ...(available ? ['https://developer.arm.com/documentation/ddi0439/b'] : []),

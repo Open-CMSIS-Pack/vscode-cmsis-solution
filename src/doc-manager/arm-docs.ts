@@ -73,54 +73,26 @@ export class ArmDocs {
     private async loadCatalog(): Promise<void> {
         const file = new JsonFile(this.catalogFileName);
         const result = await file.load();
-        if (result !== ETextFileResult.Success) {
-            throw new Error('Failed to load the Arm document catalog.');
+        if (result === ETextFileResult.Success) {
+            this.catalog = file.content as ArmCatalog;
         }
-        this.catalog = file.content as ArmCatalog;
     }
 
-    forAllCores(): Map<string, ArmDoc[]> {
-        const catalog = this.catalog;
-        if (!catalog) {
-            return new Map();
-        }
-        const cores = new Set([...Object.keys(catalog.coreArch), ...catalog.docs.flatMap(doc => doc.cores ?? [])]
-            .map(normalizeCore));
-        return new Map([...cores].map(core => [core, catalog.docs
-            .filter(doc => doc.kind === 'npu' || doc.all
-                || doc.cores?.some(name => normalizeCore(name) === core)
-                || doc.archs?.includes(catalog.coreArch[core]))
-            .sort((left, right) => (catalog.kindOrder[left.kind] ?? 99) - (catalog.kindOrder[right.kind] ?? 99))]));
+    all(): readonly ArmDoc[] {
+        return this.catalog?.docs ?? [];
     }
 
-    forTarget(cores: readonly string[], device = '', npus: readonly string[] = []): ArmDoc[] {
+    getDockIDs(core: string): string[] {
         const catalog = this.catalog;
         if (!catalog) {
             return [];
         }
-        const coreNames = new Set(cores.map(normalizeCore).filter(Boolean));
-        const architectures = new Set([...coreNames].map(core => catalog.coreArch[core]).filter(Boolean));
-        const npuNames = new Set(npus.map(npu => npu.toLowerCase().replace(/ethos[\s-]*u\s*(\d+)/i, 'ethos-u$1')));
-        const deviceName = device.split('::').pop()?.split(':')[0] ?? '';
-        for (const known of catalog.knownNpus) {
-            if (new RegExp(known.pattern, 'i').test(deviceName)) {
-                npuNames.add(known.npu.toLowerCase());
-            }
-        }
-        const selected = catalog.docs.filter(doc => {
-            if (doc.kind === 'gug') {
-                return false;
-            }
-            if (doc.kind === 'npu') {
-                return doc.npus?.some(npu => npuNames.has(npu.toLowerCase()));
-            }
-            if (coreNames.size === 0) {
-                return false;
-            }
-            return doc.all || doc.cores?.some(core => coreNames.has(normalizeCore(core)))
-                || doc.archs?.some(arch => architectures.has(arch));
-        });
-        return selected.sort((left, right) => (catalog.kindOrder[left.kind] ?? 99) - (catalog.kindOrder[right.kind] ?? 99));
+        const coreName = normalizeCore(core);
+        const architecture = catalog.coreArch[coreName];
+        return [...new Set(catalog.docs
+            .filter(doc => doc.cores?.some(name => normalizeCore(name) === coreName)
+                || doc.archs?.some(arch => arch === architecture))
+            .map(doc => doc.docId))];
     }
 
     metadataUrl(name: string): string | undefined {

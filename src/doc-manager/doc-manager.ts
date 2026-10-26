@@ -22,7 +22,7 @@ import { CTreeItem, ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-ite
 import { Event, EventEmitter } from 'vscode';
 import { expandRootVars } from '../utils/path-utils';
 import { DocsYamlFile, getDocParentId, getWebLocationType, IDocRef } from './docs-yaml-file';
-import { ArmDocs, armDocName, armDocRef, cbuildCore } from './arm-docs';
+import { ArmDocs, armDocName, cbuildCore } from './arm-docs';
 
 export interface DocManager {
     readonly file: DocsYamlFile;
@@ -31,6 +31,7 @@ export interface DocManager {
     initialize(docsDirectory: string): Promise<ETextFileResult>;
     addBooks(cbuild: CTreeItem): Promise<void>;
     getBooks(parentId: string, parentTag: string, cbuild?: CTreeItem): readonly IDocRef[];
+    getArmBooks(cbuild?: CTreeItem): readonly IDocRef[];
     addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): Promise<IDocRef | undefined>;
     setLocalPath(parentId: string, parentTag: string, name: string, localPath: string): Promise<boolean>;
     removeDocument(parentId: string, parentTag: string, name: string): Promise<boolean>;
@@ -43,7 +44,7 @@ class DocManagerImpl implements DocManager {
     public readonly onDidChange = this.changeEmitter.event;
     private pendingUpdate: Promise<unknown> = Promise.resolve();
 
-    private armDocs?: ArmDocs;
+    private readonly armDocs: ArmDocs;
 
     constructor(catalogFileName?: string) {
         this.armDocs = new ArmDocs(catalogFileName);
@@ -58,10 +59,8 @@ class DocManagerImpl implements DocManager {
     }
 
     async initialize(docsDirectory: string): Promise<ETextFileResult> {
-        if (this.armDocs && !this.armDocs.isLoaded) {
-            await this.armDocs.load().catch(() => {
-                this.armDocs = undefined;
-            });
+        if (!this.armDocs.isLoaded) {
+            await this.armDocs.load();
         }
         const fileName = path.join(docsDirectory, 'docs.yml');
         if (this.file.fileName !== fileName) {
@@ -116,25 +115,22 @@ class DocManagerImpl implements DocManager {
     }
 
     private addArmBooks(): boolean {
-        if (!this.armDocs) {
-            return false;
-        }
         let changed = false;
-        for (const [core, entries] of this.armDocs.forAllCores()) {
-            for (const entry of entries) {
-                const name = armDocName(entry);
-                const existing = this.file.getDoc(name, core, 'core');
-                const doc = existing ?? this.file.ensureDoc(name, core, 'core');
-                changed ||= !existing || doc.id === undefined || doc.version === undefined
-                    || (doc.format === undefined && entry.format !== undefined);
-                if (!existing) {
-                    doc.title = entry.title;
-                    doc.category = entry.kind;
-                }
-                doc.id ??= entry.docId;
-                doc.version ??= entry.version;
-                doc.format ??= entry.format;
+        for (const entry of this.armDocs.all()) {
+            const name = armDocName(entry);
+            const existing = this.file.getDoc(name, 'arm-docs', 'common');
+            const doc = existing ?? this.file.ensureDoc(name, 'arm-docs', 'common');
+            changed ||= !existing || doc.id === undefined || doc.version === undefined
+                || doc.item!.getValue('title') === undefined || doc.category === undefined
+                || (doc.format === undefined && entry.format !== undefined) || doc.metadataUrl === undefined;
+            if (doc.item!.getValue('title') === undefined) {
+                doc.title = entry.title;
             }
+            doc.category ??= entry.kind;
+            doc.id ??= entry.docId;
+            doc.version ??= entry.version;
+            doc.format ??= entry.format;
+            doc.metadataUrl ??= `https://documentation-service.arm.com/documentation/${entry.docId}/${entry.version}`;
         }
         return changed;
     }
@@ -144,12 +140,12 @@ class DocManagerImpl implements DocManager {
         if (parentTag !== 'device') {
             return hardwareBooks;
         }
-        const core = cbuildCore(cbuild);
-        const stored = this.file.getDocs(core, 'core');
-        const selected = this.armDocs?.forTarget([core], cbuild?.getValue('device'))
-            .map(entry => stored.find(doc => doc.name === armDocName(entry)))
-            .filter((doc): doc is IDocRef => doc !== undefined) ?? [];
-        return [...hardwareBooks, ...selected, ...stored.filter(doc => !armDocRef(doc.name))];
+        return [...hardwareBooks, ...this.getArmBooks(cbuild)];
+    }
+
+    getArmBooks(cbuild?: CTreeItem): readonly IDocRef[] {
+        const stored = this.file.getDocs('arm-docs', 'common');
+        return this.armDocs.getDockIDs(cbuildCore(cbuild)).map(id => stored.find(doc => doc.id === id)!);
     }
 
     private update<T>(operation: () => Promise<T>): Promise<T> {

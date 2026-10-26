@@ -64,8 +64,8 @@ describe('OpenCommand', () => {
         const name = 'https://developer.arm.com/documentation/ddi0439/b';
         item.setAttribute('docName', name);
         item.setAttribute('docPath', docPath);
-        item.setAttribute('docParentId', 'cortex-m4');
-        item.setAttribute('docParentTag', 'core');
+        item.setAttribute('docParentId', 'arm-docs');
+        item.setAttribute('docParentTag', 'common');
         await commandsProvider.mockRunRegistered(OpenCommand.openDocCommandId, item);
         if (docPath) {
             expect(open).toHaveBeenCalledWith(docPath);
