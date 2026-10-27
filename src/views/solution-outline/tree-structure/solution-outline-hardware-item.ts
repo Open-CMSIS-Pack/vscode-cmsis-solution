@@ -77,19 +77,11 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         this.createDbgConfigNode(hardwareItem, isBoard, cbuild);
 
         // create children
-        this.createBooksNodes(hardwareItem, hardwareName, parentTag);
-
-        return hardwareItem;
-    }
-
-    private createBooksNodes(hardwareItem: COutlineItem, parentId: string, parentTag: 'board' | 'device') {
-        if (!this.docManager) {
-            return;
-        }
-
-        for (const doc of this.docManager.file.getDocs(parentId, parentTag)) {
+        for (const doc of this.docManager?.getBooks(hardwareName, parentTag, cbuild ?? csolution.getCbuildTop()) ?? []) {
             this.createBookNode(hardwareItem, doc);
         }
+
+        return hardwareItem;
     }
 
     private createBookNode(hardwareItem: COutlineItem, doc: IDocRef) {
@@ -109,7 +101,9 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         bookItem.setAttribute('resourcePath', filePath);
         bookItem.setAttribute('docPath', filePath);
         bookItem.setAttribute('docName', doc.name);
-        bookItem.setAttribute('tooltip', filePath);
+        bookItem.setAttribute('docParentId', doc.parentId);
+        bookItem.setAttribute('docParentTag', doc.parentTag);
+        bookItem.setAttribute('tooltip', doc.error ? `${filePath}\n${doc.error}` : filePath);
         bookItem.addFeature('docFile');
         if (doc.locationType === 'W') {
             bookItem.addFeature('webDoc');
@@ -118,7 +112,7 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
             bookItem.addFeature('userDoc');
         }
 
-        const useCommand = isWebAddress(filePath) || !filePath.toLowerCase().endsWith('.md');
+        const useCommand = doc.isWeb() || isWebAddress(filePath) || !filePath.toLowerCase().endsWith('.md');
         if (useCommand) {
             bookItem.setAttribute('command', 'cmsis-csolution.openDocFile');
         }

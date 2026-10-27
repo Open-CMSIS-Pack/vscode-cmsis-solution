@@ -21,21 +21,30 @@ import { CTreeItem, ETreeItemKind, ITreeItem } from '@open-cmsis-pack/cmsis-comm
 import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { CTreeItemWrap, ITreeItemWrap } from '@open-cmsis-pack/cmsis-common/tree-item-wrapper';
 import { comparePackIds, splitVendorNameId } from '../data-manager/pack-data';
+import { splitBoardId } from '../data-manager/board-data';
 import { splitDeviceId } from '../data-manager/device-data';
 import { isWebAddress } from '../util';
 import { expandRootVars, getCmsisPackRoot } from '../utils/path-utils';
 
 export interface IDocRef extends ITreeItemWrap {
+    readonly parentId: string;
+    readonly parentTag: string;
     get name(): string;
     set name(value: string | undefined);
     path: string | undefined;
     get title(): string;
     set title(value: string | undefined);
     category: string | undefined;
+    id: string | undefined;
+    version: string | undefined;
+    format: string | undefined;
+    metadataUrl: string | undefined;
     readonly locationType: string;
     readonly indexDir: string | undefined;
+    readonly downloadUrl: URL;
     mode: 'user' | undefined;
     error: string | undefined;
+    getDestinationPath(destinationRoot: string): string;
     isWebDoc(): boolean;
     isWeb(): boolean;
     isDownloaded(): boolean;
@@ -78,7 +87,7 @@ export function getDocParentId(parentId?: string, parentTag?: string) {
         : deviceId.name;
 }
 
-export function getWebLocationType(name: string): 'W' | 'H' | undefined {
+export function getWebLocationType(name: string, format?: string): 'W' | 'H' | undefined {
     const isFileUrl = name.startsWith('file://');
     if (!isWebAddress(name) && !isFileUrl) {
         return undefined;
@@ -87,6 +96,9 @@ export function getWebLocationType(name: string): 'W' | 'H' | undefined {
         const url = new URL(name.startsWith('www.') ? `https://${name}` : name);
         if (isFileUrl && (!url.hostname || url.hostname === 'localhost')) {
             return undefined;
+        }
+        if (format?.toLowerCase() === 'pdf') {
+            return 'W';
         }
         const extension = url.pathname.endsWith('/') ? '' : path.posix.extname(url.pathname).toLowerCase();
         return extension && extension !== '.' && extension !== '.html' && extension !== '.htm' ? 'W' : 'H';
@@ -101,15 +113,30 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
     }
 
     override get nameKey(): string { return 'name'; }
+    get parentId(): string { return this.parent?.id ?? ''; }
+    get parentTag(): string { return this.parent?.tag ?? ''; }
     get path(): string | undefined { return this.getValue('path'); }
-    set path(value: string | undefined) { this.setValue('path', value); }
+    set path(value: string | undefined) {
+        this.setValue('path', value);
+        if (value) {
+            this.error = undefined;
+        }
+    }
     get title(): string { return this.getValue('title') || this.name || this.path || ''; }
     set title(value: string | undefined) { this.setValue('title', value); }
     get category(): string | undefined { return this.getValue('category'); }
     set category(value: string | undefined) { this.setValue('category', value); }
+    get id(): string | undefined { return this.getValue('id'); }
+    set id(value: string | undefined) { this.setValue('id', value); }
+    get version(): string | undefined { return this.getValue('version'); }
+    set version(value: string | undefined) { this.setValue('version', value); }
+    get format(): string | undefined { return this.getValue('format'); }
+    set format(value: string | undefined) { this.setValue('format', value); }
+    get metadataUrl(): string | undefined { return this.getValue('metadataUrl'); }
+    set metadataUrl(value: string | undefined) { this.setValue('metadataUrl', value); }
     get locationType(): string {
         const name = this.name || this.path || '';
-        const webLocationType = getWebLocationType(name);
+        const webLocationType = getWebLocationType(name, this.format);
         if (webLocationType) {
             return webLocationType;
         }
@@ -131,13 +158,66 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
         const basename = this.getBasename(source, locationType);
         return this.item?.resolvePath(path.join('docs', vendor, name, basename));
     }
+    get downloadUrl(): URL {
+        if (this.parentTag === 'common') {
+            if (this.format?.toLowerCase() !== 'pdf') {
+                throw new Error('Only PDF downloads are supported for common Arm documents.');
+            }
+            return new URL(
+                `https://documentation-service.arm.com/documentation/${encodeURIComponent(this.id!)}/${encodeURIComponent(this.version!)}`,
+            );
+        }
+        const url = new URL(this.name.startsWith('www.') ? `https://${this.name}` : this.name);
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+            throw new Error('Document downloads require an HTTP or HTTPS URL.');
+        }
+        return url;
+    }
     get mode(): 'user' | undefined { return this.getValue('mode') === 'user' ? 'user' : undefined; }
     set mode(value: 'user' | undefined) { this.setValue('mode', value); }
     get error(): string | undefined { return this.getValue('error'); }
     set error(value: string | undefined) { this.setValue('error', value); }
-    isWebDoc(): boolean { return getWebLocationType(this.name) === 'W'; }
+    isWebDoc(): boolean { return getWebLocationType(this.name, this.format) === 'W'; }
     isWeb(): boolean { return getWebLocationType(this.name) !== undefined; }
     isDownloaded(): boolean { return this.locationType === 'W' && this.path !== undefined; }
+
+    getDestinationPath(destinationRoot: string): string {
+        if (this.parentTag === 'common') {
+            const id = this.pathComponent(this.id, 'id');
+            const version = this.pathComponent(this.version, 'version');
+            const baseName = `${id}-${version}`;
+            const extension = this.format === undefined ? '' : `.${this.pathComponent(this.format, 'format')}`;
+            return path.join(destinationRoot, baseName, `${baseName}${extension}`);
+        }
+        if ((this.parentTag === 'device' || this.parentTag === 'board') && this.isWebDoc()) {
+            const hardware = this.parentTag === 'device' ? splitDeviceId(this.parentId) : splitBoardId(this.parentId);
+            const vendor = this.pathComponent(hardware?.vendor, 'vendor');
+            const name = this.pathComponent(hardware?.name, 'hardware name');
+            const url = this.downloadUrl;
+            const fileName = this.pathComponent(
+                url.pathname.endsWith('/') ? undefined : decodeURIComponent(path.posix.basename(url.pathname)), 'filename',
+            );
+            return path.join(destinationRoot, vendor, name, fileName);
+        }
+        throw new Error('Only common documents and board or device web documents are supported.');
+    }
+
+    private pathComponent(value: string | undefined, label: string): string {
+        const component = value ?? '';
+
+        // Reject path separators, Windows-forbidden symbols, and control characters.
+        const hasInvalidCharacters = /[<>:"/\\|?*]/.test(component)
+            || Array.from(component).some(character => character.charCodeAt(0) < 32);
+
+        // Windows disallows trailing dots or spaces and reserves device names, even with extensions.
+        const hasInvalidEnding = /[. ]$/.test(component);
+        const isReservedName = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(component);
+
+        if (!value || hasInvalidCharacters || hasInvalidEnding || isReservedName) {
+            throw new Error(`Invalid document ${label}: ${value ?? '(missing)'}`);
+        }
+        return value;
+    }
 
     private getBasename(source: string, locationType: string): string {
         return locationType === 'W'

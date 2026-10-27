@@ -714,6 +714,12 @@
       },
       {
         "category": "CMSIS",
+        "command": "cmsis-csolution.downloadDocument",
+        "title": "Download Document",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "category": "CMSIS",
         "command": "cmsis-csolution.setDocumentLocalPath",
         "title": "Set Local Path",
         "icon": "$(folder-opened)"
@@ -1013,6 +1019,10 @@
           "command": "cmsis-csolution.addDocument"
         },
         {
+          "command": "cmsis-csolution.downloadDocument",
+          "when": "false"
+        },
+        {
           "command": "cmsis-csolution.setDocumentLocalPath",
           "when": "false"
         },
@@ -1272,6 +1282,11 @@
         {
           "command": "cmsis-csolution.addDocument",
           "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)docParent(;|$)/",
+          "group": "contextMenu"
+        },
+        {
+          "command": "cmsis-csolution.downloadDocument",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)webDoc(;|$)/",
           "group": "contextMenu"
         },
         {
