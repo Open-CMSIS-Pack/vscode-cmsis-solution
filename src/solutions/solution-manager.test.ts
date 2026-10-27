@@ -37,6 +37,7 @@ import { CONFIG_ENVIRONMENT_VARIABLES } from '../manifest';
 import { ETextFileResult, YamlFile } from '@open-cmsis-pack/cmsis-common';
 import { ToolsEnvironment } from './tools-environment';
 import { DocManager } from '../doc-manager/doc-manager';
+import * as vscodeUtils from '../utils/vscode-utils';
 
 
 const convertResultData: ConvertResultData = {
@@ -81,6 +82,7 @@ describe('SolutionManager', () => {
 
     beforeAll(async () => {
         tmpSolutionsDir = testDataHandler.copyTestDataToTmp('solutions');
+        jest.spyOn(vscodeUtils, 'getWorkspaceFolder').mockReturnValue(tmpSolutionsDir);
     });
 
     afterAll(async () => {

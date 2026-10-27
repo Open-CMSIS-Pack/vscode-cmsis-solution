@@ -16,7 +16,7 @@
 
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
+import { TestDataHandler } from '../../../__test__/test-data';
 import { OpenCommand } from './open-command';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 import { IOpenFileExternal } from '../../../open-file-external-if';
@@ -33,6 +33,7 @@ import { faker } from '@faker-js/faker';
 import { ConfigWizardAnnotationChecker } from '../../../utils/config-wizard-checker';
 
 describe('OpenCommand', () => {
+    const testDataHandler = new TestDataHandler();
     let commandsProvider: MockCommandsProvider;
     const mockOpenFileExternal: IOpenFileExternal = openFileExternalFactory();
     let mockAnnotationChecker: ConfigWizardAnnotationChecker;
@@ -44,14 +45,14 @@ describe('OpenCommand', () => {
         mockAnnotationChecker = {
             hasAnnotations: jest.fn().mockResolvedValue(false),
         };
-        testFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'jest-'));
+        testFolder = testDataHandler.tmpDir;
         testFile = `${testFolder}/jtest.txt`;
         fs.writeFileSync(testFile, 'test content');
     });
 
     afterEach(() => {
         jest.restoreAllMocks();
-        fs.rmSync(testFolder, { recursive: true, force: true });
+        testDataHandler.dispose();
     });
 
     it('registers the command on activation', async () => {
