@@ -33,8 +33,36 @@ async function runToolsEnvironment(): Promise<void> {
     const errors: unknown[] = [];
     try {
         assert.ok(!('getToolsEnvironment' in exports.getApi(2)));
+        assert.ok(!('getDebuggers' in exports.getApi(2)));
+        assert.ok(!('getToolchains' in exports.getApi(2)));
         const selected = await vscode.commands.executeCommand('cmsis-csolution.getSolutionFile');
-        await configuration.update('environmentVariables', { WINDOW_VALUE: 'current' }, vscode.ConfigurationTarget.Workspace);
+        const catalog = new YamlFile(
+            path.join(extension.extensionPath, 'templates', 'debug', 'debug-adapters.yml'),
+        );
+        assert.equal(await catalog.load(), ETextFileResult.Success);
+        const adapters = catalog.content as { 'debug-adapters': { name: string }[] };
+        const debuggerNames = adapters['debug-adapters'].map(adapter => adapter.name);
+        assert.ok(debuggerNames.length > 0);
+        assert.deepEqual(await api.getDebuggers(), debuggerNames);
+        const changedNames = await api.getDebuggers();
+        changedNames.push('Not a registered debugger');
+        assert.deepEqual(await api.getDebuggers(), debuggerNames);
+        const registrationVariable = 'SMOKE_TOOLCHAIN_1_2_3';
+        const registeredPath = path.join(folders[0], 'compiler with spaces', 'bin');
+        await configuration.update('environmentVariables', {
+            WINDOW_VALUE: 'current', [registrationVariable]: registeredPath,
+        }, vscode.ConfigurationTarget.Workspace);
+        const expectedToolchain = { name: 'SMOKE', version: '1.2.3', path: registeredPath, registrationVariable };
+        const toolchains = await api.getToolchains();
+        assert.deepEqual(toolchains.find(toolchain => toolchain.registrationVariable === registrationVariable), expectedToolchain);
+        assert.deepEqual(JSON.parse(JSON.stringify(toolchains)), toolchains);
+        assert.deepEqual(await api.getToolchains(), toolchains);
+        for (const toolchain of toolchains) {
+            assert.deepEqual(Object.keys(toolchain).sort(), ['name', 'path', 'registrationVariable', 'version']);
+            assert.ok(Object.values(toolchain).every(value => typeof value === 'string' && value.length > 0));
+        }
+        toolchains.find(toolchain => toolchain.registrationVariable === registrationVariable)!.path = 'changed';
+        assert.deepEqual((await api.getToolchains()).find(toolchain => toolchain.registrationVariable === registrationVariable), expectedToolchain);
         for (const folder of folders) {
             const content = await api.getToolsEnvironment();
             const document = new YamlFile();
@@ -54,8 +82,15 @@ async function runToolsEnvironment(): Promise<void> {
             assert.equal(await api.getToolsEnvironment(), content);
             await assert.rejects(fs.stat(path.join(folder, '.cmsis')), { code: 'ENOENT' });
         }
+        const updatedPath = path.join(folders[1], 'compiler', 'bin');
+        await configuration.update('environmentVariables', {
+            WINDOW_VALUE: 'current', [registrationVariable]: updatedPath,
+        }, vscode.ConfigurationTarget.Workspace);
+        assert.deepEqual((await api.getToolchains()).find(toolchain => toolchain.registrationVariable === registrationVariable), {
+            ...expectedToolchain, path: updatedPath,
+        });
         assert.equal(await vscode.commands.executeCommand('cmsis-csolution.getSolutionFile'), selected);
-        console.log('API V3 tools: multi-root window environment, no solution, repeatability, V2 compatibility and no generated files passed.');
+        console.log('API V3 tools: exact debugger names, live toolchain registrations, multi-root window environment, no solution, repeatability, V2 compatibility and no generated files passed.');
     } catch (error) {
         errors.push(error);
     } finally {

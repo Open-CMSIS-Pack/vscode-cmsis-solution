@@ -35,7 +35,7 @@ export class CsolutionExtensionImpl implements CsolutionExtension {
         private readonly dataManager: DataManager,
         private readonly solutionManager: Pick<SolutionManager, 'getCsolution' | 'loadState'>,
         private readonly csolutionService: Pick<CsolutionService, 'getPacksInfo'>,
-        private readonly toolsEnvironment: Pick<ToolsEnvironment, 'getToolsEnvironment'>,
+        private readonly toolsEnvironment: Pick<ToolsEnvironment, 'getToolsEnvironment' | 'getToolchains'>,
         private readonly commandsProvider: Pick<CommandsProvider, 'executeCommand'>,
     ) { }
 

@@ -34,7 +34,7 @@ describe('CsolutionExtension', () => {
             {} as DataManager,
             { getCsolution: jest.fn(), loadState: {} },
             { getPacksInfo: jest.fn() },
-            { getToolsEnvironment: jest.fn() },
+            { getToolsEnvironment: jest.fn(), getToolchains: jest.fn() },
             { executeCommand: jest.fn() },
         );
 
@@ -49,7 +49,7 @@ describe('CsolutionExtension', () => {
     it('returns the APIv2', () => {
         const api = extension.getApi(2);
         expect(api.getBoards).toBeDefined();
-        for (const method of ['getToolsEnvironment', 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution', ...commandGetters]) {
+        for (const method of ['getDebuggers', 'getToolchains', 'getToolsEnvironment', 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution', ...commandGetters]) {
             expect(api).not.toHaveProperty(method);
         }
     });
@@ -58,7 +58,7 @@ describe('CsolutionExtension', () => {
         const api = extension.getApi(3);
         expect(api).not.toBe(extension.getApi(3));
         expect(api).not.toBe(extension.getApi(2));
-        for (const method of ['getBoards', 'getDevices', 'getDraftProjects', 'createNewSolution', 'build', 'getToolsEnvironment', 'getPacks', 'installPacks', 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution', ...commandGetters]) {
+        for (const method of ['getDebuggers', 'getToolchains', 'getBoards', 'getDevices', 'getDraftProjects', 'createNewSolution', 'build', 'getToolsEnvironment', 'getPacks', 'installPacks', 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution', ...commandGetters]) {
             expect(api).toHaveProperty(method, expect.any(Function));
         }
     });
