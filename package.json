@@ -407,6 +407,7 @@
             "enum": [
               "quiet",
               "normal",
+              "build-commands",
               "verbose",
               "debug"
             ],
@@ -1557,12 +1558,14 @@
           "enum": [
             "quiet",
             "normal",
+            "build-commands",
             "verbose",
             "debug"
           ],
           "enumDescriptions": [
             "Show only errors or fatal conditions",
             "Include build steps and warnings",
+            "Show command invocations during build process",
             "Include command-line invocation",
             "Include internal process steps"
           ],
