@@ -28,6 +28,22 @@ describe('DocDownload', () => {
         testData.dispose();
     });
 
+    it.each([
+        ['ddi0439', 'b'],
+        ['100230', 'latest'],
+    ])('downloads Arm document %s/%s to a real PDF file', async (id, version) => {
+        const destinationRoot = path.join(testData.tmpDir, 'docs');
+        const downloader = new DocDownload();
+        const destination = path.join(destinationRoot, `${id}-${version}.pdf`);
+        const metadataUrl = new URL(`https://documentation-service.arm.com/documentation/${id}/${version}`);
+
+        await downloader.downloadDoc(metadataUrl, destination, true, id);
+
+        const fileStat = await stat(destination);
+        expect(fileStat.isFile()).toBe(true);
+        expect(fileStat.size).toBeGreaterThan(100);
+    }, 150_000);
+
     it('rejects a non-HTTP URL without creating a destination file', async () => {
         const downloader = new DocDownload();
         const destination = path.join(testData.tmpDir, 'failed-docs', 'manual.pdf');
@@ -68,19 +84,6 @@ describe('DocDownload', () => {
             request.mockRestore();
         }
     });
-
-    it('downloads Arm document 100230/latest to a real PDF file', async () => {
-        const destinationRoot = path.join(testData.tmpDir, 'docs');
-        const downloader = new DocDownload();
-        const destination = path.join(destinationRoot, '100230-latest.pdf');
-        const metadataUrl = new URL('https://documentation-service.arm.com/documentation/100230/latest');
-
-        await downloader.downloadDoc(metadataUrl, destination, true, '100230');
-
-        const fileStat = await stat(destination);
-        expect(fileStat.isFile()).toBe(true);
-        expect(fileStat.size).toBeGreaterThan(100);
-    }, 150_000);
 
     it('downloads a web document to the supplied destination', async () => {
         const destinationRoot = path.join(testData.tmpDir, 'device-docs');

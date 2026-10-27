@@ -18,6 +18,7 @@ import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { mkdir, rename, rm } from 'node:fs/promises';
 import * as path from 'node:path';
+import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { URL } from 'node:url';
 
@@ -52,20 +53,29 @@ export class DocDownload {
             }
             const response = await fetch(url, { signal, redirect: 'manual', headers: { Accept: accept } });
             if ([301, 302, 303, 307, 308].includes(response.status)) {
-                await response.body?.cancel();
+                await this.disposeResponse(response);
                 const location = response.headers.get('location');
                 if (!location) {
                     throw new Error('Document redirect has no location.');
                 }
                 url = new URL(location, url);
             } else if (!response.ok) {
-                await response.body?.cancel();
+                await this.disposeResponse(response);
                 throw new Error(`Document request failed: HTTP ${response.status} ${response.statusText}`);
             } else {
                 return response;
             }
         }
         throw new Error('Document request exceeded five redirects.');
+    }
+
+    private async disposeResponse(response: Response): Promise<void> {
+        const body = response.body as ReadableStream<Uint8Array> | Readable | null;
+        if (body instanceof Readable) {
+            body.destroy();
+        } else {
+            await body?.cancel();
+        }
     }
 
     async downloadDoc(url: URL, destination: string, requirePdf: boolean, armDocId?: string): Promise<void> {
@@ -75,54 +85,54 @@ export class DocDownload {
         }
         await mkdir(path.dirname(destination), { recursive: true });
         const temporary = `${destination}.${randomUUID()}.part`;
+        let output: ReturnType<typeof createWriteStream> | undefined;
         try {
             const response = await this.fetchResponse(url, signal, requirePdf ? 'application/pdf' : '*/*');
-            await pipeline(this.fileChunks(response, requirePdf), createWriteStream(temporary, { flags: 'wx' }), { signal });
+            if (!response.body) {
+                throw new Error('Document response has no body.');
+            }
+            const body = response.body as unknown as AsyncIterable<Uint8Array>;
+            output = createWriteStream(temporary, { flags: 'wx' });
+            await pipeline(body, chunks => this.fileChunks(chunks, requirePdf), output, { signal });
             signal.throwIfAborted();
             await rename(temporary, destination);
         } finally {
+            const stream = output;
+            if (stream && !stream.closed) {
+                await new Promise<void>(resolve => {
+                    stream.once('close', resolve);
+                    stream.destroy();
+                });
+            }
             await rm(temporary, { force: true });
         }
     }
 
-    private async *fileChunks(response: Response, requirePdf: boolean): AsyncGenerator<Uint8Array> {
-        if (!response.body) {
-            throw new Error('Document response has no body.');
-        }
-        const reader = response.body.getReader();
+    private async *fileChunks(chunks: AsyncIterable<Uint8Array>, requirePdf: boolean): AsyncGenerator<Uint8Array> {
         const signature = Buffer.from('%PDF-');
         let prefix = Buffer.alloc(0);
         let validated = !requirePdf;
         let size = 0;
-        try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) {
-                    break;
-                }
-                size += value.length;
-                if (validated) {
-                    yield value;
-                } else {
-                    prefix = Buffer.concat([prefix, value]);
-                    if (prefix.length >= signature.length) {
-                        if (!prefix.subarray(0, signature.length).equals(signature)) {
-                            throw new Error('Document response is not a PDF.');
-                        }
-                        validated = true;
-                        yield prefix;
+        for await (const chunk of chunks) {
+            size += chunk.length;
+            if (validated) {
+                yield chunk;
+            } else {
+                prefix = Buffer.concat([prefix, chunk]);
+                if (prefix.length >= signature.length) {
+                    if (!prefix.subarray(0, signature.length).equals(signature)) {
+                        throw new Error('Document response is not a PDF.');
                     }
+                    validated = true;
+                    yield prefix;
                 }
             }
-            if (size === 0) {
-                throw new Error('Document response is empty.');
-            }
-            if (!validated) {
-                throw new Error('Document response has an incomplete PDF header.');
-            }
-        } finally {
-            await reader.cancel().catch(() => undefined);
-            reader.releaseLock();
+        }
+        if (size === 0) {
+            throw new Error('Document response is empty.');
+        }
+        if (!validated) {
+            throw new Error('Document response has an incomplete PDF header.');
         }
     }
 }
