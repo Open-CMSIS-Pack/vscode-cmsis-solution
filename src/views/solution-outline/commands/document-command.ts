@@ -87,13 +87,7 @@ export class DocumentCommand {
             return;
         }
         const manager = this.solutionManager.getDocManager();
-        try {
-            if (!await manager.downloadDocument(target.parentId, target.parentTag, name)) {
-                await this.window.showErrorMessage('Failed to save the document inventory.');
-            }
-        } catch (error) {
-            await this.window.showErrorMessage(`Failed to download document: ${error instanceof Error ? error.message : String(error)}`);
-        }
+        await manager.downloadDocument(target.parentId, target.parentTag, name);
     }
 
     private async setLocalPath(node?: COutlineItem): Promise<void> {

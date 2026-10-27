@@ -116,20 +116,12 @@ describe('DocumentCommand', () => {
         expect(window.showErrorMessage).not.toHaveBeenCalled();
     });
 
-    it('reports a download error without rejecting the command', async () => {
-        jest.spyOn(manager, 'downloadDocument').mockRejectedValue(new Error('HTTP 404'));
-
-        await commands.mockRunRegistered(DocumentCommand.downloadCommandId, nodeFor('board', 'book'));
-
-        expect(window.showErrorMessage).toHaveBeenCalledWith('Failed to download document: HTTP 404');
-    });
-
-    it('reports download inventory save failures separately', async () => {
+    it('does not duplicate download failure reporting', async () => {
         jest.spyOn(manager, 'downloadDocument').mockResolvedValue(false);
 
         await commands.mockRunRegistered(DocumentCommand.downloadCommandId, nodeFor('board', 'book'));
 
-        expect(window.showErrorMessage).toHaveBeenCalledWith('Failed to save the document inventory.');
+        expect(window.showErrorMessage).not.toHaveBeenCalled();
     });
 
     it('ignores missing and non-web download targets', async () => {

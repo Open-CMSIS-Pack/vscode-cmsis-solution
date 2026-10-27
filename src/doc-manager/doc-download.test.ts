@@ -20,7 +20,6 @@ import { stat } from 'node:fs/promises';
 import * as path from 'node:path';
 import { TestDataHandler } from '../__test__/test-data';
 import { DocDownload } from './doc-download';
-import { DocsYamlFile } from './docs-yaml-file';
 
 describe('DocDownload', () => {
     const testData = new TestDataHandler();
@@ -29,70 +28,68 @@ describe('DocDownload', () => {
         testData.dispose();
     });
 
-    it('clears a previous path and records the error when a download fails', async () => {
-        const downloader = new DocDownload(path.join(testData.tmpDir, 'failed-docs'));
-        const inventory = new DocsYamlFile();
-        const doc = inventory.ensureDoc('https://developer.arm.com/documentation/100230/latest', 'arm-docs', 'common');
-        doc.path = path.join(testData.tmpDir, 'previous.pdf');
-        doc.error = 'Previous error';
+    it('rejects a non-HTTP URL without creating a destination file', async () => {
+        const downloader = new DocDownload();
+        const destination = path.join(testData.tmpDir, 'failed-docs', 'manual.pdf');
 
-        await expect(downloader.downloadDoc(doc)).rejects.toThrow('Invalid document id: (missing)');
+        await expect(downloader.downloadDoc(new URL('file:///manual.pdf'), destination, false))
+            .rejects.toThrow('Document downloads require an HTTP or HTTPS URL.');
 
-        expect(doc.path).toBeUndefined();
-        expect(doc.error).toBe('Invalid document id: (missing)');
-        expect(doc.isDownloaded()).toBe(false);
+        await expect(stat(destination)).rejects.toMatchObject({ code: 'ENOENT' });
+    });
+
+    it('owns one timeout shared by Arm metadata and file transfer', async () => {
+        const downloader = new DocDownload();
+        const metadataUrl = new URL('https://documentation-service.arm.com/documentation/100230/latest');
+        const downloadUrl = new URL('https://example.com/100230.pdf');
+        const destination = path.join(testData.tmpDir, 'timeout', 'manual.pdf');
+        const signal = new AbortController().signal;
+        const metadata = Response.json({ _links: { resources: [{ href: downloadUrl.href, extension: 'pdf', name: '100230.pdf' }] } });
+        Object.defineProperty(metadata, 'url', { value: metadataUrl.href });
+        const timeout = jest.spyOn(AbortSignal, 'timeout').mockReturnValue(signal);
+        const request = jest.spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(metadata)
+            .mockResolvedValueOnce(new Response('%PDF-test'));
+
+        try {
+            await downloader.downloadDoc(metadataUrl, destination, true, '100230');
+
+            expect(timeout).toHaveBeenCalledTimes(1);
+            expect(timeout).toHaveBeenCalledWith(120_000);
+            expect(request).toHaveBeenNthCalledWith(1, metadataUrl, {
+                signal, redirect: 'manual', headers: { Accept: 'application/json' },
+            });
+            expect(request).toHaveBeenNthCalledWith(2, downloadUrl, {
+                signal, redirect: 'manual', headers: { Accept: 'application/pdf' },
+            });
+            expect((await stat(destination)).isFile()).toBe(true);
+        } finally {
+            timeout.mockRestore();
+            request.mockRestore();
+        }
     });
 
     it('downloads Arm document 100230/latest to a real PDF file', async () => {
         const destinationRoot = path.join(testData.tmpDir, 'docs');
-        const downloader = new DocDownload(destinationRoot);
-        const name = 'https://developer.arm.com/documentation/100230/latest';
-        const inventory = new DocsYamlFile();
-        const doc = inventory.ensureDoc(name, 'arm-docs', 'common');
-        doc.id = '100230';
-        doc.version = 'latest';
-        doc.format = 'pdf';
-        doc.metadataUrl = 'https://documentation-service.arm.com/documentation/100230/latest';
-        doc.error = 'A previous download failed.';
-
-        await downloader.downloadDoc(doc);
-
+        const downloader = new DocDownload();
         const destination = path.join(destinationRoot, '100230-latest.pdf');
-        expect(doc.path).toBe(destination);
-        expect(path.isAbsolute(doc.path ?? '')).toBe(true);
-        expect(doc.error).toBeUndefined();
-        expect(doc.isDownloaded()).toBe(true);
-        expect(doc.name).toBe(name);
-        expect(doc.id).toBe('100230');
-        expect(doc.version).toBe('latest');
-        expect(doc.format).toBe('pdf');
-        expect(doc.metadataUrl).toBe('https://documentation-service.arm.com/documentation/100230/latest');
+        const metadataUrl = new URL('https://documentation-service.arm.com/documentation/100230/latest');
+
+        await downloader.downloadDoc(metadataUrl, destination, true, '100230');
+
         const fileStat = await stat(destination);
         expect(fileStat.isFile()).toBe(true);
         expect(fileStat.size).toBeGreaterThan(100);
     }, 150_000);
 
-    it('downloads a device web document to its vendor and device directory', async () => {
+    it('downloads a web document to the supplied destination', async () => {
         const destinationRoot = path.join(testData.tmpDir, 'device-docs');
-        const downloader = new DocDownload(destinationRoot);
-        const name = 'https://raw.githubusercontent.com/Open-CMSIS-Pack/vscode-cmsis-solution/refs/heads/main/README.md';
-        const inventory = new DocsYamlFile();
-        const doc = inventory.ensureDoc(name, 'MyVendor::MyDevice', 'device');
-        doc.title = 'My dummy manual';
-        doc.error = 'A previous download failed.';
-
-        expect(doc.isWebDoc()).toBe(true);
-        await downloader.downloadDoc(doc);
-
+        const downloader = new DocDownload();
+        const downloadUrl = new URL('https://raw.githubusercontent.com/Open-CMSIS-Pack/vscode-cmsis-solution/refs/heads/main/README.md');
         const destination = path.join(destinationRoot, 'MyVendor', 'MyDevice', 'README.md');
-        expect(doc.path).toBe(destination);
-        expect(path.isAbsolute(doc.path ?? '')).toBe(true);
-        expect(doc.error).toBeUndefined();
-        expect(doc.isDownloaded()).toBe(true);
-        expect(doc.name).toBe(name);
-        expect(doc.title).toBe('My dummy manual');
-        expect(doc.parentId).toBe('MyVendor::MyDevice');
-        expect(doc.parentTag).toBe('device');
+
+        await downloader.downloadDoc(downloadUrl, destination, false);
+
         const fileStat = await stat(destination);
         expect(fileStat.isFile()).toBe(true);
         expect(fileStat.size).toBeGreaterThan(100);

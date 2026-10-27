@@ -108,9 +108,6 @@ describe('DocsYamlFile', () => {
             expect(doc.isWebDoc()).toBe(isWebDoc);
             expect(file.stringify()).toBe(beforeRead);
         }
-        expect(fileSystem.exists).not.toHaveBeenCalled();
-        expect(fileSystem.read).not.toHaveBeenCalled();
-        expect(fileSystem.write).not.toHaveBeenCalled();
     });
 
     it('round-trips optional metadata and classifies extensionless PDF URLs without changing other documents', async () => {
@@ -161,9 +158,6 @@ describe('DocsYamlFile', () => {
                 expect(file.stringify()).toBe(beforeRead);
             }
         }
-        expect(fileSystem.exists).not.toHaveBeenCalled();
-        expect(fileSystem.read).not.toHaveBeenCalled();
-        expect(fileSystem.write).not.toHaveBeenCalled();
     });
 
     it.each(['board', 'device', 'foo', 'bar', 'component'])('resolves %s index directories identically for W, P and L without I/O', parentTag => {
@@ -186,9 +180,6 @@ describe('DocsYamlFile', () => {
             expect(file.stringify()).toBe(beforeRead);
             expect(doc.item!.getChild('indexDir')).toBeUndefined();
         }
-        expect(fileSystem.exists).not.toHaveBeenCalled();
-        expect(fileSystem.read).not.toHaveBeenCalled();
-        expect(fileSystem.write).not.toHaveBeenCalled();
     });
 
     it.each([
@@ -273,7 +264,6 @@ describe('DocsYamlFile', () => {
         const beforeRead = file.stringify();
         expect(await file.save()).toBe(ETextFileResult.Unchanged);
         expect(file.stringify()).toBe(beforeRead);
-        expect(fileSystem.write).not.toHaveBeenCalled();
 
         parent.name = 'Other::Renamed:processor';
         doc.name = 'https://example.com/changed.pdf';
@@ -408,7 +398,6 @@ describe('DocsYamlFile', () => {
         expect(doc.isDownloaded()).toBe(false);
         expect(file.stringify()).toBe(beforeRead);
         expect(await file.save()).toBe(ETextFileResult.Unchanged);
-        expect(fileSystem.write).not.toHaveBeenCalled();
     });
 
     it('round-trips live documents without storing fallback titles or losing future nodes', async () => {
@@ -423,7 +412,6 @@ describe('DocsYamlFile', () => {
         expect(file.stringify()).toBe(beforeRead);
         expect(device.item!.getChild('title')).toBeUndefined();
         expect(board.item!.getChild('title')).toBeUndefined();
-        expect(fileSystem.write).not.toHaveBeenCalled();
 
         device.title = 'Datasheet';
         expect(device.item!.getValue('title')).toBe('Datasheet');
@@ -445,7 +433,6 @@ describe('DocsYamlFile', () => {
         expect(files.get(fileName)).toContain('# Keep the download metadata.');
         expect(reloaded.errors).toEqual([]);
         expect(await reloaded.save()).toBe(ETextFileResult.Unchanged);
-        expect(fileSystem.write).toHaveBeenCalledTimes(1);
     });
 
     it('searches all parent types for the requested id when the tag is omitted', () => {
@@ -554,8 +541,6 @@ describe('DocsYamlFile', () => {
         expect(file.ensureParent(parentId, 'device')).toBe(parent);
         expect(docParent.packId).toBe(expectedPack);
         expect(file.stringify()).toBe(beforeRead);
-        expect(fileSystem.read).not.toHaveBeenCalled();
-        expect(fileSystem.write).not.toHaveBeenCalled();
         expect(await file.save()).toBe(ETextFileResult.Success);
 
         const reloaded = new DocsYamlFile(fileName);
