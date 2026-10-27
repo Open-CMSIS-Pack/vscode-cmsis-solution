@@ -144,7 +144,7 @@ export class OpenCommand {
                 ? this.solutionManager.getDocManager().file.getDoc(name, parentId, parentTag)
                 : undefined;
             const localPath = doc ? doc.path : node.getAttribute('docPath');
-            return localPath && fileExists(localPath) ? localPath : doc?.name || name;
+            return localPath && fileExists(localPath) ? localPath : doc?.name || name || node.getAttribute('docPath');
         } else if (command === OpenCommand.openPrjConfCommandId) {
             return node.getAttribute('prjConfPath');
         } else if (command === OpenCommand.openPrjCmakeCommandId) {
