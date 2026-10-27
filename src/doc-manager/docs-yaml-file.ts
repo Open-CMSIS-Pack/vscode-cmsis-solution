@@ -202,9 +202,17 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
     }
 
     private pathComponent(value: string | undefined, label: string): string {
-        if (!value || /[<>:"/\\|?*]/.test(value) || /[. ]$/.test(value)
-            || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(value)
-            || Array.from(value).some(character => character.charCodeAt(0) < 32)) {
+        const component = value ?? '';
+
+        // Reject path separators, Windows-forbidden symbols, and control characters.
+        const hasInvalidCharacters = /[<>:"/\\|?*]/.test(component)
+            || Array.from(component).some(character => character.charCodeAt(0) < 32);
+
+        // Windows disallows trailing dots or spaces and reserves device names, even with extensions.
+        const hasInvalidEnding = /[. ]$/.test(component);
+        const isReservedName = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(component);
+
+        if (!value || hasInvalidCharacters || hasInvalidEnding || isReservedName) {
             throw new Error(`Invalid document ${label}: ${value ?? '(missing)'}`);
         }
         return value;
