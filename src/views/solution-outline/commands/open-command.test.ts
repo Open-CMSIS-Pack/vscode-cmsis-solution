@@ -33,7 +33,6 @@ import { ConfigWizardAnnotationChecker } from '../../../utils/config-wizard-chec
 import { TestDataHandler } from '../../../__test__/test-data';
 
 describe('OpenCommand', () => {
-    const testDataHandler = new TestDataHandler();
     let commandsProvider: MockCommandsProvider;
     const mockOpenFileExternal: IOpenFileExternal = openFileExternalFactory();
     let mockAnnotationChecker: ConfigWizardAnnotationChecker;
