@@ -14,123 +14,204 @@
  * limitations under the License.
  */
 
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
-import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
-import { CTreeItem, ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { ETextFileResult, TextFileErrorReporter } from '@open-cmsis-pack/cmsis-common/text-file';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { Event, EventEmitter } from 'vscode';
 import { expandRootVars } from '../utils/path-utils';
 import { DocsYamlFile, getDocParentId, getWebLocationType, IDocRef } from './docs-yaml-file';
+import { ArmDocs, armDocName, cbuildCore } from './arm-docs';
+import { DocDownload } from './doc-download';
 
 export interface DocManager {
     readonly file: DocsYamlFile;
     readonly onDidChange: Event<void>;
     dispose(): void;
     initialize(docsDirectory: string): Promise<ETextFileResult>;
-    addCbuildBooks(cbuild: CTreeItem, parentTag: string): Promise<void>;
+    addBooks(cbuild: CTreeItem): Promise<void>;
+    getBooks(parentId: string, parentTag: string, cbuild?: CTreeItem): readonly IDocRef[];
+    getArmBooks(cbuild?: CTreeItem): readonly IDocRef[];
     addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): Promise<IDocRef | undefined>;
+    downloadDocument(parentId: string, parentTag: string, name: string): Promise<void>;
     setLocalPath(parentId: string, parentTag: string, name: string, localPath: string): Promise<boolean>;
     removeDocument(parentId: string, parentTag: string, name: string): Promise<boolean>;
 }
 
 class DocManagerImpl implements DocManager {
+    protected static errorReporter: TextFileErrorReporter = () => {};
     public readonly file = new DocsYamlFile();
     private readonly changeEmitter = new EventEmitter<void>();
     public readonly onDidChange = this.changeEmitter.event;
+    private pendingUpdate: Promise<unknown> = Promise.resolve();
+
+    private readonly armDocs: ArmDocs;
+    private readonly destinationRoot: string;
+
+    constructor(catalogFileName?: string, private readonly downloader = new DocDownload(), destinationRoot = path.join(os.homedir(), '.cmsis', 'docs')) {
+        this.armDocs = new ArmDocs(catalogFileName);
+        this.destinationRoot = path.resolve(destinationRoot);
+    }
+
+    static setErrorReporter(reporter?: TextFileErrorReporter): void {
+        DocManagerImpl.errorReporter = reporter ?? (() => {});
+    }
 
     dispose(): void {
         this.changeEmitter.dispose();
     }
 
     async initialize(docsDirectory: string): Promise<ETextFileResult> {
+        if (!this.armDocs.isLoaded) {
+            await this.armDocs.load();
+        }
         const fileName = path.join(docsDirectory, 'docs.yml');
         if (this.file.fileName !== fileName) {
             this.file.clear();
             this.file.fileName = fileName;
         }
-        this.file.parser?.clearErrors();
-        const result = await this.file.load();
-        if (this.file.parser?.hasErrors()) {
-            this.file.addError(`${this.file.fileName}: Failed to parse:`);
-            for (const error of this.file.parser.errors) {
-                this.file.addError(error);
-            }
-            this.file.rootItem = undefined;
-            return ETextFileResult.Error;
-        }
-        if (result !== ETextFileResult.NotExists) {
-            if (result === ETextFileResult.Success) {
-                this.changeEmitter.fire();
-            }
-            return result;
-        }
-        this.file.ensureTopItem().setKind(ETreeItemKind.Map);
-        return this.save();
+        await this.file.load();
+        this.addArmBooks();
+        return this.file.save();
     }
 
-    async addCbuildBooks(cbuild: CTreeItem, parentTag: string): Promise<void> {
-        const docParentId = getDocParentId(cbuild.getValue(parentTag), parentTag);
-        if (!docParentId) {
+    async addBooks(cbuild: CTreeItem): Promise<void> {
+        if (!cbuild.getValue('device') && !cbuild.getValue('board')) {
             return;
         }
-        await this.file.load(); // refresh inventory, could have been changed externally
-        this.file.ensureParent(docParentId, parentTag, cbuild.getValue(`${parentTag}-pack`));
+        await this.update(async () => {
+            this.addCbuildBooks(cbuild, 'device');
+            this.addCbuildBooks(cbuild, 'board');
+        }, false);
+    }
+
+    private addCbuildBooks(cbuild: CTreeItem, parentTag: string): void {
+        const parentId = getDocParentId(cbuild.getValue(parentTag), parentTag);
+        if (!parentId) {
+            return;
+        }
+        this.file.ensureParent(parentId, parentTag, cbuild.getValue(`${parentTag}-pack`));
         for (const book of cbuild.getGrandChildren(`${parentTag}-books`)) {
             const name = book.getValue('name');
-            const locationType = getWebLocationType(name ?? '');
-            const docPath = name && !locationType
+            const docPath = name && !getWebLocationType(name)
                 ? book.resolvePath(expandRootVars(name.startsWith('file://') ? fileURLToPath(name) : name))
                 : undefined;
-            this.addBook(docParentId, parentTag, name, book.getValue('title'), book.getValue('category'), docPath);
+            this.addBook(parentId, parentTag, name, book.getValue('title'), book.getValue('category'), docPath);
         }
-        await this.file.save(); // do not emit, refresh will done on solution state change
+    }
+
+    private addArmBooks(): void {
+        for (const entry of this.armDocs.all()) {
+            const doc = this.file.ensureDoc(armDocName(entry), 'arm-docs', 'common');
+            doc.title = entry.title;
+            doc.category = entry.kind;
+            doc.id = entry.docId;
+            doc.version = entry.version;
+            doc.format = entry.format;
+            doc.metadataUrl = `https://documentation-service.arm.com/documentation/${entry.docId}/${entry.version}`;
+        }
+    }
+
+    getBooks(parentId: string, parentTag: string, cbuild?: CTreeItem): readonly IDocRef[] {
+        const hardwareBooks = this.file.getDocs(parentId, parentTag);
+        if (parentTag !== 'device') {
+            return hardwareBooks;
+        }
+        return [...hardwareBooks, ...this.getArmBooks(cbuild)];
+    }
+
+    getArmBooks(cbuild?: CTreeItem): readonly IDocRef[] {
+        const stored = this.file.getDocs('arm-docs', 'common');
+        return this.armDocs.getDockIDs(cbuildCore(cbuild)).flatMap(id => {
+            const doc = stored.find(candidate => candidate.id === id);
+            return doc ? [doc] : [];
+        });
+    }
+
+    private update<T>(operation: () => Promise<T>, notify = true): Promise<T> {
+        const result = this.pendingUpdate.then(async () => {
+            await this.file.load();
+            const value = await operation();
+            const saved = await this.file.save();
+            if (notify && saved === ETextFileResult.Success) {
+                this.changeEmitter.fire();
+            }
+            return value;
+        });
+        this.pendingUpdate = result.catch(() => {});
+        return result;
     }
 
     async addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): Promise<IDocRef | undefined> {
-        const docParentId = getDocParentId(parentId, parentTag);
+        return this.update(async () => {
+            const docParentId = getDocParentId(parentId, parentTag);
 
-        if (!docParentId || !name) {
-            return;
+            if (!docParentId || !name) {
+                return;
+            }
+            const docPath = name && !getWebLocationType(name)
+                ? path.resolve(expandRootVars(name.startsWith('file://') ? fileURLToPath(name) : name))
+                : undefined;
+            const doc = this.addBook(docParentId, parentTag, name, title, category, docPath, 'user');
+            if (doc) {
+                doc.mode = 'user';
+            }
+            return doc;
+        });
+    }
+
+    async downloadDocument(parentId: string, parentTag: string, name: string): Promise<void> {
+        let downloadError: string | undefined;
+        try {
+            await this.file.load();
+            const doc = this.file.getDoc(name, parentId, parentTag);
+            if (!doc || !doc.isWebDoc()) {
+                return;
+            }
+            const destination = doc.getDestinationPath(this.destinationRoot);
+            doc.path = destination;
+            const isCommon = doc.parentTag === 'common';
+            await this.downloader.downloadDoc(doc.downloadUrl, destination, isCommon, isCommon ? doc.id : undefined);
+        } catch (error) {
+            downloadError = error instanceof Error ? error.message : error ? String(error) : 'Error downloading file';
+            DocManagerImpl.errorReporter(`Failed to download document: ${error instanceof Error ? error.message : String(error)}`);
         }
-        const docPath = name && !getWebLocationType(name)
-            ? path.resolve(expandRootVars(name.startsWith('file://') ? fileURLToPath(name) : name))
-            : undefined;
-        await this.file.load(); // refresh inventory, could have been changed externally
-        const doc = this.addBook(docParentId, parentTag, name, title, category, docPath, 'user');
-        if (doc) {
-            doc.mode = 'user';
-        }
-        const result = await this.save();
-        return result === ETextFileResult.Error ? undefined : doc;
+        return this.update(async () => {
+            const doc = this.file.getDoc(name, parentId, parentTag);
+            if (!doc) {
+                return;
+            }
+            if (downloadError !== undefined) {
+                doc.error = downloadError;
+            }
+        });
     }
 
     async setLocalPath(parentId: string, parentTag: string, name: string, localPath: string): Promise<boolean> {
-        await this.file.load(); // refresh inventory, could have been changed externally
-        const doc = this.file.getDoc(name, parentId, parentTag);
-        if (!doc || doc.locationType !== 'W' || !localPath || getWebLocationType(localPath)) {
-            return false;
-        }
-        doc.path = path.resolve(expandRootVars(localPath.startsWith('file://') ? fileURLToPath(localPath) : localPath));
-        return await this.save() !== ETextFileResult.Error;
+        return this.update(async () => {
+            const doc = this.file.getDoc(name, parentId, parentTag);
+            if (!doc || doc.locationType !== 'W' || !localPath || getWebLocationType(localPath)) {
+                return false;
+            }
+            const resolved = path.resolve(expandRootVars(localPath.startsWith('file://') ? fileURLToPath(localPath) : localPath));
+            for (const reference of this.file.findDocs(name)) {
+                reference.path = resolved;
+            }
+            return true;
+        });
     }
 
     async removeDocument(parentId: string, parentTag: string, name: string): Promise<boolean> {
-        await this.file.load();
-        const doc = this.file.getDoc(name, parentId, parentTag);
-        if (doc?.mode !== 'user') {
-            return false;
-        }
-        doc.remove();
-        return await this.save() !== ETextFileResult.Error;
-    }
-
-    private async save(): Promise<ETextFileResult> {
-        const result = await this.file.save();
-        if (result === ETextFileResult.Success) {
-            this.changeEmitter.fire();
-        }
-        return result;
+        return this.update(async () => {
+            const doc = this.file.getDoc(name, parentId, parentTag);
+            if (doc?.mode !== 'user') {
+                return false;
+            }
+            doc.remove();
+            return true;
+        });
     }
 
     private addBook(
@@ -165,4 +246,5 @@ class DocManagerImpl implements DocManager {
     }
 }
 
-export const DocManager = constructor<typeof DocManagerImpl, DocManager>(DocManagerImpl);
+export const DocManager = constructor<typeof DocManagerImpl, DocManager>(DocManagerImpl) as
+    ReturnType<typeof constructor<typeof DocManagerImpl, DocManager>> & Pick<typeof DocManagerImpl, 'setErrorReporter'>;

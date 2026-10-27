@@ -24,6 +24,7 @@ import { getDocParentId } from '../../../doc-manager/docs-yaml-file';
 
 export class DocumentCommand {
     public static readonly addCommandId = `${PACKAGE_NAME}.addDocument`;
+    public static readonly downloadCommandId = `${PACKAGE_NAME}.downloadDocument`;
     public static readonly setLocalPathCommandId = `${PACKAGE_NAME}.setDocumentLocalPath`;
     public static readonly removeCommandId = `${PACKAGE_NAME}.removeDocument`;
 
@@ -36,18 +37,20 @@ export class DocumentCommand {
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>): Promise<void> {
         context.subscriptions.push(
             this.commandsProvider.registerCommand(DocumentCommand.addCommandId, this.addDocument, this),
+            this.commandsProvider.registerCommand(DocumentCommand.downloadCommandId, this.downloadDocument, this),
             this.commandsProvider.registerCommand(DocumentCommand.setLocalPathCommandId, this.setLocalPath, this),
             this.commandsProvider.registerCommand(DocumentCommand.removeCommandId, this.removeDocument, this),
         );
     }
 
-    private getTarget(node?: COutlineItem): { parentId: string; parentTag: 'board' | 'device' } | undefined {
+    private getTarget(node?: COutlineItem): { parentId: string; parentTag: string } | undefined {
         if (node) {
-            const hardware = node.getTag() === 'book' ? node.getParent() : node;
-            const parentTag = hardware?.getTag();
-            const parentId = getDocParentId(hardware?.getAttribute('hardwareName'), parentTag);
-            return parentId && (parentTag === 'board' || parentTag === 'device')
-                ? { parentId, parentTag } : undefined;
+            const isHardware = node.getFeatures().split(';').includes('docParent');
+            const parentTag = isHardware ? node.getTag() : node.getAttribute('docParentTag');
+            const parentId = isHardware
+                ? getDocParentId(node.getAttribute('hardwareName'), parentTag)
+                : node.getAttribute('docParentId');
+            return parentId && parentTag ? { parentId, parentTag } : undefined;
         }
         const solution = this.solutionManager.getCsolution();
         const targetType = solution?.getActiveTargetTypeWrap();
@@ -64,7 +67,7 @@ export class DocumentCommand {
             return;
         }
         const manager = this.solutionManager.getDocManager();
-        const target = (!node || node.getTag() === 'board' || node.getTag() === 'device') ? this.getTarget(node) : undefined;
+        const target = (!node || node.getFeatures().split(';').includes('docParent')) ? this.getTarget(node) : undefined;
         if (!target) {
             await this.window.showWarningMessage('Select a board or device, or activate a target type with board or device hardware.');
             return;
@@ -77,19 +80,25 @@ export class DocumentCommand {
         }
     }
 
+    private async downloadDocument(node?: COutlineItem): Promise<void> {
+        const target = node?.getFeatures().split(';').includes('webDoc') ? this.getTarget(node) : undefined;
+        const name = node?.getAttribute('docName');
+        if (!target || !name) {
+            return;
+        }
+        const manager = this.solutionManager.getDocManager();
+        await manager.downloadDocument(target.parentId, target.parentTag, name);
+    }
+
     private async setLocalPath(node?: COutlineItem): Promise<void> {
         const localPath = await this.pickDocument('Set Local Path');
         if (!localPath) {
             return;
         }
         const manager = this.solutionManager.getDocManager();
-        const target = node?.getTag() === 'book' ? this.getTarget(node) : undefined;
+        const target = node?.getFeatures().split(';').includes('webDoc') ? this.getTarget(node) : undefined;
         const name = node?.getAttribute('docName');
         if (!target || !name) {
-            return;
-        }
-        const doc = manager.file.getDoc(name, target.parentId, target.parentTag);
-        if (doc?.locationType !== 'W') {
             return;
         }
         if (!await manager.setLocalPath(target.parentId, target.parentTag, name, localPath)) {
@@ -99,12 +108,9 @@ export class DocumentCommand {
 
     private async removeDocument(node?: COutlineItem): Promise<void> {
         const manager = this.solutionManager.getDocManager();
-        const target = node?.getTag() === 'book' ? this.getTarget(node) : undefined;
+        const target = node?.getFeatures().split(';').includes('userDoc') ? this.getTarget(node) : undefined;
         const name = node?.getAttribute('docName');
         if (!target || !name) {
-            return;
-        }
-        if (manager.file.getDoc(name, target.parentId, target.parentTag)?.mode !== 'user') {
             return;
         }
         if (!await manager.removeDocument(target.parentId, target.parentTag, name)) {

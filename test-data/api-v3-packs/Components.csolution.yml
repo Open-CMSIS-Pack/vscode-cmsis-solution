@@ -2,7 +2,7 @@ solution:
   compiler: AC6
   packs:
     - pack: ARM::CMSIS
-    - pack: ARM::CMSIS_DFP
+    - pack: ARM::Cortex_DFP
   target-types:
     - type: CM3
       device: ARMCM3

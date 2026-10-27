@@ -194,6 +194,8 @@
             "description": "Select API V3 smoke test",
             "options": [
                 { "label": "Tools Environment", "value": "tools" },
+                { "label": "Solution Getters (Empty Window)", "value": "getters" },
+                { "label": "Solution Getters and Target Selection (Loaded Solution)", "value": "selection" },
                 { "label": "Installed Packs", "value": "installed" },
                 { "label": "All Packs (Index)", "value": "index" },
                 { "label": "Used Packs (Loaded Solution)", "value": "loaded" },

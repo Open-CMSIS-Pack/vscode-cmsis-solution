@@ -407,6 +407,7 @@
             "enum": [
               "quiet",
               "normal",
+              "build-commands",
               "verbose",
               "debug"
             ],
@@ -637,6 +638,10 @@
       },
       {
         "category": "CMSIS",
+        "command": "cmsis-csolution.showWhatsNew",
+        "title": "What's New"
+      },
+      {
         "command": "cmsis-csolution.openHelp",
         "title": "Help",
         "shortTitle": "Help"
@@ -706,6 +711,12 @@
         "command": "cmsis-csolution.addDocument",
         "title": "Add Document",
         "icon": "$(add)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.downloadDocument",
+        "title": "Download Document",
+        "icon": "$(cloud-download)"
       },
       {
         "category": "CMSIS",
@@ -1008,6 +1019,10 @@
           "command": "cmsis-csolution.addDocument"
         },
         {
+          "command": "cmsis-csolution.downloadDocument",
+          "when": "false"
+        },
+        {
           "command": "cmsis-csolution.setDocumentLocalPath",
           "when": "false"
         },
@@ -1175,12 +1190,17 @@
         {
           "command": "cmsis-csolution.openHelp",
           "when": "view == cmsis-csolution.outline",
+          "group": "SolutionHelp@3"
+        },
+        {
+          "command": "cmsis-csolution.showWhatsNew",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.whatsNewAvailable",
           "group": "SolutionHelp@2"
         },
         {
           "command": "cmsis-csolution.list.find",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
-          "group": "SolutionHelp@1"
+          "group": "SolutionFind@1"
         },
         {
           "command": "cmsis-csolution.clean",
@@ -1262,6 +1282,11 @@
         {
           "command": "cmsis-csolution.addDocument",
           "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)docParent(;|$)/",
+          "group": "contextMenu"
+        },
+        {
+          "command": "cmsis-csolution.downloadDocument",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)webDoc(;|$)/",
           "group": "contextMenu"
         },
         {
@@ -1533,12 +1558,14 @@
           "enum": [
             "quiet",
             "normal",
+            "build-commands",
             "verbose",
             "debug"
           ],
           "enumDescriptions": [
             "Show only errors or fatal conditions",
             "Include build steps and warnings",
+            "Show command invocations during build process",
             "Include command-line invocation",
             "Include internal process steps"
           ],

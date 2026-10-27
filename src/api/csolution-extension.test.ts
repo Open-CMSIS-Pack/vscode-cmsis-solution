@@ -34,24 +34,31 @@ describe('CsolutionExtension', () => {
             {} as DataManager,
             { getCsolution: jest.fn(), loadState: {} },
             { getPacksInfo: jest.fn() },
-            { getToolsEnvironment: jest.fn() },
+            { getToolsEnvironment: jest.fn(), getToolchains: jest.fn() },
             { executeCommand: jest.fn() },
         );
 
         await extension.activate(context as unknown as ExtensionContext);
     });
 
+    const commandGetters = [
+        'getSolutionFile', 'getActiveTarget', 'getDeviceName', 'getBoardName',
+        'getDfpName', 'getBspName', 'getDfpPath', 'getBspPath', 'getPackRootPath', 'getCbuildRunFile',
+    ];
+
     it('returns the APIv2', () => {
         const api = extension.getApi(2);
         expect(api.getBoards).toBeDefined();
-        expect(api).not.toHaveProperty('getToolsEnvironment');
+        for (const method of ['getDebuggers', 'getToolchains', 'getToolsEnvironment', 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution', ...commandGetters]) {
+            expect(api).not.toHaveProperty(method);
+        }
     });
 
     it('returns independent V3 instances with the established operations', () => {
         const api = extension.getApi(3);
         expect(api).not.toBe(extension.getApi(3));
         expect(api).not.toBe(extension.getApi(2));
-        for (const method of ['getBoards', 'getDevices', 'getDraftProjects', 'createNewSolution', 'build', 'getToolsEnvironment', 'getPacks', 'installPacks']) {
+        for (const method of ['getDebuggers', 'getToolchains', 'getBoards', 'getDevices', 'getDraftProjects', 'createNewSolution', 'build', 'getToolsEnvironment', 'getPacks', 'installPacks', 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution', ...commandGetters]) {
             expect(api).toHaveProperty(method, expect.any(Function));
         }
     });

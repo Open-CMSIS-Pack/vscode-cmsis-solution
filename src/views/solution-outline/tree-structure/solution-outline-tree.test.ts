@@ -142,14 +142,14 @@ describe('CSolution', () => {
         }
 
         // get results from tree
-        const addCbuildBooks = jest.spyOn(docManager, 'addCbuildBooks');
+        const addBooks = jest.spyOn(docManager, 'addBooks');
         const createHardwareNodes = jest.spyOn(HardwareItemBuilder.prototype, 'createHardwareNodes');
         const tree = solutionOutlineTree.createTree();
         const builds = [...csolution.cbuildYmlRoot.values()].map(root => root.getChildItem()!);
         expect(builds.length).toBeGreaterThan(1);
-        expect(addCbuildBooks).not.toHaveBeenCalled();
+        expect(addBooks).not.toHaveBeenCalled();
         expect(createHardwareNodes).toHaveBeenCalledTimes(builds.length);
-        addCbuildBooks.mockRestore();
+        addBooks.mockRestore();
         createHardwareNodes.mockRestore();
         const got = new Map<string, string>();
 
@@ -336,8 +336,7 @@ describe('CSolution', () => {
         for (const cbuildYml of csolution.cbuildYmlRoot.values()) {
             const cbuild = cbuildYml.getChildItem();
             if (cbuild) {
-                await docManager.addCbuildBooks(cbuild, 'device');
-                await docManager.addCbuildBooks(cbuild, 'board');
+                await docManager.addBooks(cbuild);
             }
         }
 
@@ -460,8 +459,7 @@ describe('CSolution', () => {
         for (const cbuildYml of csolution.cbuildYmlRoot.values()) {
             const cbuild = cbuildYml.getChildItem();
             if (cbuild) {
-                await docManager.addCbuildBooks(cbuild, 'device');
-                await docManager.addCbuildBooks(cbuild, 'board');
+                await docManager.addBooks(cbuild);
             }
         }
 

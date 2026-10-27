@@ -306,6 +306,14 @@ export class SolutionManagerImpl implements SolutionManager {
         await this.updateRpcData(); // refresh RPC data
         await this.loadSolutionBuildFiles();
         await this.updateDocs();
+        const newState: SolutionLoadState = {
+            ...this.loadState,
+            activated: true,
+            converted: true,
+            dirty: false,
+        };
+        // Always emit so subscribers are notified when conversion completes
+        this.setLoadState(newState, true);
         this.setupCompletedEmitter.fire([data.severity, data.detection]);
 
         if (data.severity != 'error' && !data.detection) {
@@ -320,8 +328,11 @@ export class SolutionManagerImpl implements SolutionManager {
         for (const cbuildYml of this.csolution?.cbuildYmlRoot.values() ?? []) {
             const cbuild = cbuildYml.getChildItem();
             if (cbuild) {
-                await this.docManager.addCbuildBooks(cbuild, 'device');
-                await this.docManager.addCbuildBooks(cbuild, 'board');
+                try {
+                    await this.docManager.addBooks(cbuild);
+                } catch (error) {
+                    console.error('Failed to update the document inventory:', error);
+                }
             }
         }
     }
@@ -341,14 +352,6 @@ export class SolutionManagerImpl implements SolutionManager {
     public async loadSolutionBuildFiles() {
         if (this.csolution) {
             await this.csolution.loadBuildFiles();
-            const newState: SolutionLoadState = {
-                ...this.loadState,
-                activated: true,
-                converted: true,
-                dirty: false,
-            };
-            // Always emit so subscribers are notified when conversion completes
-            this.setLoadState(newState, true);
         }
     }
 
