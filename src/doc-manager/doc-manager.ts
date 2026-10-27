@@ -126,7 +126,10 @@ class DocManagerImpl implements DocManager {
 
     getArmBooks(cbuild?: CTreeItem): readonly IDocRef[] {
         const stored = this.file.getDocs('arm-docs', 'common');
-        return this.armDocs.getDockIDs(cbuildCore(cbuild)).map(id => stored.find(doc => doc.id === id)!);
+        return this.armDocs.getDockIDs(cbuildCore(cbuild)).flatMap(id => {
+            const doc = stored.find(candidate => candidate.id === id);
+            return doc ? [doc] : [];
+        });
     }
 
     private update<T>(operation: () => Promise<T>): Promise<T> {
