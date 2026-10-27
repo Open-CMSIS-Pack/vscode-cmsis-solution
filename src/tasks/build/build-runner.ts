@@ -99,8 +99,8 @@ export const cbuildArgsFromTaskDefinition = (definition: BuildTaskDefinition): s
 const VERBOSITY_TO_FLAG: Record<BuildOutputVerbosity, string | undefined> = {
     'quiet': '--quiet',
     'normal': undefined,
-    'verbose': '--verbose',
     'build-commands': '--build-commands',
+    'verbose': '--verbose',
     'debug': '--debug',
 };
 
