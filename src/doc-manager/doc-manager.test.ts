@@ -273,7 +273,7 @@ describe('DocManager', () => {
         expect(manager.file.getDoc(otherName, boardId, 'board')?.path).toBeUndefined();
     });
 
-    it('retains errors when setting a local path that does not exist', async () => {
+    it('clears errors when setting a local path even if it does not exist', async () => {
         const doc = await manager.addUserBook(boardId, 'board', webName, 'Manual');
         doc!.error = 'Download failed';
         await manager.file.save();
@@ -284,11 +284,11 @@ describe('DocManager', () => {
         const stored = new DocsYamlFile(manager.file.fileName);
         expect(await stored.load()).toBe(ETextFileResult.Success);
         expect(stored.getDoc(webName, boardId, 'board')).toEqual(expect.objectContaining({
-            path: missingPath, error: 'Download failed',
+            path: missingPath, error: undefined,
         }));
     });
 
-    it('reports a download error through the error reporter and returns false', async () => {
+    it('reports a download error through the error reporter and resolves without a result', async () => {
         await manager.addUserBook(boardId, 'board', webName, 'Manual');
         const failure = new Error('HTTP 404');
         const download = jest.spyOn(DocDownload.prototype, 'downloadDoc').mockRejectedValueOnce(failure);
@@ -296,7 +296,7 @@ describe('DocManager', () => {
         DocManager.setErrorReporter(errorReporter);
 
         try {
-            await expect(manager.downloadDocument(boardId, 'board', webName)).resolves.toBe(false);
+            await expect(manager.downloadDocument(boardId, 'board', webName)).resolves.toBeUndefined();
 
             expect(errorReporter).toHaveBeenCalledTimes(1);
             expect(errorReporter).toHaveBeenCalledWith('Failed to download document: HTTP 404');
@@ -306,49 +306,61 @@ describe('DocManager', () => {
         }
     });
 
-    it('persists failed downloads and notifies before returning false', async () => {
+    it('preserves the previous path and persists errors when destination preparation fails', async () => {
         const name = 'https://developer.arm.com/documentation/invalid/latest';
         const doc = manager.file.ensureDoc(name, 'arm-docs', 'common');
         doc.format = 'pdf';
-        doc.path = path.join(testData.tmpDir, 'old.pdf');
+        const previousPath = path.join(testData.tmpDir, 'old.pdf');
+        doc.path = previousPath;
         await manager.file.save();
         const changed = jest.fn();
         manager.onDidChange(changed);
 
-        await expect(manager.downloadDocument('arm-docs', 'common', name)).resolves.toBe(false);
+        await expect(manager.downloadDocument('arm-docs', 'common', name)).resolves.toBeUndefined();
 
         const stored = new DocsYamlFile(manager.file.fileName);
         expect(await stored.load()).toBe(ETextFileResult.Success);
         expect(stored.getDoc(name, 'arm-docs', 'common')).toEqual(expect.objectContaining({
-            path: undefined, error: 'Invalid document id: (missing)',
+            path: previousPath, error: 'Invalid document id: (missing)',
         }));
         expect(changed).toHaveBeenCalledTimes(1);
     });
 
-    it('persists successful download state and preserves document metadata', async () => {
+    it.each([false, true])('assigns the destination before transfer and persists download state, failure: %s', async fails => {
         manager.dispose();
         const downloader = new DocDownload();
-        const download = jest.spyOn(downloader, 'downloadDoc').mockResolvedValue(undefined);
+        const destination = path.join(testData.tmpDir, 'Vendor', 'Board', 'manual.pdf');
+        let transferState: { path: string | undefined; error: string | undefined } | undefined;
+        const download = jest.spyOn(downloader, 'downloadDoc').mockImplementationOnce(async () => {
+            const current = manager.file.getDoc(webName, boardId, 'board')!;
+            transferState = { path: current.path, error: current.error };
+            if (fails) {
+                throw new Error('Transfer failed');
+            }
+        });
         manager = new DocManager(path.join(__dirname, 'arm-docs.json'), downloader, testData.tmpDir);
         await manager.initialize(testData.tmpDir);
         const doc = await manager.addUserBook(boardId, 'board', webName, 'Manual');
+        doc!.path = path.join(testData.tmpDir, 'previous.pdf');
         doc!.error = 'Previous error';
         await manager.file.save();
         const changed = jest.fn();
         manager.onDidChange(changed);
 
-        expect(await manager.downloadDocument(boardId, 'board', webName)).toBe(true);
+        try {
+            await expect(manager.downloadDocument(boardId, 'board', webName)).resolves.toBeUndefined();
 
-        const stored = new DocsYamlFile(manager.file.fileName);
-        expect(await stored.load()).toBe(ETextFileResult.Success);
-        expect(stored.getDoc(webName, boardId, 'board')).toEqual(expect.objectContaining({
-            name: webName, title: 'Manual', mode: 'user', path: path.join(testData.tmpDir, 'Vendor', 'Board', 'manual.pdf'), error: undefined,
-        }));
-        expect(download).toHaveBeenCalledWith(
-            new URL(webName), path.join(testData.tmpDir, 'Vendor', 'Board', 'manual.pdf'), false, undefined,
-        );
-        expect(changed).toHaveBeenCalledTimes(1);
-        download.mockRestore();
+            expect(transferState).toEqual({ path: destination, error: undefined });
+            const stored = new DocsYamlFile(manager.file.fileName);
+            expect(await stored.load()).toBe(ETextFileResult.Success);
+            expect(stored.getDoc(webName, boardId, 'board')).toEqual(expect.objectContaining({
+                name: webName, title: 'Manual', mode: 'user', path: destination, error: fails ? 'Transfer failed' : undefined,
+            }));
+            expect(download).toHaveBeenCalledWith(new URL(webName), destination, false, undefined);
+            expect(changed).toHaveBeenCalledTimes(1);
+        } finally {
+            download.mockRestore();
+        }
     });
 
     it('prepares common Arm PDF metadata and transfer arguments', async () => {
@@ -367,7 +379,7 @@ describe('DocManager', () => {
         await manager.file.save();
 
         try {
-            expect(await manager.downloadDocument('arm-docs', 'common', name)).toBe(true);
+            await expect(manager.downloadDocument('arm-docs', 'common', name)).resolves.toBeUndefined();
 
             expect(download).toHaveBeenCalledWith(new URL(doc.metadataUrl), path.join(testData.tmpDir, '100230-latest.pdf'), true, '100230');
             const stored = new DocsYamlFile(manager.file.fileName);
@@ -381,7 +393,28 @@ describe('DocManager', () => {
         }
     });
 
-    it.each([false, true])('returns false when saving download state fails, transfer failure: %s', async fails => {
+    it('skips downloading and resolves without a result when loading the inventory fails', async () => {
+        await manager.addUserBook(boardId, 'board', webName, 'Manual');
+        const load = jest.spyOn(manager.file, 'load').mockResolvedValueOnce(ETextFileResult.Error);
+        const download = jest.spyOn(DocDownload.prototype, 'downloadDoc');
+        const save = jest.spyOn(manager.file, 'save');
+        const changed = jest.fn();
+        manager.onDidChange(changed);
+
+        try {
+            await expect(manager.downloadDocument(boardId, 'board', webName)).resolves.toBeUndefined();
+
+            expect(download).not.toHaveBeenCalled();
+            expect(save).not.toHaveBeenCalled();
+            expect(changed).not.toHaveBeenCalled();
+        } finally {
+            load.mockRestore();
+            download.mockRestore();
+            save.mockRestore();
+        }
+    });
+
+    it.each([false, true])('resolves without a result when saving download state fails, transfer failure: %s', async fails => {
         await manager.addUserBook(boardId, 'board', webName, 'Manual');
         const download = jest.spyOn(DocDownload.prototype, 'downloadDoc').mockImplementationOnce(async () => {
             if (fails) {
@@ -389,17 +422,20 @@ describe('DocManager', () => {
             }
         });
         const save = jest.spyOn(manager.file, 'save').mockResolvedValueOnce(ETextFileResult.Error);
+        const changed = jest.fn();
+        manager.onDidChange(changed);
 
         try {
-            expect(await manager.downloadDocument(boardId, 'board', webName)).toBe(false);
+            await expect(manager.downloadDocument(boardId, 'board', webName)).resolves.toBeUndefined();
             expect(save).toHaveBeenCalledTimes(1);
+            expect(changed).not.toHaveBeenCalled();
         } finally {
             download.mockRestore();
             save.mockRestore();
         }
     });
 
-    it.each([false, true])('updates the current record after a download, failure: %s', async fails => {
+    it.each([false, true])('preserves the current path when a document is replaced during a download, failure: %s', async fails => {
         const previousPath = path.join(testData.tmpDir, 'previous.pdf');
         const failure = new Error('Transfer failed');
         const original = await manager.addUserBook(boardId, 'board', webName, 'Original manual');
@@ -419,18 +455,18 @@ describe('DocManager', () => {
         });
 
         try {
-            expect(await manager.downloadDocument(boardId, 'board', webName)).toBe(!fails);
+            await expect(manager.downloadDocument(boardId, 'board', webName)).resolves.toBeUndefined();
 
             expect(save).toHaveBeenCalledTimes(1);
             const stored = new DocsYamlFile(manager.file.fileName);
             expect(await stored.load()).toBe(ETextFileResult.Success);
             expect(stored.getDoc(webName, boardId, 'board')).toEqual(expect.objectContaining({
                 title: 'Updated manual',
-                path: fails ? undefined : expect.stringContaining(path.join('Vendor', 'Board', 'manual.pdf')),
-                error: fails ? 'Transfer failed' : undefined,
+                path: previousPath,
+                error: fails ? 'Transfer failed' : 'Previous error',
             }));
-            expect(original!.path).toBe(previousPath);
-            expect(original!.error).toBe('Previous error');
+            expect(original!.path).toEqual(expect.stringContaining(path.join('Vendor', 'Board', 'manual.pdf')));
+            expect(original!.error).toBeUndefined();
         } finally {
             download.mockRestore();
             save.mockRestore();
@@ -451,7 +487,7 @@ describe('DocManager', () => {
         });
 
         try {
-            expect(await manager.downloadDocument(boardId, 'board', webName)).toBe(false);
+            await expect(manager.downloadDocument(boardId, 'board', webName)).resolves.toBeUndefined();
 
             expect(manager.file.getDoc(webName, boardId, 'board')).toBeUndefined();
             expect(save).not.toHaveBeenCalled();
@@ -469,7 +505,7 @@ describe('DocManager', () => {
         const changed = jest.fn();
         manager.onDidChange(changed);
 
-        expect(await manager.downloadDocument(boardId, 'board', name)).toBe(false);
+        await expect(manager.downloadDocument(boardId, 'board', name)).resolves.toBeUndefined();
         expect(changed).not.toHaveBeenCalled();
     });
 

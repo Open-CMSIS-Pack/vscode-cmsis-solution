@@ -343,6 +343,10 @@ describe('DocsYamlFile', () => {
         doc.item!.setValue('error', 'Retry failed');
         expect(doc.error).toBe('Retry failed');
         doc.path = '/downloaded/manual.pdf';
+        expect(doc.error).toBeUndefined();
+        expect(doc.item!.getChild('error')).toBeUndefined();
+        doc.error = 'Retry failed';
+        expect(doc.path).toBe('/downloaded/manual.pdf');
         doc.title = 'Manual';
         doc.category = 'reference';
         expect(doc.locationType).toBe(locationType);
@@ -354,7 +358,9 @@ describe('DocsYamlFile', () => {
         const saved = reloaded.getDoc(doc.name, 'Vendor::Board', 'board')!;
         expect(saved.locationType).toBe(locationType);
         expect(saved.error).toBe('Retry failed');
+        expect(saved.path).toBe('/downloaded/manual.pdf');
         saved.error = undefined;
+        expect(saved.path).toBe('/downloaded/manual.pdf');
         saved.name = 'https://example.com/changed.html';
         expect(saved.locationType).toBe('H');
         expect(saved.isDownloaded()).toBe(false);

@@ -22,7 +22,6 @@ import { ETextFileResult, TextFileErrorReporter } from '@open-cmsis-pack/cmsis-c
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { Event, EventEmitter } from 'vscode';
 import { expandRootVars } from '../utils/path-utils';
-import { fileExists } from '../utils/fs-utils';
 import { DocsYamlFile, getDocParentId, getWebLocationType, IDocRef } from './docs-yaml-file';
 import { ArmDocs, armDocName, cbuildCore } from './arm-docs';
 import { DocDownload } from './doc-download';
@@ -36,7 +35,7 @@ export interface DocManager {
     getBooks(parentId: string, parentTag: string, cbuild?: CTreeItem): readonly IDocRef[];
     getArmBooks(cbuild?: CTreeItem): readonly IDocRef[];
     addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): Promise<IDocRef | undefined>;
-    downloadDocument(parentId: string, parentTag: string, name: string): Promise<boolean>;
+    downloadDocument(parentId: string, parentTag: string, name: string): Promise<void>;
     setLocalPath(parentId: string, parentTag: string, name: string, localPath: string): Promise<boolean>;
     removeDocument(parentId: string, parentTag: string, name: string): Promise<boolean>;
 }
@@ -160,28 +159,34 @@ class DocManagerImpl implements DocManager {
         });
     }
 
-    async downloadDocument(parentId: string, parentTag: string, name: string): Promise<boolean> {
-        let doc: IDocRef | undefined;
+    async downloadDocument(parentId: string, parentTag: string, name: string): Promise<void> {
+        let downloadError: string | undefined;
         try {
             if (await this.file.load() === ETextFileResult.Error) {
-                return false;
+                return;
             }
-            doc = this.file.getDoc(name, parentId, parentTag);
-            if (!doc || !doc?.isWebDoc()) {
-                return false;
+            const doc = this.file.getDoc(name, parentId, parentTag);
+            if (!doc || !doc.isWebDoc()) {
+                return;
             }
             const destination = doc.getDestinationPath(this.destinationRoot);
             doc.path = destination;
             const isCommon = doc.parentTag === 'common';
             await this.downloader.downloadDoc(doc.downloadUrl, destination, isCommon, isCommon ? doc.id : undefined);
-            await this.save();
-            return true;
         } catch (error) {
-            doc = this.file.ensureDoc(name, parentId, parentTag);
-            doc.error = error instanceof Error ? error.message : error ? String(error) : 'Error downloading file';
+            downloadError = error instanceof Error ? error.message : error ? String(error) : 'Error downloading file';
             DocManagerImpl.errorReporter(`Failed to download document: ${error instanceof Error ? error.message : String(error)}`);
-            return false;
         }
+        return this.update(async () => {
+            const doc = this.file.getDoc(name, parentId, parentTag);
+            if (!doc) {
+                return;
+            }
+            if (downloadError !== undefined) {
+                doc.error = downloadError;
+            }
+            await this.save();
+        });
     }
 
     async setLocalPath(parentId: string, parentTag: string, name: string, localPath: string): Promise<boolean> {
@@ -192,12 +197,8 @@ class DocManagerImpl implements DocManager {
                 return false;
             }
             const resolved = path.resolve(expandRootVars(localPath.startsWith('file://') ? fileURLToPath(localPath) : localPath));
-            const exists = fileExists(resolved);
             for (const reference of this.file.findDocs(name)) {
                 reference.path = resolved;
-                if (exists) {
-                    reference.error = undefined;
-                }
             }
             return await this.save() !== ETextFileResult.Error;
         });

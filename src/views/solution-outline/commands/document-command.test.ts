@@ -107,7 +107,7 @@ describe('DocumentCommand', () => {
         const parentId = parentTag === 'common' ? 'arm-docs' : 'Vendor::Selected';
         node.setAttribute('docParentId', parentId);
         node.setAttribute('docParentTag', parentTag);
-        const download = jest.spyOn(manager, 'downloadDocument').mockResolvedValue(true);
+        const download = jest.spyOn(manager, 'downloadDocument').mockResolvedValue(undefined);
 
         await commands.mockRunRegistered(DocumentCommand.downloadCommandId, node);
 
@@ -116,8 +116,8 @@ describe('DocumentCommand', () => {
         expect(window.showErrorMessage).not.toHaveBeenCalled();
     });
 
-    it('does not duplicate download failure reporting', async () => {
-        jest.spyOn(manager, 'downloadDocument').mockResolvedValue(false);
+    it('does not add error reporting after a download completes', async () => {
+        jest.spyOn(manager, 'downloadDocument').mockResolvedValue(undefined);
 
         await commands.mockRunRegistered(DocumentCommand.downloadCommandId, nodeFor('board', 'book'));
 
