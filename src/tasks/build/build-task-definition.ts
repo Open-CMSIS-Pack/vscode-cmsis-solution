@@ -39,7 +39,7 @@ export type BuildTaskDefinition = {
     virtualProject?: boolean;
 };
 
-export type BuildOutputVerbosity = 'quiet' | 'normal' | 'verbose' | 'debug';
+export type BuildOutputVerbosity = 'quiet' | 'normal' | 'verbose' |'build-commands' | 'debug';
 
 type UriOrSolutionNode = vscode.Uri | COutlineItem;
 

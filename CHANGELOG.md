@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added V3 `getPacks` catalogs from the local pack index and installed RPC packs, plus read-only used/missing pack discovery in an explicit loaded-solution context. Missing references retain their original requirements and origins. Added text filtering across all/installed/used/missing scopes.
+- Added `build-commands` to the `cmsis-csolution.buildOutputVerbosity` setting to show command invocations during build process.
 
 ## 1.72.0
 

@@ -167,6 +167,7 @@ describe('BuildRunner', () => {
             ['quiet', '--quiet'],
             ['normal', undefined],
             ['verbose', '--verbose'],
+            ['build-commands', '--build-commands'],
             ['debug', '--debug'],
         ])('maps build output verbosity %s to flag %s', (outputVerbosity, expectedFlag) => {
             const buildTaskDefinition: BuildTaskDefinition = {
@@ -181,6 +182,7 @@ describe('BuildRunner', () => {
             } else {
                 expect(args).not.toContain('--quiet');
                 expect(args).not.toContain('--verbose');
+                expect(args).not.toContain('--build-commands');
                 expect(args).not.toContain('--debug');
             }
         });
