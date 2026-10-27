@@ -126,7 +126,7 @@ describe('CSolution', () => {
 
             expect(await csolution.load(fullPath)).toEqual(ETextFileResult.Success);
             expect(writeFileSpy).not.toHaveBeenCalled();
-            expect(await settingsFile.load()).not.toBe(ETextFileResult.Error);
+            expect(await settingsFile.load()).toBe(ETextFileResult.Success);
             expect(settingsFile.text).toBe(invalidSettings);
         });
 
