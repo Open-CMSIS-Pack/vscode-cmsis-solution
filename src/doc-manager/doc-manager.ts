@@ -82,11 +82,9 @@ class DocManagerImpl implements DocManager {
             return;
         }
         await this.update(async () => {
-            await this.reload();
             this.addCbuildBooks(cbuild, 'device');
             this.addCbuildBooks(cbuild, 'board');
-            await this.file.save();
-        });
+        }, false);
     }
 
     private addCbuildBooks(cbuild: CTreeItem, parentTag: string): void {
@@ -132,14 +130,18 @@ class DocManagerImpl implements DocManager {
         });
     }
 
-    private update<T>(operation: () => Promise<T>): Promise<T> {
-        const result = this.pendingUpdate.then(operation);
+    private update<T>(operation: () => Promise<T>, notify = true): Promise<T> {
+        const result = this.pendingUpdate.then(async () => {
+            await this.file.load();
+            const value = await operation();
+            const saved = await this.file.save();
+            if (notify && saved === ETextFileResult.Success) {
+                this.changeEmitter.fire();
+            }
+            return value;
+        });
         this.pendingUpdate = result.catch(() => {});
         return result;
-    }
-
-    private async reload(): Promise<void> {
-        await this.file.load();
     }
 
     async addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): Promise<IDocRef | undefined> {
@@ -152,22 +154,18 @@ class DocManagerImpl implements DocManager {
             const docPath = name && !getWebLocationType(name)
                 ? path.resolve(expandRootVars(name.startsWith('file://') ? fileURLToPath(name) : name))
                 : undefined;
-            await this.file.load(); // refresh inventory, could have been changed externally
             const doc = this.addBook(docParentId, parentTag, name, title, category, docPath, 'user');
             if (doc) {
                 doc.mode = 'user';
             }
-            const result = await this.save();
-            return result === ETextFileResult.Error ? undefined : doc;
+            return doc;
         });
     }
 
     async downloadDocument(parentId: string, parentTag: string, name: string): Promise<void> {
         let downloadError: string | undefined;
         try {
-            if (await this.file.load() === ETextFileResult.Error) {
-                return;
-            }
+            await this.file.load();
             const doc = this.file.getDoc(name, parentId, parentTag);
             if (!doc || !doc.isWebDoc()) {
                 return;
@@ -188,13 +186,11 @@ class DocManagerImpl implements DocManager {
             if (downloadError !== undefined) {
                 doc.error = downloadError;
             }
-            await this.save();
         });
     }
 
     async setLocalPath(parentId: string, parentTag: string, name: string, localPath: string): Promise<boolean> {
         return this.update(async () => {
-            await this.file.load(); // refresh inventory, could have been changed externally
             const doc = this.file.getDoc(name, parentId, parentTag);
             if (!doc || doc.locationType !== 'W' || !localPath || getWebLocationType(localPath)) {
                 return false;
@@ -203,28 +199,19 @@ class DocManagerImpl implements DocManager {
             for (const reference of this.file.findDocs(name)) {
                 reference.path = resolved;
             }
-            return await this.save() !== ETextFileResult.Error;
+            return true;
         });
     }
 
     async removeDocument(parentId: string, parentTag: string, name: string): Promise<boolean> {
         return this.update(async () => {
-            await this.file.load();
             const doc = this.file.getDoc(name, parentId, parentTag);
             if (doc?.mode !== 'user') {
                 return false;
             }
             doc.remove();
-            return await this.save() !== ETextFileResult.Error;
+            return true;
         });
-    }
-
-    private async save(): Promise<ETextFileResult> {
-        const result = await this.file.save();
-        if (result === ETextFileResult.Success) {
-            this.changeEmitter.fire();
-        }
-        return result;
     }
 
     private addBook(

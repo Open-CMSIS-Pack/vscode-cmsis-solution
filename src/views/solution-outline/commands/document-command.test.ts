@@ -334,7 +334,7 @@ describe('DocumentCommand', () => {
         const save = jest.spyOn(manager.file, 'save');
         await commands.mockRunRegistered(DocumentCommand.setLocalPathCommandId, nodeFor('board', 'book'));
         expect(manager.file.getDoc(name, 'Vendor::Selected', 'board')).toBeUndefined();
-        expect(save).not.toHaveBeenCalled();
+        expect(save).toHaveBeenCalledTimes(1);
     });
 
     it('checks the current mode before removing a document', async () => {
@@ -347,7 +347,7 @@ describe('DocumentCommand', () => {
         await commands.mockRunRegistered(DocumentCommand.removeCommandId, nodeFor('board', 'book'));
 
         expect(manager.file.getDoc(name, 'Vendor::Selected', 'board')).toBeDefined();
-        expect(save).not.toHaveBeenCalled();
+        expect(save).toHaveBeenCalledTimes(1);
     });
 
     it.each([DocumentCommand.addCommandId, DocumentCommand.setLocalPathCommandId, DocumentCommand.removeCommandId])('uses the existing manager without reinitializing: %s', async command => {
@@ -361,11 +361,11 @@ describe('DocumentCommand', () => {
         expect(window.showErrorMessage).not.toHaveBeenCalled();
     });
 
-    it.each([DocumentCommand.addCommandId, DocumentCommand.setLocalPathCommandId, DocumentCommand.removeCommandId])('reports save failures: %s', async command => {
+    it.each([DocumentCommand.addCommandId, DocumentCommand.setLocalPathCommandId, DocumentCommand.removeCommandId])('does not report save error results: %s', async command => {
         const doc = manager.file.ensureDoc(name, 'Vendor::Selected', 'board');
         doc.mode = 'user';
         jest.spyOn(manager.file, 'save').mockResolvedValueOnce(ETextFileResult.Error);
         await commands.mockRunRegistered(command, nodeFor('board', command === DocumentCommand.addCommandId ? 'board' : 'book'));
-        expect(window.showErrorMessage).toHaveBeenCalledWith('Failed to save the document inventory.');
+        expect(window.showErrorMessage).not.toHaveBeenCalled();
     });
 });

@@ -185,8 +185,9 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
         if (this.parentTag === 'common') {
             const id = this.pathComponent(this.id, 'id');
             const version = this.pathComponent(this.version, 'version');
+            const baseName = `${id}-${version}`;
             const extension = this.format === undefined ? '' : `.${this.pathComponent(this.format, 'format')}`;
-            return path.join(destinationRoot, `${id}-${version}${extension}`);
+            return path.join(destinationRoot, baseName, `${baseName}${extension}`);
         }
         if ((this.parentTag === 'device' || this.parentTag === 'board') && this.isWebDoc()) {
             const hardware = this.parentTag === 'device' ? splitDeviceId(this.parentId) : splitBoardId(this.parentId);

@@ -370,6 +370,7 @@ describe('DocManager', () => {
         manager = new DocManager(path.join(__dirname, 'arm-docs.json'), downloader, testData.tmpDir);
         await manager.initialize(testData.tmpDir);
         const name = 'https://developer.arm.com/documentation/100230/latest';
+        const destination = path.join(testData.tmpDir, '100230-latest', '100230-latest.pdf');
         const doc = manager.file.ensureDoc(name, 'arm-docs', 'common');
         doc.id = '100230';
         doc.version = 'latest';
@@ -381,22 +382,22 @@ describe('DocManager', () => {
         try {
             await expect(manager.downloadDocument('arm-docs', 'common', name)).resolves.toBeUndefined();
 
-            expect(download).toHaveBeenCalledWith(new URL(doc.metadataUrl), path.join(testData.tmpDir, '100230-latest.pdf'), true, '100230');
+            expect(download).toHaveBeenCalledWith(new URL(doc.metadataUrl), destination, true, '100230');
             const stored = new DocsYamlFile(manager.file.fileName);
             expect(await stored.load()).toBe(ETextFileResult.Success);
             expect(stored.getDoc(name, 'arm-docs', 'common')).toEqual(expect.objectContaining({
                 name, id: '100230', version: 'latest', format: 'pdf', metadataUrl: doc.metadataUrl,
-                path: path.join(testData.tmpDir, '100230-latest.pdf'), error: undefined,
+                path: destination, error: undefined,
             }));
         } finally {
             download.mockRestore();
         }
     });
 
-    it('skips downloading and resolves without a result when loading the inventory fails', async () => {
+    it('continues downloading when loading the inventory reports an error', async () => {
         await manager.addUserBook(boardId, 'board', webName, 'Manual');
         const load = jest.spyOn(manager.file, 'load').mockResolvedValueOnce(ETextFileResult.Error);
-        const download = jest.spyOn(DocDownload.prototype, 'downloadDoc');
+        const download = jest.spyOn(DocDownload.prototype, 'downloadDoc').mockResolvedValueOnce(undefined);
         const save = jest.spyOn(manager.file, 'save');
         const changed = jest.fn();
         manager.onDidChange(changed);
@@ -404,9 +405,9 @@ describe('DocManager', () => {
         try {
             await expect(manager.downloadDocument(boardId, 'board', webName)).resolves.toBeUndefined();
 
-            expect(download).not.toHaveBeenCalled();
-            expect(save).not.toHaveBeenCalled();
-            expect(changed).not.toHaveBeenCalled();
+            expect(download).toHaveBeenCalledTimes(1);
+            expect(save).toHaveBeenCalledTimes(1);
+            expect(changed).toHaveBeenCalledTimes(1);
         } finally {
             load.mockRestore();
             download.mockRestore();
@@ -490,8 +491,8 @@ describe('DocManager', () => {
             await expect(manager.downloadDocument(boardId, 'board', webName)).resolves.toBeUndefined();
 
             expect(manager.file.getDoc(webName, boardId, 'board')).toBeUndefined();
-            expect(save).not.toHaveBeenCalled();
-            expect(changed).not.toHaveBeenCalled();
+            expect(save).toHaveBeenCalledTimes(1);
+            expect(changed).toHaveBeenCalledTimes(1);
         } finally {
             download.mockRestore();
             save.mockRestore();
@@ -562,6 +563,36 @@ describe('DocManager', () => {
             expect.objectContaining({ name: webName, mode: undefined }),
             expect.objectContaining({ name: userName, title: 'User manual', mode: 'user' }),
         ]);
+    });
+
+    it.each(['add', 'set path', 'remove'])('returns the mutation result when inventory I/O reports errors: %s', async operation => {
+        if (operation !== 'add') {
+            await manager.addUserBook(boardId, 'board', webName, 'Manual');
+        }
+        const load = jest.spyOn(manager.file, 'load').mockResolvedValueOnce(ETextFileResult.Error);
+        const save = jest.spyOn(manager.file, 'save').mockResolvedValueOnce(ETextFileResult.Error);
+        const changed = jest.fn();
+        manager.onDidChange(changed);
+
+        try {
+            if (operation === 'add') {
+                expect(await manager.addUserBook(boardId, 'board', webName, 'Manual')).toEqual(expect.objectContaining({
+                    name: webName, mode: 'user',
+                }));
+            } else if (operation === 'set path') {
+                expect(await manager.setLocalPath(boardId, 'board', webName, 'manual.pdf')).toBe(true);
+                expect(manager.file.getDoc(webName, boardId, 'board')?.path).toBe(path.resolve('manual.pdf'));
+            } else {
+                expect(await manager.removeDocument(boardId, 'board', webName)).toBe(true);
+                expect(manager.file.getDoc(webName, boardId, 'board')).toBeUndefined();
+            }
+            expect(load).toHaveBeenCalledTimes(1);
+            expect(save).toHaveBeenCalledTimes(1);
+            expect(changed).not.toHaveBeenCalled();
+        } finally {
+            load.mockRestore();
+            save.mockRestore();
+        }
     });
 
     it('notifies after user mutations but not after unchanged operations', async () => {
