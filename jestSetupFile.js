@@ -5,12 +5,32 @@ const { TextFile } = require('@open-cmsis-pack/cmsis-common/text-file');
 const fsUtils = require('./src/utils/fs-utils');
 const path = require('node:path');
 
+const rootSettingsFile = path.resolve(__dirname, 'cmsis.json');
+let rootSettingsContent;
+const isRootSettingsFile = fileName => path.relative(rootSettingsFile, path.resolve(fileName)) === '';
+
+afterEach(() => {
+  rootSettingsContent = undefined;
+});
+
 // Route TextFile operations through fsUtils so tests can replace them with Jest spies after setup.
 TextFile.setFileSystem({
-  exists: fileName => fsUtils.fileExists(fileName),
-  read: fileName => fsUtils.readTextFile(fileName),
-  write: (fileName, content) => fsUtils.writeTextFile(fileName, content),
-  unlink: fileName => fsUtils.deleteFileIfExists(fileName),
+  exists: fileName => isRootSettingsFile(fileName) ? rootSettingsContent !== undefined : fsUtils.fileExists(fileName),
+  read: fileName => isRootSettingsFile(fileName) ? rootSettingsContent ?? '' : fsUtils.readTextFile(fileName),
+  write: (fileName, content) => {
+    if (isRootSettingsFile(fileName)) {
+      rootSettingsContent = content;
+      return;
+    }
+    return fsUtils.writeTextFile(fileName, content);
+  },
+  unlink: fileName => {
+    if (isRootSettingsFile(fileName)) {
+      rootSettingsContent = undefined;
+      return;
+    }
+    return fsUtils.deleteFileIfExists(fileName);
+  },
   dirname: fileName => path.dirname(fileName),
   resolve: (...pathSegments) => path.resolve(...pathSegments),
 });

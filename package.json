@@ -1759,10 +1759,8 @@
       "\\.(css)$": "<rootDir>/__mocks__/static-assets.js"
     },
     "testEnvironment": "jsdom",
-    "setupFiles": [
-      "./jestSetupFile.js"
-    ],
     "setupFilesAfterEnv": [
+      "./jestSetupFile.js",
       "./src/__test__/custom-matchers.ts",
       "@open-cmsis-pack/cmsis-common/map",
       "@open-cmsis-pack/cmsis-common/array"
