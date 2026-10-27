@@ -29,6 +29,7 @@ import type { CommandsProvider } from '../vscode-api/commands-provider';
 import { PackInstallCommands } from '../packs/pack-install-commands';
 import { COMMAND_ACTIVATE_SOLUTION, COMMAND_DEACTIVATE_SOLUTION, COMMAND_GET_SOLUTION_FILE } from '../solutions/active-solution-tracker';
 import { DebugHardwareCommands } from '../solutions/hardware/debug-hardware-commands';
+import { loadDebugAdaptersYml } from '../debug/debug-adapters-yaml-file';
 
 export class CsolutionApiV3Impl implements CsolutionApiV3 {
     private static readonly targetSelectionMutex = new Mutex();
@@ -38,7 +39,7 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
         private readonly dataManager: DataManager,
         private readonly solutionManager: Pick<SolutionManager, 'getCsolution' | 'loadState'>,
         private readonly csolutionService: Pick<CsolutionService, 'getPacksInfo'>,
-        private readonly toolsEnvironment: Pick<ToolsEnvironment, 'getToolsEnvironment'>,
+        private readonly toolsEnvironment: Pick<ToolsEnvironment, 'getToolsEnvironment' | 'getToolchains'>,
         private readonly commandsProvider: Pick<CommandsProvider, 'executeCommand'>,
     ) {}
 
@@ -151,6 +152,18 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
     public getToolsEnvironment(): Promise<string> {
         const state = this.solutionManager.loadState;
         return this.toolsEnvironment.getToolsEnvironment(state.loaded ? state.solutionPath : undefined);
+    }
+
+    public async getDebuggers(): Promise<string[]> {
+        const catalog = await loadDebugAdaptersYml();
+        if (!catalog) {
+            throw new Error('Unable to load debugger adapters');
+        }
+        return catalog.listAdapterNames();
+    }
+
+    public getToolchains(): Promise<CsolutionApiV3.Toolchain[]> {
+        return this.toolsEnvironment.getToolchains();
     }
 
     public async getPacks(options?: CsolutionApiV3.PackQuery): Promise<CsolutionApiV3.PackQueryResult> {
