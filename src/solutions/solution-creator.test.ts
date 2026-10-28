@@ -15,10 +15,10 @@
  */
 
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import * as YAML from 'yaml';
 import { URI } from 'vscode-uri';
+import { TestDataHandler } from '../__test__/test-data';
 import { draftProjectDataFactory } from '../data-manager/data-manager.factories';
 import { DraftProjectFormat } from '../data-manager/draft-project-data';
 import * as fsUtils from '../utils/fs-utils';
@@ -27,15 +27,16 @@ import { SolutionInitialiserFactory } from './solution-initialiser.factory';
 import { findExistingSolutionFiles, SolutionCreatorImp, SolutionDirectoryConflictError } from './solution-creator';
 
 describe('SolutionCreatorImp', () => {
+    const testDataHandler = new TestDataHandler();
     let tempDir: string;
 
     beforeEach(() => {
-        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'solution-creator-'));
+        tempDir = testDataHandler.tmpDir;
     });
 
     afterEach(() => {
         jest.restoreAllMocks();
-        fs.rmSync(tempDir, { recursive: true, force: true });
+        testDataHandler.dispose();
     });
 
     it('finds supported solution files only in the destination directory', () => {

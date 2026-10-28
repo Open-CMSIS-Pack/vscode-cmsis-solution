@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /*
-* Copyright (C) 2025-2026 Arm Limited
-*/
+ * Copyright (C) 2026 Arm Limited
+ */
 
 import path from 'path';
 import fs from 'node:fs';
@@ -10,9 +10,9 @@ import * as childProcess from 'node:child_process';
 import * as jsonrpc from 'vscode-jsonrpc/node';
 import * as vscode from 'vscode';
 import { CsolutionService } from './csolution-rpc-client';
-import { splitBoardId, splitDeviceId, splitPackId } from './csolution-rpc-helper';
 import { VcpkgManager } from '../vcpkg/vcpkg-manager';
 import { Environment, EnvironmentManager } from '../desktop/env-manager';
+import { CommandsProvider } from '../vscode-api/commands-provider';
 import { SolutionEventHub } from '../solutions/solution-event-hub';
 
 jest.mock('node:child_process', () => ({
@@ -25,6 +25,150 @@ jest.mock('vscode-jsonrpc/node', () => ({
     StreamMessageReader: jest.fn(),
     StreamMessageWriter: jest.fn(),
 }));
+
+type LoadPacksResult = Awaited<ReturnType<CsolutionService['loadPacks']>>;
+
+describe('CsolutionService pack catalog readiness', () => {
+    it('waits for packs before GetPacksInfo without loading a solution', async () => {
+        const service = new CsolutionService({} as EnvironmentManager, {} as CommandsProvider, {} as SolutionEventHub);
+        const internal = service as unknown as {
+            initializePacks(): Promise<LoadPacksResult>;
+            transceive(method: string, args?: unknown): Promise<unknown>;
+            onTerminate(): void;
+        };
+        let finishLoading!: (result: LoadPacksResult) => void;
+        const loading = new Promise<LoadPacksResult>(resolve => { finishLoading = resolve; });
+        const initialize = jest.spyOn(internal, 'initializePacks').mockReturnValue(loading);
+        const transceive = jest.spyOn(internal, 'transceive').mockResolvedValue({ success: true });
+        const initialLoad = service.loadPacks();
+        const args = { context: '', all: true };
+        const request = service.getPacksInfo(args);
+        expect(transceive).not.toHaveBeenCalled();
+        finishLoading({ success: true });
+        await initialLoad;
+        await request;
+        expect(transceive).toHaveBeenCalledWith('GetPacksInfo', args);
+        expect(initialize).toHaveBeenCalledTimes(1);
+        await service.getPacksInfo(args);
+        expect(initialize).toHaveBeenCalledTimes(1);
+        internal.onTerminate();
+        await service.getPacksInfo(args);
+        expect(initialize).toHaveBeenCalledTimes(2);
+        expect(transceive.mock.calls.map(call => call[0])).not.toContain('LoadSolution');
+    });
+
+    it('rejects failed initialization and retries on a later pack query', async () => {
+        const service = new CsolutionService({} as EnvironmentManager, {} as CommandsProvider, {} as SolutionEventHub);
+        const internal = service as unknown as {
+            initializePacks(): Promise<LoadPacksResult>;
+            transceive(method: string, args?: unknown): Promise<unknown>;
+        };
+        const initialize = jest.spyOn(internal, 'initializePacks').mockResolvedValue({ success: false, message: 'Pack index failed' });
+        const transceive = jest.spyOn(internal, 'transceive').mockResolvedValue({ success: true, packs: [] });
+        const args = { context: '', all: true };
+        await expect(service.getPacksInfo(args)).rejects.toThrow('Pack index failed');
+        expect(transceive).not.toHaveBeenCalled();
+        initialize.mockResolvedValueOnce({ success: true });
+        await expect(service.getPacksInfo(args)).resolves.toEqual({ success: true, packs: [] });
+        initialize.mockRejectedValueOnce(new Error('RPC offline'));
+        await expect(service.loadPacks()).rejects.toThrow('RPC offline');
+        initialize.mockResolvedValue({ success: true });
+        await expect(service.getPacksInfo(args)).resolves.toEqual({ success: true, packs: [] });
+        expect(initialize).toHaveBeenCalledTimes(4);
+    });
+
+    it('does not retry a failed load for queries already waiting on it', async () => {
+        const service = new CsolutionService({} as EnvironmentManager, {} as CommandsProvider, {} as SolutionEventHub);
+        const internal = service as unknown as {
+            initializePacks(): Promise<LoadPacksResult>;
+            transceive(method: string, args?: unknown): Promise<unknown>;
+        };
+        let finishLoading!: (result: LoadPacksResult) => void;
+        const loading = new Promise<LoadPacksResult>(resolve => { finishLoading = resolve; });
+        const initialize = jest.spyOn(internal, 'initializePacks').mockReturnValueOnce(loading).mockResolvedValue({ success: true });
+        const transceive = jest.spyOn(internal, 'transceive').mockResolvedValue({ success: true, packs: [] });
+        const args = { context: '', all: true };
+        const first = service.getPacksInfo(args);
+        const second = service.getPacksInfo(args);
+        finishLoading({ success: false, message: 'Pack index failed' });
+        await expect(first).rejects.toThrow('Pack index failed');
+        await expect(second).rejects.toThrow('Pack index failed');
+        expect(initialize).toHaveBeenCalledTimes(1);
+        expect(transceive).not.toHaveBeenCalled();
+        await expect(service.getPacksInfo(args)).resolves.toEqual({ success: true, packs: [] });
+        expect(initialize).toHaveBeenCalledTimes(2);
+    });
+
+    it('waits for new pack initialization after a session terminates', async () => {
+        const service = new CsolutionService({} as EnvironmentManager, {} as CommandsProvider, {} as SolutionEventHub);
+        const internal = service as unknown as {
+            initializePacks(): Promise<LoadPacksResult>;
+            transceive(method: string, args?: unknown): Promise<unknown>;
+            onTerminate(): void;
+        };
+        let rejectOld!: (error: Error) => void;
+        let finishNew!: (result: LoadPacksResult) => void;
+        const oldLoad = new Promise<LoadPacksResult>((_, reject) => { rejectOld = reject; });
+        const newLoad = new Promise<LoadPacksResult>(resolve => { finishNew = resolve; });
+        jest.spyOn(internal, 'initializePacks').mockReturnValueOnce(oldLoad).mockReturnValueOnce(newLoad);
+        const transceive = jest.spyOn(internal, 'transceive').mockResolvedValue({ success: true, packs: [] });
+        const request = service.getPacksInfo({ context: '', all: true });
+        internal.onTerminate();
+        rejectOld(new Error('Old session closed'));
+        await Promise.resolve();
+        expect(transceive).not.toHaveBeenCalled();
+        finishNew({ success: true });
+        await expect(request).resolves.toEqual({ success: true, packs: [] });
+        expect(transceive).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits for overlapping pack loads to finish in order', async () => {
+        const service = new CsolutionService({} as EnvironmentManager, {} as CommandsProvider, {} as SolutionEventHub);
+        const internal = service as unknown as {
+            initializePacks(): Promise<LoadPacksResult>;
+            transceive(method: string, args?: unknown): Promise<unknown>;
+        };
+        let finishFirst!: (result: LoadPacksResult) => void;
+        let finishSecond!: (result: LoadPacksResult) => void;
+        const firstLoad = new Promise<LoadPacksResult>(resolve => { finishFirst = resolve; });
+        const secondLoad = new Promise<LoadPacksResult>(resolve => { finishSecond = resolve; });
+        const initialize = jest.spyOn(internal, 'initializePacks').mockReturnValueOnce(firstLoad).mockReturnValueOnce(secondLoad);
+        const transceive = jest.spyOn(internal, 'transceive').mockResolvedValue({ success: true, packs: [] });
+        const initialLoad = service.loadPacks();
+        const reload = service.loadPacks();
+        const request = service.getPacksInfo({ context: '', all: true });
+        expect(initialize).toHaveBeenCalledTimes(1);
+        finishFirst({ success: true });
+        await initialLoad;
+        await Promise.resolve();
+        expect(initialize).toHaveBeenCalledTimes(2);
+        expect(transceive).not.toHaveBeenCalled();
+        finishSecond({ success: true });
+        await reload;
+        await expect(request).resolves.toEqual({ success: true, packs: [] });
+        expect(transceive).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not run a queued load after termination', async () => {
+        const service = new CsolutionService({} as EnvironmentManager, {} as CommandsProvider, {} as SolutionEventHub);
+        const internal = service as unknown as {
+            initializePacks(): Promise<LoadPacksResult>;
+            onTerminate(): void;
+        };
+        let finishOld!: (result: LoadPacksResult) => void;
+        const oldLoad = new Promise<LoadPacksResult>(resolve => { finishOld = resolve; });
+        const initialize = jest.spyOn(internal, 'initializePacks').mockReturnValueOnce(oldLoad).mockResolvedValue({ success: true });
+        const initialLoad = service.loadPacks();
+        const queuedLoad = service.loadPacks();
+        internal.onTerminate();
+        finishOld({ success: true });
+        await initialLoad;
+        await expect(queuedLoad).resolves.toEqual({ success: false, message: 'Pack load superseded' });
+        expect(initialize).toHaveBeenCalledTimes(1);
+        await service.loadPacks();
+        expect(initialize).toHaveBeenCalledTimes(2);
+    });
+});
 
 describe('csolution-rpc-client', () => {
     type AnyService = Record<string, any>;
@@ -51,61 +195,6 @@ describe('csolution-rpc-client', () => {
 
     afterEach(() => {
         jest.restoreAllMocks();
-    });
-
-    describe('splitPackId', () => {
-        it('splits a valid pack ID', () => {
-            const result = splitPackId('vendor::name@1.0.0');
-            expect(result).toEqual({ vendor: 'vendor', name: 'name', version: '1.0.0' });
-        });
-
-        it('splits a valid pack ID without version', () => {
-            const result = splitPackId('vendor::name');
-            expect(result).toEqual({ vendor: 'vendor', name: 'name', version: undefined });
-        });
-
-        it('throws an error for invalid pack ID format', () => {
-            expect(() => splitPackId('invalid-pack-id')).toThrow('Invalid pack ID format: invalid-pack-id');
-        });
-    });
-
-    describe('splitBoardId', () => {
-        it('splits a valid full board ID', () => {
-            const result = splitBoardId('vendor::name:rev1');
-            expect(result).toEqual({ vendor: 'vendor', name: 'name', revision: 'rev1' });
-        });
-
-        it('splits a valid board ID without revision', () => {
-            const result = splitBoardId('vendor::name');
-            expect(result).toEqual({ vendor: 'vendor', name: 'name', revision: undefined });
-        });
-
-        it('splits a valid board ID without vendor', () => {
-            const result = splitBoardId('name:rev1');
-            expect(result).toEqual({ vendor: undefined, name: 'name', revision: 'rev1' });
-        });
-
-        it('accepts simple name as board id', () => {
-            const result = splitBoardId('name');
-            expect(result).toEqual({ vendor: undefined, name: 'name', revision: undefined });
-        });
-    });
-
-    describe('splitDeviceId', () => {
-        it('splits a valid full device ID', () => {
-            const result = splitDeviceId('vendor::name:core');
-            expect(result).toEqual({ vendor: 'vendor', name: 'name' });
-        });
-
-        it('splits a valid device ID without vendor', () => {
-            const result = splitDeviceId('name:core');
-            expect(result).toEqual({ vendor: undefined, name: 'name' });
-        });
-
-        it('accepts simple name as device id', () => {
-            const result = splitDeviceId('name');
-            expect(result).toEqual({ vendor: undefined, name: 'name' });
-        });
     });
 
     describe('csolution-rpc-client transceive', () => {
@@ -368,6 +457,23 @@ describe('csolution-rpc-client', () => {
             expect(service.localRepositoryIdxWatcher).toBeDefined();
         });
 
+        it('watches both indexes under the RPC environment pack root', () => {
+            const environmentManager = {
+                augmentEnv: jest.fn().mockReturnValue(new Environment({ CMSIS_PACK_ROOT: '/configured/packs' })),
+            } as unknown as EnvironmentManager;
+            service = createService(environmentManager);
+            jest.mocked(pathUtils.getCmsisPackRoot).mockImplementation(environment => environment?.CMSIS_PACK_ROOT ?? '/process/packs');
+            (fs.statSync as unknown as jest.Mock).mockReturnValue({ mtimeMs: 1 });
+            (fs.watch as unknown as jest.Mock).mockReturnValue({ close: jest.fn() });
+
+            service.watchPackIdxFile();
+            service.watchLocalRepositoryPidxFile();
+
+            expect(fs.watch).toHaveBeenNthCalledWith(1, path.join('/configured/packs', 'pack.idx'), expect.any(Function));
+            expect(fs.watch).toHaveBeenNthCalledWith(2, path.join('/configured/packs', '.Local', 'local_repository.pidx'), expect.any(Function));
+            expect(environmentManager.augmentEnv).toHaveBeenCalledTimes(2);
+        });
+
         it('watches <packRoot>/pack.idx and reads initial mtime', () => {
             const packIdx = path.join('/cmsis-packs', 'pack.idx');
 
@@ -547,6 +653,8 @@ describe('csolution-rpc-client', () => {
 
             expect(prevClose).toHaveBeenCalledTimes(1);
             expect(fs.watch).toHaveBeenCalledTimes(1);
+            expect(service.idxWatcher).toBeDefined();
+            expect(service.idxWatcher.close).not.toBe(prevClose);
         });
 
         it('closes existing local repository watcher before creating a new one', () => {
@@ -560,6 +668,8 @@ describe('csolution-rpc-client', () => {
 
             expect(prevClose).toHaveBeenCalledTimes(1);
             expect(fs.watch).toHaveBeenCalledTimes(1);
+            expect(service.localRepositoryIdxWatcher).toBeDefined();
+            expect(service.localRepositoryIdxWatcher.close).not.toBe(prevClose);
         });
 
         it('suppresses pack.idx-triggered reload while suspended and runs once after resume', () => {
@@ -734,36 +844,6 @@ describe('csolution-rpc-client', () => {
             // fs.watch should not be set up
             expect(fs.watch).not.toHaveBeenCalled();
             expect(service.localRepositoryIdxWatcher).toBeUndefined();
-        });
-
-        it('resets idxWatcher to undefined after closing existing watcher', () => {
-            const prevClose = jest.fn();
-            service.idxWatcher = { close: prevClose };
-
-            (fs.statSync as unknown as jest.Mock).mockReturnValue({ mtimeMs: 1 });
-            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, _listener: any) => ({ close: jest.fn() }));
-
-            service.watchPackIdxFile();
-
-            expect(prevClose).toHaveBeenCalledTimes(1);
-            // idxWatcher should be set to the new watcher, not undefined
-            expect(service.idxWatcher).toBeDefined();
-            expect(service.idxWatcher.close).not.toBe(prevClose);
-        });
-
-        it('resets localRepositoryIdxWatcher to undefined after closing existing watcher', () => {
-            const prevClose = jest.fn();
-            service.localRepositoryIdxWatcher = { close: prevClose };
-
-            (fs.statSync as unknown as jest.Mock).mockReturnValue({ mtimeMs: 1 });
-            (fs.watch as unknown as jest.Mock).mockImplementation((_file: string, _listener: any) => ({ close: jest.fn() }));
-
-            service.watchLocalRepositoryPidxFile();
-
-            expect(prevClose).toHaveBeenCalledTimes(1);
-            // localRepositoryIdxWatcher should be set to the new watcher, not undefined
-            expect(service.localRepositoryIdxWatcher).toBeDefined();
-            expect(service.localRepositoryIdxWatcher.close).not.toBe(prevClose);
         });
     });
 

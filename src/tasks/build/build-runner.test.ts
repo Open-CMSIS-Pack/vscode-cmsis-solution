@@ -166,6 +166,7 @@ describe('BuildRunner', () => {
         it.each([
             ['quiet', '--quiet'],
             ['normal', undefined],
+            ['build-commands', '--build-commands'],
             ['verbose', '--verbose'],
             ['debug', '--debug'],
         ])('maps build output verbosity %s to flag %s', (outputVerbosity, expectedFlag) => {
@@ -180,6 +181,7 @@ describe('BuildRunner', () => {
                 expect(args).toContain(expectedFlag);
             } else {
                 expect(args).not.toContain('--quiet');
+                expect(args).not.toContain('--build-commands');
                 expect(args).not.toContain('--verbose');
                 expect(args).not.toContain('--debug');
             }

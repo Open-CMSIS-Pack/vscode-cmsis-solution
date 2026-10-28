@@ -15,13 +15,14 @@
  */
 
 import { COutlineItem } from './solution-outline-item';
-import { buildDocFilePath, isWebAddress } from '../../../util';
-import { CTreeItem, ITreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { isWebAddress } from '../../../util';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import path from 'path';
 import { FileItemBuilder } from './solution-outline-file-item';
 import { CSolution } from '../../../solutions/csolution';
 import { SolutionOutlineItemBuilder } from './solution-outline-item-builder';
 import { buildPackOverviewLink } from './pack-tooltip';
+import { IDocRef } from '../../../doc-manager/docs-yaml-file';
 
 export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
 
@@ -63,8 +64,10 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
             `- ${isBoard ? 'board' : 'device'}: \`${hardwareName}\`\n` +
             `- from pack: \`${hardwarePackName}\`${buildPackOverviewLink(hardwarePackName)}`;
 
-        hardwareItem.setTag(isBoard ? 'board' : 'device');
+        const parentTag = isBoard ? 'board' : 'device';
+        hardwareItem.setTag(parentTag);
         hardwareItem.setAttribute('hardwareName', hardwareName);
+        hardwareItem.addFeature('docParent');
         hardwareItem.setAttribute('label', `${isBoard ? 'Board' : 'Device'}: ${hardwareName}`);
         hardwareItem.setAttribute('expandable', '1');
         hardwareItem.setAttribute('iconPath', isBoard ? 'circuit-board' : 'chip');
@@ -74,27 +77,20 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         this.createDbgConfigNode(hardwareItem, isBoard, cbuild);
 
         // create children
-        this.createBooksNodes(hardwareItem, isBoard, cbuild);
+        for (const doc of this.docManager?.getBooks(hardwareName, parentTag, cbuild ?? csolution.getCbuildTop()) ?? []) {
+            this.createBookNode(hardwareItem, doc);
+        }
 
         return hardwareItem;
     }
 
-    private createBooksNodes(hardwareItem: COutlineItem, isBoard: boolean, cbuild?: CTreeItem) {
-        if (cbuild) {
-            const books = isBoard ? cbuild.getGrandChildren('board-books') : cbuild.getGrandChildren('device-books');
-            for (const book of books) {
-                this.createBookNode(hardwareItem, book);
-            }
-        }
-    }
-
-    private createBookNode(hardwareItem: COutlineItem, book: ITreeItem<CTreeItem>) {
-        const title = book.getValueAsString('title');
+    private createBookNode(hardwareItem: COutlineItem, doc: IDocRef) {
+        const title = doc.title;
         if (!title) {
             return;
         }
 
-        const filePath = buildDocFilePath(book);
+        const filePath = doc.path ?? doc.name;
         if (!filePath) {
             return;
         }
@@ -104,10 +100,19 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         bookItem.setAttribute('expandable', '0');
         bookItem.setAttribute('resourcePath', filePath);
         bookItem.setAttribute('docPath', filePath);
-        bookItem.setAttribute('tooltip', filePath);
+        bookItem.setAttribute('docName', doc.name);
+        bookItem.setAttribute('docParentId', doc.parentId);
+        bookItem.setAttribute('docParentTag', doc.parentTag);
+        bookItem.setAttribute('tooltip', doc.error ? `${filePath}\n${doc.error}` : filePath);
         bookItem.addFeature('docFile');
+        if (doc.locationType === 'W') {
+            bookItem.addFeature('webDoc');
+        }
+        if (doc.mode === 'user') {
+            bookItem.addFeature('userDoc');
+        }
 
-        const useCommand = isWebAddress(filePath) || !filePath.toLowerCase().endsWith('.md');
+        const useCommand = doc.isWeb() || isWebAddress(filePath) || !filePath.toLowerCase().endsWith('.md');
         if (useCommand) {
             bookItem.setAttribute('command', 'cmsis-csolution.openDocFile');
         }
@@ -146,7 +151,7 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         dbgconfFileItem.addFeature('file');
 
         // add merge feature for dbgconf node
-        const fileItem = new FileItemBuilder();
+        const fileItem = new FileItemBuilder(this.csolution, this.rpcData, this.docManager, this.context);
         fileItem.addMergeFeature(dbgConfigEntry ?? file, dbgconfFileItem);
     }
 }

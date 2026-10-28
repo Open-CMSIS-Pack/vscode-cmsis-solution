@@ -23,7 +23,7 @@ import { CONFIG_ENVIRONMENT_VARIABLES, OPEN_ENV_VAR_SETTINGS_COMMAND_ID, PACKAGE
 import process from 'process';
 import { PythonEnvironment, PythonEnvironmentApi } from '../vscode-api/ms-python.vscode-python-envs.api';
 import { extendEnvWithCmsisSettings } from '../util';
-import { getCmsisToolboxRoot } from '../utils/path-utils';
+import { getCmsisToolboxRoot, setPackRootEnvironment } from '../utils/path-utils';
 
 const DEFAULT_PATH_VAR = (process.platform === 'win32') ? 'Path' : 'PATH';
 const ENV_VAR_NAME_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -213,6 +213,8 @@ class EnvironmentManagerImpl implements EnvironmentManager {
             CONFIG_ENVIRONMENT_VARIABLES,
         );
         this.updateEnvironmentSafe(context);
+        setPackRootEnvironment(() => this.getEnvironmentVariables());
+        context.subscriptions.push({ dispose: () => setPackRootEnvironment(() => process.env) });
     }
 
     public augmentEnv(env: Environment | undefined): Environment {

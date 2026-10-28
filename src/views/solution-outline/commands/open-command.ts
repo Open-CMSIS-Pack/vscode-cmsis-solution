@@ -15,6 +15,7 @@
  */
 
 import * as vscode from 'vscode';
+import { gte, valid } from 'semver';
 import { CommandsProvider } from '../../../vscode-api/commands-provider';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 import { PACKAGE_NAME, README_FILE_PATH } from '../../../manifest';
@@ -27,6 +28,7 @@ import type { ConfigWizardAnnotationChecker } from '../../../utils/config-wizard
 import { configWizardAnnotationChecker } from '../../../utils/config-wizard-checker';
 import { openFileWithPolicy } from '../../file-open-policy';
 import { FileOpenGroupOrchestrator, FileOpenGroupOrchestratorImpl } from '../../file-open-group-orchestrator';
+import { fileExists } from '../../../utils/fs-utils';
 
 export const openSourceSmartCommandId = `${PACKAGE_NAME}.openSourceFileSmart`;
 
@@ -40,6 +42,7 @@ export class OpenCommand {
     public static readonly openDocCommandId = `${PACKAGE_NAME}.openDocFile`;
     public static readonly openSourceSmartCommandId = openSourceSmartCommandId;
     public static readonly openHelpCommandId = `${PACKAGE_NAME}.openHelp`;
+    public static readonly showWhatsNewCommandId = `${PACKAGE_NAME}.showWhatsNew`;
     public static readonly openZephyrTerminalCommandId = `${PACKAGE_NAME}.openZephyrTerminal`;
     public static readonly openCMakeTerminalCommandId = `${PACKAGE_NAME}.openCMakeTerminal`;
     private static readonly configWizardViewType = `${PACKAGE_NAME}.configWizard`;
@@ -60,7 +63,23 @@ export class OpenCommand {
             helpFilePath = path.join(keilPack.extensionPath, 'guide');
         }
 
+        const updateWhatsNewAvailability = () => this.commandsProvider.executeCommand(
+            'setContext', `${PACKAGE_NAME}.whatsNewAvailable`, this.isWhatsNewAvailable());
+        await updateWhatsNewAvailability();
+        context.subscriptions.push(vscode.extensions.onDidChange(updateWhatsNewAvailability));
+
         context.subscriptions.push(
+            this.commandsProvider.registerCommand(OpenCommand.showWhatsNewCommandId, async () => {
+                if (!this.isWhatsNewAvailable()) {
+                    await vscode.window.showInformationMessage("What's New requires Keil Studio Pack version 1.22.0 or later.");
+                    return;
+                }
+                try {
+                    await this.commandsProvider.executeCommand('keil-studio.showWhatsNew');
+                } catch {
+                    await vscode.window.showInformationMessage("Unable to open What's New in Keil Studio Pack.");
+                }
+            }, this),
             this.commandsProvider.registerCommand(OpenCommand.openSolutionCommandId, () =>
                 (this.solutionManager.loadState.solutionPath) ? this.openFile(this.solutionManager.loadState.solutionPath) : undefined, this),
             this.commandsProvider.registerCommand(OpenCommand.openProjectCommandId, (node: COutlineItem) =>
@@ -94,13 +113,17 @@ export class OpenCommand {
         );
     }
 
+    private isWhatsNewAvailable(): boolean {
+        const version = vscode.extensions.getExtension('arm.keil-studio-pack')?.packageJSON?.version;
+        return typeof version === 'string' && !!valid(version) && gte(version, '1.22.0');
+    }
+
     private commandHandler(command: string, node: COutlineItem): Promise<void> | undefined {
         const filePath = this.getFilePathForCommand(command, node);
         if (filePath) {
             const openExternal = command === OpenCommand.openDocCommandId;
             return this.openFile(filePath, openExternal);
         }
-
         return undefined;
     }
 
@@ -114,7 +137,14 @@ export class OpenCommand {
 
     private getFilePathForCommand(command: string, node: COutlineItem): string | undefined {
         if (command === OpenCommand.openDocCommandId) {
-            return node.getAttribute('docPath');
+            const name = node.getAttribute('docName');
+            const parentId = node.getAttribute('docParentId');
+            const parentTag = node.getAttribute('docParentTag');
+            const doc = name && parentId && parentTag
+                ? this.solutionManager.getDocManager().file.getDoc(name, parentId, parentTag)
+                : undefined;
+            const localPath = doc ? doc.path : node.getAttribute('docPath');
+            return localPath && fileExists(localPath) ? localPath : doc?.name || name || node.getAttribute('docPath');
         } else if (command === OpenCommand.openPrjConfCommandId) {
             return node.getAttribute('prjConfPath');
         } else if (command === OpenCommand.openPrjCmakeCommandId) {

@@ -16,7 +16,6 @@
 
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
 import { OpenCommand } from './open-command';
 import { COutlineItem } from '../tree-structure/solution-outline-item';
 import { IOpenFileExternal } from '../../../open-file-external-if';
@@ -31,6 +30,7 @@ import type { CSolution } from '../../../solutions/csolution';
 import { README_FILE_PATH } from '../../../manifest';
 import { faker } from '@faker-js/faker';
 import { ConfigWizardAnnotationChecker } from '../../../utils/config-wizard-checker';
+import { TestDataHandler } from '../../../__test__/test-data';
 
 describe('OpenCommand', () => {
     let commandsProvider: MockCommandsProvider;
@@ -38,20 +38,55 @@ describe('OpenCommand', () => {
     let mockAnnotationChecker: ConfigWizardAnnotationChecker;
     let testFolder: string;
     let testFile: string;
+    const testData = new TestDataHandler();
 
     beforeEach(async () => {
         commandsProvider = commandsProviderFactory();
         mockAnnotationChecker = {
             hasAnnotations: jest.fn().mockResolvedValue(false),
         };
-        testFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'jest-'));
+        testFolder = testData.tmpDir;
         testFile = `${testFolder}/jtest.txt`;
         fs.writeFileSync(testFile, 'test content');
     });
 
     afterEach(() => {
         jest.restoreAllMocks();
-        fs.rmSync(testFolder, { recursive: true, force: true });
+        testData.rmTmpDir();
+    });
+
+    it.each(['existing', 'missing', 'unset'] as const)('opens the local document only when its path exists: %s', async state => {
+        const open = jest.spyOn(mockOpenFileExternal, 'openFile');
+        open.mockClear();
+        const solutionManager = solutionManagerFactory();
+        const name = 'https://developer.arm.com/documentation/ddi0439/b';
+        const doc = solutionManager.getDocManager().file.ensureDoc(name, 'arm-docs', 'common');
+        doc.path = state === 'existing' ? testFile : state === 'missing' ? path.join(testFolder, 'missing.pdf') : undefined;
+        const command = new OpenCommand(solutionManager, commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+        await command.activate(extensionContextFactory());
+        const item = new COutlineItem('book');
+        item.setAttribute('docName', name);
+        item.setAttribute('docPath', 'stale-outline-path.pdf');
+        item.setAttribute('docParentId', 'arm-docs');
+        item.setAttribute('docParentTag', 'common');
+        await commandsProvider.mockRunRegistered(OpenCommand.openDocCommandId, item);
+
+        expect(open).toHaveBeenCalledWith(state === 'existing' ? testFile : name);
+    });
+
+    it('falls back to the document name when its inventory entry is unavailable', async () => {
+        const open = jest.spyOn(mockOpenFileExternal, 'openFile');
+        open.mockClear();
+        const command = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+        await command.activate(extensionContextFactory());
+        const item = new COutlineItem('book');
+        const name = 'https://example.com/manual.pdf';
+        item.setAttribute('docName', name);
+        item.setAttribute('docPath', path.join(testFolder, 'missing.pdf'));
+
+        await commandsProvider.mockRunRegistered(OpenCommand.openDocCommandId, item);
+
+        expect(open).toHaveBeenCalledWith(name);
     });
 
     it('registers the command on activation', async () => {
@@ -62,12 +97,27 @@ describe('OpenCommand', () => {
         const expectedCommands = [OpenCommand.openSolutionCommandId, OpenCommand.openProjectCommandId, OpenCommand.openPrjConfCommandId,
             OpenCommand.openPrjCmakeCommandId,
             OpenCommand.openLayerCommandId, OpenCommand.openLinkerCommandId, OpenCommand.openDocCommandId, OpenCommand.openSourceSmartCommandId, OpenCommand.openHelpCommandId,
-            OpenCommand.openZephyrTerminalCommandId, OpenCommand.openCMakeTerminalCommandId];
+            OpenCommand.openZephyrTerminalCommandId, OpenCommand.openCMakeTerminalCommandId, OpenCommand.showWhatsNewCommandId];
 
         expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(expectedCommands.length);
         expectedCommands.forEach(commandId => {
             expect(commandsProvider.registerCommand).toHaveBeenCalledWith(commandId, expect.any(Function), expect.anything());
         });
+    });
+
+    it.each([undefined, '1.21.9', 'invalid', '1.22.0', '1.23.0'])('checks Keil Studio Pack version %s for What\'s New', async version => {
+        jest.mocked(vscode.extensions.getExtension).mockReturnValue(version === undefined ? undefined : { packageJSON: { version } } as vscode.Extension<void>);
+        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal);
+        await openCommand.activate(extensionContextFactory());
+        await commandsProvider.mockRunRegistered(OpenCommand.showWhatsNewCommandId);
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith(
+            'setContext', 'cmsis-csolution.whatsNewAvailable', version === '1.22.0' || version === '1.23.0');
+        if (version === '1.22.0' || version === '1.23.0') {
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith('keil-studio.showWhatsNew');
+        } else {
+            expect(commandsProvider.executeCommand).not.toHaveBeenCalledWith('keil-studio.showWhatsNew');
+            expect(vscode.window.showInformationMessage).toHaveBeenCalledWith("What's New requires Keil Studio Pack version 1.22.0 or later.");
+        }
     });
 
     it('opens and shows the csolution file from the path', async () => {

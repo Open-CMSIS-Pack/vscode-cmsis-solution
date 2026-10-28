@@ -183,4 +183,3 @@ class SolutionEventHubImpl {
 }
 
 export const SolutionEventHub = constructor<typeof SolutionEventHubImpl, SolutionEventHub>(SolutionEventHubImpl);
-

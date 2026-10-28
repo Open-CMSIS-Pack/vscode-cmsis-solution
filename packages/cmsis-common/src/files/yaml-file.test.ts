@@ -43,8 +43,8 @@ class YamlFileTest extends YamlFile {
 
 describe('YamlFile', () => {
     const filePath = 'path/to/file.yaml';
-    const readFile = jest.fn<(fileName: string) => string>();
-    const writeFile = jest.fn<(fileName: string, content: string) => void>();
+    const readFile = jest.fn<string, [fileName: string]>();
+    const writeFile = jest.fn<void, [fileName: string, content: string]>();
     const fileSystem: ITextFileSystem = {
         exists: () => true,
         read: readFile,

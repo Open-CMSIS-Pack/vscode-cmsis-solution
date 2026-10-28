@@ -17,20 +17,20 @@
 import fs from 'fs';
 import path from 'path';
 import * as vscode from 'vscode';
-import yaml from 'yaml';
+import { ETextFileResult, YamlFile } from '@open-cmsis-pack/cmsis-common';
 import { ActiveTool, EnvironmentManagerApiV1, VcpkgResults } from '@arm-software/vscode-environment-manager';
 import { EnvironmentManager } from '../desktop/env-manager';
 import { CMSIS_TOOLBOX_FOLDER, PACKAGE_NAME } from '../manifest';
 import { getCmsisToolboxRoot } from '../utils/path-utils';
 import { ExtensionApiProvider } from '../vscode-api/extension-api-provider';
-import { WorkspaceFsProvider } from '../vscode-api/workspace-fs-provider';
 
 const ENVIRONMENT_MANAGER_EXTENSION_ID = 'arm.environment-manager';
 const CMSIS_SOLUTION_EXTENSION_ID = `arm.${PACKAGE_NAME}`;
 const CMSIS_DEBUGGER_EXTENSION_ID = 'arm.vscode-cmsis-debugger';
 const CMSIS_SDS_EXTENSION_ID = 'arm.cmsis-sds';
-const DOCUMENT_VERSION = '1.0.0';
+const DOCUMENT_VERSION = '1.1.0';
 const CMSIS_ENVIRONMENT_VARIABLES = ['CMSIS_PACK_ROOT', 'CMSIS_COMPILER_ROOT'];
+const TOOLCHAIN_REGISTRATION = /^([A-Z][A-Z0-9]*)_TOOLCHAIN_(\d+)_(\d+)_(\d+)$/i;
 
 type EnvironmentManagerToolsApi = Pick<EnvironmentManagerApiV1, 'getActiveTools'>
     & Partial<Pick<EnvironmentManagerApiV1, 'isActivating' | 'onDidActivate' | 'onDidFailActivation'>>;
@@ -57,27 +57,75 @@ interface VcpkgPackage {
     pathEntry: string;
 }
 
+interface ToolsEnvironmentDocument {
+    'cmsis-tools-environment': {
+        version: string;
+        'generated-by': string;
+        solution?: string;
+        environment: { path: string[]; variables: Record<string, string> };
+        tools: Record<string, unknown>[];
+    };
+}
+
+export interface ToolsEnvironmentSnapshot {
+    folder: string;
+    solutionPath?: string;
+    environment: NodeJS.ProcessEnv;
+    configuredVariables: NodeJS.ProcessEnv;
+    installedTools: ActiveTool[];
+    vcpkgResults?: VcpkgResults;
+}
+
+class ToolsEnvironmentFile extends YamlFile {
+    protected override showErrorMessage(): void {
+        return;
+    }
+}
+
 export class ToolsEnvironment {
     private readonly pendingWrites = new Map<string, Promise<void>>();
 
     constructor(
         private readonly environmentManager: EnvironmentManager,
         private readonly environmentManagerApiProvider: ExtensionApiProvider<EnvironmentManagerToolsApi>,
-        private readonly workspaceFsProvider: WorkspaceFsProvider,
         private vcpkgResults?: VcpkgResults,
     ) {
+    }
+
+    public async getToolsEnvironment(solutionPath?: string): Promise<string> {
+        const environmentManagerApi = await this.environmentManagerApiProvider.activateIfEnabled();
+        if (environmentManagerApi) {
+            await this.waitUntilReady(environmentManagerApi);
+        }
+        return this.createContent(solutionPath, environmentManagerApi?.getActiveTools() ?? []);
     }
 
     public updateVcpkgResults(results: VcpkgResults): void {
         this.vcpkgResults = results;
     }
 
-    public async captureAndQueueWrite(solutionPath: string): Promise<void> {
+    public async getToolchains(): Promise<{ name: string; version: string; path: string; registrationVariable: string }[]> {
         const environmentManagerApi = await this.environmentManagerApiProvider.activateIfEnabled();
         if (environmentManagerApi) {
             await this.waitUntilReady(environmentManagerApi);
         }
-        const content = this.createContent(solutionPath, environmentManagerApi?.getActiveTools() ?? []);
+        const variables = this.mergeEnvironmentVariables(
+            this.environmentManager.getEnvironmentVariables(),
+            this.vcpkgResults?.variables,
+        );
+        return Object.entries(variables).flatMap(([registrationVariable, registeredPath]) => {
+            const match = TOOLCHAIN_REGISTRATION.exec(registrationVariable);
+            return match && registeredPath?.trim() ? [{
+                name: match[1],
+                version: match.slice(2).join('.'),
+                path: registeredPath,
+                registrationVariable,
+            }] : [];
+        });
+    }
+
+    public async captureAndQueueWrite(solutionPath: string): Promise<void> {
+        const content = await this.getToolsEnvironment(solutionPath);
         this.queueWrite(solutionPath, content);
     }
 
@@ -87,48 +135,60 @@ export class ToolsEnvironment {
         await this.writeContent(solutionPath, content);
     }
 
-    private createContent(solutionPath: string, installedTools: ActiveTool[]): string {
+    private createContent(solutionPath: string | undefined, installedTools: ActiveTool[]): string {
+        return this.render({
+            folder: solutionPath ? path.dirname(solutionPath) : '',
+            solutionPath,
+            environment: this.environmentManager.getEnvironmentVariables(),
+            configuredVariables: this.environmentManager.getConfiguredEnvironmentVariables(),
+            installedTools,
+            vcpkgResults: this.vcpkgResults,
+        });
+    }
+
+    public render(snapshot: ToolsEnvironmentSnapshot): string {
         // Resolved environment: retain only values contributed or used by Arm extensions and vcpkg.
         const vcpkgVariables = Object.fromEntries(
-            Object.entries(this.vcpkgResults?.variables ?? {})
+            Object.entries(snapshot.vcpkgResults?.variables ?? {})
                 .filter(([name]) => name.toLowerCase() !== 'path'),
         );
         const resolvedVariables = this.mergeEnvironmentVariables(
-            this.environmentManager.getEnvironmentVariables(),
+            snapshot.environment,
             vcpkgVariables,
         );
         const localPath = this.getEnvironmentVariable(resolvedVariables, 'PATH');
         const localPathEntries = localPath?.split(path.delimiter).filter(Boolean) ?? [];
         const builtInTools = this.getBuiltInTools(resolvedVariables);
         const configuredVariables = this.mergeEnvironmentVariables(
-            this.environmentManager.getConfiguredEnvironmentVariables(),
+            snapshot.configuredVariables,
         );
         const configuredPath = this.getEnvironmentVariable(configuredVariables, 'PATH');
         const configuredPathEntries = configuredPath?.split(path.delimiter).filter(Boolean) ?? [];
         const contributedPathEntries = this.uniquePaths([
             ...configuredPathEntries,
             ...builtInTools.map(tool => tool.path),
-            ...(this.vcpkgResults?.paths.PATH ?? []),
+            ...(snapshot.vcpkgResults?.paths.PATH ?? []),
         ]);
         const pathEntries = this.selectPathEntries(
             this.uniquePaths([...localPathEntries, ...contributedPathEntries])
-                .filter(entry => contributedPathEntries.some(contributed => this.pathsEqual(entry, contributed))),
+                .filter(entry => contributedPathEntries.some(contributed => this.pathsEqual(entry, contributed))
+                    || snapshot.installedTools.some(tool => this.pathsEqual(entry, path.dirname(tool.fullPath)))),
             builtInTools,
         );
         const installedPackages = this.findVcpkgPackages([
             ...pathEntries,
-            ...Object.values(this.vcpkgResults?.tools ?? {}),
+            ...Object.values(snapshot.vcpkgResults?.tools ?? {}),
         ]);
-        const variables = this.selectVariables(resolvedVariables, configuredVariables);
-        const toolsEnvironment = {
+        const variables = this.selectVariables(resolvedVariables, configuredVariables, snapshot.vcpkgResults);
+        const toolsEnvironment: ToolsEnvironmentDocument = {
             'cmsis-tools-environment': {
                 // Document metadata identifies the format and the converted solution.
                 version: DOCUMENT_VERSION,
                 'generated-by': `${CMSIS_SOLUTION_EXTENSION_ID} version ${this.getExtensionVersion()}`,
-                solution: this.toPortablePath(path.relative(
-                    path.join(path.dirname(solutionPath), '.cmsis'),
-                    solutionPath,
-                )),
+                ...(snapshot.solutionPath ? { solution: this.toPortablePath(path.relative(
+                    path.join(snapshot.folder, '.cmsis'),
+                    snapshot.solutionPath,
+                )) } : {}),
                 environment: {
                     path: pathEntries.map(entry => this.toPortablePath(entry)),
                     variables: Object.fromEntries(
@@ -140,27 +200,30 @@ export class ToolsEnvironment {
                 },
                 tools: this.selectTools(
                     builtInTools,
-                    installedTools,
+                    snapshot.installedTools,
                     installedPackages,
                     pathEntries,
                 ),
             },
         };
-        return yaml.stringify(toolsEnvironment);
+        const document = new YamlFile();
+        document.content = toolsEnvironment;
+        return document.stringify();
     }
 
     private async writeContent(solutionPath: string, content: string): Promise<void> {
-        const cmsisDirectory = path.join(path.dirname(solutionPath), '.cmsis');
-        const toolsEnvironmentPath = path.join(cmsisDirectory, 'tools-environment.yml');
-        try {
-            if (await this.workspaceFsProvider.readUtf8File(toolsEnvironmentPath) === content) {
+        const document = new ToolsEnvironmentFile(path.join(path.dirname(solutionPath), '.cmsis', 'tools-environment.yml'));
+        if (document.exists()) {
+            await document.load();
+            if (document.text === content) {
                 return;
             }
-        } catch {
-            // Missing or unreadable output is replaced below.
         }
-        await this.workspaceFsProvider.createDirectory(cmsisDirectory);
-        await this.workspaceFsProvider.writeUtf8File(toolsEnvironmentPath, content);
+        document.text = content;
+        document.content = document.parse();
+        if (await document.save() === ETextFileResult.Error) {
+            throw new Error(document.errors.join('\n'));
+        }
     }
 
     private queueWrite(solutionPath: string, content: string): void {
@@ -387,12 +450,13 @@ export class ToolsEnvironment {
         return this.normalizePath(left) === this.normalizePath(right);
     }
 
-    private selectVariables(variables: NodeJS.ProcessEnv, configuredVariables: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+    private selectVariables(variables: NodeJS.ProcessEnv, configuredVariables: NodeJS.ProcessEnv, vcpkgResults?: VcpkgResults): NodeJS.ProcessEnv {
         // Unrelated host process variables are intentionally omitted.
         const selectedNames = new Set([
             ...CMSIS_ENVIRONMENT_VARIABLES,
             ...Object.keys(configuredVariables),
-            ...Object.keys(this.vcpkgResults?.variables ?? {}),
+            ...Object.keys(vcpkgResults?.variables ?? {}),
+            ...Object.keys(variables).filter(name => TOOLCHAIN_REGISTRATION.test(name)),
         ].map(name => name.toLowerCase()));
         return Object.fromEntries(
             Object.entries(variables).filter(([name]) => name.toLowerCase() !== 'path' && selectedNames.has(name.toLowerCase())),

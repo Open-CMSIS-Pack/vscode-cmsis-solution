@@ -14,17 +14,21 @@
  * limitations under the License.
  */
 
-import { DataSource } from './data-source';
+import { CsolutionDataSource, DataSource } from './data-source';
 import { DataSet } from './dataset';
 import { DeviceData, DeviceId } from './device-data';
 import { BoardData, BoardId } from './board-data';
 import { DraftProjectData } from './draft-project-data';
+import type { CsolutionApiV3 } from '../../api/csolution-api-v3';
+import { PackId, splitPackId } from './pack-data';
+import { getLatestAvailablePacks } from '../packs/index-pidx-file';
 
 /**
  * Data Manager provides access to configurable data sources.
  * Requests are forwarded to data sources and results are aggregated
  */
 export interface DataManager {
+    getPacks(scope?: 'all' | 'installed'): Promise<CsolutionApiV3.PackQueryResult>;
     /**
      * Errors encountered during the last data retrieval operation.
      */
@@ -91,6 +95,46 @@ class DataManagerImpl implements DataManager {
 
     public get errors() {
         return this._errors;
+    }
+
+    public async getPacks(scope: 'all' | 'installed' = 'all'): Promise<CsolutionApiV3.PackQueryResult> {
+        if (scope !== 'all' && scope !== 'installed') {
+            throw new Error(`Unsupported pack scope: ${scope}`);
+        }
+        const sources = this._sources.filter((source): source is CsolutionDataSource => source instanceof CsolutionDataSource && source.enabled);
+        const requests: Promise<CsolutionApiV3.PackData[]>[] = scope === 'all'
+            ? [getLatestAvailablePacks().then(ids => [...ids.keys()].map(id => ({ id, version: splitPackId(id).version })))]
+            : [];
+        requests.push(...sources.map(source => Promise.resolve().then(() => source.getPacks())));
+        const results = await Promise.allSettled(requests);
+        const failures = results.filter(result => result.status === 'rejected').map(result => String(result.reason));
+        this._errors = failures;
+        if (!results.some(result => result.status === 'fulfilled')) {
+            throw new Error(`No pack catalog source succeeded${failures.length ? `: ${failures.join('; ')}` : ''}`);
+        }
+        const installedKnown = results.slice(scope === 'all' ? 1 : 0).some(result => result.status === 'fulfilled');
+        const packs = new Map<string, CsolutionApiV3.PackData>();
+        for (const result of results) {
+            if (result.status !== 'fulfilled') {
+                continue;
+            }
+            for (const pack of result.value) {
+                const identity = splitPackId(pack.id!);
+                const key = new PackId(identity.vendor, identity.name, pack.version).key;
+                const previous = packs.get(key);
+                const description = pack.description ?? previous?.description;
+                const packPath = pack.path ?? previous?.path;
+                const installed = pack.installed || previous?.installed || (installedKnown ? false : undefined);
+                packs.set(key, {
+                    id: pack.id,
+                    version: pack.version,
+                    ...(description === undefined ? {} : { description }),
+                    ...(packPath === undefined ? {} : { path: packPath }),
+                    ...(installed === undefined ? {} : { installed }),
+                });
+            }
+        }
+        return { packs: [...packs.values()].sort((left, right) => left.id!.localeCompare(right.id!)) };
     }
 
     public async getAllBoards(details = false) {

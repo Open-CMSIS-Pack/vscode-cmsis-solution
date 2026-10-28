@@ -128,5 +128,3 @@ class CbuildFileImpl extends CTreeItemYamlFile implements CbuildFile {
 }
 
 export const CbuildFile = constructor<typeof CbuildFileImpl, CbuildFile>(CbuildFileImpl);
-
-
