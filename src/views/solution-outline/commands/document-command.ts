@@ -74,8 +74,12 @@ export class DocumentCommand {
         }
         const doc = await manager.addUserBook(
             target.parentId, target.parentTag, localPath, path.basename(localPath),
+            undefined, existingPaths => this.confirmReplacement(
+                'A document with the same filename already exists. Replace its location?', 'Replace',
+                `${existingPaths.join('\n')}\n\nNew location: ${localPath}\n\nThe existing file will not be changed.`,
+            ),
         );
-        if (!doc) {
+        if (doc === undefined) {
             await this.window.showErrorMessage('Failed to save the document inventory.');
         }
     }
@@ -87,7 +91,9 @@ export class DocumentCommand {
             return;
         }
         const manager = this.solutionManager.getDocManager();
-        await manager.downloadDocument(target.parentId, target.parentTag, name);
+        await manager.downloadDocument(target.parentId, target.parentTag, name, existingPaths => this.confirmReplacement(
+            'The download destination already exists. Overwrite it?', 'Overwrite', existingPaths.join('\n'),
+        ));
     }
 
     private async setLocalPath(node?: COutlineItem): Promise<void> {
@@ -101,7 +107,11 @@ export class DocumentCommand {
         if (!target || !name) {
             return;
         }
-        if (!await manager.setLocalPath(target.parentId, target.parentTag, name, localPath)) {
+        const result = await manager.setLocalPath(target.parentId, target.parentTag, name, localPath, existingPaths => this.confirmReplacement(
+            'This document already has an existing local file. Replace its local path?', 'Replace',
+            `${existingPaths.join('\n')}\n\nNew location: ${localPath}\n\nAll references to this document will use the new path. Existing files will not be changed.`,
+        ));
+        if (result === false) {
             await this.window.showErrorMessage('Failed to save the document inventory.');
         }
     }
@@ -118,12 +128,17 @@ export class DocumentCommand {
         }
     }
 
+    private async confirmReplacement(message: string, action: string, detail: string): Promise<boolean> {
+        return await this.window.showWarningMessage(message, { modal: true, detail }, action) === action;
+    }
+
     private async pickDocument(title: string): Promise<string | undefined> {
         const selected = await this.window.showOpenDialog({
             title,
             canSelectFiles: true,
             canSelectFolders: false,
             canSelectMany: false,
+            filters: { Documents: ['md', 'pdf', 'txt'] },
         });
         if (!selected?.length || selected[0].scheme !== 'file') {
             return;
