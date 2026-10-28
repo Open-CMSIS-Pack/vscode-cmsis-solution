@@ -21,10 +21,13 @@ import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { ETextFileResult, TextFileErrorReporter } from '@open-cmsis-pack/cmsis-common/text-file';
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { Event, EventEmitter } from 'vscode';
-import { expandRootVars } from '../utils/path-utils';
+import { expandRootVars, pathsEqual } from '../utils/path-utils';
+import { fileExists } from '../utils/fs-utils';
 import { DocsYamlFile, getDocParentId, getWebLocationType, IDocRef } from './docs-yaml-file';
 import { ArmDocs, armDocName, cbuildCore } from './arm-docs';
 import { DocDownload } from './doc-download';
+
+export type DocumentConfirmation = (existingPaths: readonly string[]) => Promise<boolean>;
 
 export interface DocManager {
     readonly file: DocsYamlFile;
@@ -34,9 +37,9 @@ export interface DocManager {
     addBooks(cbuild: CTreeItem): Promise<void>;
     getBooks(parentId: string, parentTag: string, cbuild?: CTreeItem): readonly IDocRef[];
     getArmBooks(cbuild?: CTreeItem): readonly IDocRef[];
-    addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): Promise<IDocRef | undefined>;
-    downloadDocument(parentId: string, parentTag: string, name: string): Promise<void>;
-    setLocalPath(parentId: string, parentTag: string, name: string, localPath: string): Promise<boolean>;
+    addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string, confirmReplace?: DocumentConfirmation): Promise<IDocRef | undefined | null>;
+    downloadDocument(parentId: string, parentTag: string, name: string, confirmOverwrite?: DocumentConfirmation): Promise<void>;
+    setLocalPath(parentId: string, parentTag: string, name: string, localPath: string, confirmReplace?: DocumentConfirmation): Promise<boolean | null>;
     removeDocument(parentId: string, parentTag: string, name: string): Promise<boolean>;
 }
 
@@ -134,6 +137,9 @@ class DocManagerImpl implements DocManager {
         const result = this.pendingUpdate.then(async () => {
             await this.file.load();
             const value = await operation();
+            if (value === null) {
+                return value;
+            }
             const saved = await this.file.save();
             if (notify && saved === ETextFileResult.Success) {
                 this.changeEmitter.fire();
@@ -144,7 +150,7 @@ class DocManagerImpl implements DocManager {
         return result;
     }
 
-    async addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string): Promise<IDocRef | undefined> {
+    async addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string, confirmReplace?: DocumentConfirmation): Promise<IDocRef | undefined | null> {
         return this.update(async () => {
             const docParentId = getDocParentId(parentId, parentTag);
 
@@ -154,6 +160,23 @@ class DocManagerImpl implements DocManager {
             const docPath = name && !getWebLocationType(name)
                 ? path.resolve(expandRootVars(name.startsWith('file://') ? fileURLToPath(name) : name))
                 : undefined;
+            if (docPath && confirmReplace) {
+                const localDocs = this.file.getDocs(docParentId, parentTag)
+                    .filter(doc => doc.mode === 'user' && !doc.isWeb());
+                const existing = localDocs.find(doc => pathsEqual(doc.path ?? doc.name, docPath))
+                    ?? localDocs.find(doc => pathsEqual(path.basename(doc.path ?? doc.name), path.basename(docPath)));
+                if (existing && !pathsEqual(existing.path ?? existing.name, docPath)) {
+                    if (!await confirmReplace([existing.path ?? existing.name])) {
+                        return null;
+                    }
+                    existing.name = docPath;
+                    existing.path = docPath;
+                    return existing;
+                }
+                if (existing) {
+                    return existing;
+                }
+            }
             const doc = this.addBook(docParentId, parentTag, name, title, category, docPath, 'user');
             if (doc) {
                 doc.mode = 'user';
@@ -162,7 +185,7 @@ class DocManagerImpl implements DocManager {
         });
     }
 
-    async downloadDocument(parentId: string, parentTag: string, name: string): Promise<void> {
+    async downloadDocument(parentId: string, parentTag: string, name: string, confirmOverwrite?: DocumentConfirmation): Promise<void> {
         let downloadError: string | undefined;
         try {
             await this.file.load();
@@ -171,6 +194,9 @@ class DocManagerImpl implements DocManager {
                 return;
             }
             const destination = doc.getDestinationPath(this.destinationRoot);
+            if (confirmOverwrite && fileExists(destination) && !await confirmOverwrite([destination])) {
+                return;
+            }
             doc.path = destination;
             const isCommon = doc.parentTag === 'common';
             await this.downloader.downloadDoc(doc.downloadUrl, destination, isCommon, isCommon ? doc.id : undefined);
@@ -189,14 +215,21 @@ class DocManagerImpl implements DocManager {
         });
     }
 
-    async setLocalPath(parentId: string, parentTag: string, name: string, localPath: string): Promise<boolean> {
+    async setLocalPath(parentId: string, parentTag: string, name: string, localPath: string, confirmReplace?: DocumentConfirmation): Promise<boolean | null> {
         return this.update(async () => {
             const doc = this.file.getDoc(name, parentId, parentTag);
             if (!doc || doc.locationType !== 'W' || !localPath || getWebLocationType(localPath)) {
                 return false;
             }
             const resolved = path.resolve(expandRootVars(localPath.startsWith('file://') ? fileURLToPath(localPath) : localPath));
-            for (const reference of this.file.findDocs(name)) {
+            const references = this.file.findDocs(name);
+            const existingPaths = references.map(reference => reference.path)
+                .filter((existingPath): existingPath is string => fileExists(existingPath) && !pathsEqual(existingPath, resolved))
+                .filter((existingPath, index, paths) => paths.findIndex(candidate => pathsEqual(candidate, existingPath)) === index);
+            if (confirmReplace && existingPaths.length > 0 && !await confirmReplace(existingPaths)) {
+                return null;
+            }
+            for (const reference of references) {
                 reference.path = resolved;
             }
             return true;
