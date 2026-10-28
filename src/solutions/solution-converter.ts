@@ -333,4 +333,3 @@ export class SolutionConverterImpl implements SolutionConverter {
         return error instanceof Error ? error.message : String(error);
     }
 }
-

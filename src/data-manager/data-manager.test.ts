@@ -19,13 +19,122 @@ import { when } from 'jest-when';
 import { DataManager } from './data-manager';
 import { DeviceData, DeviceId, SolarDeviceData } from './device-data';
 import { boardFactory, cSolutionExampleFactory, deviceFactory, deviceIdFactory, mockSolarSearchClient, uvProjExampleFactory } from '../solar-search/solar-search-client.factories';
-import { SolarDataSource } from './data-source';
+import { CsolutionDataSource, SolarDataSource } from './data-source';
+import { csolutionServiceFactory } from '../json-rpc/csolution-rpc-client.factory';
 import { deviceDataFactory, draftProjectDataFactory, dataSourceFactory, generateDeviceData, generateDraftProjectData, boardDataFactory } from './data-manager.factories';
 import { faker } from '@faker-js/faker';
 import { buildTreeViewCategories, sortTreeViewCategories } from '../views/common/components/tree-view-builder';
 import { TreeViewCategory, TreeViewItem } from '../views/common/components/tree-view';
 import { BoardData, BoardId, SolarBoardData } from './board-data';
 import { DraftProjectFormat, DraftProjectData, DraftProjectId, DraftProjectSource, DraftProjectType } from './draft-project-data';
+import * as packIndex from '../packs/index-pidx-file';
+
+describe('pack discovery', () => {
+    beforeEach(() => {
+        jest.spyOn(packIndex, 'getLatestAvailablePacks').mockResolvedValue(new Map([
+            ['ARM::CMSIS@6.0.0', ''], ['Other::Latest@1.0.0', ''],
+        ]));
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    function setup() {
+        const solar = mockSolarSearchClient();
+        const rpc = csolutionServiceFactory();
+        const manager = new DataManager(new SolarDataSource(solar), new CsolutionDataSource(rpc));
+        return { solar, rpc, manager };
+    }
+
+    it('merges latest indexed packs with installed packs and local descriptions', async () => {
+        const { rpc, manager } = setup();
+        rpc.getPacksInfo.mockResolvedValue({ success: true, packs: [
+            { id: 'ARM::CMSIS@6.0.0', description: 'Local description', references: [{ pack: 'ARM::CMSIS', resolvedPack: 'ARM::CMSIS@6.0.0', path: '/packs/CMSIS', origin: '', selected: false }] },
+            { id: 'ARM::CMSIS@5.9.0' },
+            { id: 'Local::Private@1.0.0' },
+        ] });
+        const result = await manager.getPacks();
+        expect(result.packs).toEqual([
+            expect.objectContaining({ id: 'ARM::CMSIS@5.9.0', installed: true, version: '5.9.0' }),
+            expect.objectContaining({ id: 'ARM::CMSIS@6.0.0', installed: true, path: '/packs/CMSIS', description: 'Local description' }),
+            expect.objectContaining({ id: 'Local::Private@1.0.0', installed: true }),
+            expect.objectContaining({ id: 'Other::Latest@1.0.0', installed: false }),
+        ]);
+        expect(result).toEqual({ packs: result.packs });
+        expect(rpc.getPacksInfo).toHaveBeenCalledWith({ context: '', all: true });
+        expect(rpc.loadSolution).not.toHaveBeenCalled();
+        expect(JSON.parse(JSON.stringify(result))).toStrictEqual(result);
+    });
+
+    it('queries only RPC for installed scope and accepts empty installations', async () => {
+        const { rpc, manager } = setup();
+        rpc.getPacksInfo.mockResolvedValue({ success: true, packs: [] });
+        expect(await manager.getPacks('installed')).toEqual({ packs: [] });
+        expect(manager.errors).toEqual([]);
+        expect(packIndex.getLatestAvailablePacks).not.toHaveBeenCalled();
+        rpc.getPacksInfo.mockResolvedValue({ success: false, message: 'backend failure', packs: [] });
+        await expect(manager.getPacks('installed')).rejects.toThrow('backend failure');
+        expect(manager.errors).toEqual(['Error: backend failure']);
+        await expect(manager.getPacks('used' as 'all')).rejects.toThrow('Unsupported pack scope');
+        await expect(manager.getPacks('available' as 'all')).rejects.toThrow('Unsupported pack scope');
+    });
+
+    it('returns partial catalog with unknown installation status on RPC failure', async () => {
+        const { rpc, manager } = setup();
+        rpc.getPacksInfo.mockRejectedValue(new Error('secret backend detail'));
+        const partial = await manager.getPacks();
+        expect(partial.packs[0].installed).toBeUndefined();
+        expect(partial).toEqual({ packs: partial.packs });
+        expect(manager.errors).toEqual(['Error: secret backend detail']);
+        expect(JSON.stringify(partial)).not.toContain('secret');
+        rpc.getPacksInfo.mockResolvedValue({ success: true, packs: [{ id: 'ARM::CMSIS@6.0.0' }] });
+        await manager.getPacks('installed');
+        expect(manager.errors).toEqual([]);
+        jest.mocked(packIndex.getLatestAvailablePacks).mockRejectedValueOnce(new Error('index unavailable'));
+        const [all, installed] = await Promise.all([manager.getPacks(), manager.getPacks('installed')]);
+        expect(all.packs[0].installed).toBe(true);
+        expect(all).toEqual(installed);
+        rpc.getPacksInfo.mockRejectedValue(undefined);
+        jest.mocked(packIndex.getLatestAvailablePacks).mockRejectedValueOnce(new Error('index unavailable'));
+        await expect(manager.getPacks()).rejects.toThrow('No pack catalog source succeeded');
+        expect(manager.errors).toEqual(['Error: index unavailable', 'undefined']);
+    });
+
+    it('rejects when index loading and RPC both fail', async () => {
+        jest.mocked(packIndex.getLatestAvailablePacks).mockRejectedValueOnce(new Error('Failed to load pack index'));
+        const { rpc, manager } = setup();
+        rpc.getPacksInfo.mockRejectedValue(new Error('RPC unavailable'));
+
+        await expect(manager.getPacks()).rejects.toThrow('No pack catalog source succeeded');
+        expect(manager.errors).toEqual([
+            expect.stringContaining('Failed to load pack index'),
+            'Error: RPC unavailable',
+        ]);
+    });
+
+    it('retains indexed packs with unknown installation status when an RPC pack ID is malformed', async () => {
+        const { rpc, manager } = setup();
+        rpc.getPacksInfo.mockResolvedValue({ success: true, packs: [
+            { id: 'ARM::CMSIS@6.0.0' },
+            { id: 'malformed' },
+        ] });
+
+        expect(await manager.getPacks()).toEqual({ packs: [
+            { id: 'ARM::CMSIS@6.0.0', version: '6.0.0' },
+            { id: 'Other::Latest@1.0.0', version: '1.0.0' },
+        ] });
+        expect(manager.errors).toEqual(['Error: Invalid pack ID format: malformed']);
+        await expect(manager.getPacks('installed')).rejects.toThrow('Invalid pack ID format: malformed');
+    });
+
+    it('reads index even when Solar is disabled', async () => {
+        const solar = mockSolarSearchClient();
+        const rpc = csolutionServiceFactory();
+        rpc.getPacksInfo.mockResolvedValue({ success: true, packs: [] });
+        const manager = new DataManager(new SolarDataSource(solar, () => false), new CsolutionDataSource(rpc));
+        expect((await manager.getPacks()).packs).toHaveLength(2);
+        expect((await new DataManager().getPacks()).packs).toHaveLength(2);
+    });
+});
 
 async function deviceDataExtractor(data: DeviceData) : Promise<DeviceData> {
     await Promise.all([data.pack, data.memories, data.processors, data.description]);

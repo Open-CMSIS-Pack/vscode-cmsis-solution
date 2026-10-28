@@ -2,6 +2,16 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "Prepare API Smoke Test",
+			"type": "process",
+			"command": "node",
+			"args": ["--import", "tsx", "${workspaceFolder}/scripts/prepare-api-smoke.ts"],
+			"options": { "cwd": "${workspaceFolder}" },
+			"dependsOn": ["Compile"],
+			"dependsOrder": "sequence",
+			"problemMatcher": []
+		},
+		{
 			"type": "npm",
 			"script": "build",
 			"group": "build",

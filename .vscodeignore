@@ -1,4 +1,6 @@
 *.vsix
+.agents/**
+.agents-local/**
 .devcontainer/**
 .github/**
 .vscode/**

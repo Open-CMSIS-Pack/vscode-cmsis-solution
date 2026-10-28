@@ -32,17 +32,49 @@ describe('CsolutionExtension', () => {
             {} as SolutionCreator,
             {} as BuildTaskProvider,
             {} as DataManager,
+            { getCsolution: jest.fn(), loadState: {} },
+            { getPacksInfo: jest.fn() },
+            { getToolsEnvironment: jest.fn(), getToolchains: jest.fn() },
+            { executeCommand: jest.fn() },
         );
 
         await extension.activate(context as unknown as ExtensionContext);
     });
 
+    const commandGetters = [
+        'getSolutionFile', 'getActiveTarget', 'getDeviceName', 'getBoardName',
+        'getDfpName', 'getBspName', 'getDfpPath', 'getBspPath', 'getPackRootPath', 'getCbuildRunFile',
+    ];
+
     it('returns the APIv2', () => {
         const api = extension.getApi(2);
         expect(api.getBoards).toBeDefined();
+        for (const method of ['getDebuggers', 'getToolchains', 'getToolsEnvironment', 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution', ...commandGetters]) {
+            expect(api).not.toHaveProperty(method);
+        }
+    });
+
+    it('returns independent V3 instances with the established operations', () => {
+        const api = extension.getApi(3);
+        expect(api).not.toBe(extension.getApi(3));
+        expect(api).not.toBe(extension.getApi(2));
+        for (const method of ['getDebuggers', 'getToolchains', 'getBoards', 'getDevices', 'getDraftProjects', 'createNewSolution', 'build', 'getToolsEnvironment', 'getPacks', 'installPacks', 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution', ...commandGetters]) {
+            expect(api).toHaveProperty(method, expect.any(Function));
+        }
+    });
+
+    it.each([1, 4, 0])('rejects unsupported version %s', version => {
+        expect(() => (extension.getApi as (version: number) => unknown)(version))
+            .toThrow(`No API version ${version} found`);
     });
 
     it('disposes', () => {
+        const apiV2 = extension.getApi(2);
+        const apiV3 = extension.getApi(3);
+        const disposeV2 = jest.spyOn(apiV2 as typeof apiV2 & Disposable, 'dispose');
+        const disposeV3 = jest.spyOn(apiV3, 'dispose');
         context.subscriptions.forEach(({ dispose }) => dispose());
+        expect(disposeV2).toHaveBeenCalledTimes(1);
+        expect(disposeV3).toHaveBeenCalledTimes(1);
     });
 });

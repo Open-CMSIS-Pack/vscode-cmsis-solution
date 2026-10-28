@@ -143,4 +143,3 @@ export function renderTreeItem(item: ITreeItem<any>, eta: Eta, data: object) {
         renderTreeItem(child, eta, data);
     }
 }
-

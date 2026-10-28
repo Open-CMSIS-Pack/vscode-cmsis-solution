@@ -139,6 +139,35 @@ proposed changes or `change` for implementation.
 
 ## Development Guidelines
 
+### Text Formatting
+
+Repository-owned UTF-8 text files use LF line endings and exactly one final newline,
+including empty files. Batch (`.bat`) files are excluded from formatting checks and
+fixes and retain CRLF line endings as specified in `.gitattributes`.
+Use the shared `fmtlf` script instead of ad hoc scripts:
+
+```sh
+npm run fmtlf:check
+npm run fmtlf:fix -- --include=src/example.ts,README.md
+npm run fmtlf:check -- --include=src/example.ts,README.md
+```
+
+Run these commands from the repository root. Both modes support comma-separated
+`--include` and `--exclude` globs. Commas inside brace patterns are preserved, including
+nested braces. Quote glob arguments to prevent shell expansion, for example:
+
+```sh
+npm run fmtlf:check -- --include="**/*.{ts,tsx},README.md" --exclude="**/{generated,vendor}/**"
+```
+
+By default, the script checks tracked and non-ignored
+untracked files with recognized text extensions or standard extensionless text names.
+Dependencies, generated output, test-data fixtures, binaries, symlinks, and submodules
+are excluded. Unsupported text encodings are reported and never rewritten.
+Fix mode preserves BOMs and all whitespace except newline sequences at EOF.
+Check mode never writes files and exits nonzero for violations or errors.
+CI enforcement is deferred until existing repository formatting violations are cleaned up.
+
 ### Logging
 
 Log messages useful for end users should be exposed through an output channel. Log messages only

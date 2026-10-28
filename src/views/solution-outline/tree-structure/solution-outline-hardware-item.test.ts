@@ -21,10 +21,12 @@ import { CSolution } from '../../../solutions/csolution';
 import { HardwareItemBuilder } from './solution-outline-hardware-item';
 import { TestDataHandler } from '../../../__test__/test-data';
 import path from 'node:path';
+import { DocManager } from '../../../doc-manager/doc-manager';
 
 describe('HardwareItemBuilder', () => {
     let cSolFile: string;
     let tmpSolutionDir: string;
+    let docManager: DocManager;
     const testDataHandler = new TestDataHandler();
 
     beforeAll(async () => {
@@ -32,8 +34,156 @@ describe('HardwareItemBuilder', () => {
         cSolFile = path.join(tmpSolutionDir, 'USBD', 'USB_Device.csolution.yml');
     });
 
+    beforeEach(() => {
+        docManager = new DocManager();
+        docManager.file.fileName = testDataHandler.tmpFileName(path.join('.docs', 'docs.yml'));
+    });
+
+    afterEach(() => {
+        docManager.dispose();
+        jest.restoreAllMocks();
+    });
+
     afterAll(async () => {
         testDataHandler.dispose();
+    });
+
+    it('shows matching core documents with their shared inventory owner', async () => {
+        const csolution = new CSolution();
+        await csolution.load(cSolFile);
+        const manager = new DocManager(path.resolve('src/doc-manager/arm-docs.json'));
+        await manager.initialize(testDataHandler.tmpFileName('.arm-docs'));
+        const build = new CTreeItem('build');
+        build.createChild('processor').setValue('core', 'Cortex-M4');
+        build.setValue('device', 'ARM::SSE-315');
+        await manager.addBooks(build);
+        const save = jest.spyOn(manager.file, 'save');
+        const builder = new HardwareItemBuilder(csolution, undefined, manager);
+        const hardware = [...builder.createHardwareNodes(csolution, build).values()].find(item => item.getTag() === 'device')!;
+        const books = hardware.getChildren();
+        expect(books.some(book => book.getAttribute('docName')?.includes('/ddi0439/b'))).toBe(true);
+        expect(books.every(book => book.getAttribute('docParentTag') === 'common' && book.getAttribute('docParentId') === 'arm-docs')).toBe(true);
+        build.setValue('device', 'Vendor::Other');
+        const otherHardware = [...builder.createHardwareNodes(csolution, build).values()].find(item => item.getTag() === 'device')!;
+        expect(otherHardware.getChildren().map(book => book.getAttribute('docName'))).toEqual(books.map(book => book.getAttribute('docName')));
+        expect(save).not.toHaveBeenCalled();
+        manager.dispose();
+    });
+
+    it.each(['board', 'device'] as const)('includes inventory-only documents in %s books', async parentTag => {
+        const csolution = new CSolution();
+        const loadResult = await csolution.load(cSolFile);
+        expect(loadResult).toEqual(ETextFileResult.Success);
+
+        const parentId = parentTag === 'board' ? csolution.getBoardName() : csolution.getDeviceNameWithVendor();
+        const guidePath = path.join(testDataHandler.tmpDir, 'guide.pdf');
+        const referencePath = path.join(testDataHandler.tmpDir, 'reference.pdf');
+        const guide = docManager.file.ensureDoc(guidePath, parentId, parentTag);
+        guide.title = 'Inventory guide';
+        guide.path = guidePath;
+        const reference = docManager.file.ensureDoc(referencePath, parentId, parentTag);
+        reference.title = 'Inventory reference';
+        reference.path = referencePath;
+        expect(await docManager.file.save()).toBe(ETextFileResult.Success);
+
+        const root = parseYamlToCTreeItem(`
+            build:
+              ${parentTag}: ${parentId}
+              ${parentTag}-books:
+                - name: reported.pdf
+                  title: Cbuild manual`);
+        root!.rootFileName = cSolFile;
+
+        await docManager.addBooks(root!.getChild() as CTreeItem);
+        const inventory = docManager.file.stringify();
+        const addBooks = jest.spyOn(docManager, 'addBooks');
+        const save = jest.spyOn(docManager.file, 'save');
+        const hwItemBuilder = new HardwareItemBuilder(csolution, undefined, docManager);
+        const hwNodes = hwItemBuilder.createHardwareNodes(csolution, root?.getChild() as CTreeItem);
+        const books = hwNodes.get(parentId)?.getChildren().map(book => ({
+            tag: book.getTag(),
+            label: book.getAttribute('label'),
+            docPath: book.getAttribute('docPath'),
+        }));
+
+        expect(books).toEqual([
+            { tag: 'book', label: 'Inventory guide', docPath: guidePath },
+            { tag: 'book', label: 'Inventory reference', docPath: referencePath },
+            { tag: 'book', label: 'Cbuild manual', docPath: path.join(path.dirname(cSolFile), 'reported.pdf') },
+        ]);
+        expect(addBooks).not.toHaveBeenCalled();
+        expect(save).not.toHaveBeenCalled();
+        expect(docManager.file.stringify()).toBe(inventory);
+    });
+
+    it.each(['board', 'device'] as const)('exposes exact %s document identity and W/user command eligibility', async parentTag => {
+        const csolution = new CSolution();
+        await csolution.load(cSolFile);
+        const parentId = parentTag === 'board' ? 'Vendor::Board:RevA' : 'Vendor::Device';
+        csolution.getCbuildTop()!.setValue(parentTag, parentTag === 'device' ? `${parentId}:cm33` : parentId);
+        const root = new CTreeItem('build');
+        root.setValue(parentTag, 'Vendor::OtherHardware');
+        const names = ['https://example.com/manual.pdf', 'https://example.com/manual.html', 'local.pdf', 'user.pdf'];
+        for (const name of names) {
+            const doc = docManager.file.ensureDoc(name, parentId, parentTag);
+            doc.title = 'Same title';
+            if (name === names[0]) {
+                doc.path = path.resolve('selected.md');
+                doc.mode = 'user';
+            } else if (name === 'user.pdf') {
+                doc.mode = 'user';
+            }
+        }
+        const builder = new HardwareItemBuilder(csolution, undefined, docManager);
+        const hardware = [...builder.createHardwareNodes(csolution, root).values()].find(item => item.getTag() === parentTag)!;
+        expect(hardware.getFeatures()).toBe('docParent');
+        expect(hardware.getTag()).toBe(parentTag);
+        expect(hardware.getAttribute('hardwareName')).toBe(parentId);
+        expect(hardware.getAttribute('docParentId')).toBeUndefined();
+        expect(hardware.getAttribute('docParentTag')).toBeUndefined();
+        const books = hardware.getChildren();
+        expect(books.map(book => book.getAttribute('docName'))).toEqual(names);
+        for (const book of books) {
+            expect(book.getParent()).toBe(hardware);
+            expect(book.getParent()?.getTag()).toBe(parentTag);
+            expect(book.getParent()?.getAttribute('hardwareName')).toBe(parentId);
+        }
+        for (const book of books) {
+            expect(book.getAttribute('docParentId')).toBe(parentId);
+            expect(book.getAttribute('docParentTag')).toBe(parentTag);
+        }
+        expect(books.map(book => book.getAttribute('features'))).toEqual(['docFile;webDoc;userDoc', 'docFile', 'docFile', 'docFile;userDoc']);
+        expect(books[0].getAttribute('docPath')).toBe(path.resolve('selected.md'));
+        expect(books[0].getAttribute('resourcePath')).toBe(path.resolve('selected.md'));
+        expect(books[0].getAttribute('command')).toBe('cmsis-csolution.openDocFile');
+        expect(books[1].getAttribute('command')).toBe('cmsis-csolution.openDocFile');
+    });
+
+    it.each(['Vendor::Device', 'Device'])('shows %s inventory without a supplied build tree', async parentId => {
+        const csolution = new CSolution();
+        expect(await csolution.load(cSolFile)).toBe(ETextFileResult.Success);
+        const cbuild = csolution.getCbuildTop()!;
+        const name = 'https://example.com/manual.pdf';
+        docManager.file.ensureDoc(name, parentId, 'device').title = 'Device manual';
+        const inventory = docManager.file.stringify();
+        const save = jest.spyOn(docManager.file, 'save');
+        const addBooks = jest.spyOn(docManager, 'addBooks');
+        const builder = new HardwareItemBuilder(csolution, undefined, docManager);
+
+        for (const deviceId of [parentId, `${parentId}:cm33`, `${parentId}:cm0plus`]) {
+            cbuild.setValue('device', deviceId);
+            const hardware = builder.createHardwareNodes(csolution).get(parentId)!;
+
+            expect(hardware.getTag()).toBe('device');
+            expect(hardware.getAttribute('hardwareName')).toBe(parentId);
+            expect(hardware.getAttribute('label')).toBe(`Device: ${parentId}`);
+            const books = hardware.getChildren();
+            expect(books.map(book => book.getAttribute('docName'))).toEqual([name]);
+            expect(books[0].getParent()).toBe(hardware);
+        }
+        expect(save).not.toHaveBeenCalled();
+        expect(addBooks).not.toHaveBeenCalled();
+        expect(docManager.file.stringify()).toBe(inventory);
     });
 
     it('create dbgconf file node', async () => {
@@ -52,7 +202,7 @@ describe('HardwareItemBuilder', () => {
         expect(loadResult).toEqual(ETextFileResult.Success);
 
         const want = 'Hello+CS300.dbgconf';
-        const hwItemBuilder = new HardwareItemBuilder(csolution);
+        const hwItemBuilder = new HardwareItemBuilder(csolution, undefined, docManager);
         const hwNodes = hwItemBuilder.createHardwareNodes(csolution, topChild as CTreeItem);
         const node = hwNodes.get('STM32U585AIIx');
 
@@ -83,7 +233,7 @@ describe('HardwareItemBuilder', () => {
         const loadResult = await csolution.load(cSolFile);
         expect(loadResult).toEqual(ETextFileResult.Success);
 
-        const hwItemBuilder = new HardwareItemBuilder(csolution);
+        const hwItemBuilder = new HardwareItemBuilder(csolution, undefined, docManager);
         const hwNodes = hwItemBuilder.createHardwareNodes(csolution, topChild as CTreeItem);
         const node = hwNodes.get('STM32U585AIIx');
 

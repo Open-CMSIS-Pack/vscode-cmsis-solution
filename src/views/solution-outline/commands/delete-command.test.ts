@@ -19,10 +19,10 @@ import { CTreeItemYamlFile } from '@open-cmsis-pack/cmsis-common/tree-item-file'
 import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import * as fs from 'fs';
-import os from 'node:os';
 import path from 'node:path';
 import { ExtensionContext } from 'vscode';
 import * as vscode from 'vscode';
+import { TestDataHandler } from '../../../__test__/test-data';
 import { CSolution } from '../../../solutions/csolution';
 import { CProjectYamlFile } from '../../../solutions/files/cproject-yaml-file';
 import { commandsProviderFactory } from '../../../vscode-api/commands-provider.factories';
@@ -111,15 +111,16 @@ const fileNames = (topItem: CTreeItem, groupPath: string[]): string[] => {
 };
 
 describe('DeleteCommand', () => {
+    const testDataHandler = new TestDataHandler();
     let tempDir: string;
 
     beforeEach(() => {
         jest.clearAllMocks();
-        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'delete-command-'));
+        tempDir = testDataHandler.tmpDir;
     });
 
     afterEach(() => {
-        fs.rmSync(tempDir, { recursive: true, force: true });
+        testDataHandler.dispose();
     });
 
     it('registers the remove command on activation', async () => {

@@ -19,6 +19,7 @@ exclude_patterns = [
     "templates/**",
     "src/e2e-tests/data/**",
     "src/json-rpc/interface/**",
+    "src/__test__/**",
     "docs/images/**",
     "docs/third-party-licenses.*",
     "packages/*/third-party-licenses.*",
