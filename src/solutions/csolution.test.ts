@@ -15,11 +15,10 @@
  */
 
 import * as YAML from 'yaml';
-import fs from 'fs';
 import { TestDataHandler } from '../__test__/test-data';
 import path from 'node:path';
 import { CSolution } from './csolution';
-import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { ETextFileResult, TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
 import { CProjectYamlFile } from './files/cproject-yaml-file';
@@ -120,13 +119,15 @@ describe('CSolution', () => {
             const csolution = new CSolution();
             const fullPath = path.join(testDataHandler.tmpDir, 'solutions', 'simple', 'test.csolution.yml');
             const invalidSettings = '{ invalid json';
-            fs.mkdirSync(path.dirname(csolution.cmsisJsonFile.fileName), { recursive: true });
-            fs.writeFileSync(csolution.cmsisJsonFile.fileName, invalidSettings, 'utf8');
+            const settingsFile = new TextFile(csolution.cmsisJsonFile.fileName);
+            settingsFile.text = invalidSettings;
+            expect(await settingsFile.save()).toBe(ETextFileResult.Success);
             const writeFileSpy = jest.spyOn(csolution.cmsisJsonFile, 'save');
 
             expect(await csolution.load(fullPath)).toEqual(ETextFileResult.Success);
             expect(writeFileSpy).not.toHaveBeenCalled();
-            expect(fs.readFileSync(csolution.cmsisJsonFile.fileName, 'utf8')).toBe(invalidSettings);
+            expect(await settingsFile.load()).toBe(ETextFileResult.Success);
+            expect(settingsFile.text).toBe(invalidSettings);
         });
 
         it('returns an error when saving cmsis.json fails', async () => {
