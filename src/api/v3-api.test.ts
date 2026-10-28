@@ -354,6 +354,19 @@ describe('CsolutionApiV3Impl', () => {
             expect(saved.getSelectedSet(type)).toBe(index);
         });
 
+        it('rejects refresh failures without undoing the saved selection', async () => {
+            commandsProvider.executeCommand.mockRejectedValueOnce(new Error('refresh failed'));
+
+            await expect(api.setActiveTarget('Board@Release')).rejects.toThrow('refresh failed');
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith('cmsis-csolution.refresh');
+            expect(solution.getActiveTargetSetName()).toBe('Board@Release');
+            const saved = new CmsisSettingsJsonFile(settingsPath);
+            saved.solutionPath = solution.solutionPath;
+            expect(await saved.load()).toBe(ETextFileResult.Success);
+            expect(saved.get('activeTarget')).toBe('Board@Release');
+            expect(saved.getSelectedSet('Board')).toBe(2);
+        });
+
         it.each(['', ' ', '@Debug', 'Board@', 'Board@Debug@extra', 'Missing', 'Board@Missing', 'Other'])('rejects invalid or unknown selection %j without saving or refreshing', async selection => {
             await expect(api.setActiveTarget(selection)).rejects.toThrow();
             expect(write).not.toHaveBeenCalled();
