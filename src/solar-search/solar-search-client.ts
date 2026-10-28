@@ -54,6 +54,7 @@ export type ExampleProject = {
     format: ExampleProjectFormat;
     download_url: string;
     id: string;
+    origin?: { type?: string | null; url?: string | null };
 }
 
 type ProjectResponse = GetBoardProjectsQuery['search_projects']['results'][number];
@@ -71,7 +72,8 @@ export const projectReponseToExampleProject = (projectResponse: ProjectResponse)
         description: projectResponse.description,
         format: format,
         download_url: projectResponse.download_url,
-        id: projectResponse.id
+        id: projectResponse.id,
+        origin: projectResponse.origin,
     };
 };
 
