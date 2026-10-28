@@ -202,7 +202,7 @@ describe('DocumentCommand', () => {
         expect(manager.file.getDocs('Vendor::ResolvedBoard', 'board')).toEqual([]);
         expect(window.showOpenDialog).toHaveBeenCalledWith({
             title: 'Add Document', canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
-            filters: { Documents: ['md', 'pdf', 'txt'] },
+            filters: { Documents: ['md', 'pdf'] },
         });
     });
 
@@ -313,7 +313,7 @@ describe('DocumentCommand', () => {
         await commands.mockRunRegistered(DocumentCommand.setLocalPathCommandId, nodeFor('board', 'book'));
         expect(window.showOpenDialog).toHaveBeenCalledWith({
             title: 'Set Local Path', canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
-            filters: { Documents: ['md', 'pdf', 'txt'] },
+            filters: { Documents: ['md', 'pdf'] },
         });
         expect(doc.path).toBe(localPath);
         expect(doc.name).toBe(name);

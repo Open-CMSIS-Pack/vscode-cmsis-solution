@@ -95,6 +95,18 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
             return;
         }
 
+        const locationType = doc.locationType;
+        const tooltip = [filePath];
+        if (locationType === 'P' && doc.mode !== 'user') {
+            const packId = this.docManager?.file.getDocParent(doc.parentId, doc.parentTag)?.packId;
+            if (packId) {
+                tooltip.push(`From pack: \`${packId}\``);
+            }
+        }
+        if (doc.error) {
+            tooltip.push(`Error: ${doc.error}`);
+        }
+
         const bookItem = hardwareItem.createChild('book');
         bookItem.setAttribute('label', title);
         bookItem.setAttribute('expandable', '0');
@@ -103,9 +115,12 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         bookItem.setAttribute('docName', doc.name);
         bookItem.setAttribute('docParentId', doc.parentId);
         bookItem.setAttribute('docParentTag', doc.parentTag);
-        bookItem.setAttribute('tooltip', doc.error ? `${filePath}\n${doc.error}` : filePath);
+        bookItem.setAttribute('docLocationType', locationType);
+        bookItem.setAttribute('docHasPath', doc.path !== undefined ? '1' : '0');
+        bookItem.setAttribute('docError', doc.error);
+        bookItem.setAttribute('tooltip', tooltip.join('\n\n'));
         bookItem.addFeature('docFile');
-        if (doc.locationType === 'W') {
+        if (locationType === 'W') {
             bookItem.addFeature('webDoc');
         }
         if (doc.mode === 'user') {
