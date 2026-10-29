@@ -16,10 +16,12 @@
 
 import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { mkdir, rename, rm } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, rename, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { ReadableStream } from 'node:stream/web';
 import { URL } from 'node:url';
 
 interface ArmResource {
@@ -48,9 +50,7 @@ export class DocDownload {
 
     private async fetchResponse(url: URL, signal: AbortSignal, accept: string): Promise<Response> {
         for (let redirects = 0; redirects <= 5; redirects++) {
-            if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-                throw new Error('Document downloads require an HTTP or HTTPS URL.');
-            }
+            this.validateUrl(url);
             const response = await fetch(url, { signal, redirect: 'manual', headers: { Accept: accept } });
             if ([301, 302, 303, 307, 308].includes(response.status)) {
                 await this.disposeResponse(response);
@@ -59,14 +59,25 @@ export class DocDownload {
                     throw new Error('Document redirect has no location.');
                 }
                 url = new URL(location, url);
-            } else if (!response.ok) {
-                await this.disposeResponse(response);
-                throw new Error(`Document request failed: HTTP ${response.status} ${response.statusText}`);
             } else {
-                return response;
+                return this.checkResponse(response);
             }
         }
         throw new Error('Document request exceeded five redirects.');
+    }
+
+    private validateUrl(url: URL): void {
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+            throw new Error('Document downloads require an HTTP or HTTPS URL.');
+        }
+    }
+
+    private async checkResponse(response: Response): Promise<Response> {
+        if (!response.ok) {
+            await this.disposeResponse(response);
+            throw new Error(`Document request failed: HTTP ${response.status} ${response.statusText}`);
+        }
+        return response;
     }
 
     private async disposeResponse(response: Response): Promise<void> {
@@ -81,30 +92,60 @@ export class DocDownload {
     async downloadDoc(url: URL, destination: string, requirePdf: boolean, armDocId?: string): Promise<void> {
         const signal = AbortSignal.timeout(120_000);
         if (armDocId !== undefined) {
-            url = await this.getArmPdfUrl(url, armDocId, signal);
+            await this.downloadArmDoc(url, destination, requirePdf, armDocId, signal);
+        } else {
+            await this.downloadOtherDoc(url, destination, requirePdf, signal);
         }
+    }
+
+    private async downloadArmDoc(url: URL, destination: string, requirePdf: boolean, armDocId: string, signal: AbortSignal): Promise<void> {
+        url = await this.getArmPdfUrl(url, armDocId, signal);
         await mkdir(path.dirname(destination), { recursive: true });
         const temporary = `${destination}.${randomUUID()}.part`;
-        let output: ReturnType<typeof createWriteStream> | undefined;
         try {
             const response = await this.fetchResponse(url, signal, requirePdf ? 'application/pdf' : '*/*');
-            if (!response.body) {
-                throw new Error('Document response has no body.');
-            }
-            const body = response.body as unknown as AsyncIterable<Uint8Array>;
-            output = createWriteStream(temporary, { flags: 'wx' });
-            await pipeline(body, chunks => this.fileChunks(chunks, requirePdf), output, { signal });
+            await this.writeResponse(response, temporary, requirePdf, signal);
             signal.throwIfAborted();
             await rename(temporary, destination);
         } finally {
-            const stream = output;
-            if (stream && !stream.closed) {
+            await rm(temporary, { force: true });
+        }
+    }
+
+    private async downloadOtherDoc(url: URL, destination: string, requirePdf: boolean, signal: AbortSignal): Promise<void> {
+        this.validateUrl(url);
+        const temporaryDirectory = await mkdtemp(path.join(tmpdir(), 'cmsis-doc-'));
+        const temporary = path.join(temporaryDirectory, 'document');
+        try {
+            // Some document hosts reject the default node-fetch User-Agent used by extension hosts.
+            const response = await this.checkResponse(await fetch(url, {
+                redirect: 'follow', signal, headers: { 'User-Agent': 'Arm CMSIS Solution' },
+            }));
+            await this.writeResponse(response, temporary, requirePdf, signal, 0o600);
+            signal.throwIfAborted();
+            await mkdir(path.dirname(destination), { recursive: true });
+            signal.throwIfAborted();
+            await copyFile(temporary, destination);
+        } finally {
+            await rm(temporaryDirectory, { recursive: true, force: true });
+        }
+    }
+
+    private async writeResponse(response: Response, temporary: string, requirePdf: boolean, signal: AbortSignal, mode?: number): Promise<void> {
+        if (!response.body) {
+            throw new Error('Document response has no body.');
+        }
+        const body = response.body instanceof Readable ? response.body : Readable.fromWeb(response.body as ReadableStream<Uint8Array>);
+        const output = createWriteStream(temporary, { flags: 'wx', mode });
+        try {
+            await pipeline(body, chunks => this.fileChunks(chunks, requirePdf), output, { signal });
+        } finally {
+            if (!output.closed) {
                 await new Promise<void>(resolve => {
-                    stream.once('close', resolve);
-                    stream.destroy();
+                    output.once('close', resolve);
+                    output.destroy();
                 });
             }
-            await rm(temporary, { force: true });
         }
     }
 
