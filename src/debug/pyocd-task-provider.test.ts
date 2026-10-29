@@ -153,7 +153,7 @@ describe('managed pyOCD lifecycle', () => {
         task.presentationOptions = { reveal: vscode.TaskRevealKind.Always };
         const resolved = provider.resolveTask(task)!;
         expect(resolved.definition).toBe(task.definition);
-        expect(resolved.presentationOptions).toEqual(task.presentationOptions);
+        expect(resolved.presentationOptions).toEqual({ ...task.presentationOptions, close: false });
         // The VS Code mock exposes the callback at the CustomExecution boundary.
         const execution = resolved.execution as unknown as { callback: (definition: vscode.TaskDefinition) => Promise<PyocdTerminal> };
         const terminal = await execution.callback(definition);
@@ -172,6 +172,54 @@ describe('managed pyOCD lifecycle', () => {
         }
         child.emit('close', 0);
         expect(events).toEqual(['complete', 'close']);
+        provider.dispose();
+    });
+
+    it('retains shutdown output after VS Code disconnects the task terminal', async () => {
+        const output = { append: jest.fn(), appendLine: jest.fn() };
+        const channels = { getOrCreate: jest.fn().mockReturnValue(output) };
+        const provider = new PyocdTaskProvider(() => ({}), channels);
+        const task = new vscode.Task(definition, vscode.TaskScope.Workspace, 'CMSIS Run', 'Workspace');
+        const resolved = provider.resolveTask(task)!;
+        const execution = resolved.execution as unknown as { callback: (definition: vscode.TaskDefinition) => Promise<PyocdTerminal> };
+        const terminal = await execution.callback(definition);
+        // No VS Code terminal write listener remains when its UI is closed.
+        terminal.open();
+        terminal.close();
+        child.stderr!.emit('data', Buffer.from('KeyboardInterrupt received; shutting down GDB servers\n'));
+        child.emit('close', 0);
+        expect(channels.getOrCreate).toHaveBeenCalledWith('CMSIS pyOCD');
+        expect(output.append).toHaveBeenCalledWith('\r\npyOCD: requesting graceful shutdown.\r\n');
+        expect(output.append).toHaveBeenCalledWith('KeyboardInterrupt received; shutting down GDB servers\r\n');
+        expect(output.appendLine).toHaveBeenLastCalledWith('[CMSIS Run] pyOCD task finished (exit code 130).');
+        provider.dispose();
+    });
+
+    it.each(['CMSIS Load', 'CMSIS Run'])('stops %s through its compound task while retaining terminal output', async name => {
+        const provider = new PyocdTaskProvider(() => ({}));
+        const scope = { uri: vscode.Uri.file('/project') } as vscode.WorkspaceFolder;
+        const task = new vscode.Task(definition, scope, name, 'Workspace');
+        task.presentationOptions = { close: true };
+        const resolved = provider.resolveTask(task)!;
+        expect(resolved.presentationOptions.close).toBe(false);
+        const execution = resolved.execution as unknown as { callback: (definition: vscode.TaskDefinition) => Promise<PyocdTerminal> };
+        const terminal = await execution.callback(definition);
+        const write = jest.fn();
+        const close = jest.fn();
+        terminal.onDidWrite(write);
+        terminal.onDidClose(close);
+        terminal.open();
+        const compound = new vscode.Task({ type: 'shell' }, scope, 'CMSIS Load+Run', 'Workspace');
+        const otherScope = new vscode.Task(definition, { uri: vscode.Uri.file('/other') } as vscode.WorkspaceFolder, name, 'Workspace');
+        expect(provider.stopTask(otherScope)).toBe(false);
+        expect(provider.stopTask(compound)).toBe(true);
+        expect(close).not.toHaveBeenCalled();
+        child.stderr!.emit('data', Buffer.from('GDB server on port 3333 stopped\n'));
+        expect(write).toHaveBeenCalledWith('GDB server on port 3333 stopped\r\n');
+        child.emit('close', 0);
+        expect(write).toHaveBeenLastCalledWith('\r\npyOCD task finished (exit code 130).\r\n');
+        expect(close).toHaveBeenCalledWith(130);
+        expect(provider.stopTask(compound)).toBe(false);
         provider.dispose();
     });
 });

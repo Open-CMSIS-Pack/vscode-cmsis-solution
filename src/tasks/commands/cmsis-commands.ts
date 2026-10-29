@@ -70,7 +70,7 @@ export class CmsisCommands {
         private readonly solutionManager: SolutionManager,
         private readonly debugLaunchProvider: DebugLaunchProvider,
         private readonly serialMonitorExtension: IExtensionApiWrapper<SerialMonitorApi>,
-        private readonly pyocdTaskProvider?: Pick<PyocdTaskProvider, 'onDidEndTask'>,
+        private readonly pyocdTaskProvider?: Pick<PyocdTaskProvider, 'onDidEndTask' | 'stopTask'>,
     ) {
     }
 
@@ -430,7 +430,9 @@ export class CmsisCommands {
                 if (lifecycle) {
                     lifecycle.stoppedManually = true;
                 }
-                exec.terminate();
+                if (!this.pyocdTaskProvider?.stopTask(exec.task)) {
+                    exec.terminate();
+                }
             }
         }
         if ((isDebugging || isAttachedDebugger) && vscode.debug.activeDebugSession) {

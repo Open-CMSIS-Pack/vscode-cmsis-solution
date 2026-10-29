@@ -19,6 +19,7 @@ import { ChildProcess, spawn } from 'child_process';
 import path from 'path';
 import { StringDecoder } from 'string_decoder';
 import { pyocdWindowsHost } from './pyocd-windows';
+import { OutputChannelProvider } from '../vscode-api/output-channel-provider';
 
 export const PYOCD_TASK_TYPE = 'cmsis-csolution.pyocd';
 
@@ -103,6 +104,7 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
         if (!this.child) {
             return; // VS Code may cancel between CustomExecution creation and open.
         }
+        this.writeEmitter.fire('\r\npyOCD: requesting graceful shutdown.\r\n');
         this.shutdownTimer = setTimeout(() => {
             if (this.child?.exitCode != null || this.child?.signalCode != null) {
                 this.finish(130);
@@ -132,6 +134,7 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
         // pyOCD may catch KeyboardInterrupt and return zero. A cancelled Load must
         // still fail its sequential dependency so that Run cannot start.
         const exitCode = this.cancelled ? 130 : code;
+        this.writeEmitter.fire(`\r\npyOCD task finished (exit code ${exitCode}).\r\n`);
         this.complete(exitCode);
         this.closeEmitter.fire(exitCode);
         this.writeEmitter.dispose();
@@ -140,11 +143,14 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
 }
 
 export class PyocdTaskProvider implements vscode.TaskProvider, vscode.Disposable {
-    private readonly terminals = new Set<PyocdTerminal>();
+    private readonly terminals = new Map<PyocdTerminal, vscode.Task>();
     private readonly endEmitter = new vscode.EventEmitter<{ task: vscode.Task; exitCode: number }>();
     public readonly onDidEndTask = this.endEmitter.event;
 
-    constructor(private readonly environment: () => NodeJS.ProcessEnv) {}
+    constructor(
+        private readonly environment: () => NodeJS.ProcessEnv,
+        private readonly outputChannelProvider?: OutputChannelProvider,
+    ) {}
 
     public activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>): void {
         context.subscriptions.push(this, vscode.tasks.registerTaskProvider(PYOCD_TASK_TYPE, this));
@@ -160,22 +166,47 @@ export class PyocdTaskProvider implements vscode.TaskProvider, vscode.Disposable
         }
         const resolved = new vscode.Task(task.definition, task.scope ?? vscode.TaskScope.Workspace,
             task.name, task.source, new vscode.CustomExecution(async definition => {
+                const output = this.outputChannelProvider?.getOrCreate('CMSIS pyOCD');
+                output?.appendLine(`[${task.name}] Starting managed pyOCD task.`);
                 const terminal = new PyocdTerminal(definition as PyocdTaskDefinition, this.environment(), exitCode => {
+                    output?.appendLine(`[${task.name}] pyOCD task finished (exit code ${exitCode}).`);
                     this.terminals.delete(terminal);
                     this.endEmitter.fire({ task: resolved, exitCode });
                 });
-                this.terminals.add(terminal);
+                // Task termination can disconnect VS Code's terminal before the
+                // child exits. Retain shutdown output independently until finish.
+                terminal.onDidWrite(data => output?.append(data));
+                this.terminals.set(terminal, resolved);
                 return terminal;
             }), task.problemMatchers);
-        resolved.presentationOptions = task.presentationOptions;
+        resolved.presentationOptions = { ...task.presentationOptions, close: false };
         resolved.runOptions = task.runOptions;
         resolved.isBackground = task.isBackground;
         resolved.group = task.group;
         return resolved;
     }
 
+    public stopTask(task: vscode.Task): boolean {
+        if (task.definition?.type !== PYOCD_TASK_TYPE && task.name !== 'CMSIS Load+Run') {
+            return false;
+        }
+        let stopped = false;
+        const scopeId = (scope: vscode.Task['scope']) => typeof scope === 'object' ? scope.uri.toString() : scope;
+        for (const [terminal, activeTask] of this.terminals) {
+            const matchesName = activeTask.name === task.name ||
+                (task.name === 'CMSIS Load+Run' && ['CMSIS Load', 'CMSIS Run'].includes(activeTask.name));
+            if (matchesName && scopeId(activeTask.scope) === scopeId(task.scope)) {
+                terminal.close();
+                stopped = true;
+            }
+        }
+        // Leave the task and compound dependency connected until the cancelled
+        // child reports 130. This retains final output and prevents Run after Load.
+        return stopped;
+    }
+
     public dispose(): void {
-        for (const terminal of this.terminals) {
+        for (const terminal of this.terminals.keys()) {
             terminal.close();
         }
         this.endEmitter.dispose();
