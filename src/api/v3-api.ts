@@ -30,6 +30,7 @@ import { PackInstallCommands } from '../packs/pack-install-commands';
 import { COMMAND_ACTIVATE_SOLUTION, COMMAND_DEACTIVATE_SOLUTION, COMMAND_GET_SOLUTION_FILE } from '../solutions/active-solution-tracker';
 import { DebugHardwareCommands } from '../solutions/hardware/debug-hardware-commands';
 import { loadDebugAdaptersYml } from '../debug/debug-adapters-yaml-file';
+import type { SolutionConverter } from '../solutions/solution-converter';
 
 export class CsolutionApiV3Impl implements CsolutionApiV3 {
     private static readonly targetSelectionMutex = new Mutex();
@@ -41,7 +42,20 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
         private readonly csolutionService: Pick<CsolutionService, 'getPacksInfo'>,
         private readonly toolsEnvironment: Pick<ToolsEnvironment, 'getToolsEnvironment' | 'getToolchains'>,
         private readonly commandsProvider: Pick<CommandsProvider, 'executeCommand'>,
+        private readonly solutionConverter: Pick<SolutionConverter, 'convertSolution'>,
     ) {}
+
+    public async convertSolution(options?: { updateRte?: boolean }): Promise<CsolutionApiV3.ConvertResult> {
+        const solution = this.solutionManager.getCsolution();
+        if (!solution || !this.solutionManager.loadState.loaded) {
+            throw new Error('Converting a solution requires a loaded solution');
+        }
+        return this.solutionConverter.convertSolution({
+            solutionPath: solution.solutionPath,
+            targetSet: solution.getActiveTargetSetName(),
+            updateRte: options?.updateRte ?? false,
+        });
+    }
 
     public async activateSolution(solutionPath: string): Promise<void> {
         await this.commandsProvider.executeCommand(COMMAND_ACTIVATE_SOLUTION, solutionPath);

@@ -21,7 +21,7 @@ import { OutputChannelProvider } from '../vscode-api/output-channel-provider';
 import { CmsisToolboxManager } from './cmsis-toolbox';
 import { Mutex } from 'async-mutex';
 import * as rpc from '../json-rpc/csolution-rpc-client';
-import { ConvertRequestData, SolutionEventHub } from './solution-event-hub';
+import { ConvertRequestData, ConvertResultData, SolutionEventHub } from './solution-event-hub';
 import { getSeverity } from './solution-problems';
 
 const OPEN_SETTINGS_ACTION = 'Open Environment Variables Settings';
@@ -30,6 +30,7 @@ const ENV_VAR_SETTINGS_NAME = `${manifest.PACKAGE_NAME}.${manifest.CONFIG_ENVIRO
 
 export interface SolutionConverter {
     activate(context: vscode.ExtensionContext): void;
+    convertSolution(data: ConvertRequestData): Promise<ConvertResultData>;
 }
 
 export class SolutionConverterImpl implements SolutionConverter {
@@ -82,7 +83,7 @@ export class SolutionConverterImpl implements SolutionConverter {
         };
 
         try {
-            await this.convertSolution(signal);
+            await this.runConversion(this.data, signal);
         } catch (error) {
             if (!signal.aborted) {
                 await this.handleConvertFailure(error);
@@ -97,16 +98,27 @@ export class SolutionConverterImpl implements SolutionConverter {
         return this.configProvider.getConfigVariable<boolean>(manifest.CONFIG_DOWNLOAD_MISSING_PACKS) ?? true;
     }
 
-    private async convertSolution(signal: AbortSignal): Promise<void> {
-        if (signal.aborted) {
+    public async convertSolution(data: ConvertRequestData): Promise<ConvertResultData> {
+        if (!data.solutionPath) {
+            throw new Error('Converting a solution requires a solution path');
+        }
+        const request = { ...data };
+        return this.convertSolutionMutex.runExclusive(async () => {
+            const result = await this.runConversion(request);
+            return result!;
+        });
+    }
+
+    private async runConversion(data: ConvertRequestData, signal?: AbortSignal): Promise<ConvertResultData | undefined> {
+        if (signal?.aborted) {
             return;
         }
-        const activeSolution = this.data.solutionPath;
-        const activeTarget = this.data.targetSet ?? '';
+        const activeSolution = data.solutionPath;
+        const activeTarget = data.targetSet ?? '';
         const outputChannel = this.outputChannelProvider.getOrCreate(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
 
         // restart rpc server to pick up new environment variables
-        if (this.data?.restartRpc) {
+        if (data.restartRpc) {
             outputChannel.append('🔄 Environment changed: restarting RPC server... ');
             await this.cmsisToolboxManager.runCsolutionRpc('Shutdown', {});
             outputChannel.append('Loading packs... ');
@@ -114,7 +126,7 @@ export class SolutionConverterImpl implements SolutionConverter {
             outputChannel.append('\n\n');
         }
 
-        if (signal.aborted) {
+        if (signal?.aborted) {
             return;
         }
 
@@ -147,7 +159,7 @@ export class SolutionConverterImpl implements SolutionConverter {
                 }
             }
         }
-        if (signal.aborted) {
+        if (signal?.aborted) {
             return;
         }
 
@@ -168,11 +180,11 @@ export class SolutionConverterImpl implements SolutionConverter {
                 {
                     solution: activeSolution,
                     activeTarget: activeTarget,
-                    updateRte: this.data.updateRte ?? false,
+                    updateRte: data.updateRte ?? false,
                 }
             ) as rpc.ConvertSolutionResult;
 
-            if (signal.aborted) {
+            if (signal?.aborted) {
                 return;
             }
 
@@ -180,7 +192,7 @@ export class SolutionConverterImpl implements SolutionConverter {
             availableCompilers = convertResult.selectCompiler ?? [];
             detection = availableCompilers.length > 0;
             if (convertResult.undefinedLayers) {
-                const result = await this.checkDiscoverLayers();
+                const result = await this.checkDiscoverLayers(data);
                 const discoverLayersOutput = !result.success && result.message ? [`error csolution: ${result.message.trim()}`] : [];
                 toolsOutputMessages = toolsOutputMessages.concat(discoverLayersOutput);
                 availableConfigurations = result.configurations;
@@ -200,7 +212,7 @@ export class SolutionConverterImpl implements SolutionConverter {
             }
         }
 
-        if (signal.aborted) {
+        if (signal?.aborted) {
             return;
         }
         logResult = { errors: [], warnings: [], info: [], ...logResult, success: convertResult.success };
@@ -216,17 +228,19 @@ export class SolutionConverterImpl implements SolutionConverter {
                         '🟨 Convert solution completed with warnings' :
                         '✅ Convert solution completed'
         ) + '\n');
-        // notify conversion result and detection status asynchronously!
-        this.eventHub.fireConvertCompleted({
+        const result: ConvertResultData = {
             success: convertResult.success,
-            severity: severity,
-            detection: detection,
+            severity,
+            detection,
             logMessages: logResult,
             toolsOutputMessages,
-        });
-        // compilers and variables detection handling:
-        // apply select-compiler and discover layer configurations, reset state otherwise
-        this.eventHub.fireConfigureSolutionDataReady({ availableCompilers, availableConfigurations });
+        };
+        if (signal) {
+            // Publish event-driven results before yielding back to the request handler.
+            this.eventHub.fireConvertCompleted(result);
+            this.eventHub.fireConfigureSolutionDataReady({ availableCompilers, availableConfigurations });
+        }
+        return result;
     }
 
     private async printErrorsWarnings(messages?: rpc.LogMessages): Promise<void> {
@@ -264,15 +278,15 @@ export class SolutionConverterImpl implements SolutionConverter {
         return formattedOutput;
     }
 
-    private async checkDiscoverLayers() {
+    private async checkDiscoverLayers(data: ConvertRequestData) {
         const outputChannel = this.outputChannelProvider.getOrCreate(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
         // rpc method: DiscoverLayers
         outputChannel.append('Discover Layers... ');
         const result = await this.cmsisToolboxManager.runCsolutionRpc(
             'DiscoverLayers',
             {
-                solution: this.data?.solutionPath ?? '',
-                activeTarget: this.data?.targetSet ?? '',
+                solution: data.solutionPath ?? '',
+                activeTarget: data.targetSet ?? '',
             }
         ) as rpc.DiscoverLayersInfo;
         return result;

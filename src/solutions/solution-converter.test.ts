@@ -149,6 +149,80 @@ describe('SolutionConverter', () => {
         mockCsolutionService.getCsolutionBin.mockReturnValue('path/to/csolution');
     });
 
+    describe('direct conversion', () => {
+        it('returns the completion payload without emitting events', async () => {
+            mockCsolutionService.getLogMessages.mockResolvedValue({ success: true, warnings: ['a warning'] });
+            const result = await converter.convertSolution({ ...convertRequestData, targetSet: 'Board@Debug', updateRte: true });
+
+            checkConvertSolution(mockCsolutionService, true, 'Board@Debug');
+            expect(result).toEqual({
+                success: true,
+                severity: 'warning',
+                detection: false,
+                logMessages: { success: true, errors: [], warnings: ['a warning'], info: [] },
+                toolsOutputMessages: [],
+            });
+            expect(completedListener).not.toHaveBeenCalled();
+            expect(eventHub.fireConfigureSolutionDataReady).not.toHaveBeenCalled();
+        });
+
+        it('returns failed conversions and detection without emitting events', async () => {
+            mockCsolutionService.convertSolution.mockResolvedValueOnce({ success: false });
+            mockCsolutionService.getLogMessages.mockResolvedValueOnce({ success: false, errors: ['invalid solution'] });
+            await expect(converter.convertSolution(convertRequestData)).resolves.toMatchObject({
+                success: false, severity: 'error', detection: false, logMessages: { errors: ['invalid solution'] },
+            });
+            mockCsolutionService.convertSolution.mockResolvedValueOnce({ success: true, selectCompiler: ['GCC'] });
+            await expect(converter.convertSolution(convertRequestData)).resolves.toMatchObject({ success: true, detection: true });
+            expect(completedListener).not.toHaveBeenCalled();
+            expect(eventHub.fireConfigureSolutionDataReady).not.toHaveBeenCalled();
+        });
+
+        it('rejects unexpected failures, releases the mutex and does not show error dialogs', async () => {
+            const prompt = jest.spyOn(vscode.window, 'showErrorMessage').mockClear();
+            mockCsolutionService.convertSolution.mockRejectedValueOnce(new Error('RPC failed'));
+            await expect(converter.convertSolution(convertRequestData)).rejects.toThrow('RPC failed');
+            await expect(converter.convertSolution(convertRequestData)).resolves.toMatchObject({ success: true });
+            expect(prompt).not.toHaveBeenCalled();
+            expect(completedListener).not.toHaveBeenCalled();
+            expect(eventHub.fireConfigureSolutionDataReady).not.toHaveBeenCalled();
+        });
+
+        it.each(['API then API', 'event then API', 'API then event'])('serializes %s without mixing target data or completion events', async mode => {
+            let finishFirst!: () => void;
+            let markStarted!: () => void;
+            const started = new Promise<void>(resolve => { markStarted = resolve; });
+            mockCsolutionService.convertSolution.mockImplementationOnce(() => new Promise(resolve => {
+                finishFirst = () => resolve({ success: true, selectCompiler: ['GCC'] });
+                markStarted();
+            }));
+            mockConfigurationProvider.getConfigVariable.mockReturnValue(false);
+            const completed = mode === 'API then API' ? Promise.resolve() : waitForNCompletions(1);
+            const firstRequest = { ...convertRequestData, targetSet: 'First' };
+            const first = mode === 'event then API'
+                ? eventHub.fireConvertRequest(firstRequest) : converter.convertSolution(firstRequest);
+            await started;
+            const secondRequest = { ...convertRequestData, targetSet: 'Second', updateRte: true };
+            const second = mode === 'API then event'
+                ? eventHub.fireConvertRequest(secondRequest) : converter.convertSolution(secondRequest);
+            expect(mockCsolutionService.convertSolution).toHaveBeenCalledTimes(1);
+            finishFirst();
+            await Promise.all([first, second, completed]);
+            expect(mockCsolutionService.convertSolution.mock.calls).toEqual([
+                [{ solution: ACTIVE_SOLUTION, activeTarget: 'First', updateRte: false }],
+                [{ solution: ACTIVE_SOLUTION, activeTarget: 'Second', updateRte: true }],
+            ]);
+            const eventCount = mode === 'API then API' ? 0 : 1;
+            expect(completedListener).toHaveBeenCalledTimes(eventCount);
+            expect(eventHub.fireConfigureSolutionDataReady).toHaveBeenCalledTimes(eventCount);
+            if (eventCount) {
+                expect(completedListener).toHaveBeenCalledWith(expect.objectContaining({
+                    detection: mode === 'event then API',
+                }));
+            }
+        });
+    });
+
     it('run solution convert without --update-rte if not specified', async () => {
         await fireAndWaitForConversion();
 
@@ -347,6 +421,45 @@ describe('SolutionConverter', () => {
     });
 
     describe('conversion coalescing', () => {
+        it('publishes completed results before accepting the next conversion request', async () => {
+            mockCsolutionService.convertSolution.mockResolvedValueOnce({ success: true, selectCompiler: ['GCC'] });
+            let completionsBeforeNextRequest: number | undefined;
+            const outputChannel = outputChannelProvider.getOrCreate(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
+            jest.mocked(outputChannel.append).mockImplementation(text => {
+                if (text.includes('Action needed')) {
+                    // A completed conversion must publish before the next queued request can cancel it.
+                    queueMicrotask(() => {
+                        completionsBeforeNextRequest = completedListener.mock.calls.length;
+                        void eventHub.fireConvertRequest({ ...convertRequestData, targetSet: 'bar' });
+                    });
+                }
+            });
+            const completed = new Promise<void>(resolve => {
+                const disposable = eventHub.onDidConvertCompleted(data => {
+                    if (!data.detection) {
+                        disposable.dispose();
+                        resolve();
+                    }
+                });
+            });
+
+            await eventHub.fireConvertRequest({ ...convertRequestData, targetSet: 'foo' });
+            await completed;
+
+            expect(completionsBeforeNextRequest).toBe(1);
+            expect(mockCsolutionService.convertSolution).toHaveBeenCalledTimes(2);
+            expect(completedListener).toHaveBeenCalledTimes(2);
+            expect(completedListener).toHaveBeenNthCalledWith(1, expect.objectContaining({ detection: true }));
+            expect(completedListener).toHaveBeenNthCalledWith(2, expect.objectContaining({ detection: false }));
+            expect(eventHub.fireConfigureSolutionDataReady).toHaveBeenCalledTimes(2);
+            expect(eventHub.fireConfigureSolutionDataReady).toHaveBeenNthCalledWith(1, {
+                availableCompilers: ['GCC'], availableConfigurations: undefined,
+            });
+            expect(eventHub.fireConfigureSolutionDataReady).toHaveBeenNthCalledWith(2, {
+                availableCompilers: [], availableConfigurations: undefined,
+            });
+        });
+
         const mockConvertSolutionDelay = () => {
             mockCsolutionService.convertSolution.mockImplementation(async (param) => {
                 await waitTimeout(50);
