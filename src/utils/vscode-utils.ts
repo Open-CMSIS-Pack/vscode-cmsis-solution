@@ -37,4 +37,3 @@ export function showErrorMessage(msg?: string) {
 export function getWorkspaceFolder() {
     return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
 }
-

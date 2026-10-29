@@ -16,7 +16,7 @@
 
 import path from 'path';
 import { ExampleProject } from '../solar-search/solar-search-client';
-import { PackId } from './pack-data';
+import { PackId, splitPackId } from './pack-data';
 import { tmpdir } from 'os';
 
 import { downloadFile } from '../file-download';
@@ -25,7 +25,6 @@ import { copyFolderRecursive, copyFilesOnly, copyFolderRecursiveDeferred } from 
 import { extractZip } from '@open-cmsis-pack/cmsis-common/extract-zip';
 
 import { ExampleProject as CsolutionExampleProject, ExampleEnvironment as CsolutionExampleEnvironment, SolutionTemplate as CsolutionTemplate } from '../json-rpc/csolution-rpc-client';
-import { splitPackId } from '../json-rpc/csolution-rpc-helper';
 
 
 /** Unique ID for all draft projects */

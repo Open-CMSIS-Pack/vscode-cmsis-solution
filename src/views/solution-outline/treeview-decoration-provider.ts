@@ -37,6 +37,16 @@ export class TreeViewFileDecorationProvider implements vscode.FileDecorationProv
     static readonly contextExcludedTooltip: string = 'Excluded from current context';
     static readonly excludedColor: string = 'errorForeground';
 
+    static readonly documentErrorBadge: string = 'E';
+    static readonly documentErrorColor: string = 'errorForeground';
+
+    private static readonly documentLocationTooltips = new Map([
+        ['P', 'Pack sourced'],
+        ['L', 'Local document'],
+        ['W', 'Web document'],
+        ['H', 'Web page'],
+    ]);
+
     private readonly _onDidChangeFileDecorations: vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined> = new vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined>();
     public readonly onDidChangeFileDecorations: vscode.Event<vscode.Uri | vscode.Uri[] | undefined> = this._onDidChangeFileDecorations.event;
 
@@ -72,6 +82,10 @@ export class TreeViewFileDecorationProvider implements vscode.FileDecorationProv
             };
         }
 
+        if (outlineItem?.getTag() === 'book') {
+            return this.provideDocumentDecoration(outlineItem);
+        }
+
         if (uri.scheme !== 'file') {
             return undefined;
         }
@@ -103,6 +117,29 @@ export class TreeViewFileDecorationProvider implements vscode.FileDecorationProv
         return undefined; // No decoration for other items
     }
 
+    private provideDocumentDecoration(outlineItem: COutlineItem): vscode.FileDecoration | undefined {
+        const error = outlineItem.getAttribute('docError');
+        if (error) {
+            return {
+                badge: TreeViewFileDecorationProvider.documentErrorBadge,
+                tooltip: `Error: ${error}`,
+                color: this.themeProvider.getThemeColor(TreeViewFileDecorationProvider.documentErrorColor),
+            };
+        }
+
+        const locationType = outlineItem.getAttribute('docLocationType') ?? '';
+        if ((locationType === 'W' || locationType === 'H') && outlineItem.getAttribute('docHasPath') === '1') {
+            return undefined;
+        }
+
+        const tooltip = TreeViewFileDecorationProvider.documentLocationTooltips.get(locationType);
+        return tooltip ? {
+            badge: locationType,
+            tooltip,
+            color: this.themeProvider.getThemeColor(TreeViewFileDecorationProvider.themeColor),
+        } : undefined;
+    }
+
     private findOutlineItemByUri(tree: COutlineItem | undefined, uri: vscode.Uri): COutlineItem | undefined {
         if (!tree) {
             return undefined;
@@ -111,7 +148,7 @@ export class TreeViewFileDecorationProvider implements vscode.FileDecorationProv
         const searchInNode = (node: COutlineItem): COutlineItem | undefined => {
             const nodeUri = getOutlineItemResourceUri(node);
             const isMatch = uri.scheme === 'file'
-                ? node.getTag() === 'file' && nodeUri?.fsPath === uri.fsPath
+                ? (node.getTag() === 'file' || node.getTag() === 'book') && nodeUri?.fsPath === uri.fsPath
                 : nodeUri?.scheme === uri.scheme && nodeUri.path === uri.path;
             if (isMatch) {
                 return node;

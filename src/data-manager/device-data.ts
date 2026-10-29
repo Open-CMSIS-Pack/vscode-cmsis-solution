@@ -15,11 +15,10 @@
  */
 
 import { Device } from '../solar-search/solar-search-client';
-import { PackId } from './pack-data';
+import { PackId, splitPackId, splitVendorNameId } from './pack-data';
 import { LazyPromise } from '@open-cmsis-pack/cmsis-common/lazy';
 import { Device as CsolutionDevice } from '../json-rpc/csolution-rpc-client';
 import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
-import { splitPackId, splitDeviceId } from '../json-rpc/csolution-rpc-helper';
 
 
 export class DeviceId {
@@ -31,6 +30,16 @@ export class DeviceId {
     ) {
         this.key = `${this.vendor}::${this.name}`;
     }
+}
+
+export function splitDeviceId(deviceId: string): { vendor?: string, name: string };
+export function splitDeviceId(deviceId: Optional<string>): Optional<{ vendor?: string, name: string }>;
+export function splitDeviceId(deviceId?: string): Optional<{ vendor?: string, name: string }> {
+    const parsed = splitVendorNameId(deviceId);
+    if (parsed === undefined) {
+        return undefined;
+    }
+    return { vendor: parsed.vendor, name: parsed.name };
 }
 
 export interface DeviceMemory {

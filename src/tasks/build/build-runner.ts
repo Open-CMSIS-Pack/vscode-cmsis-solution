@@ -97,10 +97,11 @@ export const cbuildArgsFromTaskDefinition = (definition: BuildTaskDefinition): s
 };
 
 const VERBOSITY_TO_FLAG: Record<BuildOutputVerbosity, string | undefined> = {
-    quiet: '--quiet',
-    normal: undefined,
-    verbose: '--verbose',
-    debug: '--debug',
+    'quiet': '--quiet',
+    'normal': undefined,
+    'build-commands': '--build-commands',
+    'verbose': '--verbose',
+    'debug': '--debug',
 };
 
 export class BuildRunner implements Runner {

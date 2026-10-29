@@ -25,12 +25,15 @@ import { toGenericString } from '@open-cmsis-pack/cmsis-common/tree-item-parser'
 import * as fsUtils from '../../../utils/fs-utils';
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { solutionRpcDataFactory, SolutionRpcDataMock } from '../../../solutions/solution-rpc-data.factory';
+import { DocManager } from '../../../doc-manager/doc-manager';
+import { HardwareItemBuilder } from './solution-outline-hardware-item';
 
 describe('CSolution', () => {
     const testDataHandler = new TestDataHandler();
     let tmpSolutionDir: string;
     let cmsisPackRoot: string;
     let rpcData: SolutionRpcDataMock;
+    let docManager: DocManager;
 
 
     beforeAll(async () => {
@@ -45,6 +48,8 @@ describe('CSolution', () => {
 
     beforeEach(() => {
         rpcData = solutionRpcDataFactory();
+        docManager = new DocManager();
+        docManager.file.fileName = path.join(testDataHandler.tmpDir, '.docs', 'docs.yml');
     });
 
     const normalize = (s: string) =>
@@ -103,7 +108,7 @@ describe('CSolution', () => {
     it('test tree content for hardware and projects collapsed node', async () => {
         const fileName = path.join(tmpSolutionDir, 'USBD', 'USB_Device.csolution.yml');
         const csolution = new CSolution();
-        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData, docManager);
 
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
@@ -137,7 +142,15 @@ describe('CSolution', () => {
         }
 
         // get results from tree
+        const addBooks = jest.spyOn(docManager, 'addBooks');
+        const createHardwareNodes = jest.spyOn(HardwareItemBuilder.prototype, 'createHardwareNodes');
         const tree = solutionOutlineTree.createTree();
+        const builds = [...csolution.cbuildYmlRoot.values()].map(root => root.getChildItem()!);
+        expect(builds.length).toBeGreaterThan(1);
+        expect(addBooks).not.toHaveBeenCalled();
+        expect(createHardwareNodes).toHaveBeenCalledTimes(builds.length);
+        addBooks.mockRestore();
+        createHardwareNodes.mockRestore();
         const got = new Map<string, string>();
 
         let count = 1;
@@ -150,7 +163,7 @@ describe('CSolution', () => {
     });
 
     it('creates error node when csolution is undefined', () => {
-        const solutionOutlineTree = new SolutionOutlineTree(undefined, rpcData);
+        const solutionOutlineTree = new SolutionOutlineTree(undefined, rpcData, docManager);
         const tree = solutionOutlineTree.createTree();
 
         const children = tree.getChildren() as COutlineItem[];
@@ -167,7 +180,7 @@ describe('CSolution', () => {
             ['dummy.cbuild.yml', new CTreeItem('cbuild')],
         ]);
 
-        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData, docManager);
         const tree = solutionOutlineTree.createTree();
 
         const children = tree.getChildren() as COutlineItem[];
@@ -181,7 +194,7 @@ describe('CSolution', () => {
     it('creates error node when no projects can be loaded', () => {
         const csolution = new CSolution();
 
-        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData, docManager);
         const tree = solutionOutlineTree.createTree();
 
         const children = tree.getChildren() as COutlineItem[];
@@ -206,7 +219,7 @@ describe('CSolution', () => {
         expect(loadResult).toEqual(ETextFileResult.Success);
         rpcData.seedVariables('HID.Release+B-U585I-IOT02A', { 'OutDir()': outDirHID, 'Dname': 'STM32U585AIIx' });
 
-        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData, docManager);
         let tree = solutionOutlineTree.createTree();
 
         const rtxComponent = findNodeByLabel(tree, 'component', 'ARM::CMSIS:RTOS2:Keil RTX5&Source');
@@ -281,7 +294,7 @@ describe('CSolution', () => {
 
         jest.spyOn(csolution, 'getActiveTargetSetName').mockReturnValue('B-U585I-IOT02A@fvp');
 
-        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData, docManager);
         const tree = solutionOutlineTree.createTree();
 
         const componentGenNodes = findComponentGenNodes(tree as COutlineItem);
@@ -301,7 +314,7 @@ describe('CSolution', () => {
 
         jest.spyOn(csolution, 'getActiveTargetSetName').mockReturnValue(undefined);
 
-        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData, docManager);
         const tree = solutionOutlineTree.createTree();
 
         const componentGenNodes = findComponentGenNodes(tree as COutlineItem);
@@ -320,8 +333,15 @@ describe('CSolution', () => {
         expect(loadResult).toEqual(ETextFileResult.Success);
         expect(csolution.hasWestProject()).toBeTruthy();
 
+        for (const cbuildYml of csolution.cbuildYmlRoot.values()) {
+            const cbuild = cbuildYml.getChildItem();
+            if (cbuild) {
+                await docManager.addBooks(cbuild);
+            }
+        }
+
         // get results from tree
-        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData, docManager);
         const tree = solutionOutlineTree.createTree();
 
         const res = await dumpOutline(tree, 'WestSupport', 'CmsisViewTreeDmp.txt','CmsisViewTreeRef.txt');
@@ -335,7 +355,7 @@ describe('CSolution', () => {
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
 
-        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData, docManager);
         const tree = solutionOutlineTree.createTree();
 
         // Find West project nodes
@@ -359,7 +379,7 @@ describe('CSolution', () => {
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
 
-        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData, docManager);
         const tree = solutionOutlineTree.createTree();
 
         // Find West project nodes
@@ -387,7 +407,7 @@ describe('CSolution', () => {
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
 
-        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData, docManager);
         const tree = solutionOutlineTree.createTree();
 
         // Find all project nodes
@@ -411,7 +431,7 @@ describe('CSolution', () => {
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
 
-        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData, docManager);
         const tree = solutionOutlineTree.createTree();
         const cmakeProject = (tree.getChildren() as COutlineItem[]).find(
             node => node.getAttribute('description') === '(CMake)'
@@ -436,8 +456,15 @@ describe('CSolution', () => {
         const loadResult = await csolution.load(fileName);
         expect(loadResult).toEqual(ETextFileResult.Success);
 
+        for (const cbuildYml of csolution.cbuildYmlRoot.values()) {
+            const cbuild = cbuildYml.getChildItem();
+            if (cbuild) {
+                await docManager.addBooks(cbuild);
+            }
+        }
+
         // get results from tree
-        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData);
+        const solutionOutlineTree = new SolutionOutlineTree(csolution, rpcData, docManager);
         const tree = solutionOutlineTree.createTree();
 
         const res = await dumpOutline(tree, 'ImageOnly', 'CmsisViewTreeMulticoreDmp.txt','CmsisViewTreeMulticoreRef.txt');

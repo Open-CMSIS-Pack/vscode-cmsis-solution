@@ -82,6 +82,8 @@
     "lint:md": "markdownlint **/*.md -c ./.github/markdownlint.jsonc -i ./node_modules -i ./dist -i ./coverage -i ./tools -i ./test-data -i ./src/e2e-tests/data -i CHANGELOG.md",
     "copyright:check": "tsx scripts/copyright-manager.ts --mode=check",
     "copyright:fix": "tsx scripts/copyright-manager.ts --mode=fix",
+    "fmtlf:check": "tsx scripts/fmtlf.ts --mode=check",
+    "fmtlf:fix": "tsx scripts/fmtlf.ts --mode=fix",
     "check:links": "tsx scripts/check-links.ts -i ./node_modules/** -i ./.github/** -c ./.github/markdown-link-check.jsonc"
   },
   "dependencies": {
@@ -165,7 +167,7 @@
     "dedent": "1.7.1",
     "eslint": "^9.39.5",
     "eslint-plugin-react": "^7.37.5",
-    "eslint-plugin-react-hooks": "7.0.1",
+    "eslint-plugin-react-hooks": "7.1.1",
     "eslint-plugin-unused-imports": "^4.4.1",
     "fs-extra": "^11.3.3",
     "jest": "^29.7.0",
@@ -405,6 +407,7 @@
             "enum": [
               "quiet",
               "normal",
+              "build-commands",
               "verbose",
               "debug"
             ],
@@ -466,7 +469,7 @@
         "title": "Refresh Build Information",
         "icon": {
           "light": "./media/refresh-normal.svg",
-          "dark": "./media/refresh-normal.svg"
+          "dark": "./media/refresh-normal-dark.svg"
         }
       },
       {
@@ -475,7 +478,7 @@
         "title": "Refresh Build Information (Refresh Required)",
         "icon": {
           "light": "./media/refresh-dirty.svg",
-          "dark": "./media/refresh-dirty.svg"
+          "dark": "./media/refresh-dirty-dark.svg"
         }
       },
       {
@@ -635,6 +638,10 @@
       },
       {
         "category": "CMSIS",
+        "command": "cmsis-csolution.showWhatsNew",
+        "title": "What's New"
+      },
+      {
         "command": "cmsis-csolution.openHelp",
         "title": "Help",
         "shortTitle": "Help"
@@ -698,6 +705,30 @@
         "command": "cmsis-csolution.openDocFile",
         "title": "Open Documentation",
         "icon": "$(book)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.addDocument",
+        "title": "Add Document",
+        "icon": "$(add)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.downloadDocument",
+        "title": "Download Document",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.setDocumentLocalPath",
+        "title": "Set Local Path",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "category": "CMSIS",
+        "command": "cmsis-csolution.removeDocument",
+        "title": "Remove Document",
+        "icon": "$(trash)"
       },
       {
         "category": "CMSIS",
@@ -985,6 +1016,21 @@
           "when": "false"
         },
         {
+          "command": "cmsis-csolution.addDocument"
+        },
+        {
+          "command": "cmsis-csolution.downloadDocument",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.setDocumentLocalPath",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.removeDocument",
+          "when": "false"
+        },
+        {
           "command": "cmsis-csolution.copyHeaderFile",
           "when": "false"
         },
@@ -1064,12 +1110,12 @@
         {
           "command": "cmsis-csolution.refresh",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && !cmsis-csolution.solutionDirty",
-          "group": "navigation@0"
+          "group": "navigation@4"
         },
         {
           "command": "cmsis-csolution.refreshDirty",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active && cmsis-csolution.solutionDirty",
-          "group": "navigation@0"
+          "group": "navigation@4"
         },
         {
           "command": "cmsis-csolution.build",
@@ -1109,17 +1155,17 @@
         {
           "command": "cmsis-csolution.openSolutionFile",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
-          "group": "navigation@4"
+          "group": "navigation@5"
         },
         {
           "command": "cmsis-csolution.searchSolutionSources",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
-          "group": "navigation@5"
+          "group": "navigation@6"
         },
         {
           "command": "cmsis-csolution.manageSolution",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
-          "group": "navigation@6"
+          "group": "navigation@7"
         },
         {
           "command": "cmsis-csolution.openSolution",
@@ -1144,12 +1190,17 @@
         {
           "command": "cmsis-csolution.openHelp",
           "when": "view == cmsis-csolution.outline",
+          "group": "SolutionHelp@3"
+        },
+        {
+          "command": "cmsis-csolution.showWhatsNew",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.whatsNewAvailable",
           "group": "SolutionHelp@2"
         },
         {
           "command": "cmsis-csolution.list.find",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
-          "group": "SolutionHelp@1"
+          "group": "SolutionFind@1"
         },
         {
           "command": "cmsis-csolution.clean",
@@ -1227,6 +1278,26 @@
           "command": "cmsis-csolution.openDocFile",
           "when": "view == cmsis-csolution.outline && viewItem =~ /docFile/",
           "group": "inline@8"
+        },
+        {
+          "command": "cmsis-csolution.addDocument",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)docParent(;|$)/",
+          "group": "contextMenu"
+        },
+        {
+          "command": "cmsis-csolution.downloadDocument",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)webDoc(;|$)/",
+          "group": "contextMenu"
+        },
+        {
+          "command": "cmsis-csolution.setDocumentLocalPath",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)webDoc(;|$)/",
+          "group": "contextMenu"
+        },
+        {
+          "command": "cmsis-csolution.removeDocument",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)userDoc(;|$)/",
+          "group": "contextMenu"
         },
         {
           "command": "cmsis-csolution.copyHeaderFile",
@@ -1487,12 +1558,14 @@
           "enum": [
             "quiet",
             "normal",
+            "build-commands",
             "verbose",
             "debug"
           ],
           "enumDescriptions": [
             "Show only errors or fatal conditions",
             "Include build steps and warnings",
+            "Show command invocations during build process",
             "Include command-line invocation",
             "Include internal process steps"
           ],
@@ -1686,10 +1759,8 @@
       "\\.(css)$": "<rootDir>/__mocks__/static-assets.js"
     },
     "testEnvironment": "jsdom",
-    "setupFiles": [
-      "./jestSetupFile.js"
-    ],
     "setupFilesAfterEnv": [
+      "./jestSetupFile.js",
       "./src/__test__/custom-matchers.ts",
       "@open-cmsis-pack/cmsis-common/map",
       "@open-cmsis-pack/cmsis-common/array"
@@ -1705,6 +1776,7 @@
       "!src/**/*.factories.{ts,tsx}",
       "!src/vscode-api/**",
       "!src/e2e-tests/**",
+      "!src/api/extension-host-v3-smoke.ts",
       "!src/desktop/extension.ts",
       "!src/solar-search/graphql/client"
     ],

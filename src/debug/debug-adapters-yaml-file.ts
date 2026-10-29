@@ -170,4 +170,3 @@ export async function loadDebugAdaptersYml(): Promise<DebugAdaptersYamlFile | un
     }
     return debugAdaptersYmlFile;
 }
-

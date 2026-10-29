@@ -40,6 +40,88 @@ describe('provideFileDecoration', () => {
         treeViewDecorationProvider = new TreeViewFileDecorationProvider(mockFileDecorationProviderManager, mockThemeProvider);
     });
 
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    it.each([
+        ['P', 'Pack sourced'],
+        ['L', 'Local document'],
+        ['W', 'Web document'],
+        ['H', 'Web page'],
+    ])('decorates documents with location %s', (locationType, tooltip) => {
+        const root = new COutlineItem('root');
+        const book = root.createChild('book');
+        book.setAttribute('resourcePath', 'https://example.com/manual.pdf');
+        book.setAttribute('docLocationType', locationType);
+        book.setAttribute('docHasPath', '0');
+        treeViewDecorationProvider.setTreeRoot(root);
+
+        expect(treeViewDecorationProvider.provideFileDecoration(getOutlineItemResourceUri(book)!)).toEqual({
+            badge: locationType,
+            tooltip,
+            color: { id: 'descriptionForeground' },
+        });
+    });
+
+    it.each(['W', 'H'])('does not decorate downloaded %s documents, even under the pack root', locationType => {
+        const packRoot = path.resolve('packs');
+        jest.spyOn(path_utils, 'getCmsisPackRoot').mockReturnValue(packRoot);
+        const root = new COutlineItem('root');
+        const book = root.createChild('book');
+        book.setAttribute('resourcePath', path.join(packRoot, 'manual.pdf'));
+        book.setAttribute('docLocationType', locationType);
+        book.setAttribute('docHasPath', '1');
+        treeViewDecorationProvider.setTreeRoot(root);
+
+        expect(treeViewDecorationProvider.provideFileDecoration(getOutlineItemResourceUri(book)!)).toBeUndefined();
+    });
+
+    it.each([
+        ['P', '1', 'Pack sourced'],
+        ['L', '1', 'Local document'],
+        ['W', '0', 'Web document'],
+        ['H', '0', 'Web page'],
+        ['W', '1', undefined],
+        ['H', '1', undefined],
+    ])('prioritizes errors and restores location %s with path flag %s after clearing', (locationType, hasPath, tooltip) => {
+        const root = new COutlineItem('root');
+        const book = root.createChild('book');
+        book.setAttribute('resourcePath', path.resolve('manual.md'));
+        book.setAttribute('docLocationType', locationType);
+        book.setAttribute('docHasPath', hasPath);
+        book.setAttribute('docError', 'Download failed');
+        treeViewDecorationProvider.setTreeRoot(root);
+        const uri = getOutlineItemResourceUri(book)!;
+
+        expect(treeViewDecorationProvider.provideFileDecoration(uri)).toEqual({
+            badge: 'E',
+            tooltip: 'Error: Download failed',
+            color: { id: 'errorForeground' },
+        });
+
+        book.setAttribute('docError', undefined);
+        treeViewDecorationProvider.setTreeRoot(root);
+
+        expect(treeViewDecorationProvider.provideFileDecoration(uri)).toEqual(tooltip ? {
+            badge: locationType,
+            tooltip,
+            color: { id: 'descriptionForeground' },
+        } : undefined);
+    });
+
+    it.each([undefined, 'unknown'])('ignores missing or unknown document locations (%s) without pack fallback', locationType => {
+        const packRoot = path.resolve('packs');
+        jest.spyOn(path_utils, 'getCmsisPackRoot').mockReturnValue(packRoot);
+        const root = new COutlineItem('root');
+        const book = root.createChild('book');
+        book.setAttribute('resourcePath', path.join(packRoot, 'manual.pdf'));
+        book.setAttribute('docLocationType', locationType);
+        treeViewDecorationProvider.setTreeRoot(root);
+
+        expect(treeViewDecorationProvider.provideFileDecoration(getOutlineItemResourceUri(book)!)).toBeUndefined();
+    });
+
     it('should return a decoration for URIs starting with {CMSIS_PACK_ROOT}', async () => {
         const packCachePath = 'MOCKED_CMSIS_PACK_ROOT';
         jest.spyOn(path_utils, 'getCmsisPackRoot').mockReturnValue(packCachePath);

@@ -57,6 +57,51 @@ describe('ComponentPropertiesDialog', () => {
         expect(onClose).toHaveBeenCalledWith(true, expect.objectContaining({ key: component.key }), component);
     });
 
+    it('preserves draft edits when rerendered with the same component', () => {
+        const onClose = jest.fn();
+        const component = makeComponent();
+        const { rerender } = render(<ComponentPropertiesDialog component={component} onClose={onClose} />);
+
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Toggle component selection' }));
+        rerender(<ComponentPropertiesDialog component={component} onClose={onClose} />);
+        fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+        expect(onClose).toHaveBeenCalledWith(true, {
+            ...component,
+            aggregate: { ...component.aggregate, selectedCount: 0 },
+        }, component);
+        expect(component.aggregate.selectedCount).toBe(1);
+    });
+
+    it('resets draft edits when replaced by a component with the same key', () => {
+        const onClose = jest.fn();
+        const component = makeComponent();
+        const { rerender } = render(<ComponentPropertiesDialog component={component} onClose={onClose} />);
+
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Toggle component selection' }));
+        const replacement = makeComponent();
+        rerender(<ComponentPropertiesDialog component={replacement} onClose={onClose} />);
+
+        expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Toggle component selection' }).checked).toBe(true);
+        fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+        expect(onClose).toHaveBeenCalledWith(true, replacement, replacement);
+    });
+
+    it('discards cancelled edits when reopened with the same component', () => {
+        const onClose = jest.fn();
+        const component = makeComponent();
+        const { rerender } = render(<ComponentPropertiesDialog component={component} onClose={onClose} />);
+
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Toggle component selection' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+        rerender(<ComponentPropertiesDialog onClose={onClose} />);
+        rerender(<ComponentPropertiesDialog component={component} onClose={onClose} />);
+
+        expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Toggle component selection' }).checked).toBe(true);
+        fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+        expect(onClose).toHaveBeenLastCalledWith(true, component, component);
+    });
+
     it('calls onClose with cancelled state and original component on Cancel', () => {
         const onClose = jest.fn();
         const component = makeComponent();

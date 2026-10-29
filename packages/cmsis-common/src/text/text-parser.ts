@@ -80,4 +80,3 @@ export class SimpleYamlParser extends ErrorList implements ITextParser {
         return obj ? YAML.stringify(obj, null, 4) : '';
     }
 }
-
