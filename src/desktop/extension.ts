@@ -48,6 +48,7 @@ import { StatusBar } from '../status-bar';
 import { BuildCommand } from '../tasks/build/build-command';
 import { BuildTaskDefinitionBuilderImpl } from '../tasks/build/build-task-definition-builder';
 import { BuildTaskProviderImpl } from '../tasks/build/build-task-provider';
+import { PyocdTaskProvider } from '../debug/pyocd-task-provider';
 import { BuildRunner } from '../tasks/build/build-runner';
 import { getHandleBuildEnoent } from '../tasks/build/handle-enoent';
 import { GeneratorCommand } from '../tasks/generator/generator-command';
@@ -193,6 +194,8 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     );
 
     const buildTaskProvider = new BuildTaskProviderImpl(buildRunner);
+    const pyocdTaskProvider = new PyocdTaskProvider(() => envManager.getEnvironmentVariables());
+    pyocdTaskProvider.activate(context);
     const buildTaskDefinitionBuilder = new BuildTaskDefinitionBuilderImpl(solutionManager, configurationProvider);
     const compileCommandsGenerator = new CompileCommandsGenerator(buildTaskProvider, buildTaskDefinitionBuilder, eventHub, outputChannelProvider, commandsProvider);
 
@@ -286,7 +289,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const debugHardwareCommands = new DebugHardwareCommands(commandsProvider, solutionManager);
     const csolutionExtension = new CsolutionExtensionImpl(solutionCreator, buildTaskProvider, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider);
     const solutionOutline = new SolutionOutlineView(solutionManager, treeViewProviderImpl, globalStateProvider, treeViewFileDecorationProvider, configurationProvider);
-    const cmsisCommands = new CmsisCommands(configurationProvider, commandsProvider, solutionManager, debugProvider, serialMonitorExtension);
+    const cmsisCommands = new CmsisCommands(configurationProvider, commandsProvider, solutionManager, debugProvider, serialMonitorExtension, pyocdTaskProvider);
     const buildStopCommand = new BuildStopCommand(commandsProvider, buildTaskProvider);
     const configurationWizardView = new ConfWizWebview(context);
     const solutionLanguageFeatures = new SolutionLanguageFeaturesProvider(solutionManager);

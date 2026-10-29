@@ -32,6 +32,9 @@ import { Uri } from 'vscode';
 import { TestDataHandler } from '../__test__/test-data';
 import yaml from 'yaml';
 import { csolutionFactory } from '../solutions/csolution.factory';
+import { TasksJsonFile } from './tasks-json-file';
+import { PYOCD_TASK_TYPE } from './pyocd-task-provider';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 
 class DebugLaunchProviderTest extends DebugLaunchProviderImpl   {
 
@@ -189,6 +192,21 @@ describe('DebugLaunchProvider', () => {
     });
 
     describe('updateTasksJson', () => {
+
+        it('manages generated pyOCD commands while preserving compound tasks and other adapters', async () => {
+            const provider = new DebugLaunchProviderTest();
+            provider.solutionManagerMock.getCsolution.mockReturnValue(csolutionFactory({ solutionDir: workspaceFolder }));
+            const load = { label: 'CMSIS Load', type: 'shell', command: 'pyocd', args: ['load'], options: { cwd: '${workspaceFolder}' }, problemMatcher: [] };
+            const run = { label: 'CMSIS Run', type: 'shell', command: 'pyocd', args: ['gdbserver'] };
+            const compound = { label: 'CMSIS Load+Run', dependsOn: ['CMSIS Load', 'CMSIS Run'], dependsOrder: 'sequence' };
+            const other = { label: 'Other adapter', type: 'shell', command: 'JLinkGDBServer' };
+            await provider.updateTasksJson(workspaceFolder, [load, run, compound, other], new Map());
+            const file = new TasksJsonFile(tasksJsonFile);
+            expect(await file.load()).toBe(ETextFileResult.Success);
+            expect(file.tasks).toEqual([
+                { ...load, type: PYOCD_TASK_TYPE }, { ...run, type: PYOCD_TASK_TYPE }, compound, other,
+            ]);
+        });
 
         it('should update tasks.json with new tasks', async () => {
             const debugLaunchProvider = new DebugLaunchProviderTest();

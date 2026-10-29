@@ -24,6 +24,7 @@ import { IExtensionApiWrapper } from '../../vscode-api/extension-api-wrapper';
 import { SerialMonitorApi } from '@microsoft/vscode-serial-monitor-api';
 import { TCPPortMonitor } from '../../tcp-port-monitor/tcp-port-monitor';
 import { ConfigurationProvider } from '../../vscode-api/configuration-provider';
+import { PYOCD_TASK_TYPE, PyocdTaskProvider } from '../../debug/pyocd-task-provider';
 
 
 type executionState = 'idle' | 'running' | 'debugging' | 'loading' | 'erasing' | 'unconfigured';
@@ -69,11 +70,27 @@ export class CmsisCommands {
         private readonly solutionManager: SolutionManager,
         private readonly debugLaunchProvider: DebugLaunchProvider,
         private readonly serialMonitorExtension: IExtensionApiWrapper<SerialMonitorApi>,
+        private readonly pyocdTaskProvider?: Pick<PyocdTaskProvider, 'onDidEndTask'>,
     ) {
     }
 
     public async activate(context: Pick<ExtensionContext, 'subscriptions'>) {
         await this.setExecStateBasedOnCSol();
+
+        // CustomExecution has no OS process events. Use the managed terminal's
+        // result before VS Code emits onDidEndTask to preserve lifecycle state.
+        this.pyocdTaskProvider?.onDidEndTask(({ task, exitCode }) => {
+            const lifecycle = this.taskLifecycles.get(task.name);
+            if (lifecycle) {
+                lifecycle.exitCode = exitCode;
+            }
+            if (task.name === 'CMSIS Load' && exitCode !== 0 && exitCode !== 130) {
+                vscode.window.showErrorMessage('CMSIS Load task failed before launch.');
+                if (!lifecycle?.stoppedManually) {
+                    this.setExecutionState('idle');
+                }
+            }
+        }, undefined, context.subscriptions);
 
         context.subscriptions.push(
             this.solutionManager.onDidSetupCompleted(async () => {
@@ -103,6 +120,9 @@ export class CmsisCommands {
                     processStarted: false,
                     isSingleTask: lifecycle?.isSingleTask ?? false
                 });
+                if (event.execution.task.definition.type === PYOCD_TASK_TYPE) {
+                    this.setExecutionState(taskName === 'CMSIS Load' ? 'loading' : taskName === 'CMSIS Erase' ? 'erasing' : 'running');
+                }
             }),
 
             vscode.tasks.onDidStartTaskProcess(event => {
@@ -406,11 +426,11 @@ export class CmsisCommands {
         for (const exec of vscode.tasks.taskExecutions) {
             const name = exec.task.name;
             if (name.startsWith(taskName)) {
-                exec.terminate();
                 const lifecycle = this.taskLifecycles.get(name);
                 if (lifecycle) {
                     lifecycle.stoppedManually = true;
                 }
+                exec.terminate();
             }
         }
         if ((isDebugging || isAttachedDebugger) && vscode.debug.activeDebugSession) {
@@ -571,7 +591,7 @@ export class CmsisCommands {
 
         // match only tasks scoped to this folder
         return tasks.filter(task =>
-            task.source === 'Workspace' &&
+            (task.source === 'Workspace' || task.definition.type === PYOCD_TASK_TYPE) &&
             this.isTaskInWorkspaceFolder(task, workspaceFolder)
         );
     }

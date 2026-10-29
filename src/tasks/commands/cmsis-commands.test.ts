@@ -37,6 +37,7 @@ import { extensionApiWrapperFactory, ExtensionApiWrapperMock } from '../../vscod
 import { CbuildRunYamlFile } from '../../solutions/files/cbuild-run-yaml-file';
 import { waitForPromises } from '../../__test__/test-waits';
 import { faker } from '@faker-js/faker';
+import { PYOCD_TASK_TYPE } from '../../debug/pyocd-task-provider';
 
 jest.mock('vscode');
 (vscode.tasks.fetchTasks as jest.Mock) = jest.fn();
@@ -212,6 +213,37 @@ describe('CmsisCommands', () => {
         await cmsisCommands['runCmsisTask']('CMSIS Load+Run', 'running');
 
         expect(vscode.tasks.executeTask).toHaveBeenCalledWith(mockTask);
+    });
+
+    it('preserves Load+Run state transitions for managed tasks without OS process events', async () => {
+        const end = new vscode.EventEmitter<{ task: vscode.Task; exitCode: number }>();
+        const commands = new CmsisCommands(configProvider, commandsProvider, solutionManager,
+            debugLaunchProvider, serialMonitorExtension, { onDidEndTask: end.event });
+        jest.mocked(vscode.tasks.fetchTasks).mockResolvedValue([]);
+        const context = extensionContextFactory();
+        await commands.activate(context);
+        const start = jest.mocked(vscode.tasks.onDidStartTask).mock.calls.slice(-1)[0][0];
+        const finish = jest.mocked(vscode.tasks.onDidEndTask).mock.calls.slice(-1)[0][0];
+        const load = new vscode.Task({ type: PYOCD_TASK_TYPE, args: ['load'] }, vscode.TaskScope.Workspace, 'CMSIS Load', 'Workspace');
+        const run = new vscode.Task({ type: PYOCD_TASK_TYPE, args: ['gdbserver'] }, vscode.TaskScope.Workspace, 'CMSIS Run', 'Workspace');
+        const event = (task: vscode.Task): vscode.TaskStartEvent => ({ execution: { task, terminate: jest.fn() } });
+        start(event(load));
+        expect(vscode.commands.executeCommand).toHaveBeenLastCalledWith('setContext', 'canStartDebug', false);
+        expect(vscode.commands.executeCommand).toHaveBeenCalledWith('setContext', `${PACKAGE_NAME}.executionState`, 'loading');
+        end.fire({ task: load, exitCode: 0 });
+        finish(event(load));
+        expect(commands['taskLifecycles'].get('CMSIS Load')?.exitCode).toBe(0);
+        start(event(run));
+        expect(vscode.commands.executeCommand).toHaveBeenCalledWith('setContext', `${PACKAGE_NAME}.executionState`, 'running');
+        end.fire({ task: run, exitCode: 130 });
+        finish(event(run));
+        expect(vscode.commands.executeCommand).toHaveBeenCalledWith('setContext', `${PACKAGE_NAME}.executionState`, 'idle');
+        start(event(load));
+        end.fire({ task: load, exitCode: 1 });
+        expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('CMSIS Load task failed before launch.');
+        finish(event(load));
+        end.dispose();
+        context.subscriptions.forEach(disposable => disposable?.dispose());
     });
 
     it('shows error message if CMSIS task is not found', async () => {

@@ -31,6 +31,7 @@ import { CbuildRunYaml, DebugTopology } from '../solutions/files/cbuild-run-yaml
 import { DebugAdapter } from './debug-adapters-yaml-file';
 import { ConfigurationProvider } from '../vscode-api/configuration-provider';
 import { backToForwardSlashes } from '../utils/path-utils';
+import { PYOCD_TASK_TYPE } from './pyocd-task-provider';
 
 export interface DebugLaunchProvider {
     activate(context: vscode.ExtensionContext): Promise<void>;
@@ -134,6 +135,9 @@ export class DebugLaunchProviderImpl implements DebugLaunchProvider {
         const updatedTasks: string[] = [];
         for (const task of templateTasks) {
             const newTask = this.renderTemplate(task, vars);
+            if (newTask.type === 'shell' && 'command' in newTask && newTask.command === 'pyocd') {
+                newTask.type = PYOCD_TASK_TYPE;
+            }
             if (newTask.label) {
                 updatedTasks.push(newTask.label);
             }
