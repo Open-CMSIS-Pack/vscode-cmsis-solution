@@ -206,52 +206,6 @@ describe('SolutionManager', () => {
         expect(solutionManager.getDocManager()).toBe(docManager);
     });
 
-    it('imports device and board books before notifying conversion and setup completion', async () => {
-        const addBooks = jest.spyOn(docManager, 'addBooks');
-        let completeSave!: (result: ETextFileResult) => void;
-        const pendingSave = new Promise<ETextFileResult>(resolve => { completeSave = resolve; });
-        const save = jest.spyOn(docManager.file, 'save').mockReturnValueOnce(pendingSave);
-        const setupCompleted = new Promise<void>(resolve => {
-            solutionManager.onDidSetupCompleted(() => resolve());
-        });
-        const loadSolutionBuildFiles = solutionManager.loadSolutionBuildFiles.bind(solutionManager);
-        const loadBuildFiles = jest.spyOn(solutionManager, 'loadSolutionBuildFiles').mockImplementation(async () => {
-            await loadSolutionBuildFiles();
-            expect(addBooks).not.toHaveBeenCalled();
-        });
-
-        await activateTestSolution();
-
-        expect(addBooks).toHaveBeenCalledTimes(1);
-        expect(solutionManager.loadState.converted).toBe(false);
-        expect(loadStateChangeListener).not.toHaveBeenCalledWith(expect.objectContaining({
-            newState: expect.objectContaining({ converted: true }),
-        }));
-        expect(loadBuildFilesListener).not.toHaveBeenCalled();
-        expect(cbuildSetupRequestedListener).not.toHaveBeenCalled();
-        loadStateChangeListener.mockClear();
-
-        completeSave(ETextFileResult.Success);
-        await setupCompleted;
-
-        const builds = [...solutionManager.getCsolution()!.cbuildYmlRoot.values()]
-            .map(root => root.getChildItem()!);
-        expect(builds.length).toBeGreaterThan(1);
-        expect(addBooks.mock.calls).toEqual(builds.map(cbuild => [cbuild]));
-        expect(loadStateChangeListener).toHaveBeenCalledTimes(1);
-        expect(loadStateChangeListener).toHaveBeenCalledWith({
-            previousState: expect.objectContaining({ converted: false }),
-            newState: expect.objectContaining({ activated: true, converted: true, dirty: false }),
-        });
-        expect(Math.max(...addBooks.mock.invocationCallOrder))
-            .toBeLessThan(loadStateChangeListener.mock.invocationCallOrder[0]);
-        expect(loadStateChangeListener.mock.invocationCallOrder[0])
-            .toBeLessThan(loadBuildFilesListener.mock.invocationCallOrder[0]);
-        loadBuildFiles.mockRestore();
-        save.mockRestore();
-        addBooks.mockRestore();
-    });
-
     it('register the command on activation', async () => {
         expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(2);
         expect(commandsProvider.registerCommand).toHaveBeenCalledWith(

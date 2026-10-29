@@ -71,6 +71,35 @@ describe('DocsYamlFile', () => {
     });
 
     it.each([
+        ['board', 'Vendor::Board:RevA', 'https://example.com/manual.pdf?download=1#page=2', undefined, ['Vendor', 'Board', 'manual', 'manual.pdf']],
+        ['device', 'Vendor::Device:CPU0', path.resolve('books', 'manual.pdf'), 'user', ['Vendor', 'Device', 'manual', 'manual.pdf']],
+        ['board', 'Board', pathToFileURL(path.resolve('books', 'local manual.md')).href, 'user', ['Board', 'local manual', 'local manual.md']],
+        ['common', 'arm-docs', 'https://developer.arm.com/documentation/100230/latest', undefined, ['100230-latest', '100230-latest.pdf']],
+    ] as const)('uses the index directory for %s destination %s: %s', (tag, parent, name, mode, segments) => {
+        const file = new DocsYamlFile(fileName);
+        const doc = file.ensureDoc(name, parent, tag);
+        doc.mode = mode;
+        if (tag === 'common') {
+            doc.id = '100230';
+            doc.version = 'latest';
+            doc.format = 'pdf';
+        }
+        expect(doc.getDestinationPath()).toBe(path.resolve(path.dirname(fileName), 'docs', ...segments));
+        expect(path.dirname(doc.getDestinationPath())).toBe(doc.indexDir);
+    });
+
+    it.each([
+        ['../Vendor::Board', 'https://example.com/manual.pdf'],
+        ['Vendor::Board.', 'https://example.com/manual.pdf'],
+        ['Vendor::Board', 'https://example.com/manual%2Fone.pdf'],
+        ['Vendor::Board', 'https://example.com/CON.pdf'],
+        ['Vendor::Board', 'https://example.com/manual.html'],
+    ])('rejects unsafe or unsupported destinations for %s: %s', (parent, name) => {
+        const doc = new DocsYamlFile(fileName).ensureDoc(name, parent, 'board');
+        expect(() => doc.getDestinationPath()).toThrow();
+    });
+
+    it.each([
         ['http://example.com/manual.pdf', true, true],
         ['https://example.com/manual.PDF?format=.html#section', true, true],
         ['www.example.com/manual.pdf', true, true],

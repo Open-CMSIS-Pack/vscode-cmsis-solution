@@ -21,7 +21,6 @@ import { CTreeItem, ETreeItemKind, ITreeItem } from '@open-cmsis-pack/cmsis-comm
 import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { CTreeItemWrap, ITreeItemWrap } from '@open-cmsis-pack/cmsis-common/tree-item-wrapper';
 import { comparePackIds, splitVendorNameId } from '../data-manager/pack-data';
-import { splitBoardId } from '../data-manager/board-data';
 import { splitDeviceId } from '../data-manager/device-data';
 import { isWebAddress } from '../util';
 import { expandRootVars, getCmsisPackRoot } from '../utils/path-utils';
@@ -44,7 +43,7 @@ export interface IDocRef extends ITreeItemWrap {
     readonly downloadUrl: URL;
     mode: 'user' | undefined;
     error: string | undefined;
-    getDestinationPath(destinationRoot: string): string;
+    getDestinationPath(): string;
     isWebDoc(): boolean;
     isWeb(): boolean;
     isDownloaded(): boolean;
@@ -153,6 +152,9 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
         if (locationType === 'H') {
             return undefined;
         }
+        if (this.parentTag === 'common') {
+            return this.item?.resolvePath(path.join('docs', this.commonBasename));
+        }
         const { vendor = '', name = '' } = splitVendorNameId(this.parent?.id ?? '') ?? {};
         const source = this.name || this.path || '';
         const basename = this.getBasename(source, locationType);
@@ -181,25 +183,34 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
     isWeb(): boolean { return getWebLocationType(this.name) !== undefined; }
     isDownloaded(): boolean { return this.locationType === 'W' && this.path !== undefined; }
 
-    getDestinationPath(destinationRoot: string): string {
+    getDestinationPath(): string {
+        const directory = this.indexDir;
+        if (!directory) {
+            throw new Error('This document has no managed directory.');
+        }
         if (this.parentTag === 'common') {
-            const id = this.pathComponent(this.id, 'id');
-            const version = this.pathComponent(this.version, 'version');
-            const baseName = `${id}-${version}`;
             const extension = this.format === undefined ? '' : `.${this.pathComponent(this.format, 'format')}`;
-            return path.join(destinationRoot, baseName, `${baseName}${extension}`);
+            return path.join(directory, `${this.commonBasename}${extension}`);
         }
-        if ((this.parentTag === 'device' || this.parentTag === 'board') && this.isWebDoc()) {
-            const hardware = this.parentTag === 'device' ? splitDeviceId(this.parentId) : splitBoardId(this.parentId);
-            const vendor = this.pathComponent(hardware?.vendor, 'vendor');
-            const name = this.pathComponent(hardware?.name, 'hardware name');
-            const url = this.downloadUrl;
-            const fileName = this.pathComponent(
-                url.pathname.endsWith('/') ? undefined : decodeURIComponent(path.posix.basename(url.pathname)), 'filename',
-            );
-            return path.join(destinationRoot, vendor, name, fileName);
+        if ((this.parentTag === 'device' || this.parentTag === 'board') && (this.isWebDoc() || this.mode === 'user')) {
+            const hardware = splitVendorNameId(this.parentId);
+            if (this.isWebDoc() || hardware?.vendor !== undefined) {
+                this.pathComponent(hardware?.vendor, 'vendor');
+            }
+            this.pathComponent(hardware?.name, 'hardware name');
+            const source = this.name || this.path || '';
+            const url = this.isWebDoc() ? this.downloadUrl : undefined;
+            const fileName = url
+                ? url.pathname.endsWith('/') ? undefined : decodeURIComponent(path.posix.basename(url.pathname))
+                : path.basename(expandRootVars(source.startsWith('file://') ? fileURLToPath(source) : source));
+            this.pathComponent(path.basename(directory), 'basename');
+            return path.join(directory, this.pathComponent(fileName, 'filename'));
         }
-        throw new Error('Only common documents and board or device web documents are supported.');
+        throw new Error('Only common documents and board or device web or user documents are supported.');
+    }
+
+    private get commonBasename(): string {
+        return `${this.pathComponent(this.id, 'id')}-${this.pathComponent(this.version, 'version')}`;
     }
 
     private pathComponent(value: string | undefined, label: string): string {

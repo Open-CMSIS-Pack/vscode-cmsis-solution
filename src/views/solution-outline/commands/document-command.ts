@@ -25,7 +25,7 @@ import { getDocParentId } from '../../../doc-manager/docs-yaml-file';
 export class DocumentCommand {
     public static readonly addCommandId = `${PACKAGE_NAME}.addDocument`;
     public static readonly downloadCommandId = `${PACKAGE_NAME}.downloadDocument`;
-    public static readonly setLocalPathCommandId = `${PACKAGE_NAME}.setDocumentLocalPath`;
+    public static readonly importCommandId = `${PACKAGE_NAME}.importDocument`;
     public static readonly removeCommandId = `${PACKAGE_NAME}.removeDocument`;
 
     constructor(
@@ -38,7 +38,7 @@ export class DocumentCommand {
         context.subscriptions.push(
             this.commandsProvider.registerCommand(DocumentCommand.addCommandId, this.addDocument, this),
             this.commandsProvider.registerCommand(DocumentCommand.downloadCommandId, this.downloadDocument, this),
-            this.commandsProvider.registerCommand(DocumentCommand.setLocalPathCommandId, this.setLocalPath, this),
+            this.commandsProvider.registerCommand(DocumentCommand.importCommandId, this.importDocument, this),
             this.commandsProvider.registerCommand(DocumentCommand.removeCommandId, this.removeDocument, this),
         );
     }
@@ -75,17 +75,16 @@ export class DocumentCommand {
         const doc = await manager.addUserBook(
             target.parentId, target.parentTag, localPath, path.basename(localPath),
             undefined, existingPaths => this.confirmReplacement(
-                'A document with the same filename already exists. Replace its location?', 'Replace',
-                `${existingPaths.join('\n')}\n\nNew location: ${localPath}\n\nThe existing file will not be changed.`,
+                'The destination file already exists. Overwrite it?', 'Overwrite', existingPaths.join('\n'),
             ),
         );
         if (doc === undefined) {
-            await this.window.showErrorMessage('Failed to save the document inventory.');
+            await this.window.showErrorMessage('Failed to add the document.');
         }
     }
 
     private async downloadDocument(node?: COutlineItem): Promise<void> {
-        const target = node?.getFeatures().split(';').includes('webDoc') ? this.getTarget(node) : undefined;
+        const target = this.canTransfer(node) ? this.getTarget(node) : undefined;
         const name = node?.getAttribute('docName');
         if (!target || !name) {
             return;
@@ -96,23 +95,30 @@ export class DocumentCommand {
         ));
     }
 
-    private async setLocalPath(node?: COutlineItem): Promise<void> {
-        const localPath = await this.pickDocument('Set Local Path');
+    private canTransfer(node?: COutlineItem): boolean {
+        const features = node?.getFeatures().split(';') ?? [];
+        return features.includes('webDoc') && !features.includes('userDoc');
+    }
+
+    private async importDocument(node?: COutlineItem): Promise<void> {
+        if (!this.canTransfer(node)) {
+            return;
+        }
+        const localPath = await this.pickDocument('Import');
         if (!localPath) {
             return;
         }
         const manager = this.solutionManager.getDocManager();
-        const target = node?.getFeatures().split(';').includes('webDoc') ? this.getTarget(node) : undefined;
+        const target = this.canTransfer(node) ? this.getTarget(node) : undefined;
         const name = node?.getAttribute('docName');
         if (!target || !name) {
             return;
         }
-        const result = await manager.setLocalPath(target.parentId, target.parentTag, name, localPath, existingPaths => this.confirmReplacement(
-            'This document already has an existing local file. Replace its local path?', 'Replace',
-            `${existingPaths.join('\n')}\n\nNew location: ${localPath}\n\nAll references to this document will use the new path. Existing files will not be changed.`,
+        const result = await manager.importDocument(target.parentId, target.parentTag, name, localPath, existingPaths => this.confirmReplacement(
+            'The destination file already exists. Overwrite it?', 'Overwrite', existingPaths.join('\n'),
         ));
         if (result === false) {
-            await this.window.showErrorMessage('Failed to save the document inventory.');
+            await this.window.showErrorMessage('Failed to import the document.');
         }
     }
 
@@ -124,7 +130,7 @@ export class DocumentCommand {
             return;
         }
         if (!await manager.removeDocument(target.parentId, target.parentTag, name)) {
-            await this.window.showErrorMessage('Failed to save the document inventory.');
+            await this.window.showErrorMessage('Failed to remove the document.');
         }
     }
 
