@@ -26,6 +26,10 @@ import { DocDownload } from './doc-download';
 describe('DocDownload', () => {
     const testData = new TestDataHandler();
 
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
     afterAll(() => {
         testData.dispose();
     });
@@ -33,18 +37,61 @@ describe('DocDownload', () => {
     it.each([
         ['ddi0439', 'b'],
         ['100230', 'latest'],
-    ])('downloads Arm document %s/%s to a real PDF file', async (id, version) => {
+        ['', 'latest'],
+    ])('downloads Arm document %s/%s through the metadata service', async (id, version) => {
         const destinationRoot = path.join(testData.tmpDir, 'docs');
         const downloader = new DocDownload();
         const destination = path.join(destinationRoot, `${id}-${version}.pdf`);
         const metadataUrl = new URL(`https://documentation-service.arm.com/documentation/${id}/${version}`);
+        const downloadUrl = new URL(`https://documentation-service.arm.com/static/${id}.pdf`);
+        const metadata = Response.json({ _links: { resources: [
+            { href: '/manual.html', extension: 'html' },
+            { href: downloadUrl.href, extension: 'PDF', name: `${id}.pdf` },
+        ] } });
+        Object.defineProperty(metadata, 'url', { value: metadataUrl.href });
+        const request = jest.spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(metadata)
+            .mockResolvedValueOnce(new Response('%PDF-Arm document'));
 
         await downloader.downloadDoc(metadataUrl, destination, true, id);
 
-        const fileStat = await stat(destination);
-        expect(fileStat.isFile()).toBe(true);
-        expect(fileStat.size).toBeGreaterThan(100);
-    }, 150_000);
+        expect(request).toHaveBeenCalledTimes(2);
+        expect(request).toHaveBeenNthCalledWith(2, downloadUrl, {
+            signal: expect.any(AbortSignal), redirect: 'manual', headers: { Accept: 'application/pdf' },
+        });
+        expect(await readFile(destination, 'utf8')).toBe('%PDF-Arm document');
+        expect(await readdir(destinationRoot)).not.toContain(expect.stringMatching(/\.part$/));
+    });
+
+    it('follows Arm redirects and selects the PDF matching the document ID', async () => {
+        const metadataUrl = new URL('https://documentation-service.arm.com/documentation/100230/latest');
+        const resourceUrl = new URL('https://documentation-service.arm.com/resources/100230');
+        const finalUrl = new URL('https://documentation-service.arm.com/static/100230.pdf');
+        const destination = path.join(testData.tmpDir, 'arm-redirect', 'manual.pdf');
+        const metadata = Response.json({ _links: { resources: [
+            { href: '/other.pdf', extension: 'pdf', name: 'other.pdf' },
+            { href: '/resources/100230', contentType: 'APPLICATION/PDF', name: '100230.pdf' },
+        ] } });
+        Object.defineProperty(metadata, 'url', { value: metadataUrl.href });
+        const request = jest.spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce(new Response('Redirect', { status: 302, headers: { location: metadataUrl.href } }))
+            .mockResolvedValueOnce(metadata)
+            .mockResolvedValueOnce(new Response('Redirect', { status: 307, headers: { location: '/static/100230.pdf' } }))
+            .mockResolvedValueOnce(new Response('%PDF-Arm document'));
+
+        await new DocDownload().downloadDoc(new URL('https://example.com/arm-manual'), destination, true, '100230');
+
+        expect(request).toHaveBeenCalledTimes(4);
+        expect(request).toHaveBeenNthCalledWith(2, metadataUrl, {
+            signal: expect.any(AbortSignal), redirect: 'manual', headers: { Accept: 'application/json' },
+        });
+        for (const [index, url] of [resourceUrl, finalUrl].entries()) {
+            expect(request).toHaveBeenNthCalledWith(index + 3, url, {
+                signal: expect.any(AbortSignal), redirect: 'manual', headers: { Accept: 'application/pdf' },
+            });
+        }
+        expect(await readFile(destination, 'utf8')).toBe('%PDF-Arm document');
+    });
 
     it('rejects a non-HTTP URL without creating a destination file', async () => {
         const downloader = new DocDownload();
@@ -69,52 +116,103 @@ describe('DocDownload', () => {
             .mockResolvedValueOnce(metadata)
             .mockResolvedValueOnce(new Response('%PDF-test'));
 
-        try {
-            await downloader.downloadDoc(metadataUrl, destination, true, '100230');
+        await downloader.downloadDoc(metadataUrl, destination, true, '100230');
 
-            expect(timeout).toHaveBeenCalledTimes(1);
-            expect(timeout).toHaveBeenCalledWith(120_000);
-            expect(request).toHaveBeenNthCalledWith(1, metadataUrl, {
-                signal, redirect: 'manual', headers: { Accept: 'application/json' },
-            });
-            expect(request).toHaveBeenNthCalledWith(2, downloadUrl, {
-                signal, redirect: 'manual', headers: { Accept: 'application/pdf' },
-            });
-            expect((await stat(destination)).isFile()).toBe(true);
-        } finally {
-            timeout.mockRestore();
-            request.mockRestore();
-        }
+        expect(timeout).toHaveBeenCalledTimes(1);
+        expect(timeout).toHaveBeenCalledWith(120_000);
+        expect(request).toHaveBeenNthCalledWith(1, metadataUrl, {
+            signal, redirect: 'manual', headers: { Accept: 'application/json' },
+        });
+        expect(request).toHaveBeenNthCalledWith(2, downloadUrl, {
+            signal, redirect: 'manual', headers: { Accept: 'application/pdf' },
+        });
+        expect((await stat(destination)).isFile()).toBe(true);
     });
 
-    it('downloads a web document to the supplied destination', async () => {
+    it.each([
+        [false, 'WHATWG'],
+        [true, 'WHATWG'],
+        [false, 'Node'],
+        [true, 'Node'],
+    ] as const)('downloads a non-Arm document with requirePdf %s and a %s response', async (requirePdf, streamType) => {
         const destinationRoot = path.join(testData.tmpDir, 'device-docs');
-        const downloader = new DocDownload();
-        const downloadUrl = new URL('https://raw.githubusercontent.com/Open-CMSIS-Pack/vscode-cmsis-solution/refs/heads/main/README.md');
-        const destination = path.join(destinationRoot, 'MyVendor', 'MyDevice', 'README.md');
+        const downloadUrl = new URL('https://www.st.com/resource/en/user_manual/um2839-discovery-kit-for-iot-node-with-stm32u5-series-stmicroelectronics.pdf');
+        const destination = path.join(destinationRoot, String(requirePdf), streamType, 'manual.pdf');
+        const signal = new AbortController().signal;
+        const timeout = jest.spyOn(AbortSignal, 'timeout').mockReturnValue(signal);
+        const content = requirePdf ? '%PDF-document' : 'Web document';
+        const body = Readable.from([Buffer.from(content.slice(0, 2)), Buffer.from(content.slice(2))]);
+        const response = new Response(null);
+        Object.defineProperty(response, 'body', { value: streamType === 'Node' ? body : Readable.toWeb(body) });
+        const request = jest.spyOn(globalThis, 'fetch').mockResolvedValueOnce(response);
+        const temporaryDirectory = jest.spyOn(fsPromises, 'mkdtemp');
+        const output = jest.spyOn(fs, 'createWriteStream');
+        const copy = jest.spyOn(fsPromises, 'copyFile');
 
-        await downloader.downloadDoc(downloadUrl, destination, false);
+        await new DocDownload().downloadDoc(downloadUrl, destination, requirePdf);
 
-        const fileStat = await stat(destination);
-        expect(fileStat.isFile()).toBe(true);
-        expect(fileStat.size).toBeGreaterThan(100);
-    }, 150_000);
+        expect(timeout).toHaveBeenCalledTimes(1);
+        expect(timeout).toHaveBeenCalledWith(120_000);
+        expect(request).toHaveBeenCalledTimes(1);
+        expect(request).toHaveBeenCalledWith(downloadUrl, {
+            redirect: 'follow', signal, headers: { 'User-Agent': 'Arm CMSIS Solution' },
+        });
+        const directory = await temporaryDirectory.mock.results[0].value;
+        const temporary = path.join(directory, 'document');
+        expect(output).toHaveBeenCalledWith(temporary, { flags: 'wx', mode: 0o600 });
+        expect(copy).toHaveBeenCalledWith(temporary, destination);
+        expect(await readFile(destination, 'utf8')).toBe(content);
+        expect((await stat(destination)).mode & 0o200).toBe(0o200);
+        await expect(stat(directory)).rejects.toMatchObject({ code: 'ENOENT' });
+        await writeFile(destination, 'Writable document');
+        await fsPromises.unlink(destination);
+        await expect(stat(destination)).rejects.toMatchObject({ code: 'ENOENT' });
+    });
+
+    it.each([undefined, 'manual'])('overwrites an existing destination for armDocId %s', async armDocId => {
+        const destination = path.join(testData.tmpDir, 'overwrite', String(armDocId), 'manual.pdf');
+        const downloadUrl = new URL('https://example.com/manual.pdf');
+        await mkdir(path.dirname(destination), { recursive: true });
+        await writeFile(destination, 'Original document');
+        const request = jest.spyOn(globalThis, 'fetch');
+        if (armDocId !== undefined) {
+            const metadata = Response.json({ _links: { resources: [{ href: downloadUrl.href, extension: 'pdf' }] } });
+            Object.defineProperty(metadata, 'url', { value: downloadUrl.href });
+            request.mockResolvedValueOnce(metadata);
+        }
+        request.mockImplementationOnce(async () => {
+            expect(await readFile(destination, 'utf8')).toBe('Original document');
+            return new Response('%PDF-replacement document');
+        });
+
+        await new DocDownload().downloadDoc(downloadUrl, destination, true, armDocId);
+
+        expect(await readFile(destination, 'utf8')).toBe('%PDF-replacement document');
+        expect(await readdir(path.dirname(destination))).toEqual(['manual.pdf']);
+    });
 
     describe('errors', () => {
         const metadataUrl = new URL('https://documentation-service.arm.com/documentation/manual/latest');
         const downloadUrl = new URL('https://example.com/manual.pdf');
         let destination: string;
         let request: jest.SpyInstance<ReturnType<typeof fetch>, Parameters<typeof fetch>>;
+        let temporaryDirectory: jest.SpyInstance;
 
         beforeEach(async () => {
             destination = path.join(testData.tmpDir, 'errors', 'manual.pdf');
             await mkdir(path.dirname(destination), { recursive: true });
             await writeFile(destination, 'Original document');
             request = jest.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Unexpected request.'));
+            temporaryDirectory = jest.spyOn(fsPromises, 'mkdtemp');
         });
 
-        afterEach(() => {
-            jest.restoreAllMocks();
+        afterEach(async () => {
+            const directories = await Promise.allSettled(temporaryDirectory.mock.results.map(result => result.value));
+            for (const directory of directories) {
+                if (directory.status === 'fulfilled') {
+                    await expect(stat(directory.value)).rejects.toMatchObject({ code: 'ENOENT' });
+                }
+            }
         });
 
         const pdfMetadata = () => {
@@ -163,7 +261,7 @@ describe('DocDownload', () => {
             const cancel = jest.spyOn(response.body!, 'cancel');
             request.mockResolvedValueOnce(response);
 
-            await expect(new DocDownload().downloadDoc(downloadUrl, destination, true))
+            await expect(new DocDownload().downloadDoc(downloadUrl, destination, true, 'manual'))
                 .rejects.toThrow('Document redirect has no location.');
 
             expect(request).toHaveBeenCalledTimes(1);
@@ -178,7 +276,7 @@ describe('DocDownload', () => {
             Object.defineProperty(response, 'body', { value: body });
             request.mockResolvedValueOnce(response);
 
-            await expect(new DocDownload().downloadDoc(downloadUrl, destination, true))
+            await expect(new DocDownload().downloadDoc(downloadUrl, destination, true, 'manual'))
                 .rejects.toThrow(status === 302 ? 'Document redirect has no location.' : 'Document request failed: HTTP 404');
 
             expect(request).toHaveBeenCalledTimes(1);
@@ -193,7 +291,7 @@ describe('DocDownload', () => {
                 status: 302, headers: { location: '/redirect' },
             }));
 
-            await expect(new DocDownload().downloadDoc(downloadUrl, destination, true))
+            await expect(new DocDownload().downloadDoc(downloadUrl, destination, true, 'manual'))
                 .rejects.toThrow('Document request exceeded five redirects.');
 
             expect(request).toHaveBeenCalledTimes(6);
@@ -209,7 +307,7 @@ describe('DocDownload', () => {
             const cancel = jest.spyOn(response.body!, 'cancel');
             request.mockResolvedValueOnce(response);
 
-            await expect(new DocDownload().downloadDoc(downloadUrl, destination, true)).rejects.toThrow(message);
+            await expect(new DocDownload().downloadDoc(downloadUrl, destination, true, 'manual')).rejects.toThrow(message);
 
             expect(request).toHaveBeenCalledTimes(1);
             expect(cancel).toHaveBeenCalledTimes(1);
@@ -297,7 +395,7 @@ describe('DocDownload', () => {
             await expectUnchangedDestination();
         });
 
-        it('rejects an abort during metadata retrieval without requesting a file', async () => {
+        it.each([undefined, 'manual'])('rejects an abort during fetching for armDocId %s', async armDocId => {
             const controller = new AbortController();
             const failure = new DOMException('Download timed out', 'TimeoutError');
             jest.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal);
@@ -307,7 +405,7 @@ describe('DocDownload', () => {
                 controller.abort(failure);
             }));
 
-            await expect(new DocDownload().downloadDoc(metadataUrl, destination, true, 'manual'))
+            await expect(new DocDownload().downloadDoc(metadataUrl, destination, true, armDocId))
                 .rejects.toBe(failure);
 
             expect(request).toHaveBeenCalledTimes(1);
@@ -334,13 +432,51 @@ describe('DocDownload', () => {
             await expectUnchangedDestination();
         });
 
-        it('propagates a destination directory creation failure without requesting a file', async () => {
+        it('cleans up when destination directory creation fails after downloading', async () => {
             const failure = Object.assign(new Error('Cannot create destination directory'), { code: 'EACCES' });
             jest.spyOn(fsPromises, 'mkdir').mockRejectedValueOnce(failure);
+            request.mockResolvedValueOnce(new Response('%PDF-document'));
+
+            await expect(new DocDownload().downloadDoc(downloadUrl, destination, true)).rejects.toBe(failure);
+
+            expect(request).toHaveBeenCalledTimes(1);
+            await expectUnchangedDestination();
+        });
+
+        it('does not replace the destination if aborted during destination directory creation', async () => {
+            const controller = new AbortController();
+            const failure = new DOMException('Download timed out', 'TimeoutError');
+            jest.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal);
+            jest.spyOn(fsPromises, 'mkdir').mockImplementationOnce(async () => {
+                controller.abort(failure);
+                return undefined;
+            });
+            const copy = jest.spyOn(fsPromises, 'copyFile');
+            request.mockResolvedValueOnce(new Response('%PDF-document'));
+
+            await expect(new DocDownload().downloadDoc(downloadUrl, destination, true)).rejects.toBe(failure);
+
+            expect(copy).not.toHaveBeenCalled();
+            await expectUnchangedDestination();
+        });
+
+        it('propagates a temporary directory creation failure without requesting a file', async () => {
+            const failure = Object.assign(new Error('Cannot create temporary directory'), { code: 'EACCES' });
+            temporaryDirectory.mockRejectedValueOnce(failure);
 
             await expect(new DocDownload().downloadDoc(downloadUrl, destination, true)).rejects.toBe(failure);
 
             expect(request).not.toHaveBeenCalled();
+            await expectUnchangedDestination();
+        });
+
+        it('propagates a rejected non-Arm request', async () => {
+            const failure = new Error('Connection failed');
+            request.mockRejectedValueOnce(failure);
+
+            await expect(new DocDownload().downloadDoc(downloadUrl, destination, true)).rejects.toBe(failure);
+
+            expect(request).toHaveBeenCalledTimes(1);
             await expectUnchangedDestination();
         });
 
@@ -359,12 +495,17 @@ describe('DocDownload', () => {
             await expectUnchangedDestination();
         });
 
-        it('cleans up after a final rename failure', async () => {
+        it.each([undefined, 'manual'])('cleans up after finalization fails for armDocId %s', async armDocId => {
             const failure = Object.assign(new Error('Cannot replace destination'), { code: 'EACCES' });
-            jest.spyOn(fsPromises, 'rename').mockRejectedValueOnce(failure);
+            if (armDocId !== undefined) {
+                jest.spyOn(fsPromises, 'rename').mockRejectedValueOnce(failure);
+                request.mockResolvedValueOnce(pdfMetadata());
+            } else {
+                jest.spyOn(fsPromises, 'copyFile').mockRejectedValueOnce(failure);
+            }
             request.mockResolvedValueOnce(new Response('%PDF-document'));
 
-            await expect(new DocDownload().downloadDoc(downloadUrl, destination, true)).rejects.toBe(failure);
+            await expect(new DocDownload().downloadDoc(downloadUrl, destination, true, armDocId)).rejects.toBe(failure);
 
             await expectUnchangedDestination();
         });
