@@ -24,6 +24,8 @@ import { CSolution } from '../../../solutions/csolution';
 import { SolutionRpcData } from '../../../solutions/solution-rpc-data';
 import { DocManager } from '../../../doc-manager/doc-manager';
 
+const excludedFileCategories = new Set(['genSource', 'genHeader', 'genParams', 'genAsset']);
+
 export class FileItemBuilder extends SolutionOutlineItemBuilder {
     constructor(
         csolution?: CSolution,
@@ -40,7 +42,7 @@ export class FileItemBuilder extends SolutionOutlineItemBuilder {
             const category = f.getValue('category');
             if (category === 'doc') {
                 docs?.push(f);
-            } else if (f.getValue('attr') !== 'template' && category !== 'include' && category !== 'other') {
+            } else if (f.getValue('attr') !== 'template' && category !== 'include' && category !== 'other' && !excludedFileCategories.has(category ?? '')) {
                 this.createFileNode(cgroupItem, f, isApi, addContextMenu);
             }
         }
