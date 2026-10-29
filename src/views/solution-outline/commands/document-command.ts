@@ -138,7 +138,7 @@ export class DocumentCommand {
             canSelectFiles: true,
             canSelectFolders: false,
             canSelectMany: false,
-            filters: { Documents: ['md', 'pdf', 'txt'] },
+            filters: { Documents: ['md', 'pdf'] },
         });
         if (!selected?.length || selected[0].scheme !== 'file') {
             return;

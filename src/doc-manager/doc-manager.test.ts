@@ -32,11 +32,12 @@ describe('DocManager catalog registration', () => {
     let manager: DocManager;
 
     beforeEach(async () => {
-        manager = new DocManager(path.join(__dirname, 'arm-docs.json'));
+        manager = new DocManager(path.join(__dirname, 'arm-docs.json'), undefined, path.join(testData.tmpDir, 'downloads'));
         await manager.initialize(testData.tmpDir);
     });
 
     afterEach(() => {
+        jest.restoreAllMocks();
         manager.dispose();
         testData.rmTmpDir();
     });
@@ -67,6 +68,88 @@ describe('DocManager catalog registration', () => {
         })));
         expect(new Set(books.map(doc => doc.name)).size).toBe(entries.length);
         expect(reloaded.getDocParents('common')).toHaveLength(1);
+    });
+
+    it.each([undefined, 'missing.pdf'])('discovers an existing Arm download when the stored path is %s', async storedPath => {
+        const doc = manager.file.getDocs('arm-docs', 'common')[0];
+        const destination = doc.getDestinationPath(path.join(testData.tmpDir, 'downloads'));
+        doc.path = storedPath === undefined ? undefined : path.join(testData.tmpDir, storedPath);
+        doc.error = 'Download failed';
+        expect(await manager.file.save()).toBe(ETextFileResult.Success);
+        writeTextFile(destination, '%PDF-1.7');
+        const save = jest.spyOn(manager.file, 'save');
+
+        expect(await manager.initialize(testData.tmpDir)).toBe(ETextFileResult.Success);
+
+        expect(save).toHaveBeenCalledTimes(1);
+        const reloaded = new DocsYamlFile(manager.file.fileName);
+        expect(await reloaded.load()).toBe(ETextFileResult.Success);
+        expect(reloaded.getDoc(doc.name, 'arm-docs', 'common')).toEqual(expect.objectContaining({
+            path: destination, error: undefined,
+        }));
+    });
+
+    it('preserves a valid custom Arm path and unrelated error even when the default download exists', async () => {
+        const doc = manager.file.getDocs('arm-docs', 'common')[0];
+        const customPath = path.join(testData.tmpDir, 'selected.pdf');
+        writeTextFile(customPath, '%PDF-1.7');
+        writeTextFile(doc.getDestinationPath(path.join(testData.tmpDir, 'downloads')), '%PDF-1.7');
+        doc.path = customPath;
+        doc.error = 'Previous download failed';
+        expect(await manager.file.save()).toBe(ETextFileResult.Success);
+
+        await manager.initialize(testData.tmpDir);
+
+        const reloaded = new DocsYamlFile(manager.file.fileName);
+        expect(await reloaded.load()).toBe(ETextFileResult.Success);
+        expect(reloaded.getDoc(doc.name, 'arm-docs', 'common')).toEqual(expect.objectContaining({
+            path: customPath, error: 'Previous download failed',
+        }));
+    });
+
+    it.each(['common', 'board', 'device'])('validates all %s document paths and clears only recovered missing-file errors', async parentTag => {
+        const parentId = parentTag === 'common' ? 'arm-docs' : `Vendor::${parentTag}`;
+        const name = 'https://example.com/manual.pdf';
+        const missingPath = path.join(testData.tmpDir, 'missing.pdf');
+        const existingPath = path.join(testData.tmpDir, 'existing.pdf');
+        writeTextFile(existingPath, '%PDF-1.7');
+        const missing = manager.file.ensureDoc(name, parentId, parentTag);
+        missing.path = missingPath;
+        missing.mode = 'user';
+        missing.error = 'Download failed';
+        const existing = manager.file.ensureDoc('existing.pdf', parentId, parentTag);
+        existing.path = existingPath;
+        existing.error = 'Unrelated error';
+        const noPath = manager.file.ensureDoc('https://example.com/online.html', parentId, parentTag);
+        const noPathError = manager.file.ensureDoc('https://example.com/failed.pdf', parentId, parentTag);
+        noPathError.error = 'HTTP 404';
+        expect(await manager.file.save()).toBe(ETextFileResult.Success);
+
+        expect(await manager.initialize(testData.tmpDir)).toBe(ETextFileResult.Success);
+
+        const reloaded = new DocsYamlFile(manager.file.fileName);
+        expect(await reloaded.load()).toBe(ETextFileResult.Success);
+        expect(reloaded.getDoc(name, parentId, parentTag)).toEqual(expect.objectContaining({
+            path: missingPath, error: 'File not exists', mode: 'user',
+        }));
+        expect(reloaded.getDoc(existing.name, parentId, parentTag)).toEqual(expect.objectContaining({
+            path: existingPath, error: 'Unrelated error',
+        }));
+        expect(reloaded.getDoc(noPath.name, parentId, parentTag)).toEqual(expect.objectContaining({
+            path: undefined, error: undefined,
+        }));
+        expect(reloaded.getDoc(noPathError.name, parentId, parentTag)).toEqual(expect.objectContaining({
+            path: undefined, error: 'HTTP 404',
+        }));
+
+        writeTextFile(missingPath, '%PDF-1.7');
+        expect(await manager.initialize(testData.tmpDir)).toBe(ETextFileResult.Success);
+
+        expect(await reloaded.load()).toBe(ETextFileResult.Success);
+        expect(reloaded.getDoc(name, parentId, parentTag)).toEqual(expect.objectContaining({
+            path: missingPath, error: undefined, mode: 'user',
+        }));
+        expect(reloaded.getDoc(existing.name, parentId, parentTag)?.error).toBe('Unrelated error');
     });
 });
 
@@ -421,21 +504,36 @@ describe('DocManager', () => {
         }
     });
 
-    it('reports a download error through the error reporter and resolves without a result', async () => {
+    it.each([
+        { failure: new Error('HTTP 404'), reason: 'HTTP 404' },
+        { failure: 'Connection reset', reason: 'Connection reset' },
+        { failure: undefined, reason: 'Error downloading file' },
+    ])('reports the download reason "$reason" without persisting it or logging to console', async ({ failure, reason }) => {
         await manager.addUserBook(boardId, 'board', webName, 'Manual');
-        const failure = new Error('HTTP 404');
         const download = jest.spyOn(DocDownload.prototype, 'downloadDoc').mockRejectedValueOnce(failure);
         const errorReporter = jest.fn();
+        const consoleError = jest.spyOn(console, 'error').mockImplementation();
+        const consoleWarn = jest.spyOn(console, 'warn').mockImplementation();
+        const consoleLog = jest.spyOn(console, 'log').mockImplementation();
         DocManager.setErrorReporter(errorReporter);
 
         try {
             await expect(manager.downloadDocument(boardId, 'board', webName)).resolves.toBeUndefined();
 
             expect(errorReporter).toHaveBeenCalledTimes(1);
-            expect(errorReporter).toHaveBeenCalledWith('Failed to download document: HTTP 404');
+            expect(errorReporter).toHaveBeenCalledWith(`Error : download failed ${webName} : ${reason}`);
+            const stored = new DocsYamlFile(manager.file.fileName);
+            expect(await stored.load()).toBe(ETextFileResult.Success);
+            expect(stored.getDoc(webName, boardId, 'board')?.error).toBe('Download failed');
+            expect(consoleError).not.toHaveBeenCalled();
+            expect(consoleWarn).not.toHaveBeenCalled();
+            expect(consoleLog).not.toHaveBeenCalled();
         } finally {
             DocManager.setErrorReporter();
             download.mockRestore();
+            consoleError.mockRestore();
+            consoleWarn.mockRestore();
+            consoleLog.mockRestore();
         }
     });
 
@@ -449,14 +547,22 @@ describe('DocManager', () => {
         const changed = jest.fn();
         manager.onDidChange(changed);
 
-        await expect(manager.downloadDocument('arm-docs', 'common', name)).resolves.toBeUndefined();
+        const errorReporter = jest.fn();
+        DocManager.setErrorReporter(errorReporter);
+        try {
+            await expect(manager.downloadDocument('arm-docs', 'common', name)).resolves.toBeUndefined();
 
-        const stored = new DocsYamlFile(manager.file.fileName);
-        expect(await stored.load()).toBe(ETextFileResult.Success);
-        expect(stored.getDoc(name, 'arm-docs', 'common')).toEqual(expect.objectContaining({
-            path: previousPath, error: 'Invalid document id: (missing)',
-        }));
-        expect(changed).toHaveBeenCalledTimes(1);
+            expect(errorReporter).toHaveBeenCalledTimes(1);
+            expect(errorReporter).toHaveBeenCalledWith(`Error : download failed ${name} : Invalid document id: (missing)`);
+            const stored = new DocsYamlFile(manager.file.fileName);
+            expect(await stored.load()).toBe(ETextFileResult.Success);
+            expect(stored.getDoc(name, 'arm-docs', 'common')).toEqual(expect.objectContaining({
+                path: previousPath, error: 'Download failed',
+            }));
+            expect(changed).toHaveBeenCalledTimes(1);
+        } finally {
+            DocManager.setErrorReporter();
+        }
     });
 
     it.each([false, true])('assigns the destination before transfer and persists download state, failure: %s', async fails => {
@@ -487,7 +593,7 @@ describe('DocManager', () => {
             const stored = new DocsYamlFile(manager.file.fileName);
             expect(await stored.load()).toBe(ETextFileResult.Success);
             expect(stored.getDoc(webName, boardId, 'board')).toEqual(expect.objectContaining({
-                name: webName, title: 'Manual', mode: 'user', path: destination, error: fails ? 'Transfer failed' : undefined,
+                name: webName, title: 'Manual', mode: 'user', path: destination, error: fails ? 'Download failed' : undefined,
             }));
             expect(download).toHaveBeenCalledWith(new URL(webName), destination, false, undefined);
             expect(changed).toHaveBeenCalledTimes(1);
@@ -597,7 +703,7 @@ describe('DocManager', () => {
             expect(stored.getDoc(webName, boardId, 'board')).toEqual(expect.objectContaining({
                 title: 'Updated manual',
                 path: previousPath,
-                error: fails ? 'Transfer failed' : 'Previous error',
+                error: fails ? 'Download failed' : 'Previous error',
             }));
             expect(original!.path).toEqual(expect.stringContaining(path.join('Vendor', 'Board', 'manual.pdf')));
             expect(original!.error).toBeUndefined();

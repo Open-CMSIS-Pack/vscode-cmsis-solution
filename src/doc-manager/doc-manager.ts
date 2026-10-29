@@ -77,6 +77,18 @@ class DocManagerImpl implements DocManager {
         }
         await this.file.load();
         this.addArmBooks();
+        for (const parent of this.file.getDocParents()) {
+            for (const doc of parent.docs) {
+                if (doc.path === undefined) {
+                    continue;
+                }
+                if (!fileExists(doc.path)) {
+                    doc.error = 'File not exists';
+                } else if (doc.error === 'File not exists') {
+                    doc.error = undefined;
+                }
+            }
+        }
         return this.file.save();
     }
 
@@ -114,6 +126,12 @@ class DocManagerImpl implements DocManager {
             doc.version = entry.version;
             doc.format = entry.format;
             doc.metadataUrl = `https://documentation-service.arm.com/documentation/${entry.docId}/${entry.version}`;
+            if (!fileExists(doc.path)) {
+                const destination = doc.getDestinationPath(this.destinationRoot);
+                if (fileExists(destination)) {
+                    doc.path = destination;
+                }
+            }
         }
     }
 
@@ -201,8 +219,9 @@ class DocManagerImpl implements DocManager {
             const isCommon = doc.parentTag === 'common';
             await this.downloader.downloadDoc(doc.downloadUrl, destination, isCommon, isCommon ? doc.id : undefined);
         } catch (error) {
-            downloadError = error instanceof Error ? error.message : error ? String(error) : 'Error downloading file';
-            DocManagerImpl.errorReporter(`Failed to download document: ${error instanceof Error ? error.message : String(error)}`);
+            const reason = error instanceof Error ? error.message : error ? String(error) : 'Error downloading file';
+            downloadError = 'Download failed';
+            DocManagerImpl.errorReporter(`Error : download failed ${name} : ${reason}`);
         }
         return this.update(async () => {
             const doc = this.file.getDoc(name, parentId, parentTag);
