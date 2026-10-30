@@ -377,6 +377,24 @@
     ],
     "taskDefinitions": [
       {
+        "type": "cmsis-csolution.pyocd",
+        "required": ["args"],
+        "properties": {
+          "args": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Arguments passed directly to the managed pyOCD process"
+          },
+          "options": {
+            "type": "object",
+            "properties": {
+              "cwd": { "type": "string" },
+              "env": { "type": "object" }
+            }
+          }
+        }
+      },
+      {
         "type": "cmsis-csolution.build",
         "required": [
           "solution"
