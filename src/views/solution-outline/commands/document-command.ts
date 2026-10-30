@@ -104,14 +104,18 @@ export class DocumentCommand {
         if (!this.canTransfer(node)) {
             return;
         }
-        const localPath = await this.pickDocument('Import');
-        if (!localPath) {
-            return;
-        }
         const manager = this.solutionManager.getDocManager();
-        const target = this.canTransfer(node) ? this.getTarget(node) : undefined;
+        const target = this.getTarget(node);
         const name = node?.getAttribute('docName');
         if (!target || !name) {
+            return;
+        }
+        const doc = manager.file.getDoc(name, target.parentId, target.parentTag);
+        const extensions = doc?.locationType === 'W'
+            ? [(doc.format || path.extname(doc.getDestinationPath()).slice(1)).toLowerCase()]
+            : undefined;
+        const localPath = await this.pickDocument('Import', extensions);
+        if (!localPath) {
             return;
         }
         const result = await manager.importDocument(target.parentId, target.parentTag, name, localPath, existingPaths => this.confirmReplacement(
@@ -138,13 +142,13 @@ export class DocumentCommand {
         return await this.window.showWarningMessage(message, { modal: true, detail }, action) === action;
     }
 
-    private async pickDocument(title: string): Promise<string | undefined> {
+    private async pickDocument(title: string, extensions = ['md', 'pdf']): Promise<string | undefined> {
         const selected = await this.window.showOpenDialog({
             title,
             canSelectFiles: true,
             canSelectFolders: false,
             canSelectMany: false,
-            filters: { Documents: ['md', 'pdf'] },
+            filters: { Documents: extensions },
         });
         if (!selected?.length || selected[0].scheme !== 'file') {
             return;

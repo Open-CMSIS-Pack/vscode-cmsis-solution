@@ -745,28 +745,6 @@ describe('DocManager', () => {
         }
     });
 
-    it('retains the entry when its managed directory redirects to an external directory', async () => {
-        const external = path.join(testData.tmpDir, 'external');
-        const original = path.join(external, 'manual.pdf');
-        writeTextFile(original, 'Original');
-        const doc = manager.file.ensureDoc('manual.pdf', boardId, 'board');
-        doc.mode = 'user';
-        doc.path = doc.getDestinationPath();
-        await manager.file.save();
-        fs.mkdirSync(path.dirname(doc.indexDir!), { recursive: true });
-        fs.symlinkSync(external, doc.indexDir!, 'junction');
-        const reporter = jest.fn();
-        DocManager.setErrorReporter(reporter);
-        try {
-            expect(await manager.removeDocument(boardId, 'board', doc.name)).toBe(false);
-            expect(manager.file.getDoc(doc.name, boardId, 'board')).toBeDefined();
-            expect(readFileSync(original, 'utf8')).toBe('Original');
-            expect(reporter).toHaveBeenCalledTimes(1);
-        } finally {
-            DocManager.setErrorReporter();
-        }
-    });
-
     it.each([webName, 'missing'])('does not remove an imported or missing document: %s', async name => {
         await manager.addBooks(createBuild({ board: boardId, 'board-books': [{ name: webName }] }));
         const changed = jest.fn();

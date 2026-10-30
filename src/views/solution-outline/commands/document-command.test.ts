@@ -325,9 +325,16 @@ describe('DocumentCommand', () => {
     });
 
     it.each([
-        { docName: name, locationType: 'W' },
-        { docName: 'https://example.com/manual.html', locationType: 'H' },
-    ])('imports a $locationType document using its original identity, retaining URL and mode', async ({ docName, locationType }) => {
+        { docName: name, locationType: 'W', extension: 'pdf' },
+        { docName: 'https://example.com/manual.md?download=1', locationType: 'W', extension: 'md' },
+        { docName: 'https://example.com/manual.PDF', locationType: 'W', extension: 'pdf' },
+        { docName: 'https://example.com/manual.docx', locationType: 'W', extension: 'docx' },
+        { docName: 'https://example.com/manual.html', locationType: 'H', extension: 'pdf' },
+        { docName: 'https://example.com/manual.html', locationType: 'H', extension: 'md' },
+    ])('imports a $locationType document from .$extension using its original identity, retaining URL and mode', async ({ docName, locationType, extension }) => {
+        const selectedPath = path.join(testData.tmpDir, 'source', `manual.${extension}`);
+        writeTextFile(selectedPath, 'Selected document');
+        window.showOpenDialog.mockResolvedValueOnce([vscode.Uri.file(selectedPath)]);
         const doc = manager.file.ensureDoc(docName, 'Vendor::Selected', 'board');
         const node = nodeFor('board', 'book');
         node.setAttribute('docName', docName);
@@ -338,7 +345,7 @@ describe('DocumentCommand', () => {
 
         expect(window.showOpenDialog).toHaveBeenCalledWith({
             title: 'Import', canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
-            filters: { Documents: ['md', 'pdf'] },
+            filters: { Documents: locationType === 'W' ? [extension] : ['md', 'pdf'] },
         });
         expect(doc.path).toBe(doc.getDestinationPath());
         expect(doc.path).toBeDefined();
@@ -362,6 +369,10 @@ describe('DocumentCommand', () => {
 
         await commands.mockRunRegistered(DocumentCommand.importCommandId, node);
 
+        expect(window.showOpenDialog).toHaveBeenCalledWith({
+            title: 'Import', canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
+            filters: { Documents: ['pdf'] },
+        });
         expect(manager.file.findDocs(armName).map(doc => doc.path)).toEqual([manager.file.getDoc(armName, 'arm-docs', 'common')?.getDestinationPath()]);
         expect(manager.file.getDoc(armName, 'Vendor::Selected', 'device')).toBeUndefined();
         expect(window.showErrorMessage).not.toHaveBeenCalled();

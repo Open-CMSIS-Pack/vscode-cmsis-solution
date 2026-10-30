@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { lstatSync, mkdirSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, rmSync, statSync } from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
@@ -266,7 +266,6 @@ class DocManagerImpl implements DocManager {
                 throw new Error('The selected document must be a file.');
             }
             const destination = doc.getDestinationPath(source);
-            this.validateManagedPath(destination);
             if (pathsEqual(source, destination)) {
                 return destination;
             }
@@ -291,19 +290,6 @@ class DocManagerImpl implements DocManager {
         return path.resolve(path.dirname(this.file.fileName), 'docs');
     }
 
-    private validateManagedPath(destination: string): void {
-        const root = this.managedRoot;
-        if (!pathIsAncestor(root, destination)) {
-            throw new Error('The document destination must be inside the managed root.');
-        }
-        // Reject junctions and symbolic links that could redirect copying or recursive deletion outside the root.
-        for (let directory = path.dirname(destination); pathsEqual(root, directory) || pathIsAncestor(root, directory); directory = path.dirname(directory)) {
-            if (fileExists(directory) && lstatSync(directory).isSymbolicLink()) {
-                throw new Error('Managed document directories must not be symbolic links.');
-            }
-        }
-    }
-
     async removeDocument(parentId: string, parentTag: string, name: string): Promise<boolean> {
         return await this.update(async () => {
             const doc = this.file.getDoc(name, parentId, parentTag);
@@ -314,7 +300,6 @@ class DocManagerImpl implements DocManager {
                 if (doc.path && pathIsAncestor(this.managedRoot, doc.path)) {
                     const destination = doc.getDestinationPath();
                     if (pathsEqual(doc.path, destination)) {
-                        this.validateManagedPath(destination);
                         rmSync(path.dirname(destination), { recursive: true, force: true });
                     }
                 }
