@@ -66,7 +66,6 @@ export class TestDataHandler {
 
     public dispose() {
         this.rmTmpDir();
-        this.rmFile(path.resolve('cmsis.json'));
     }
 
     public get tmpDir() {
