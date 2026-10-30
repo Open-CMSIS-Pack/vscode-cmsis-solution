@@ -35,6 +35,14 @@ describe('Solar draft project data', () => {
         expect(draft.id.key).toBe('example');
     });
 
+    it('accepts a pack version with prerelease and build metadata', () => {
+        const draft = new SolarExampleData({
+            ...example, origin: { type: 'cmsis_pack', url: 'https://example.com/Vendor.Name.1.2.3-rc.1+build.7.pack' },
+        });
+
+        expect(draft.pack).toEqual(new PackId('Vendor', 'Name', '1.2.3-rc.1+build.7'));
+    });
+
     it.each([
         undefined,
         { type: 'github', url: 'https://example.com/Arm.CMSIS.6.1.0.pack' },

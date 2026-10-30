@@ -163,7 +163,7 @@ export class SolarExampleData extends BaseDraftProjectData {
         }
         try {
             const filename = new URL(origin.url).pathname.split('/').pop();
-            const match = filename && decodeURIComponent(filename).match(/^([^./]+)\.([^./]+)\.(\d+\.\d+\.\d+(?:[-+][\w.-]+)?)\.pack$/);
+            const match = filename && decodeURIComponent(filename).match(/^([^./]+)\.([^./]+)\.(\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?)\.pack$/);
             return match && validSemver(match[3]) ? new PackId(match[1], match[2], match[3]) : undefined;
         } catch {
             return undefined;
