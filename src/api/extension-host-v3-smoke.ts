@@ -425,12 +425,75 @@ async function runTargetSelection(): Promise<void> {
     }
 }
 
+async function runConvertSolution(): Promise<void> {
+    assert.equal(vscode.workspace.workspaceFolders?.length, 1, 'Open the disposable conversion fixture.');
+    const folder = vscode.workspace.workspaceFolders![0].uri;
+    const solution = vscode.Uri.joinPath(folder, 'Selection.csolution.yml');
+    const project = vscode.Uri.joinPath(folder, 'Components.cproject.yml');
+    const originals = await Promise.all([solution, project].map(uri => vscode.workspace.fs.readFile(uri)));
+    const configuration = vscode.workspace.getConfiguration('cmsis-csolution', folder);
+    assert.equal(configuration.get('downloadPacks'), false);
+    assert.equal(configuration.get('useWebServices'), false);
+    assert.equal(configuration.get('autoConvertOnFileChange'), false);
+    const extension = vscode.extensions.getExtension<CsolutionExtension>('Arm.cmsis-csolution');
+    assert.ok(extension);
+    const exports = await extension.activate();
+    const api = exports.getApi(3);
+    try {
+        assert.equal(typeof api.convertSolution, 'function');
+        assert.ok(!('convertSolution' in exports.getApi(2)));
+        await api.deactivateSolution();
+        await assert.rejects(api.convertSolution(), /requires a loaded solution/);
+        await api.activateSolution(solution.fsPath);
+        const deadline = Date.now() + 60000;
+        while ((await api.getTargets()).length === 0) {
+            assert.ok(Date.now() < deadline, 'Conversion fixture must finish loading.');
+            await new Promise(resolve => setTimeout(resolve, 250));
+        }
+        assert.equal(await api.getActiveTarget(), 'CM3');
+        for (const options of [undefined, { updateRte: true }] as const) {
+            const result = await api.convertSolution(options);
+            console.log(`API V3 convert ${options ? 'updateRte=true' : 'defaults'} result:`, JSON.stringify(result));
+            assert.deepEqual(Object.keys(result).sort(), ['detection', 'logMessages', 'severity', 'success', 'toolsOutputMessages']);
+            assert.equal(result.success, true, 'Fixture conversion must succeed. Check installed ARM::CMSIS and ARM::Cortex_DFP packs/tooling.');
+            assert.ok(['success', 'warning', 'info'].includes(result.severity), `Unexpected severity: ${result.severity}`);
+            assert.equal(result.detection, false, 'The fixture must not require interactive configuration.');
+            assert.equal(result.logMessages.success, true);
+            assert.deepEqual(result.logMessages.errors, []);
+            assert.ok(Array.isArray(result.logMessages.warnings));
+            assert.ok(result.logMessages.warnings.every(message => typeof message === 'string'));
+            assert.ok(Array.isArray(result.logMessages.info));
+            assert.ok(result.logMessages.info.every(message => typeof message === 'string'));
+            assert.deepEqual(result.toolsOutputMessages, []);
+            assert.deepEqual(JSON.parse(JSON.stringify(result)), result);
+            assert.ok((await fs.stat(path.join(folder.fsPath, 'Selection.cbuild-idx.yml'))).isFile());
+            assert.ok((await fs.stat(path.join(folder.fsPath, 'out', 'Components', 'CM3', 'Debug', 'Components.Debug+CM3.cbuild.yml'))).isFile());
+            assert.equal(await api.getSolutionFile(), solution.fsPath);
+            assert.equal(await api.getActiveTarget(), 'CM3');
+        }
+        assert.deepEqual(await Promise.all([solution, project].map(uri => vscode.workspace.fs.readFile(uri))), originals,
+            'Conversion must not rewrite solution/project inputs.');
+        await api.deactivateSolution();
+        assert.equal(await api.getSolutionFile(), undefined);
+        await assert.rejects(api.convertSolution({ updateRte: true }), /requires a loaded solution/);
+        console.log('API V3 convert: real default/updateRte conversions, completion payload, serialization, generated artifacts, unchanged inputs/selection, unloaded rejection and V2 isolation passed.');
+    } finally {
+        try {
+            await api.deactivateSolution();
+        } finally {
+            api.dispose();
+        }
+    }
+}
+
 export async function run(): Promise<void> {
     const mode = process.env.CMSIS_V3_SMOKE_MODE;
     if (mode === 'getters') {
         await runEmptySolutionGetters();
     } else if (mode === 'selection') {
         await runTargetSelection();
+    } else if (mode === 'convert') {
+        await runConvertSolution();
     } else if (mode === 'loaded' || mode === 'missing') {
         await runLoadedPacks(mode === 'missing');
     } else if (mode === 'index' || mode === 'installed') {
