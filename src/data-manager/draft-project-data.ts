@@ -15,6 +15,7 @@
  */
 
 import path from 'path';
+import { valid as validSemver } from 'semver';
 import { ExampleProject } from '../solar-search/solar-search-client';
 import { PackId, splitPackId } from './pack-data';
 import { tmpdir } from 'os';
@@ -156,7 +157,17 @@ export class SolarExampleData extends BaseDraftProjectData {
     }
 
     public get pack() {
-        return undefined;
+        const origin = this.data.origin;
+        if (origin?.type !== 'cmsis_pack' || !origin.url) {
+            return undefined;
+        }
+        try {
+            const filename = new URL(origin.url).pathname.split('/').pop();
+            const match = filename && decodeURIComponent(filename).match(/^([^./]+)\.([^./]+)\.(\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?)\.pack$/);
+            return match && validSemver(match[3]) ? new PackId(match[1], match[2], match[3]) : undefined;
+        } catch {
+            return undefined;
+        }
     }
 
     public copyTo(dest: string) {
