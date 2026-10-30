@@ -135,7 +135,8 @@ export class DebugLaunchProviderImpl implements DebugLaunchProvider {
         const updatedTasks: string[] = [];
         for (const task of templateTasks) {
             const newTask = this.renderTemplate(task, vars);
-            if (newTask.type === 'shell' && 'command' in newTask && newTask.command === 'pyocd') {
+            if (newTask.type === 'shell' && 'command' in newTask && newTask.command === 'pyocd' &&
+                ['CMSIS Load', 'CMSIS Run'].includes(newTask.label)) {
                 newTask.type = PYOCD_TASK_TYPE;
             }
             if (newTask.label) {

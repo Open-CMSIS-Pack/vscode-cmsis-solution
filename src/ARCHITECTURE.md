@@ -141,3 +141,117 @@ host.
 ### Solar Search Client
 
 [TO BE DOCUMENTED](solar-search)
+
+### Graceful Stop of pyOCD Load+Run Tasks
+
+The extension manages the pyOCD processes used by CMSIS Load+Run so CMSIS Stop
+can request graceful shutdown, wait for process exit, and retain the final
+messages in the task terminal. Load+Run remains a compound task that executes
+Load first and starts Run only after Load succeeds.
+
+#### Task generation and execution
+
+[`DebugLaunchProvider`](debug/debug-launch-provider.ts) renders the registry
+adapter templates and converts only the pyOCD **CMSIS Load** and **CMSIS Run**
+tasks from `"type": "shell"` to
+`"type": "cmsis-csolution.pyocd"` before saving `.vscode/tasks.json`. Arguments,
+working directory, and compound dependencies are retained. The registry
+templates do not need to change: the conversion belongs to this extension.
+The conversion requires both `"command": "pyocd"` and a task label of
+`CMSIS Load` or `CMSIS Run`. Running the `pyocd` command alone does not qualify
+a task for conversion.
+
+**CMSIS Erase** and **CMSIS TargetInfo** retain `"type": "shell"` and do not use
+managed pyOCD execution. Other pyOCD tasks also remain shell tasks, keeping the
+change scoped to the Load+Run shutdown workflow. Regenerating
+tasks also restores Erase and TargetInfo to shell execution if they were
+previously generated with the managed type.
+
+The conversion happens during task generation, before Load+Run executes.
+Successful, non-detection solution conversion invokes the update command through
+[`SolutionManager`](solutions/solution-manager.ts). Existing generated files can
+also be refreshed with **Update Debug Tasks and Launch Configurations**
+(`cmsis-csolution.updateDebugTasks`). Automatic updates to `tasks.json` and
+`launch.json` require the **Auto Debug Launch** setting
+(`cmsis-csolution.autoDebugLaunch`) to be enabled. When disabled, the update command
+does not save changes to either file, preserving manual configuration.
+Updating the task type does not
+require a corresponding change to the launch configuration.
+
+[`PyocdTaskProvider`](debug/pyocd-task-provider.ts) resolves configured tasks to
+VS Code `CustomExecution` instances. Each execution creates a `PyocdTerminal`
+implementing `Pseudoterminal`, which launches the process using the extension's
+tools environment, forwards stdout/stderr, and reports completion. Active
+terminals are tracked individually; Stop requests match task name and workspace
+scope. Stopping Load+Run requests shutdown of its active Load or Run child.
+
+#### Platform-specific shutdown
+
+On Linux and macOS, the terminal launches pyOCD directly and sends SIGINT to its
+child process when shutdown is requested.
+
+On Windows, [`pyocdWindowsHost`](debug/pyocd-windows.ts) is an embedded PowerShell
+script containing a C# helper. PowerShell's `Add-Type` compiles the C# code at
+runtime when the task starts. The helper detaches from any inherited console,
+allocates its own hidden Windows console, and launches pyOCD inside it. Its
+redirected streams carry pyOCD output back to the pseudoterminal.
+
+The extension sends `stop\n` through the helper's private stdin pipe. The helper
+then calls `GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)`. This delivers Ctrl+C to
+processes attached to that console, allowing Python's `KeyboardInterrupt` handling
+to shut down pyOCD's servers and release resources. A console handler protects
+the helper itself. Graceful delivery is scoped by the isolated console rather
+than by a pyOCD process ID, so other consoles remain unaffected.
+
+PowerShell/C# was selected because Node.js cannot directly invoke these Windows
+console APIs, and Node's Windows SIGINT handling did not demonstrate graceful
+pyOCD shutdown. C# accesses the APIs through P/Invoke, while Windows PowerShell
+provides runtime compilation without an additional Python interpreter, native
+Node addon, or separately built helper executable. The tradeoffs are startup and
+compilation overhead and dependence on policies permitting PowerShell `Add-Type`.
+
+#### Cancellation, output, and timeout handling
+
+[`CmsisCommands`](tasks/commands/cmsis-commands.ts) routes CMSIS Stop through the
+provider instead of immediately calling VS Code's task termination API for an
+active managed task or its compound parent. The task terminal stays connected
+until the child exits, receives the final output and result, and remains visible
+because its presentation option `close` is set to `false`. Terminal Ctrl+C also
+requests graceful shutdown. Explicit task termination or closing the terminal
+can disconnect its UI early; the **CMSIS pyOCD** Output channel independently
+retains the process output.
+
+Cancellation reports exit code **130**, even if pyOCD handles the interrupt and
+returns zero. A cancelled Load therefore fails its sequential dependency and
+cannot advance to Run. Completion is reported once and removes the terminal from
+tracking. Managed completion events supply exit codes to the existing UI
+lifecycle handling because `CustomExecution` does not provide OS process events.
+
+The Windows helper allows five seconds for graceful shutdown before using
+`taskkill /PID ... /T /F` on the pyOCD process tree. The extension also has a
+six-second fallback: it terminates the Windows helper's process tree, or sends
+SIGKILL to the owned pyOCD process on Linux/macOS. Forced termination is reported
+in the output so it can be distinguished from graceful shutdown.
+
+```mermaid
+flowchart TD
+    Template["Registry template: shell task"] --> Generate["Generate tasks.json<br/>Convert pyOCD Load and Run to cmsis-csolution.pyocd<br/>Keep Erase and TargetInfo as shell tasks"]
+    Generate --> Compound["CMSIS Load+Run<br/>Sequential Load, then Run"]
+    Compound --> Provider["TaskProvider → CustomExecution → Pseudoterminal"]
+    Provider --> Platform{"Platform"}
+    Platform -->|Windows| Helper["PowerShell compiles C# helper<br/>Launch pyOCD in isolated console"]
+    Platform -->|Linux / macOS| Direct["Launch pyOCD directly"]
+
+    Stop["CMSIS Stop<br/>Keep task terminal connected"] --> Request["Provider requests graceful shutdown"]
+    Request -->|Windows: private stdin pipe| Helper
+    Helper --> CtrlC["GenerateConsoleCtrlEvent<br/>Ctrl+C in isolated console"]
+    Request -->|Linux / macOS| Signal["Send SIGINT to pyOCD"]
+    Direct -.-> Signal
+    CtrlC --> Exit["pyOCD closes servers and exits"]
+    Signal --> Exit
+    Request --> Timeout["Shutdown timeout"]
+    Timeout -->|Still running| Force["Force termination of owned process<br/>Windows: process tree"]
+    Force --> Finish["Report cancellation: exit code 130"]
+    Exit --> Finish
+    Finish --> Retain["Show final output; leave terminal visible<br/>Cancelled Load prevents Run"]
+```
