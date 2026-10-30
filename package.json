@@ -1286,12 +1286,12 @@
         },
         {
           "command": "cmsis-csolution.downloadDocument",
-          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)webDoc(;|$)/ && viewItem !~ /(^|;)userDoc(;|$)/",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)webDoc(;|$)/ && !(viewItem =~ /(^|;)userDoc(;|$)/)",
           "group": "contextMenu"
         },
         {
           "command": "cmsis-csolution.importDocument",
-          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)webDoc(;|$)/ && viewItem !~ /(^|;)userDoc(;|$)/",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)(webDoc|webLink)(;|$)/ && !(viewItem =~ /(^|;)userDoc(;|$)/)",
           "group": "contextMenu"
         },
         {

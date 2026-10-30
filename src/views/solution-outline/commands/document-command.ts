@@ -86,7 +86,7 @@ export class DocumentCommand {
     private async downloadDocument(node?: COutlineItem): Promise<void> {
         const target = this.canTransfer(node) ? this.getTarget(node) : undefined;
         const name = node?.getAttribute('docName');
-        if (!target || !name) {
+        if (!target || !name || node?.getAttribute('docLocationType') !== 'W') {
             return;
         }
         const manager = this.solutionManager.getDocManager();
@@ -97,7 +97,7 @@ export class DocumentCommand {
 
     private canTransfer(node?: COutlineItem): boolean {
         const features = node?.getFeatures().split(';') ?? [];
-        return features.includes('webDoc') && !features.includes('userDoc');
+        return (features.includes('webDoc') || features.includes('webLink')) && !features.includes('userDoc');
     }
 
     private async importDocument(node?: COutlineItem): Promise<void> {

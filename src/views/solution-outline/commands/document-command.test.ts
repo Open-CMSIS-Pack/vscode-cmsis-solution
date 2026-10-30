@@ -55,6 +55,7 @@ describe('DocumentCommand', () => {
         if (tag === 'book') {
             node.setAttribute('docParentId', 'Vendor::Selected');
             node.setAttribute('docParentTag', parentTag);
+            node.setAttribute('docLocationType', 'W');
             node.addFeature('docFile');
             node.addFeature('webDoc');
         }
@@ -122,6 +123,20 @@ describe('DocumentCommand', () => {
         expect(window.showErrorMessage).not.toHaveBeenCalled();
     });
 
+    it.each(['webDoc', 'webLink'])('does not download an H document with the %s feature', async feature => {
+        const node = nodeFor('board', 'book');
+        node.setAttribute('docLocationType', 'H');
+        node.setAttribute('features', `docFile;${feature}`);
+        const download = jest.spyOn(manager, 'downloadDocument').mockResolvedValue(undefined);
+
+        await commands.mockRunRegistered(DocumentCommand.downloadCommandId, node);
+
+        expect(download).not.toHaveBeenCalled();
+        expect(window.showOpenDialog).not.toHaveBeenCalled();
+        expect(window.showWarningMessage).not.toHaveBeenCalled();
+        expect(window.showErrorMessage).not.toHaveBeenCalled();
+    });
+
     it.each([
         { command: DocumentCommand.addCommandId, action: 'Overwrite', message: 'The destination file already exists. Overwrite it?' },
         { command: DocumentCommand.downloadCommandId, action: 'Overwrite', message: 'The download destination already exists. Overwrite it?' },
@@ -184,6 +199,8 @@ describe('DocumentCommand', () => {
         await commands.mockRunRegistered(command);
         await commands.mockRunRegistered(command, node);
         node.setAttribute('features', 'docFile;webDoc;userDoc');
+        await commands.mockRunRegistered(command, node);
+        node.setAttribute('features', 'docFile;webLink;userDoc');
         await commands.mockRunRegistered(command, node);
 
         expect(download).not.toHaveBeenCalled();
@@ -307,17 +324,28 @@ describe('DocumentCommand', () => {
         expect(manager.file.stringify()).toBe(before);
     });
 
-    it('imports using the original document identity, retaining URL and mode', async () => {
-        const doc = manager.file.ensureDoc(name, 'Vendor::Selected', 'board');
-        await commands.mockRunRegistered(DocumentCommand.importCommandId, nodeFor('board', 'book'));
+    it.each([
+        { docName: name, locationType: 'W' },
+        { docName: 'https://example.com/manual.html', locationType: 'H' },
+    ])('imports a $locationType document using its original identity, retaining URL and mode', async ({ docName, locationType }) => {
+        const doc = manager.file.ensureDoc(docName, 'Vendor::Selected', 'board');
+        const node = nodeFor('board', 'book');
+        node.setAttribute('docName', docName);
+        node.setAttribute('docLocationType', locationType);
+        node.setAttribute('features', locationType === 'W' ? 'docFile;webDoc' : 'docFile;webLink');
+
+        await commands.mockRunRegistered(DocumentCommand.importCommandId, node);
+
         expect(window.showOpenDialog).toHaveBeenCalledWith({
             title: 'Import', canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
             filters: { Documents: ['md', 'pdf'] },
         });
         expect(doc.path).toBe(doc.getDestinationPath());
-        expect(doc.name).toBe(name);
-        expect(doc.locationType).toBe('W');
+        expect(doc.path).toBeDefined();
+        expect(doc.name).toBe(docName);
+        expect(doc.locationType).toBe(locationType);
         expect(doc.mode).toBeUndefined();
+        expect(window.showErrorMessage).not.toHaveBeenCalled();
     });
 
     it('uses the shared document owner supplied by the outline item', async () => {
@@ -339,7 +367,7 @@ describe('DocumentCommand', () => {
         expect(window.showErrorMessage).not.toHaveBeenCalled();
     });
 
-    it.each(['https://example.com/manual.html', 'local.pdf'])('ignores a non-W document %s before selecting a file', async docName => {
+    it.each(['${CMSIS_PACK_ROOT}/manual.pdf', 'local.pdf'])('ignores a non-web document %s before selecting a file', async docName => {
         const node = nodeFor('board', 'book');
         node.setAttribute('docName', docName);
         node.setAttribute('features', 'docFile');

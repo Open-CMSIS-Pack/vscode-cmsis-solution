@@ -61,12 +61,15 @@ when set, or their URL otherwise. Documents are not downloaded automatically.
 **Add Document** copies a selected local file into the managed document directory.
 For eligible web documents, **Import** copies a local file while preserving the
 document's URL and metadata; **Download Document** retrieves the file from the web.
-Both commands are unavailable for user documents, local pack files, and HTML-only
-links. Replacing an existing destination file requires **Overwrite** confirmation.
+Import is available for both downloadable files and HTML links; Download Document
+is available only for downloadable files. Both commands are unavailable for user
+documents and local or pack files. Replacing an existing destination file requires **Overwrite** confirmation.
 The selected source file remains unchanged.
 
 Managed files use `docs/<vendor>/<hardware>/<basename>/<filename>` beside
 `docs.yml`; common Arm documents use `docs/<id>-<version>/<id>-<version>.<format>`.
+HTML links use the selected file's name for imported hardware documents and its
+extension for imported common documents, without changing the recorded URL or format.
 **Remove Document** removes a user entry and its managed document directory,
 including companion files. External legacy files are retained.
 

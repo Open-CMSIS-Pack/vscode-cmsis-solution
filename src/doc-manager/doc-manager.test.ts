@@ -326,16 +326,20 @@ describe('DocManager', () => {
         }
     });
 
-    it('imports only the selected reference while retaining its identity and metadata', async () => {
+    it.each([
+        { name: webName, format: 'pdf', locationType: 'W' },
+        { name: 'https://example.com/manual.html', format: 'html', locationType: 'H' },
+        { name: 'https://example.com/manual', format: undefined, locationType: 'H' },
+    ])('imports only the selected $locationType reference while retaining its identity and metadata', async ({ name, format, locationType }) => {
         await manager.addBooks(createBuild({
             board: boardId, device: deviceId,
-            'board-books': [{ name: webName, title: 'Board manual', category: 'reference' }],
-            'device-books': [{ name: webName, title: 'Device manual' }],
+            'board-books': [{ name, title: 'Board manual', category: 'reference' }],
+            'device-books': [{ name, title: 'Device manual' }],
         }));
-        const doc = manager.file.getDoc(webName, boardId, 'board')!;
+        const doc = manager.file.getDoc(name, boardId, 'board')!;
         doc.id = 'manual';
         doc.version = '1';
-        doc.format = 'pdf';
+        doc.format = format;
         doc.metadataUrl = 'https://example.com/metadata';
         doc.error = 'Download failed';
         await manager.file.save();
@@ -344,16 +348,16 @@ describe('DocManager', () => {
         const changed = jest.fn();
         manager.onDidChange(changed);
 
-        expect(await manager.importDocument(boardId, 'board', webName, pathToFileURL(source).href)).toBe(true);
+        expect(await manager.importDocument(boardId, 'board', name, pathToFileURL(source).href)).toBe(true);
 
         const stored = new DocsYamlFile(manager.file.fileName);
         expect(await stored.load()).toBe(ETextFileResult.Success);
         const destination = doc.getDestinationPath();
-        expect(stored.getDoc(webName, boardId, 'board')).toEqual(expect.objectContaining({
-            name: webName, title: 'Board manual', category: 'reference', id: 'manual', version: '1', format: 'pdf',
+        expect(stored.getDoc(name, boardId, 'board')).toEqual(expect.objectContaining({
+            name, title: 'Board manual', category: 'reference', id: 'manual', version: '1', format, locationType,
             metadataUrl: 'https://example.com/metadata', mode: undefined, path: destination, error: undefined,
         }));
-        expect(stored.getDoc(webName, deviceId, 'device')?.path).toBeUndefined();
+        expect(stored.getDoc(name, deviceId, 'device')?.path).toBeUndefined();
         expect(readFileSync(destination, 'utf8')).toBe('Imported document');
         expect(readFileSync(source, 'utf8')).toBe('Imported document');
         expect(changed).toHaveBeenCalledTimes(1);

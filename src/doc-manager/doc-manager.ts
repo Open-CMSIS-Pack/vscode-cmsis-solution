@@ -265,7 +265,7 @@ class DocManagerImpl implements DocManager {
             if (!statSync(source).isFile()) {
                 throw new Error('The selected document must be a file.');
             }
-            const destination = doc.getDestinationPath();
+            const destination = doc.getDestinationPath(source);
             this.validateManagedPath(destination);
             if (pathsEqual(source, destination)) {
                 return destination;

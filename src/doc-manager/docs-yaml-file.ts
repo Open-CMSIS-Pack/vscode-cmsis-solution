@@ -43,7 +43,7 @@ export interface IDocRef extends ITreeItemWrap {
     readonly downloadUrl: URL;
     mode: 'user' | undefined;
     error: string | undefined;
-    getDestinationPath(): string;
+    getDestinationPath(localPath?: string): string;
     isWebDoc(): boolean;
     isWeb(): boolean;
     isDownloaded(): boolean;
@@ -149,9 +149,6 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
     }
     get indexDir(): string | undefined {
         const locationType = this.locationType;
-        if (locationType === 'H') {
-            return undefined;
-        }
         if (this.parentTag === 'common') {
             return this.item?.resolvePath(path.join('docs', this.commonBasename));
         }
@@ -183,22 +180,24 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
     isWeb(): boolean { return getWebLocationType(this.name) !== undefined; }
     isDownloaded(): boolean { return this.locationType === 'W' && this.path !== undefined; }
 
-    getDestinationPath(): string {
+    getDestinationPath(localPath?: string): string {
         const directory = this.indexDir;
         if (!directory) {
             throw new Error('This document has no managed directory.');
         }
         if (this.parentTag === 'common') {
-            const extension = this.format === undefined ? '' : `.${this.pathComponent(this.format, 'format')}`;
+            const extension = this.locationType === 'H'
+                ? path.extname(this.pathComponent(path.basename(localPath ?? this.path ?? ''), 'filename'))
+                : this.format === undefined ? '' : `.${this.pathComponent(this.format, 'format')}`;
             return path.join(directory, `${this.commonBasename}${extension}`);
         }
-        if ((this.parentTag === 'device' || this.parentTag === 'board') && (this.isWebDoc() || this.mode === 'user')) {
+        if ((this.parentTag === 'device' || this.parentTag === 'board') && (this.isWeb() || this.mode === 'user')) {
             const hardware = splitVendorNameId(this.parentId);
-            if (this.isWebDoc() || hardware?.vendor !== undefined) {
+            if (this.isWeb() || hardware?.vendor !== undefined) {
                 this.pathComponent(hardware?.vendor, 'vendor');
             }
             this.pathComponent(hardware?.name, 'hardware name');
-            const source = this.name || this.path || '';
+            const source = this.locationType === 'H' ? localPath ?? this.path ?? '' : this.name || this.path || '';
             const url = this.isWebDoc() ? this.downloadUrl : undefined;
             const fileName = url
                 ? url.pathname.endsWith('/') ? undefined : decodeURIComponent(path.posix.basename(url.pathname))
@@ -231,8 +230,8 @@ class DocRefWrap extends CTreeItemWrap implements IDocRef {
     }
 
     private getBasename(source: string, locationType: string): string {
-        return locationType === 'W'
-            ? path.posix.parse(new URL(source.startsWith('www.') ? `https://${source}` : source).pathname).name
+        return locationType === 'W' || locationType === 'H'
+            ? path.posix.parse(new URL(source.startsWith('www.') ? `https://${source}` : source).pathname).name || 'index'
             : path.parse(source.startsWith('file://') ? fileURLToPath(source) : source).name;
     }
 }

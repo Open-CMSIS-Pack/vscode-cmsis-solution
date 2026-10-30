@@ -65,10 +65,15 @@ beside the inventory file, normally `~/.cmsis/docs`.
 - Common documents use `<root>/<id>-<version>/<id>-<version>[.<format>]`, preserving
   the requested version token. For example, `100230/latest` in PDF format uses
   `100230-latest/100230-latest.pdf`.
-- Board and device documents require `isWebDoc()` and an HTTP(S) URL. They use
+- Board and device downloads require `isWebDoc()` and an HTTP(S) URL. They use
   `<root>/<Vendor>/<Name>/<basename>/<FileName.ext>`, excluding hardware revision
   or processor suffixes and URL query parameters and fragments. Local user files
   use the same structure, deriving the basename and filename from the selected file.
+- HTML-link imports use the URL basename for the index directory (`index` for a
+  root URL) and the selected local filename. Common HTML-link imports retain the
+  `<id>-<version>` layout with the selected file's extension. `getDestinationPath(localPath)`
+  accepts the selected path, or reuses the stored path after import, without
+  changing the reference's URL, format, or `H` classification.
 - Missing or unsafe path components are rejected rather than rewritten.
 
 For common PDF documents, the reference's `downloadUrl` constructs a metadata URL
@@ -93,11 +98,13 @@ Board and device web documents download directly from their HTTP(S) URLs, withou
 Arm metadata lookup or PDF-only restrictions. URLs are used without host-specific
 rewriting, and the reference retains its original URL and title. Callers must supply
 a direct file URL rather than a hosting service's HTML viewer URL. Local files and
-HTML-only references are not supported.
+HTML-only references cannot be downloaded.
 
 The outline's Download Document command delegates to `DocManager.downloadDocument`.
-Import and Download require an eligible web document and exclude user documents,
-local pack files, and HTML-only links in both commands and the manager.
+Import is available for non-user `W` and `H` web references; Download is available
+only for non-user `W` references. The outline uses `webDoc` for `W` and `webLink`
+for `H`; Import accepts either feature and Download accepts only `webDoc`,
+excluding user documents and local or pack files.
 
 Add Document and Import share synchronous copying in `DocManager`, using
 `fs-utils` where available. They validate the source and managed destination,
