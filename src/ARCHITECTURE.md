@@ -58,15 +58,22 @@ The Data Manager abstracts access.
 [`DocManager`](doc-manager/doc-manager.ts) orchestrates downloads for common Arm
 PDFs and board/device web files from [`IDocRef`](doc-manager/docs-yaml-file.ts)
 references. Each reference calculates its `downloadUrl` and destination through
-`getDestinationPath(destinationRoot)` without I/O or inventory mutation. The
-manager supplies the absolute destination root, defaulting to `~/.cmsis/docs`;
-callers can supply another root, for example a temporary directory.
+`getDestinationPath()` without I/O or inventory mutation. The destination is
+always a filename inside the reference's `indexDir`. The managed root is `docs`
+beside the inventory file, normally `~/.cmsis/docs`.
 
-- Common documents use `<root>/<id>-<version>[.<format>]`, preserving the requested
-  version token. For example, `100230/latest` in PDF format uses `100230-latest.pdf`.
-- Board and device documents require `isWebDoc()` and an HTTP(S) URL. They use
-  `<root>/<Vendor>/<Name>/<FileName.ext>`, excluding hardware revision or processor
-  suffixes and URL query parameters and fragments.
+- Common documents use `<root>/<id>-<version>/<id>-<version>[.<format>]`, preserving
+  the requested version token. For example, `100230/latest` in PDF format uses
+  `100230-latest/100230-latest.pdf`.
+- Board and device downloads require `isWebDoc()` and an HTTP(S) URL. They use
+  `<root>/<Vendor>/<Name>/<basename>/<FileName.ext>`, excluding hardware revision
+  or processor suffixes and URL query parameters and fragments. Local user files
+  use the same structure, deriving the basename and filename from the selected file.
+- HTML-link imports use the URL basename for the index directory (`index` for a
+  root URL) and the selected local filename. Common HTML-link imports retain the
+  `<id>-<version>` layout with the selected file's extension. `getDestinationPath(localPath)`
+  accepts the selected path, or reuses the stored path after import, without
+  changing the reference's URL, format, or `H` classification.
 - Missing or unsafe path components are rejected rather than rewritten.
 
 For common PDF documents, the reference's `downloadUrl` constructs a metadata URL
@@ -91,19 +98,31 @@ Board and device web documents download directly from their HTTP(S) URLs, withou
 Arm metadata lookup or PDF-only restrictions. URLs are used without host-specific
 rewriting, and the reference retains its original URL and title. Callers must supply
 a direct file URL rather than a hosting service's HTML viewer URL. Local files and
-HTML-only references are not supported.
+HTML-only references cannot be downloaded.
 
-The outline's Download Document command delegates to `DocManager.downloadDocument`,
-which serializes the operation with other inventory updates, saves both successful
-and failed download state, and notifies the outline after a successful save.
-Before assigning state, it looks up the document again by its original name and
-parent identity so a replaced inventory record receives the result. Success and
-failure converge on one lookup, state assignment, and save. Removed
-documents are not recreated; transfers return `false` when the record is gone.
-Download failures are reported through the manager's error reporter and return
-`false` rather than rejecting; inventory load or save failures return `false`.
-Set Local Path updates matching references and clears their errors only when the
-selected destination exists. Open Documentation checks the current inventory and
+The outline's Download Document command delegates to `DocManager.downloadDocument`.
+Import is available for non-user `W` and `H` web references; Download is available
+only for non-user `W` references. The outline uses `webDoc` for `W` and `webLink`
+for `H`; Import accepts either feature and Download accepts only `webDoc`,
+excluding user documents and local or pack files.
+
+Add Document and Import share synchronous copying in `DocManager`, using
+`fs-utils` where available. They validate the source and managed destination,
+request Overwrite confirmation for an existing file, and copy directly to the
+destination. Selecting the destination itself skips copying. Cancellation leaves
+files and inventory unchanged. Copy failures are reported without assigning a new
+path. A successful copy sets the absolute `path` and clears its error.
+Import changes only the selected reference and retains its identity and metadata;
+re-adding a same-filename user document reuses its entry within its hardware parent.
+Inventory updates use `DocsYamlFile` and notify the outline after a successful save.
+
+Remove Document deletes a selected user document's entire managed `indexDir`
+before removing its inventory entry. The manager validates containment and rejects
+symbolic-link directories. External legacy paths are retained.
+A missing directory permits entry removal; deletion errors retain the entry and
+are reported through the manager's error reporter.
+
+Open Documentation checks the current inventory and
 opens `path` only when the destination exists, otherwise falling back to `name`.
 Web documents, including downloaded Markdown files, use this open command.
 

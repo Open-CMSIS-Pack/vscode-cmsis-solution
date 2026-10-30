@@ -122,6 +122,8 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         bookItem.addFeature('docFile');
         if (locationType === 'W') {
             bookItem.addFeature('webDoc');
+        } else if (locationType === 'H') {
+            bookItem.addFeature('webLink');
         }
         if (doc.mode === 'user') {
             bookItem.addFeature('userDoc');

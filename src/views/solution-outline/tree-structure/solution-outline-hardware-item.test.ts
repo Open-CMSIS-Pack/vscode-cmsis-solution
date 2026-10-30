@@ -16,6 +16,7 @@
 
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { JsonFile } from '@open-cmsis-pack/cmsis-common/json-file';
 import { parseYamlToCTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item-yaml-parser';
 import { CSolution } from '../../../solutions/csolution';
 import { HardwareItemBuilder } from './solution-outline-hardware-item';
@@ -57,7 +58,6 @@ describe('HardwareItemBuilder', () => {
         build.createChild('processor').setValue('core', 'Cortex-M4');
         build.setValue('device', 'ARM::SSE-315');
         await manager.addBooks(build);
-        const save = jest.spyOn(manager.file, 'save');
         const builder = new HardwareItemBuilder(csolution, undefined, manager);
         const hardware = [...builder.createHardwareNodes(csolution, build).values()].find(item => item.getTag() === 'device')!;
         const books = hardware.getChildren();
@@ -66,7 +66,6 @@ describe('HardwareItemBuilder', () => {
         build.setValue('device', 'Vendor::Other');
         const otherHardware = [...builder.createHardwareNodes(csolution, build).values()].find(item => item.getTag() === 'device')!;
         expect(otherHardware.getChildren().map(book => book.getAttribute('docName'))).toEqual(books.map(book => book.getAttribute('docName')));
-        expect(save).not.toHaveBeenCalled();
         manager.dispose();
     });
 
@@ -97,7 +96,6 @@ describe('HardwareItemBuilder', () => {
         await docManager.addBooks(root!.getChild() as CTreeItem);
         const inventory = docManager.file.stringify();
         const addBooks = jest.spyOn(docManager, 'addBooks');
-        const save = jest.spyOn(docManager.file, 'save');
         const hwItemBuilder = new HardwareItemBuilder(csolution, undefined, docManager);
         const hwNodes = hwItemBuilder.createHardwareNodes(csolution, root?.getChild() as CTreeItem);
         const books = hwNodes.get(parentId)?.getChildren().map(book => ({
@@ -112,11 +110,10 @@ describe('HardwareItemBuilder', () => {
             { tag: 'book', label: 'Cbuild manual', docPath: path.join(path.dirname(cSolFile), 'reported.pdf') },
         ]);
         expect(addBooks).not.toHaveBeenCalled();
-        expect(save).not.toHaveBeenCalled();
         expect(docManager.file.stringify()).toBe(inventory);
     });
 
-    it.each(['board', 'device'] as const)('exposes exact %s document identity and W/user command eligibility', async parentTag => {
+    it.each(['board', 'device'] as const)('exposes exact %s document identity and W/H/user command eligibility', async parentTag => {
         const csolution = new CSolution();
         await csolution.load(cSolFile);
         const parentId = parentTag === 'board' ? 'Vendor::Board:RevA' : 'Vendor::Device';
@@ -153,7 +150,7 @@ describe('HardwareItemBuilder', () => {
             expect(book.getAttribute('docParentId')).toBe(parentId);
             expect(book.getAttribute('docParentTag')).toBe(parentTag);
         }
-        expect(books.map(book => book.getAttribute('features'))).toEqual(['docFile;webDoc;userDoc', 'docFile', 'docFile', 'docFile;userDoc']);
+        expect(books.map(book => book.getAttribute('features'))).toEqual(['docFile;webDoc;userDoc', 'docFile;webLink', 'docFile', 'docFile;userDoc']);
         expect(books[0].getAttribute('docPath')).toBe(path.resolve('selected.md'));
         expect(books[0].getAttribute('resourcePath')).toBe(path.resolve('selected.md'));
         expect(books.map(book => book.getAttribute('iconPath'))).toEqual([undefined, undefined, undefined, undefined]);
@@ -168,6 +165,40 @@ describe('HardwareItemBuilder', () => {
             'cmsis-csolution.openDocFile',
             'cmsis-csolution.openDocFile',
         ]);
+    });
+
+    it.each([undefined, 'user'] as const)('shows Download for W and Import for W/H in the context menu (mode: %s)', async mode => {
+        const manifest = new JsonFile(path.resolve('package.json'));
+        expect(await manifest.load()).toBe(ETextFileResult.Success);
+        const menus = (manifest.content as {
+            contributes: { menus: { 'view/item/context': { command: string; when: string }[] } };
+        }).contributes.menus['view/item/context'];
+        const downloadMenu = menus.find(menu => menu.command === 'cmsis-csolution.downloadDocument');
+        const importMenu = menus.find(menu => menu.command === 'cmsis-csolution.importDocument');
+        expect(downloadMenu?.when).toBe('view == cmsis-csolution.outline && viewItem =~ /(^|;)webDoc(;|$)/ && !(viewItem =~ /(^|;)userDoc(;|$)/)');
+        expect(importMenu?.when).toBe('view == cmsis-csolution.outline && viewItem =~ /(^|;)(webDoc|webLink)(;|$)/ && !(viewItem =~ /(^|;)userDoc(;|$)/)');
+
+        const csolution = new CSolution();
+        expect(await csolution.load(cSolFile)).toBe(ETextFileResult.Success);
+        const parentId = csolution.getDeviceNameWithVendor();
+        const names = ['https://example.com/manual.pdf', 'https://example.com/manual.html', 'local.pdf', '${CMSIS_PACK_ROOT}/manual.pdf'];
+        for (const name of names) {
+            const doc = docManager.file.ensureDoc(name, parentId, 'device');
+            doc.title = name;
+            doc.mode = mode;
+        }
+        const builder = new HardwareItemBuilder(csolution, undefined, docManager);
+        const books = builder.createHardwareNodes(csolution).get(parentId)!.getChildren();
+
+        expect(books.map(book => book.getAttribute('docLocationType'))).toEqual(['W', 'H', 'L', 'P']);
+        expect(books.map(book => (book.getAttribute('features') ?? '').split(';').includes('webDoc'))).toEqual([true, false, false, false]);
+        expect(books.map(book => (book.getAttribute('features') ?? '').split(';').includes('webLink'))).toEqual([false, true, false, false]);
+        const downloadable = books.filter(book => /(^|;)webDoc(;|$)/.test(book.getAttribute('features') ?? '')
+            && !/(^|;)userDoc(;|$)/.test(book.getAttribute('features') ?? ''));
+        const importable = books.filter(book => /(^|;)(webDoc|webLink)(;|$)/.test(book.getAttribute('features') ?? '')
+            && !/(^|;)userDoc(;|$)/.test(book.getAttribute('features') ?? ''));
+        expect(downloadable.map(book => book.getAttribute('docName'))).toEqual(mode === 'user' ? [] : [names[0]]);
+        expect(importable.map(book => book.getAttribute('docName'))).toEqual(mode === 'user' ? [] : names.slice(0, 2));
     });
 
     it.each([undefined, 'user'] as const)('shows the owning pack only for non-user pack documents (mode: %s)', async mode => {
@@ -200,7 +231,6 @@ describe('HardwareItemBuilder', () => {
         const name = 'https://example.com/manual.pdf';
         docManager.file.ensureDoc(name, parentId, 'device').title = 'Device manual';
         const inventory = docManager.file.stringify();
-        const save = jest.spyOn(docManager.file, 'save');
         const addBooks = jest.spyOn(docManager, 'addBooks');
         const builder = new HardwareItemBuilder(csolution, undefined, docManager);
 
@@ -215,7 +245,6 @@ describe('HardwareItemBuilder', () => {
             expect(books.map(book => book.getAttribute('docName'))).toEqual([name]);
             expect(books[0].getParent()).toBe(hardware);
         }
-        expect(save).not.toHaveBeenCalled();
         expect(addBooks).not.toHaveBeenCalled();
         expect(docManager.file.stringify()).toBe(inventory);
     });

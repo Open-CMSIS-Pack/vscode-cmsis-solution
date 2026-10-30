@@ -32,7 +32,7 @@ solution
       docLocationType=H
       docHasPath=0
       tooltip=http://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
-      features=docFile
+        features=docFile;webLink
       command=cmsis-csolution.openDocFile
   project
     label=core0.Debug+CM0

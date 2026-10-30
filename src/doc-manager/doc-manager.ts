@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-import * as os from 'node:os';
+import { mkdirSync, rmSync, statSync } from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { ETextFileResult, TextFileErrorReporter } from '@open-cmsis-pack/cmsis-common/text-file';
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { Event, EventEmitter } from 'vscode';
-import { expandRootVars, pathsEqual } from '../utils/path-utils';
-import { fileExists } from '../utils/fs-utils';
+import { expandRootVars, pathIsAncestor, pathsEqual } from '../utils/path-utils';
+import { copyFile, fileExists } from '../utils/fs-utils';
 import { DocsYamlFile, getDocParentId, getWebLocationType, IDocRef } from './docs-yaml-file';
 import { ArmDocs, armDocName, cbuildCore } from './arm-docs';
 import { DocDownload } from './doc-download';
@@ -37,9 +37,9 @@ export interface DocManager {
     addBooks(cbuild: CTreeItem): Promise<void>;
     getBooks(parentId: string, parentTag: string, cbuild?: CTreeItem): readonly IDocRef[];
     getArmBooks(cbuild?: CTreeItem): readonly IDocRef[];
-    addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string, confirmReplace?: DocumentConfirmation): Promise<IDocRef | undefined | null>;
+    addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string, confirmOverwrite?: DocumentConfirmation): Promise<IDocRef | undefined | null>;
     downloadDocument(parentId: string, parentTag: string, name: string, confirmOverwrite?: DocumentConfirmation): Promise<void>;
-    setLocalPath(parentId: string, parentTag: string, name: string, localPath: string, confirmReplace?: DocumentConfirmation): Promise<boolean | null>;
+    importDocument(parentId: string, parentTag: string, name: string, localPath: string, confirmOverwrite?: DocumentConfirmation): Promise<boolean | null>;
     removeDocument(parentId: string, parentTag: string, name: string): Promise<boolean>;
 }
 
@@ -51,11 +51,9 @@ class DocManagerImpl implements DocManager {
     private pendingUpdate: Promise<unknown> = Promise.resolve();
 
     private readonly armDocs: ArmDocs;
-    private readonly destinationRoot: string;
 
-    constructor(catalogFileName?: string, private readonly downloader = new DocDownload(), destinationRoot = path.join(os.homedir(), '.cmsis', 'docs')) {
+    constructor(catalogFileName?: string, private readonly downloader = new DocDownload()) {
         this.armDocs = new ArmDocs(catalogFileName);
-        this.destinationRoot = path.resolve(destinationRoot);
     }
 
     static setErrorReporter(reporter?: TextFileErrorReporter): void {
@@ -127,7 +125,7 @@ class DocManagerImpl implements DocManager {
             doc.format = entry.format;
             doc.metadataUrl = `https://documentation-service.arm.com/documentation/${entry.docId}/${entry.version}`;
             if (!fileExists(doc.path)) {
-                const destination = doc.getDestinationPath(this.destinationRoot);
+                const destination = doc.getDestinationPath();
                 if (fileExists(destination)) {
                     doc.path = destination;
                 }
@@ -151,14 +149,19 @@ class DocManagerImpl implements DocManager {
         });
     }
 
-    private update<T>(operation: () => Promise<T>, notify = true): Promise<T> {
+    private update<T>(operation: () => Promise<T>, notify = true): Promise<T | undefined> {
         const result = this.pendingUpdate.then(async () => {
-            await this.file.load();
+            if (await this.file.load() === ETextFileResult.Error) {
+                return undefined;
+            }
             const value = await operation();
-            if (value === null) {
+            if (value === null || value === false) {
                 return value;
             }
             const saved = await this.file.save();
+            if (saved === ETextFileResult.Error) {
+                return undefined;
+            }
             if (notify && saved === ETextFileResult.Success) {
                 this.changeEmitter.fire();
             }
@@ -168,37 +171,39 @@ class DocManagerImpl implements DocManager {
         return result;
     }
 
-    async addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string, confirmReplace?: DocumentConfirmation): Promise<IDocRef | undefined | null> {
+    async addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string, confirmOverwrite?: DocumentConfirmation): Promise<IDocRef | undefined | null> {
         return this.update(async () => {
             const docParentId = getDocParentId(parentId, parentTag);
 
             if (!docParentId || !name) {
                 return;
             }
-            const docPath = name && !getWebLocationType(name)
-                ? path.resolve(expandRootVars(name.startsWith('file://') ? fileURLToPath(name) : name))
-                : undefined;
-            if (docPath && confirmReplace) {
-                const localDocs = this.file.getDocs(docParentId, parentTag)
-                    .filter(doc => doc.mode === 'user' && !doc.isWeb());
-                const existing = localDocs.find(doc => pathsEqual(doc.path ?? doc.name, docPath))
-                    ?? localDocs.find(doc => pathsEqual(path.basename(doc.path ?? doc.name), path.basename(docPath)));
-                if (existing && !pathsEqual(existing.path ?? existing.name, docPath)) {
-                    if (!await confirmReplace([existing.path ?? existing.name])) {
-                        return null;
-                    }
-                    existing.name = docPath;
-                    existing.path = docPath;
-                    return existing;
+            if (getWebLocationType(name)) {
+                const doc = this.addBook(docParentId, parentTag, name, title, category, undefined, 'user');
+                if (doc) {
+                    doc.mode = 'user';
                 }
-                if (existing) {
-                    return existing;
-                }
+                return doc;
             }
-            const doc = this.addBook(docParentId, parentTag, name, title, category, docPath, 'user');
-            if (doc) {
-                doc.mode = 'user';
+            let source: string;
+            try {
+                source = path.resolve(expandRootVars(name.startsWith('file://') ? fileURLToPath(name) : name));
+            } catch (error) {
+                DocManagerImpl.errorReporter(`Import failed: ${name}: ${String(error)}`);
+                return undefined;
             }
+            const existing = this.file.getDocs(docParentId, parentTag).find(doc => doc.mode === 'user' && !doc.isWeb()
+                && pathsEqual(path.basename(doc.name), path.basename(source)));
+            // Calculate a new record's destination without changing the live inventory before copying succeeds.
+            const candidate = existing ?? new DocsYamlFile(this.file.fileName).ensureDoc(source, docParentId, parentTag);
+            candidate.mode = 'user';
+            const destination = await this.copyDocument(candidate, source, confirmOverwrite);
+            if (destination === null || destination === undefined) {
+                return destination;
+            }
+            const doc = existing ?? this.addBook(docParentId, parentTag, source, title, category, undefined, 'user')!;
+            doc.mode = 'user';
+            doc.path = destination;
             return doc;
         });
     }
@@ -208,10 +213,10 @@ class DocManagerImpl implements DocManager {
         try {
             await this.file.load();
             const doc = this.file.getDoc(name, parentId, parentTag);
-            if (!doc || !doc.isWebDoc()) {
+            if (!doc || doc.mode === 'user' || doc.locationType !== 'W') {
                 return;
             }
-            const destination = doc.getDestinationPath(this.destinationRoot);
+            const destination = doc.getDestinationPath();
             if (confirmOverwrite && fileExists(destination) && !await confirmOverwrite([destination])) {
                 return;
             }
@@ -223,7 +228,7 @@ class DocManagerImpl implements DocManager {
             downloadError = 'Download failed';
             DocManagerImpl.errorReporter(`Error : download failed ${name} : ${reason}`);
         }
-        return this.update(async () => {
+        await this.update(async () => {
             const doc = this.file.getDoc(name, parentId, parentTag);
             if (!doc) {
                 return;
@@ -234,36 +239,77 @@ class DocManagerImpl implements DocManager {
         });
     }
 
-    async setLocalPath(parentId: string, parentTag: string, name: string, localPath: string, confirmReplace?: DocumentConfirmation): Promise<boolean | null> {
-        return this.update(async () => {
+    async importDocument(parentId: string, parentTag: string, name: string, localPath: string, confirmOverwrite?: DocumentConfirmation): Promise<boolean | null> {
+        if (!localPath) {
+            return false;
+        }
+
+        const result = await this.update(async () => {
             const doc = this.file.getDoc(name, parentId, parentTag);
-            if (!doc || doc.locationType !== 'W' || !localPath || getWebLocationType(localPath)) {
+            if (!doc || doc.mode === 'user' || doc.locationType == 'P') {
                 return false;
             }
-            const resolved = path.resolve(expandRootVars(localPath.startsWith('file://') ? fileURLToPath(localPath) : localPath));
-            const references = this.file.findDocs(name);
-            const existingPaths = references.map(reference => reference.path)
-                .filter((existingPath): existingPath is string => fileExists(existingPath) && !pathsEqual(existingPath, resolved))
-                .filter((existingPath, index, paths) => paths.findIndex(candidate => pathsEqual(candidate, existingPath)) === index);
-            if (confirmReplace && existingPaths.length > 0 && !await confirmReplace(existingPaths)) {
-                return null;
+            const destination = await this.copyDocument(doc, localPath, confirmOverwrite);
+            if (destination === null || destination === undefined) {
+                return destination;
             }
-            for (const reference of references) {
-                reference.path = resolved;
-            }
+            doc.path = destination;
             return true;
         });
+        return result === undefined ? false : result;
+    }
+
+    private async copyDocument(doc: IDocRef, localPath: string, confirmOverwrite?: DocumentConfirmation): Promise<string | undefined | null> {
+        try {
+            const source = path.resolve(expandRootVars(localPath.startsWith('file://') ? fileURLToPath(localPath) : localPath));
+            if (!statSync(source).isFile()) {
+                throw new Error('The selected document must be a file.');
+            }
+            const destination = doc.getDestinationPath(source);
+            if (pathsEqual(source, destination)) {
+                return destination;
+            }
+            if (fileExists(destination)) {
+                if (!statSync(destination).isFile()) {
+                    throw new Error('The document destination must be a file.');
+                }
+                if (!confirmOverwrite || !await confirmOverwrite([destination])) {
+                    return null;
+                }
+            }
+            mkdirSync(path.dirname(destination), { recursive: true });
+            copyFile(source, destination);
+            return destination;
+        } catch (error) {
+            DocManagerImpl.errorReporter(`Import failed: ${localPath}: ${String(error)}`);
+            return undefined;
+        }
+    }
+
+    private get managedRoot(): string {
+        return path.resolve(path.dirname(this.file.fileName), 'docs');
     }
 
     async removeDocument(parentId: string, parentTag: string, name: string): Promise<boolean> {
-        return this.update(async () => {
+        return await this.update(async () => {
             const doc = this.file.getDoc(name, parentId, parentTag);
             if (doc?.mode !== 'user') {
                 return false;
             }
+            try {
+                if (doc.path && pathIsAncestor(this.managedRoot, doc.path)) {
+                    const destination = doc.getDestinationPath();
+                    if (pathsEqual(doc.path, destination)) {
+                        rmSync(path.dirname(destination), { recursive: true, force: true });
+                    }
+                }
+            } catch (error) {
+                DocManagerImpl.errorReporter(`Remove document failed: ${name}: ${String(error)}`);
+                return false;
+            }
             doc.remove();
             return true;
-        });
+        }) ?? false;
     }
 
     private addBook(
