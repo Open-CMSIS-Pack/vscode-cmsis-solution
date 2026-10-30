@@ -188,6 +188,40 @@ describe('SolutionConverter', () => {
             expect(eventHub.fireConfigureSolutionDataReady).not.toHaveBeenCalled();
         });
 
+        it('keeps the latest queued event after a locked activation and an API conversion', async () => {
+            mockConfigurationProvider.getConfigVariable.mockReturnValue(false);
+            const activated = waitForNCompletions(1);
+            await eventHub.fireConvertRequest({ ...convertRequestData, lockAbort: true });
+            await activated;
+            mockCsolutionService.convertSolution.mockClear();
+            completedListener.mockClear();
+
+            let finishApi!: () => void;
+            let markStarted!: () => void;
+            const started = new Promise<void>(resolve => { markStarted = resolve; });
+            mockCsolutionService.convertSolution.mockImplementationOnce(() => new Promise(resolve => {
+                finishApi = () => resolve({ success: true });
+                markStarted();
+            }));
+            const api = converter.convertSolution({ ...convertRequestData, targetSet: 'API' });
+            await started;
+            await eventHub.fireConvertRequest({ ...convertRequestData, targetSet: 'Older', lockAbort: false });
+            await eventHub.fireConvertRequest({ ...convertRequestData, targetSet: 'Latest', lockAbort: false, updateRte: true });
+            expect(mockCsolutionService.convertSolution).toHaveBeenCalledTimes(1);
+
+            finishApi();
+            await api;
+            // Drain the mutex queue before checking which event converted.
+            await converter.convertSolution({ ...convertRequestData, targetSet: 'AfterEvents' });
+
+            expect(mockCsolutionService.convertSolution.mock.calls).toEqual([
+                [{ solution: ACTIVE_SOLUTION, activeTarget: 'API', updateRte: false }],
+                [{ solution: ACTIVE_SOLUTION, activeTarget: 'Latest', updateRte: true }],
+                [{ solution: ACTIVE_SOLUTION, activeTarget: 'AfterEvents', updateRte: false }],
+            ]);
+            expect(completedListener).toHaveBeenCalledTimes(1);
+        });
+
         it.each(['API then API', 'event then API', 'API then event'])('serializes %s without mixing target data or completion events', async mode => {
             let finishFirst!: () => void;
             let markStarted!: () => void;

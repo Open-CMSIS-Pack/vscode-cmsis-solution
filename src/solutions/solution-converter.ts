@@ -68,13 +68,12 @@ export class SolutionConverterImpl implements SolutionConverter {
             return; // nothing to convert
         }
 
-        this.controller = new AbortController();
-        const { signal } = this.controller;
+        const controller = new AbortController();
+        this.controller = controller;
+        const { signal } = controller;
 
-        // wait for mutex
-        const release = await this.convertSolutionMutex.acquire();
-        // make deep copy of incoming data
-        this.data = {
+        // Track queued data with its controller before waiting for the mutex.
+        const request = this.data = {
             solutionPath: data.solutionPath,
             targetSet: data.targetSet,
             updateRte: data.updateRte,
@@ -82,15 +81,18 @@ export class SolutionConverterImpl implements SolutionConverter {
             lockAbort: data.lockAbort,
         };
 
+        const release = await this.convertSolutionMutex.acquire();
         try {
-            await this.runConversion(this.data, signal);
+            await this.runConversion(request, signal);
         } catch (error) {
             if (!signal.aborted) {
                 await this.handleConvertFailure(error);
             }
         } finally {
             release();
-            this.controller = null;
+            if (this.controller === controller) {
+                this.controller = null;
+            }
         }
     }
 
