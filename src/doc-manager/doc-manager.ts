@@ -240,9 +240,13 @@ class DocManagerImpl implements DocManager {
     }
 
     async importDocument(parentId: string, parentTag: string, name: string, localPath: string, confirmOverwrite?: DocumentConfirmation): Promise<boolean | null> {
+        if (!localPath) {
+            return false;
+        }
+
         const result = await this.update(async () => {
             const doc = this.file.getDoc(name, parentId, parentTag);
-            if (!doc || doc.mode === 'user' || doc.locationType !== 'W' || !localPath || getWebLocationType(localPath)) {
+            if (!doc || doc.mode === 'user' || doc.locationType == 'P') {
                 return false;
             }
             const destination = await this.copyDocument(doc, localPath, confirmOverwrite);

@@ -388,7 +388,7 @@ describe('DocumentCommand', () => {
         manager.file.ensureDoc(name, 'Vendor::Selected', 'board');
         await manager.file.save();
         window.showOpenDialog.mockImplementationOnce(async () => {
-            manager.file.removeDoc(name, 'Vendor::Selected', 'board');
+            await manager.file.removeDoc(name, 'Vendor::Selected', 'board');
             return [vscode.Uri.file(localPath)];
         });
         await commands.mockRunRegistered(DocumentCommand.importCommandId, nodeFor('board', 'book'));

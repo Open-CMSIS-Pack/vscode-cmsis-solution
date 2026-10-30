@@ -715,7 +715,7 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.downloadDocument",
-        "title": "Download Document",
+        "title": "Download",
         "icon": "$(cloud-download)"
       },
       {
