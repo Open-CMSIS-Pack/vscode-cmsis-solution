@@ -380,6 +380,10 @@
         "type": "cmsis-csolution.pyocd",
         "required": ["args"],
         "properties": {
+          "command": {
+            "type": "string",
+            "description": "pyOCD executable"
+          },
           "args": {
             "type": "array",
             "items": { "type": "string" },
