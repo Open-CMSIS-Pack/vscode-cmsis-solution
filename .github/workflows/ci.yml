@@ -234,7 +234,7 @@ jobs:
           - target: linux-x64
             platform: ubuntu-24.04
           - target: darwin-arm64
-            platform: macos-14
+            platform: macos-15
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
