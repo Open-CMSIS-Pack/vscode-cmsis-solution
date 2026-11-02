@@ -379,8 +379,14 @@ describe('SolutionManager', () => {
         const changedPath = getLoadedSolutionFile('.cproject.yml');
         convertMock.mockClear();
         changeSolutionFilesEmitter.fire(changedPath);
+        const completed = new Promise<void>(resolve => {
+            const subscription = solutionManager.onDidSetupCompleted(() => {
+                subscription.dispose();
+                resolve();
+            });
+        });
         await solutionManager.refresh();
-        await waitTimeout(50);
+        await completed;
         expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
 
         changeSolutionFilesEmitter.fire(changedPath);
