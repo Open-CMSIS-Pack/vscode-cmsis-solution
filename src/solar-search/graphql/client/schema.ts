@@ -618,7 +618,7 @@ export type GetBoardProjectsQueryVariables = Exact<{
 }>;
 
 
-export type GetBoardProjectsQuery = { __typename?: 'Query', search_projects: { __typename?: 'ProjectCollection', results: Array<{ __typename?: 'Project', description: string, download_url: string, name: string, id: string, format: { __typename?: 'CsolutionProjectFormat', cmsis_version?: string | null, type: ProjectFormatType } | { __typename: 'UvProjectFormat', convertible: boolean, type: ProjectFormatType } }> } };
+export type GetBoardProjectsQuery = { __typename?: 'Query', search_projects: { __typename?: 'ProjectCollection', results: Array<{ __typename?: 'Project', description: string, download_url: string, name: string, id: string, format: { __typename?: 'CsolutionProjectFormat', cmsis_version?: string | null, type: ProjectFormatType } | { __typename: 'UvProjectFormat', convertible: boolean, type: ProjectFormatType }, origin: { __typename?: 'ProjectOrigin', type?: string | null, url?: string | null } }> } };
 
 export type GetAllDevicesQueryVariables = Exact<{
   offset: Scalars['Int']['input'];
@@ -693,6 +693,10 @@ export const GetBoardProjectsDocument = gql`
       }
       name
       id
+      origin {
+        type
+        url
+      }
     }
   }
 }

@@ -16,7 +16,45 @@
 
 import * as path from 'path';
 import { ExampleProject, SolutionTemplate } from '../json-rpc/csolution-rpc-client';
-import { CsolutionExampleData, CsolutionTemplateData } from './draft-project-data';
+import { CsolutionExampleData, CsolutionTemplateData, SolarExampleData } from './draft-project-data';
+import { PackId } from './pack-data';
+import { ExampleProject as SolarProject } from '../solar-search/solar-search-client';
+
+describe('Solar draft project data', () => {
+    const example: SolarProject = {
+        name: 'Web example', description: '', format: { type: 'csolution' },
+        download_url: 'https://example.com/example.zip', id: 'example',
+    };
+
+    it('exposes the origin pack without changing the web example ID', () => {
+        const draft = new SolarExampleData({
+            ...example, origin: { type: 'cmsis_pack', url: 'https://example.com/packs/Arm.CMSIS.6.1.0.pack?download=1' },
+        });
+
+        expect(draft.pack).toEqual(new PackId('Arm', 'CMSIS', '6.1.0'));
+        expect(draft.id.key).toBe('example');
+    });
+
+    it('accepts a pack version with prerelease and build metadata', () => {
+        const draft = new SolarExampleData({
+            ...example, origin: { type: 'cmsis_pack', url: 'https://example.com/Vendor.Name.1.2.3-rc.1+build.7.pack' },
+        });
+
+        expect(draft.pack).toEqual(new PackId('Vendor', 'Name', '1.2.3-rc.1+build.7'));
+    });
+
+    it.each([
+        undefined,
+        { type: 'github', url: 'https://example.com/Arm.CMSIS.6.1.0.pack' },
+        { type: 'cmsis_pack', url: null },
+        { type: 'cmsis_pack', url: 'not-a-url' },
+        { type: 'cmsis_pack', url: 'https://example.com/invalid.pack' },
+        { type: 'cmsis_pack', url: 'https://example.com/Arm.CMSIS.invalid.pack' },
+        { type: 'cmsis_pack', url: 'https://example.com/Arm.CMSIS.1.2.3-foo..bar.pack' },
+    ])('omits the pack for unsupported or invalid origin %p', origin => {
+        expect(new SolarExampleData({ ...example, origin }).pack).toBeUndefined();
+    });
+});
 
 describe('Csolution draft project data', () => {
     it('uses only the selected csolution environment filename', () => {
