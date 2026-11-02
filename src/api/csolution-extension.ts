@@ -25,6 +25,7 @@ import type { SolutionManager } from '../solutions/solution-manager';
 import type { ToolsEnvironment } from '../solutions/tools-environment';
 import type { CsolutionService } from '../json-rpc/csolution-rpc-client';
 import type { CommandsProvider } from '../vscode-api/commands-provider';
+import type { SolutionConverter } from '../solutions/solution-converter';
 
 export class CsolutionExtensionImpl implements CsolutionExtension {
     private readonly apis: { dispose: () => unknown }[] = [];
@@ -37,6 +38,7 @@ export class CsolutionExtensionImpl implements CsolutionExtension {
         private readonly csolutionService: Pick<CsolutionService, 'getPacksInfo'>,
         private readonly toolsEnvironment: Pick<ToolsEnvironment, 'getToolsEnvironment' | 'getToolchains'>,
         private readonly commandsProvider: Pick<CommandsProvider, 'executeCommand'>,
+        private readonly solutionConverter: Pick<SolutionConverter, 'convertSolution'>,
     ) { }
 
     public async activate(context: ExtensionContext): Promise<void> {
@@ -55,7 +57,7 @@ export class CsolutionExtensionImpl implements CsolutionExtension {
         if (version === 2) {
             api = new CsolutionApiV2Impl(this.dataManager, this.solutionCreator, this.buildTaskProvider);
         } else if (version === 3) {
-            api = new CsolutionApiV3Impl(new CsolutionApiV2Impl(this.dataManager, this.solutionCreator, this.buildTaskProvider), this.dataManager, this.solutionManager, this.csolutionService, this.toolsEnvironment, this.commandsProvider);
+            api = new CsolutionApiV3Impl(new CsolutionApiV2Impl(this.dataManager, this.solutionCreator, this.buildTaskProvider), this.dataManager, this.solutionManager, this.csolutionService, this.toolsEnvironment, this.commandsProvider, this.solutionConverter);
         }
         if (api) {
             this.apis.push(api);

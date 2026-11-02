@@ -56,6 +56,7 @@ describe('SolarSearchClient', () => {
 
         it('returns a list of compatible examples for the board', async () => {
             const csolutionExample = cSolutionProjectFactory();
+            csolutionExample.origin = { type: 'cmsis_pack', url: 'https://example.com/Arm.CMSIS.6.1.0.pack' };
             const validUvProjExample = uvProjectFactory({ convertible: true });
             const invalidUvProjExample = uvProjectFactory({ convertible: false });
             const boardProjects = [csolutionExample, invalidUvProjExample, validUvProjExample];
@@ -75,6 +76,7 @@ describe('SolarSearchClient', () => {
                     format: { type: 'csolution' },
                     download_url: csolutionExample.download_url,
                     id: csolutionExample.id,
+                    origin: csolutionExample.origin,
                 },
                 {
                     name: validUvProjExample.name,
@@ -82,6 +84,7 @@ describe('SolarSearchClient', () => {
                     format: { type: 'uvproj', convertible: true },
                     download_url: validUvProjExample.download_url,
                     id: validUvProjExample.id,
+                    origin: validUvProjExample.origin,
                 }
             ]);
         });

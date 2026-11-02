@@ -111,6 +111,47 @@ describe('FileItem', () => {
 
     });
 
+    it.each(['cbuild', 'cgen'])('filters file categories from %s metadata without changing the input', async (extension) => {
+        const content = `
+        build:
+          files:
+            - file: generated.c
+              category: genSource
+            - file: generated.h
+              category: genHeader
+            - file: params.yml
+              category: genParams
+            - file: asset.bin
+              category: genAsset
+            - file: main.c
+              category: sourceC
+            - file: main.h
+              category: header
+            - file: uncategorized.txt
+            - file: include
+              category: include
+            - file: other.txt
+              category: other
+            - file: template.c
+              category: sourceC
+              attr: template
+            - file: manual.pdf
+              category: doc`;
+        const root = await parseYamlToCTreeItem(content);
+        root!.rootFileName = path.join(projectDir, `Blinky.${extension}.yml`);
+        const files = root!.getChild('build')!.getGrandChildren('files');
+        const docs: typeof files = [];
+        const originalFiles = files.map(file => [file.getValue('file'), file.getValue('category')]);
+
+        fileItem.createFileNodes(componentNode, files, docs);
+
+        expect(componentNode.getChildren().map(child => child.getAttribute('label'))).toEqual([
+            'main.c', 'main.h', 'uncategorized.txt',
+        ]);
+        expect(docs).toEqual([files[10]]);
+        expect(files.map(file => [file.getValue('file'), file.getValue('category')])).toEqual(originalFiles);
+    });
+
     it('creates header nodes based on category or supported extension', async () => {
         const cbuildContent = `
         build:

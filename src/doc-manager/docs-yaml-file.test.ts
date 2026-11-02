@@ -71,6 +71,51 @@ describe('DocsYamlFile', () => {
     });
 
     it.each([
+        ['board', 'Vendor::Board:RevA', 'https://example.com/manual.pdf?download=1#page=2', undefined, ['Vendor', 'Board', 'manual', 'manual.pdf']],
+        ['device', 'Vendor::Device:CPU0', path.resolve('books', 'manual.pdf'), 'user', ['Vendor', 'Device', 'manual', 'manual.pdf']],
+        ['board', 'Board', pathToFileURL(path.resolve('books', 'local manual.md')).href, 'user', ['Board', 'local manual', 'local manual.md']],
+        ['common', 'arm-docs', 'https://developer.arm.com/documentation/100230/latest', undefined, ['100230-latest', '100230-latest.pdf']],
+    ] as const)('uses the index directory for %s destination %s: %s', (tag, parent, name, mode, segments) => {
+        const file = new DocsYamlFile(fileName);
+        const doc = file.ensureDoc(name, parent, tag);
+        doc.mode = mode;
+        if (tag === 'common') {
+            doc.id = '100230';
+            doc.version = 'latest';
+            doc.format = 'pdf';
+        }
+        expect(doc.getDestinationPath()).toBe(path.resolve(path.dirname(fileName), 'docs', ...segments));
+        expect(path.dirname(doc.getDestinationPath())).toBe(doc.indexDir);
+    });
+
+    it.each(['pdf', 'md'])('uses the imported file extension for a common H document: %s', extension => {
+        const name = 'https://developer.arm.com/documentation/100230/latest';
+        const doc = new DocsYamlFile(fileName).ensureDoc(name, 'arm-docs', 'common');
+        doc.id = '100230';
+        doc.version = 'latest';
+        doc.format = 'html';
+        const destination = path.resolve(path.dirname(fileName), 'docs', '100230-latest', `100230-latest.${extension}`);
+
+        expect(doc.getDestinationPath(path.resolve('source', `selected.${extension}`))).toBe(destination);
+        doc.path = destination;
+        expect(doc.getDestinationPath()).toBe(destination);
+        expect(doc.name).toBe(name);
+        expect(doc.locationType).toBe('H');
+        expect(doc.format).toBe('html');
+    });
+
+    it.each([
+        ['../Vendor::Board', 'https://example.com/manual.pdf'],
+        ['Vendor::Board.', 'https://example.com/manual.pdf'],
+        ['Vendor::Board', 'https://example.com/manual%2Fone.pdf'],
+        ['Vendor::Board', 'https://example.com/CON.pdf'],
+        ['Vendor::Board', 'https://example.com/manual.html'],
+    ])('rejects unsafe or unsupported destinations for %s: %s', (parent, name) => {
+        const doc = new DocsYamlFile(fileName).ensureDoc(name, parent, 'board');
+        expect(() => doc.getDestinationPath()).toThrow();
+    });
+
+    it.each([
         ['http://example.com/manual.pdf', true, true],
         ['https://example.com/manual.PDF?format=.html#section', true, true],
         ['www.example.com/manual.pdf', true, true],
@@ -191,11 +236,27 @@ describe('DocsYamlFile', () => {
     });
 
     it.each([
-        'https://example.com/manual.html', 'https://example.com/manual', 'https://',
-    ])('does not index an HTML reference: %j', name => {
+        ['https://example.com/manual.html', 'manual', 'selected.pdf'],
+        ['https://example.com/manual', 'manual', 'selected.md'],
+        ['https://example.com/manual/', 'manual', 'selected.pdf'],
+        ['https://example.com/', 'index', 'selected.pdf'],
+    ])('provides a managed destination for an imported H reference: %s', (name, basename, localFile) => {
         const file = new DocsYamlFile(fileName);
         const doc = file.ensureDoc(name, 'Vendor::Board', 'board');
-        expect(doc.indexDir).toBeUndefined();
+        const directory = path.resolve(path.dirname(fileName), 'docs', 'Vendor', 'Board', basename);
+        expect(doc.indexDir).toBe(directory);
+        expect(() => doc.getDestinationPath()).toThrow('Invalid document filename');
+        expect(doc.getDestinationPath(path.resolve('source', localFile))).toBe(path.join(directory, localFile));
+        doc.path = doc.getDestinationPath(path.resolve('source', localFile));
+        expect(doc.getDestinationPath()).toBe(doc.path);
+        expect(doc.name).toBe(name);
+        expect(doc.locationType).toBe('H');
+        expect(doc.isDownloaded()).toBe(false);
+    });
+
+    it('rejects a malformed H reference when resolving its managed directory', () => {
+        const doc = new DocsYamlFile(fileName).ensureDoc('https://', 'Vendor::Board', 'board');
+        expect(() => doc.indexDir).toThrow();
     });
 
     it('propagates malformed file URL errors without mutating the inventory', () => {
