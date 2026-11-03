@@ -1,0 +1,5 @@
+# GitHub-hosted runner labels missing from actionlint's bundled label list.
+# This only extends lint validation; runs-on still selects GitHub-hosted runners.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
