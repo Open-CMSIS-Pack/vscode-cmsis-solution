@@ -168,7 +168,9 @@ export class PyocdTaskProvider implements vscode.TaskProvider, vscode.Disposable
             task.name, task.source, new vscode.CustomExecution(async definition => {
                 const output = this.outputChannelProvider?.getOrCreate('CMSIS pyOCD');
                 output?.appendLine(`[${task.name}] Starting managed pyOCD task.`);
-                const terminal = new PyocdTerminal(definition as PyocdTaskDefinition, this.environment(), exitCode => {
+                const terminal = new PyocdTerminal(definition as PyocdTaskDefinition, {
+                    ...this.environment(), CMSIS_PYOCD_TASK_NAME: task.name,
+                }, exitCode => {
                     output?.appendLine(`[${task.name}] pyOCD task finished (exit code ${exitCode}).`);
                     this.terminals.delete(terminal);
                     this.endEmitter.fire({ task: resolved, exitCode });

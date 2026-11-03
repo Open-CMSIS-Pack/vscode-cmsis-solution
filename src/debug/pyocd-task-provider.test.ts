@@ -175,6 +175,35 @@ describe('managed pyOCD lifecycle', () => {
         provider.dispose();
     });
 
+    it('forwards helper diagnostics before pyOCD starts and preserves failure completion', async () => {
+        const output = { append: jest.fn(), appendLine: jest.fn() };
+        const channels = { getOrCreate: jest.fn().mockReturnValue(output) };
+        const provider = new PyocdTaskProvider(() => ({ PATH: '/tools' }), channels);
+        const task = new vscode.Task(definition, vscode.TaskScope.Workspace, 'CMSIS Load', 'Workspace');
+        const resolved = provider.resolveTask(task)!;
+        const execution = resolved.execution as unknown as { callback: (definition: vscode.TaskDefinition) => Promise<PyocdTerminal> };
+        const terminal = await execution.callback(definition);
+        const ended = jest.fn();
+        provider.onDidEndTask(ended);
+        terminal.open();
+        expect(spawn).toHaveBeenCalledWith(expect.any(String), expect.any(Array), expect.objectContaining({
+            env: expect.objectContaining({ PATH: '/tools', CMSIS_PYOCD_TASK_NAME: 'CMSIS Load' }),
+        }));
+        const diagnostics = '[CMSIS Load] Operation failed: pyOCD process creation (System.Diagnostics.Process.Start)\n'
+            + '[CMSIS Load] Exception type: System.ComponentModel.Win32Exception\n'
+            + '[CMSIS Load] Win32Exception.NativeErrorCode: 2\n'
+            + '[CMSIS Load] Error: The system cannot find the file specified.\n';
+        // stderr can arrive before any pyOCD output and without a terminal UI listener.
+        child.stderr!.emit('data', Buffer.from(diagnostics));
+        child.emit('close', 1);
+        expect(channels.getOrCreate).toHaveBeenCalledWith('CMSIS pyOCD');
+        expect(output.appendLine).toHaveBeenCalledWith('[CMSIS Load] Starting managed pyOCD task.');
+        expect(output.append).toHaveBeenCalledWith(diagnostics.replace(/\n/g, '\r\n'));
+        expect(output.appendLine).toHaveBeenLastCalledWith('[CMSIS Load] pyOCD task finished (exit code 1).');
+        expect(ended.mock.calls).toEqual([[{ task: resolved, exitCode: 1 }]]);
+        provider.dispose();
+    });
+
     it('retains shutdown output after VS Code disconnects the task terminal', async () => {
         const output = { append: jest.fn(), appendLine: jest.fn() };
         const channels = { getOrCreate: jest.fn().mockReturnValue(output) };
