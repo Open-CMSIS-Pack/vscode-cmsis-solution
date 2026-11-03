@@ -112,7 +112,12 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
             }
             this.writeEmitter.fire('\r\npyOCD shutdown timed out; forcing termination.\r\n');
             if (this.platform === 'win32' && this.child?.pid) {
-                const killer = spawn('taskkill.exe', ['/PID', String(this.child.pid), '/T', '/F'], { windowsHide: true });
+                // Use the host environment, never task overrides or executable search.
+                // System32 also works under WOW64: redirection selects the system's 32-bit utility.
+                const windowsRoot = [process.env.SystemRoot, process.env.windir]
+                    .find(root => root !== undefined && /^[a-z]:[\\/]/i.test(root)) ?? 'C:\\Windows';
+                const executable = path.win32.join(windowsRoot, 'System32', 'taskkill.exe');
+                const killer = spawn(executable, ['/PID', String(this.child.pid), '/T', '/F'], { windowsHide: true });
                 killer.on('error', error => this.writeEmitter.fire(`pyOCD termination failed: ${error.message}\r\n`));
             } else {
                 this.child?.kill('SIGKILL');
