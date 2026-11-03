@@ -112,7 +112,7 @@ export class SolutionCreatorImp  implements SolutionCreator {
         const solutionDirUri = URI.file(path.join(message.solutionLocation, message.solutionFolder));
         const draftSolutionFileName = message.draftProject?.solutionFileName;
         const solutionFileName = draftSolutionFileName
-            ? path.basename(draftSolutionFileName)
+            ? draftSolutionFileName
             : `${message.solutionName}${SOLUTION_SUFFIX}`;
         const solutionName = draftSolutionFileName
             ? getFileNameNoExt(solutionFileName)
@@ -120,7 +120,7 @@ export class SolutionCreatorImp  implements SolutionCreator {
         const createRequest = solutionName === message.solutionName
             ? message
             : { ...message, solutionName };
-        const solutionFileUri = Uri.joinPath(solutionDirUri, solutionFileName);
+        const solutionFileUri = Uri.file(path.join(solutionDirUri.fsPath, solutionFileName));
         const existingSolutionFiles = this.findSolutionFiles(solutionDirUri.fsPath);
         const existingSolutionFile = existingSolutionFiles[0];
         if (existingSolutionFile) {
