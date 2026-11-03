@@ -21,7 +21,7 @@ import { CSolution } from '../solutions/csolution';
 import { CbuildRunYaml, CbuildRunYamlFile, DebugTopology } from '../solutions/files/cbuild-run-yaml-file';
 import { solutionManagerFactory } from '../solutions/solution-manager.factories';
 import { commandsProviderFactory } from '../vscode-api/commands-provider.factories';
-import { AdapterJson } from './adapter-json-file';
+import { AdapterJson, AdapterJsonFile } from './adapter-json-file';
 import { DebugLaunchProviderImpl } from './debug-launch-provider';
 import { Configuration, LaunchJsonFile } from './launch-json-file';
 import { DebugAdapter, DebugAdaptersYamlFile, UISection } from './debug-adapters-yaml-file';
@@ -193,7 +193,24 @@ describe('DebugLaunchProvider', () => {
 
     describe('updateTasksJson', () => {
 
-        it('manages only pyOCD Load and Run, restoring Erase and TargetInfo to shell tasks', async () => {
+        it.each(['CMSIS-DAP-pyOCD.adapter.json', 'STLink-pyOCD.adapter.json'])('preserves task definitions from %s when generating and refreshing tasks.json', async template => {
+            const provider = new DebugLaunchProviderTest();
+            provider.solutionManagerMock.getCsolution.mockReturnValue(csolutionFactory({ solutionDir: workspaceFolder }));
+            const adapter = new AdapterJsonFile(path.join(DEBUG_TEMPLATES_FOLDER, template));
+            expect(await adapter.load()).toBe(ETextFileResult.Success);
+            const templateTasks = adapter.tasks;
+            for (let generation = 0; generation < 2; generation++) {
+                await provider.updateTasksJson(workspaceFolder, templateTasks, new Map());
+                const file = new TasksJsonFile(tasksJsonFile);
+                expect(await file.load()).toBe(ETextFileResult.Success);
+                expect(file.tasks).toEqual(templateTasks);
+                for (const label of ['CMSIS Load', 'CMSIS Run']) {
+                    expect(file.tasks.find(task => task.label === label)?.type).toBe(PYOCD_TASK_TYPE);
+                }
+            }
+        });
+
+        it('preserves template task types, including shell pyOCD tasks', async () => {
             const provider = new DebugLaunchProviderTest();
             provider.solutionManagerMock.getCsolution.mockReturnValue(csolutionFactory({ solutionDir: workspaceFolder }));
             const load = { label: 'CMSIS Load', type: 'shell', command: 'pyocd', args: ['load'], options: { cwd: '${workspaceFolder}' }, problemMatcher: [] };
@@ -210,7 +227,7 @@ describe('DebugLaunchProvider', () => {
             expect(await file.load()).toBe(ETextFileResult.Success);
             expect(file.tasks).toEqual([
                 { ...erase, type: 'shell' }, { ...targetInfo, type: 'shell' },
-                { ...load, type: PYOCD_TASK_TYPE }, { ...run, type: PYOCD_TASK_TYPE }, compound, other,
+                load, run, compound, other,
                 { ...custom, type: 'shell' },
             ]);
         });
