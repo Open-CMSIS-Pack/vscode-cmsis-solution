@@ -86,9 +86,9 @@ describe('SolutionInitialiserImp', () => {
         expect(mockOpenNewSolutionModal).toHaveBeenCalled();
     });
 
-    it('stores the selected solution and target before opening the solution', async () => {
+    it.each(['', 'VSCode'])('stores the selected solution in subfolder "%s" and target before opening', async solutionSubfolder => {
         const solutionDir = Uri.file(path.join(testDataHandler.tmpDir, 'selected-solution'));
-        const solutionFile = Uri.file(path.join(solutionDir.fsPath, 'Selected.csolution.yml'));
+        const solutionFile = Uri.file(path.join(solutionDir.fsPath, solutionSubfolder, 'Selected.csolution.yml'));
         const createdSolution = createdSolutionFactory({ solutionDir, solutionFile, vcpkgConfigured: true });
 
         await solutionInitialiser.initialiseSolution({
@@ -100,7 +100,7 @@ describe('SolutionInitialiserImp', () => {
         const cmsisJsonFile = path.join(solutionDir.fsPath, '.vscode', 'cmsis.json');
         const settings = JSON.parse(fs.readFileSync(cmsisJsonFile, 'utf8'));
         expect(settings).toEqual(expect.objectContaining({
-            activeSolution: '../Selected.csolution.yml',
+            activeSolution: path.posix.join('..', solutionSubfolder, 'Selected.csolution.yml'),
             activeTarget: 'SelectedTarget',
         }));
         expect(mockOpenNewSolutionModal).toHaveBeenCalled();
