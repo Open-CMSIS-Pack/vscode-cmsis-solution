@@ -120,7 +120,11 @@ export class SolutionCreatorImp  implements SolutionCreator {
         const createRequest = solutionName === message.solutionName
             ? message
             : { ...message, solutionName };
-        const solutionFileUri = Uri.file(path.join(solutionDirUri.fsPath, solutionFileName));
+        const solutionFileUri = Uri.file(path.resolve(solutionDirUri.fsPath, solutionFileName));
+        const relativeSolutionPath = path.relative(solutionDirUri.fsPath, solutionFileUri.fsPath);
+        if (relativeSolutionPath === '..' || relativeSolutionPath.startsWith(`..${path.sep}`) || path.isAbsolute(relativeSolutionPath)) {
+            throw new Error(`Solution file path must stay within the selected solution directory: ${solutionFileName}`);
+        }
         const existingSolutionFiles = this.findSolutionFiles(solutionDirUri.fsPath);
         const existingSolutionFile = existingSolutionFiles[0];
         if (existingSolutionFile) {

@@ -20,7 +20,7 @@ import * as YAML from 'yaml';
 import { URI } from 'vscode-uri';
 import { TestDataHandler } from '../__test__/test-data';
 import { draftProjectDataFactory } from '../data-manager/data-manager.factories';
-import { CsolutionExampleData, DraftProjectFormat } from '../data-manager/draft-project-data';
+import { CsolutionExampleData, DraftProjectFormat, DraftProjectType } from '../data-manager/draft-project-data';
 import { ExampleProject } from '../json-rpc/csolution-rpc-client';
 import * as fsUtils from '../utils/fs-utils';
 import { pathsEqual } from '../utils/path-utils';
@@ -88,7 +88,79 @@ describe('SolutionCreatorImp', () => {
         expect(pathsEqual(findSolutionFiles.mock.calls[0][0], solutionDir)).toBe(true);
     });
 
-    it.each(['', 'VSCode'])('corrects a contradictory draft name and preserves solution subfolder "%s"', async solutionSubfolder => {
+    it.each([
+        '..',
+        path.join('..', 'NewSolutionSibling', 'Existing.csolution.yml'),
+        path.resolve('outside.csolution.yml'),
+    ])('rejects solution path "%s" outside the destination before creation', async solutionFileName => {
+        const createFromDraft = jest.fn();
+        const solutionInitialiser = SolutionInitialiserFactory();
+        const creator = new SolutionCreatorImp(createFromDraft, solutionInitialiser);
+
+        await expect(creator.createSolution({
+            solutionName: 'NewSolution',
+            solutionLocation: tempDir,
+            solutionFolder: 'NewSolution',
+            gitInit: false,
+            compiler: 'AC6',
+            projects: [],
+            targetTypes: [],
+            packs: [],
+            draftProject: draftProjectDataFactory({ format: DraftProjectFormat.Csolution, solutionFileName }),
+        })).rejects.toThrow(`Solution file path must stay within the selected solution directory: ${solutionFileName}`);
+
+        expect(createFromDraft).not.toHaveBeenCalled();
+        expect(solutionInitialiser.initialiseSolution).not.toHaveBeenCalled();
+    });
+
+    it.each([DraftProjectType.RefApp, DraftProjectType.Template])('rejects an escaping %s before copying or modifying a sibling solution', async draftType => {
+        const sourceDir = path.join(tempDir, 'pack', 'Examples', 'Draft');
+        const siblingPath = path.join(tempDir, 'shared', 'Existing.csolution.yml');
+        const originalContent = 'solution:\n  description: Existing sibling solution\n';
+        fs.mkdirSync(sourceDir, { recursive: true });
+        fs.mkdirSync(path.dirname(siblingPath), { recursive: true });
+        fs.writeFileSync(siblingPath, originalContent);
+        const draftProject = new CsolutionExampleData({
+            name: 'Draft',
+            description: '',
+            doc: '',
+            pack: 'Vendor::Pack@1.0.0',
+            environments: [{
+                name: 'csolution',
+                folder: sourceDir,
+                file: path.join(sourceDir, '..', 'shared', 'Existing.csolution.yml'),
+            }],
+        }, draftType);
+        const copyTo = jest.spyOn(draftProject, 'copyTo');
+        const workspaceFsProvider = workspaceFsProviderFactory();
+        workspaceFsProvider.createDirectory.mockImplementation(directory => fs.promises.mkdir(directory, { recursive: true }).then(() => undefined));
+        workspaceFsProvider.exists.mockImplementation(fileName => Promise.resolve(fs.existsSync(fileName)));
+        const solutionInitialiser = SolutionInitialiserFactory();
+        const creator = new SolutionCreatorImp(
+            getCreateSolutionFromDataManager(workspaceFsProvider, {} as MdkToCsolutionConverter, jest.fn()),
+            solutionInitialiser,
+        );
+
+        await expect(creator.createSolution({
+            solutionName: 'Draft',
+            solutionLocation: tempDir,
+            solutionFolder: 'NewSolution',
+            gitInit: false,
+            compiler: 'AC6',
+            projects: [],
+            targetTypes: [{ type: 'Target', device: 'Vendor::Device' }],
+            packs: [{ pack: 'Vendor::Pack@1.0.0', forContext: [], notForContext: [] }],
+            draftProject,
+        })).rejects.toThrow(`Solution file path must stay within the selected solution directory: ${path.join('..', 'shared', 'Existing.csolution.yml')}`);
+
+        expect(copyTo).not.toHaveBeenCalled();
+        expect(workspaceFsProvider.createDirectory).not.toHaveBeenCalled();
+        expect(solutionInitialiser.initialiseSolution).not.toHaveBeenCalled();
+        expect(fs.existsSync(path.join(tempDir, 'NewSolution'))).toBe(false);
+        expect(fs.readFileSync(siblingPath, 'utf8')).toBe(originalContent);
+    });
+
+    it.each(['', 'VSCode', '..sibling'])('corrects a contradictory draft name and preserves solution subfolder "%s"', async solutionSubfolder => {
         const solutionFolder = 'SelectedDestination';
         const solutionDir = path.join(tempDir, solutionFolder);
         const selectedFileName = path.join(solutionSubfolder, 'Test-Ethos-U55.csolution.yml');
