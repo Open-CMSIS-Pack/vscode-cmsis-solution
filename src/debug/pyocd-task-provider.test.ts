@@ -16,10 +16,13 @@
 
 import { EventEmitter } from 'events';
 import { PassThrough } from 'stream';
+import path from 'path';
+import fs from 'fs';
 import { ChildProcess, spawn } from 'child_process';
 import * as vscode from 'vscode';
 import { PYOCD_TASK_TYPE, PyocdTaskProvider, PyocdTerminal } from './pyocd-task-provider';
 import { pyocdWindowsHost } from './pyocd-windows';
+import { TestDataHandler } from '../__test__/test-data';
 
 jest.mock('child_process', () => ({ spawn: jest.fn() }));
 
@@ -42,6 +45,7 @@ describe('managed pyOCD lifecycle', () => {
 
     afterEach(() => {
         jest.useRealTimers();
+        jest.restoreAllMocks();
     });
 
     const definition = { type: PYOCD_TASK_TYPE, args: ['load', '--cbuild-run', '/project with spaces/app.cbuild-run.yml'], options: { cwd: '/project' } };
@@ -98,12 +102,78 @@ describe('managed pyOCD lifecycle', () => {
         terminal.close();
         jest.advanceTimersByTime(6000);
         if (platform === 'win32') {
-            expect(spawn).toHaveBeenLastCalledWith('taskkill.exe', ['/PID', '123', '/T', '/F'], { windowsHide: true });
+            expect(spawn).toHaveBeenLastCalledWith(
+                expect.stringMatching(/^[a-z]:[\\/].*[\\/]System32[\\/]taskkill\.exe$/i),
+                ['/PID', '123', '/T', '/F'], { windowsHide: true });
         } else {
             expect(child.kill).toHaveBeenLastCalledWith('SIGKILL');
         }
         child.emit('close', null);
         expect(complete).toHaveBeenCalledWith(130);
+    });
+
+    it.each([
+        ['D:\\Windows', 'E:\\Windows', 'D:\\Windows'],
+        [undefined, 'E:\\Windows', 'E:\\Windows'],
+        ['relative', 'E:\\Windows', 'E:\\Windows'],
+        ['C:relative', '\\Windows', 'C:\\Windows'],
+        [undefined, undefined, 'C:\\Windows'],
+    ])('resolves the system utility with SystemRoot=%s and windir=%s', (SystemRoot, windir, expected) => {
+        jest.replaceProperty(process, 'env', { ...process.env, SystemRoot, windir });
+        const terminal = new PyocdTerminal(definition, {}, complete, 'win32');
+        terminal.open();
+        terminal.close();
+        jest.advanceTimersByTime(5999);
+        expect(spawn).toHaveBeenCalledTimes(1);
+        jest.advanceTimersByTime(1);
+        expect(spawn).toHaveBeenLastCalledWith(path.win32.join(expected!, 'System32', 'taskkill.exe'),
+            ['/PID', '123', '/T', '/F'], { windowsHide: true });
+        child.emit('close', null);
+    });
+
+    it('bypasses an attacker-controlled taskkill in the host search path and task environment', () => {
+        const attacker = 'C:\\attacker';
+        jest.replaceProperty(process, 'env', {
+            ...process.env, SystemRoot: 'D:\\Windows', PATH: attacker,
+            PROCESSOR_ARCHITEW6432: 'AMD64',
+        });
+        const terminal = new PyocdTerminal({ ...definition, options: {
+            cwd: attacker, env: { SystemRoot: attacker, windir: attacker, PATH: attacker },
+        } }, { PATH: attacker }, complete, 'win32');
+        terminal.open();
+        terminal.close();
+        jest.advanceTimersByTime(6000);
+        // An absolute filename bypasses lookup entirely, even with a hostile PATH/cwd.
+        const executable = jest.mocked(spawn).mock.calls[1][0];
+        expect(executable).toBe('D:\\Windows\\System32\\taskkill.exe');
+        expect(path.win32.isAbsolute(executable)).toBe(true);
+        expect(executable).not.toBe(path.win32.join(attacker, 'taskkill.exe'));
+        child.emit('close', null);
+    });
+
+    (process.platform === 'win32' ? it : it.skip)('does not execute a decoy taskkill.exe from PATH or the working directory', () => {
+        const data = new TestDataHandler();
+        try {
+            // Node rejects /?, whereas the legitimate taskkill utility prints help successfully.
+            fs.copyFileSync(process.execPath, path.join(data.tmpDir, 'taskkill.exe'));
+            jest.replaceProperty(process, 'env', { ...process.env, PATH: data.tmpDir });
+            const terminal = new PyocdTerminal(definition, {}, complete, 'win32');
+            terminal.open();
+            terminal.close();
+            jest.advanceTimersByTime(6000);
+            const executable = jest.mocked(spawn).mock.calls[1][0];
+            const { spawnSync } = jest.requireActual<typeof import('child_process')>('child_process');
+            // Exercise the selected executable safely, without terminating any real process.
+            const result = spawnSync(executable, ['/?'], {
+                cwd: data.tmpDir, env: process.env, windowsHide: true, encoding: 'utf8', timeout: 5000,
+            });
+            expect(result.error).toBeUndefined();
+            expect(result.status).toBe(0);
+            expect(result.stdout).toMatch(/TASKKILL/i);
+            child.emit('close', null);
+        } finally {
+            data.dispose();
+        }
     });
 
     it('does not launch when cancelled before open', () => {
@@ -172,6 +242,35 @@ describe('managed pyOCD lifecycle', () => {
         }
         child.emit('close', 0);
         expect(events).toEqual(['complete', 'close']);
+        provider.dispose();
+    });
+
+    it('forwards helper diagnostics before pyOCD starts and preserves failure completion', async () => {
+        const output = { append: jest.fn(), appendLine: jest.fn() };
+        const channels = { getOrCreate: jest.fn().mockReturnValue(output) };
+        const provider = new PyocdTaskProvider(() => ({ PATH: '/tools' }), channels);
+        const task = new vscode.Task(definition, vscode.TaskScope.Workspace, 'CMSIS Load', 'Workspace');
+        const resolved = provider.resolveTask(task)!;
+        const execution = resolved.execution as unknown as { callback: (definition: vscode.TaskDefinition) => Promise<PyocdTerminal> };
+        const terminal = await execution.callback(definition);
+        const ended = jest.fn();
+        provider.onDidEndTask(ended);
+        terminal.open();
+        expect(spawn).toHaveBeenCalledWith(expect.any(String), expect.any(Array), expect.objectContaining({
+            env: expect.objectContaining({ PATH: '/tools', CMSIS_PYOCD_TASK_NAME: 'CMSIS Load' }),
+        }));
+        const diagnostics = '[CMSIS Load] Operation failed: pyOCD process creation (System.Diagnostics.Process.Start)\n'
+            + '[CMSIS Load] Exception type: System.ComponentModel.Win32Exception\n'
+            + '[CMSIS Load] Win32Exception.NativeErrorCode: 2\n'
+            + '[CMSIS Load] Error: The system cannot find the file specified.\n';
+        // stderr can arrive before any pyOCD output and without a terminal UI listener.
+        child.stderr!.emit('data', Buffer.from(diagnostics));
+        child.emit('close', 1);
+        expect(channels.getOrCreate).toHaveBeenCalledWith('CMSIS pyOCD');
+        expect(output.appendLine).toHaveBeenCalledWith('[CMSIS Load] Starting managed pyOCD task.');
+        expect(output.append).toHaveBeenCalledWith(diagnostics.replace(/\n/g, '\r\n'));
+        expect(output.appendLine).toHaveBeenLastCalledWith('[CMSIS Load] pyOCD task finished (exit code 1).');
+        expect(ended.mock.calls).toEqual([[{ task: resolved, exitCode: 1 }]]);
         provider.dispose();
     });
 
