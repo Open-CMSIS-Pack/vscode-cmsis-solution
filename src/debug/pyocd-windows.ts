@@ -134,10 +134,16 @@ public static class PyocdConsoleHost {
             try {
                 var stdout = child.StandardOutput.BaseStream.CopyToAsync(output);
                 var stderr = child.StandardError.BaseStream.CopyToAsync(error);
-                var control = Task.Run(() => input.ReadLine());
+                var control = Task.Run(() => {
+                    string command;
+                    while ((command = input.ReadLine()) != null) {
+                        if (command == "stop") return true;
+                    }
+                    return false; // EOF is not a shutdown request.
+                });
                 bool interrupted = false;
                 while (!child.WaitForExit(50)) {
-                    if (!interrupted && control.IsCompleted) {
+                    if (!interrupted && control.IsCompleted && control.Result) {
                         interrupted = true;
                         if (!GenerateConsoleCtrlEvent(0, 0)) throw new System.ComponentModel.Win32Exception();
                         if (!child.WaitForExit(5000)) {
@@ -160,7 +166,10 @@ public static class PyocdConsoleHost {
 $operation = 'pyOCD arguments decoding (ConvertFrom-Json)'
 $arguments = [string[]](ConvertFrom-Json $env:CMSIS_PYOCD_ARGUMENTS)
 $operation = 'pyOCD executable resolution (Get-Command pyocd.exe)'
-$executable = (Get-Command pyocd.exe -CommandType Application -ErrorAction Stop).Source
+$executable = (Get-Command pyocd.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+if ([string]::IsNullOrWhiteSpace($executable) -or !(Test-Path -LiteralPath $executable -PathType Leaf)) {
+    throw "Resolved pyOCD executable does not exist or is not a file: '$executable'"
+}
 $operation = 'PyocdConsoleHost.Run'
 exit [PyocdConsoleHost]::Run($executable, $arguments)
 } catch {
@@ -178,6 +187,6 @@ exit [PyocdConsoleHost]::Run($executable, $arguments)
         $diagnosticError.Write($bytes, 0, $bytes.Length)
         $diagnosticError.Flush()
     } catch { }
-    throw
+    exit 1
 }
 `;
