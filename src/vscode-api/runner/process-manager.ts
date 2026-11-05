@@ -68,6 +68,7 @@ export class ProcessManagerImpl implements ProcessManager {
     ): Promise<ProcessResult> {
         return new Promise((resolve, reject) => {
             if (cancellationToken?.isCancellationRequested) {
+                reject({ code: 130 });
                 return;
             }
 

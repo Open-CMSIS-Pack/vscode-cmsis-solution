@@ -19,6 +19,8 @@ import { EventEmitter } from 'events';
 import * as inspector from 'inspector';
 import * as pty from '@lydell/node-pty';
 import { ProcessManagerImpl, type ProcessSpawnOptions } from './process-manager';
+import { CmsisToolboxManagerImpl } from '../../solutions/cmsis-toolbox';
+import { csolutionServiceFactory } from '../../json-rpc/csolution-rpc-client.factory';
 
 const spawnMock = jest.fn();
 const createInterfaceMock = jest.fn();
@@ -39,6 +41,8 @@ jest.mock('inspector', () => ({
     url: jest.fn(() => undefined),
 }));
 
+jest.mock('which', () => jest.fn(async (command: string) => command));
+
 describe('process-manager.ts', () => {
     const originalPlatform = process.platform;
 
@@ -52,6 +56,58 @@ describe('process-manager.ts', () => {
     });
 
     describe('spawn', () => {
+        it.each([false, true])('rejects an already-cancelled request without spawning (usePty: %s)', async (usePty) => {
+            const environmentManager = { augmentEnv: jest.fn() };
+            const processManager = new ProcessManagerImpl(environmentManager as never);
+            const cancellationToken = { isCancellationRequested: true, onCancellationRequested: jest.fn() };
+
+            await expect(processManager.spawn('cbuild', [], { usePty }, jest.fn(), cancellationToken))
+                .rejects.toEqual({ code: 130 });
+
+            expect(environmentManager.augmentEnv).not.toHaveBeenCalled();
+            expect(spawnMock).not.toHaveBeenCalled();
+            expect(pty.spawn).not.toHaveBeenCalled();
+        });
+
+        it.each(['queued', 'version check'])('releases the toolbox after setup is cancelled during %s', async (cancelDuring) => {
+            const environmentManager = { augmentEnv: jest.fn(() => ({ vars: {} })) };
+            const processManager = new ProcessManagerImpl(environmentManager as never);
+            const service = csolutionServiceFactory();
+            service.getLogMessages.mockResolvedValue({ success: true });
+            const toolbox = new CmsisToolboxManagerImpl(processManager, jest.fn(), service);
+            const cancellationToken = { isCancellationRequested: false, onCancellationRequested: jest.fn() };
+
+            spawnMock.mockImplementation((_command: string, args: string[]) => {
+                const childProcess = new EventEmitter();
+                queueMicrotask(() => {
+                    if (args.includes('--version')) {
+                        cancellationToken.isCancellationRequested = true;
+                    }
+                    childProcess.emit('close', 0);
+                });
+                return childProcess;
+            });
+
+            const setup = toolbox.runCmsisTool('cbuild', ['setup'], jest.fn(), cancellationToken);
+            if (cancelDuring === 'queued') {
+                cancellationToken.isCancellationRequested = true;
+            }
+            const build = toolbox.runCmsisTool('cbuild', ['--target', 'all'], jest.fn());
+            const refresh = toolbox.runCsolutionRpc('GetLogMessages', {});
+            const clean = toolbox.runCmsisTool('cbuild', ['--clean'], jest.fn());
+
+            await expect(setup).resolves.toEqual([130, 'cbuild']);
+            await expect(build).resolves.toEqual([0, 'cbuild']);
+            await expect(refresh).resolves.toEqual({ success: true });
+            await expect(clean).resolves.toEqual([0, 'cbuild']);
+
+            expect(spawnMock).not.toHaveBeenCalledWith('cbuild', ['setup'], expect.anything());
+            expect(spawnMock).toHaveBeenCalledWith('cbuild', ['--target', 'all'], expect.anything());
+            expect(service.getLogMessages).toHaveBeenCalledTimes(1);
+            expect(spawnMock).toHaveBeenCalledWith('cbuild', ['--clean'], expect.anything());
+            expect(toolbox.isRunning()).toBe(false);
+        });
+
         it('forwards stdout and stderr line output and resolves on close code 0', async () => {
             const stdoutStream = {};
             const stderrStream = {};

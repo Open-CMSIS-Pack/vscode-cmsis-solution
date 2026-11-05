@@ -122,6 +122,36 @@ describe('CmsisToolbox', () => {
             path.join('path', 'to', 'cbuild'), [], expect.any(Object), expect.any(Function), undefined, undefined);
     });
 
+    it('releases the toolbox when resolving the embedded tool fails', async () => {
+        const error = new Error('Cannot resolve embedded toolbox');
+        mockCsolutionService.getCsolutionBin.mockImplementationOnce(() => { throw error; });
+
+        await expect(toolbox.runCmsisTool('cbuild', ['setup'], onOutput, undefined, undefined, true))
+            .rejects.toThrow(error);
+        expect(toolbox.isRunning()).toBe(false);
+
+        await expect(toolbox.runCmsisTool('cbuild', ['--target', 'all'], onOutput))
+            .resolves.toEqual([0, expect.any(String)]);
+    });
+
+    it('releases the toolbox and signals completion when output handling fails', async () => {
+        const error = new Error('Cannot write terminal output');
+        const onRun = jest.fn();
+        const subscription = toolbox.onRunCmsisTool(onRun);
+
+        try {
+            await expect(toolbox.runCmsisTool('cbuild', ['setup'], () => { throw error; }))
+                .rejects.toThrow(error);
+            expect(toolbox.isRunning()).toBe(false);
+            expect(onRun).toHaveBeenLastCalledWith([false]);
+
+            await expect(toolbox.runCmsisTool('cbuild', ['--clean'], onOutput))
+                .resolves.toEqual([0, expect.any(String)]);
+        } finally {
+            subscription.dispose();
+        }
+    });
+
     it('emits execute line by default', async () => {
         const outputSpy = jest.fn();
 
