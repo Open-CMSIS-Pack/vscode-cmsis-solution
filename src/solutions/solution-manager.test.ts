@@ -38,6 +38,7 @@ import { ETextFileResult, YamlFile } from '@open-cmsis-pack/cmsis-common';
 import { ToolsEnvironment } from './tools-environment';
 import { DocManager } from '../doc-manager/doc-manager';
 import * as vscodeUtils from '../utils/vscode-utils';
+import type { SolutionConverter } from './solution-converter';
 
 
 const convertResultData: ConvertResultData = {
@@ -77,6 +78,7 @@ describe('SolutionManager', () => {
     let toolsEnvironment: ToolsEnvironment;
     let docManager: DocManager;
     let autoConvertOnFileChange: boolean | undefined;
+    let convertSolution: jest.MockedFunction<SolutionConverter['convertSolution']>;
 
     const testDataHandler = new TestDataHandler();
 
@@ -170,6 +172,7 @@ describe('SolutionManager', () => {
         docManager = new DocManager();
         docManager.file.fileName = path.join(tmpSolutionsDir, 'inventory', 'docs.yml');
         jest.spyOn(docManager, 'initialize').mockResolvedValue(ETextFileResult.Unchanged);
+        convertSolution = jest.fn().mockResolvedValue(convertResultData);
         solutionManager = new SolutionManagerImpl(
             mockActiveSolutionTracker as unknown as ActiveSolutionTracker,
             eventHub,
@@ -178,6 +181,7 @@ describe('SolutionManager', () => {
             extensionApiProviderFactory(environmentManagerApi),
             environmentManager,
             docManager,
+            convertSolution,
             toolsEnvironment,
         );
         loadStateChangeListener = jest.fn();
@@ -201,6 +205,75 @@ describe('SolutionManager', () => {
         return file!;
     };
 
+
+    describe('on-demand RTE update', () => {
+        const loadSolution = async () => {
+            const ready = new Promise<void>(resolve => {
+                const subscription = solutionManager.onDidSetupCompleted(() => {
+                    subscription.dispose();
+                    resolve();
+                });
+            });
+            changeActiveSolutionEmitter.fire();
+            await ready;
+        };
+
+        it('requires a loaded solution', async () => {
+            await expect(solutionManager.updateRte()).rejects.toThrow('An RTE update requires a loaded solution.');
+            expect(convertSolution).not.toHaveBeenCalled();
+        });
+
+        it('prepares an RTE conversion and waits for its result', async () => {
+            await loadSolution();
+            let finish!: (result: ConvertResultData) => void;
+            let markStarted!: () => void;
+            const started = new Promise<void>(resolve => { markStarted = resolve; });
+            convertSolution.mockImplementationOnce(() => new Promise(resolve => {
+                finish = resolve;
+                markStarted();
+            }));
+            let finished = false;
+            const updating = solutionManager.updateRte().then(() => { finished = true; });
+            await started;
+            expect(convertSolution).toHaveBeenCalledWith(expect.objectContaining({
+                solutionPath: testSolutionPath,
+                targetSet: 'B-U585I-IOT02A',
+                updateRte: true,
+                restartRpc: false,
+            }), true);
+            expect(solutionManager.loadState.converted).toBe(false);
+            expect(finished).toBe(false);
+            finish(convertResultData);
+            await updating;
+            expect(finished).toBe(true);
+            expect(convertSolution).toHaveBeenCalledTimes(1);
+        });
+
+        it.each([
+            { success: false }, { severity: 'error' as const }, { detection: true },
+        ])('rejects unsuccessful conversion results %j', async result => {
+            await loadSolution();
+            convertSolution.mockResolvedValueOnce({ ...convertResultData, ...result });
+            await expect(solutionManager.updateRte()).rejects.toThrow('RTE update failed or requires solution configuration.');
+            expect(convertSolution).toHaveBeenCalledTimes(1);
+        });
+
+        it('propagates cancellation without retrying', async () => {
+            await loadSolution();
+            convertSolution.mockRejectedValueOnce(new Error('RTE update cancelled.'));
+            await expect(solutionManager.updateRte()).rejects.toThrow('RTE update cancelled.');
+            expect(convertSolution).toHaveBeenCalledTimes(1);
+        });
+
+        it('rejects a target change during conversion', async () => {
+            await loadSolution();
+            convertSolution.mockImplementationOnce(async () => {
+                jest.spyOn(solutionManager.getCsolution()!, 'getActiveTargetSetName').mockReturnValue('Other');
+                return convertResultData;
+            });
+            await expect(solutionManager.updateRte()).rejects.toThrow('The active solution changed during the RTE update.');
+        });
+    });
 
     it('exposes the injected document manager', () => {
         expect(solutionManager.getDocManager()).toBe(docManager);

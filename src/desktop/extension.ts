@@ -172,6 +172,8 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         environmentManagerApiProvider,
         envManager,
         docManager,
+        // Defer access: the converter's toolbox error handler also uses the solution manager.
+        (data, publishEvents) => solutionConverterImpl.convertSolution(data, publishEvents),
         toolsEnvironment);
 
     initUtils(configurationProvider, solutionManager);
@@ -261,7 +263,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const treeViewProviderImpl = new TreeViewProviderImpl(SolutionOutlineView.treeViewId);
     const treeViewFileDecorationProvider = new TreeViewFileDecorationProvider(fileDecorationProviderManager, themeProvider);
     const mergeSessionCoordinator = new MergeSessionCoordinatorImpl(commandsProvider);
-    const mergeCommand = new MergeCommand(commandsProvider, mergeSessionCoordinator, messageProvider);
+    const mergeCommand = new MergeCommand(commandsProvider, mergeSessionCoordinator, messageProvider, solutionManager);
     const buildCommand = new BuildCommand(buildTaskProvider, commandsProvider, buildTaskDefinitionBuilder, componentsManager);
     const runGeneratorCommand = new GeneratorCommand(commandsProvider, solutionManager, outputChannelProvider, cmsisToolboxManager, eventHub);
     const armclangDefineGetter = new ArmclangDefineGetter(processManager, workspaceFsProvider);

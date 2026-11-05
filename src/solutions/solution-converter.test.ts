@@ -150,6 +150,51 @@ describe('SolutionConverter', () => {
     });
 
     describe('direct conversion', () => {
+        it('publishes lifecycle events when requested by the solution manager', async () => {
+            mockCsolutionService.convertSolution.mockResolvedValueOnce({ success: true, selectCompiler: ['GCC'] });
+            const result = await converter.convertSolution({ ...convertRequestData, updateRte: true }, true);
+            expect(completedListener).toHaveBeenCalledWith(result);
+            expect(eventHub.fireConfigureSolutionDataReady).toHaveBeenCalledWith({
+                availableCompilers: ['GCC'], availableConfigurations: undefined,
+            });
+        });
+
+        it('publishes failure lifecycle events and leaves error presentation to the awaitable caller', async () => {
+            const prompt = jest.spyOn(vscode.window, 'showErrorMessage').mockClear();
+            mockCsolutionService.convertSolution.mockRejectedValueOnce(new Error('RTE update cancelled.'));
+            await expect(converter.convertSolution({ ...convertRequestData, updateRte: true }, true)).rejects.toThrow('RTE update cancelled.');
+            expect(completedListener).toHaveBeenCalledWith(expect.objectContaining({ success: false, severity: 'error' }));
+            expect(eventHub.fireConfigureSolutionDataReady).toHaveBeenCalledWith({
+                availableCompilers: [], availableConfigurations: undefined,
+            });
+            expect(prompt).not.toHaveBeenCalled();
+            await expect(converter.convertSolution(convertRequestData)).resolves.toMatchObject({ success: true });
+        });
+
+        it('queues an on-demand RTE update behind a locked initial conversion', async () => {
+            mockConfigurationProvider.getConfigVariable.mockReturnValue(false);
+            let finishInitial!: () => void;
+            let markStarted!: () => void;
+            const started = new Promise<void>(resolve => { markStarted = resolve; });
+            mockCsolutionService.convertSolution.mockImplementationOnce(() => new Promise(resolve => {
+                finishInitial = () => resolve({ success: true });
+                markStarted();
+            }));
+            const completed = waitForNCompletions(1);
+            await eventHub.fireConvertRequest({ ...convertRequestData, updateRte: false, lockAbort: true });
+            await started;
+            const update = converter.convertSolution({ ...convertRequestData, updateRte: true }, true);
+            expect(mockCsolutionService.convertSolution).toHaveBeenCalledTimes(1);
+            finishInitial();
+            await expect(update).resolves.toMatchObject({ success: true });
+            await completed;
+            expect(mockCsolutionService.convertSolution.mock.calls).toEqual([
+                [{ solution: ACTIVE_SOLUTION, activeTarget: '', updateRte: false }],
+                [{ solution: ACTIVE_SOLUTION, activeTarget: '', updateRte: true }],
+            ]);
+            expect(completedListener).toHaveBeenCalledTimes(2);
+        });
+
         it('returns the completion payload without emitting events', async () => {
             mockCsolutionService.getLogMessages.mockResolvedValue({ success: true, warnings: ['a warning'] });
             const result = await converter.convertSolution({ ...convertRequestData, targetSet: 'Board@Debug', updateRte: true });

@@ -15,6 +15,7 @@
  */
 
 jest.mock('vscode', () => ({
+    ...jest.requireActual('../../../../__mocks__/vscode'),
     window: {
         showErrorMessage: jest.fn(),
         showInformationMessage: jest.fn(),
@@ -43,6 +44,7 @@ import * as path from 'path';
 import * as fsUtils from '../../../utils/fs-utils';
 import { MergeSessionCoordinator } from './merge-session-coordinator';
 import { messageProviderFactory, MockMessageProvider } from '../../../vscode-api/message-provider.factories';
+import type { SolutionManager } from '../../../solutions/solution-manager';
 
 jest.mock('child_process');
 jest.mock('os');
@@ -52,6 +54,7 @@ describe('MergeCommand', () => {
     let command: MergeCommand;
     let mergeSessionCoordinator: jest.Mocked<MergeSessionCoordinator>;
     let messageProvider: MockMessageProvider;
+    let solutionManager: jest.Mocked<Pick<SolutionManager, 'updateRte'>>;
     const testDataHandler = new TestDataHandler();
     let tmpDir: string;
 
@@ -90,7 +93,8 @@ describe('MergeCommand', () => {
             onMergeProcessExit: jest.fn().mockResolvedValue({ applied: false }),
         };
         messageProvider = messageProviderFactory();
-        command = new MergeCommand(commandsProvider, mergeSessionCoordinator, messageProvider);
+        solutionManager = { updateRte: jest.fn().mockResolvedValue(undefined) };
+        command = new MergeCommand(commandsProvider, mergeSessionCoordinator, messageProvider, solutionManager);
 
         componentNode = new COutlineItem('component');
         componentNode.setTag('component');
@@ -213,6 +217,67 @@ describe('MergeCommand', () => {
             const result = command['findNewestMergeFiles'](path.join(tmpDir, 'component.c'));
 
             expect(result).toEqual({ update: undefined, base: undefined });
+        });
+    });
+
+    describe('on-demand RTE update', () => {
+        beforeEach(() => {
+            jest.spyOn(command as unknown as { getVSCodeExecutablePath: () => string }, 'getVSCodeExecutablePath').mockReturnValue('/usr/bin/code');
+            mockedExec.mockImplementation((_cmd, _options, callback) => {
+                (callback as (error: null) => void)(null);
+                return {} as child_process.ChildProcess;
+            });
+        });
+
+        it('opens existing merge files without conversion', async () => {
+            await command['runVSCodeMerge'](fileNode);
+            expect(solutionManager.updateRte).not.toHaveBeenCalled();
+            expect(mergeSessionCoordinator.startSession).toHaveBeenCalledTimes(1);
+            expect(messageProvider.showErrorMessage).not.toHaveBeenCalled();
+        });
+
+        it('waits for the RTE update before rediscovering files and opening merge', async () => {
+            fsUtils.deleteFileIfExists(path.join(tmpDir, 'component.c.update@1.0.0'));
+            let finish!: () => void;
+            solutionManager.updateRte.mockImplementationOnce(() => new Promise(resolve => {
+                finish = () => {
+                    fsUtils.writeTextFile(path.join(tmpDir, 'component.c.update@2.0.0'), '// update\n');
+                    resolve();
+                };
+            }));
+            const merging = command['runVSCodeMerge'](fileNode);
+            expect(solutionManager.updateRte).toHaveBeenCalledWith();
+            expect(mergeSessionCoordinator.startSession).not.toHaveBeenCalled();
+            finish();
+            await merging;
+            expect(mergeSessionCoordinator.startSession).toHaveBeenCalledWith(expect.objectContaining({
+                update: path.join(tmpDir, 'component.c.update@2.0.0'),
+            }));
+            expect(solutionManager.updateRte).toHaveBeenCalledTimes(1);
+            expect(messageProvider.showErrorMessage).not.toHaveBeenCalled();
+        });
+
+        it.each(['failed', 'cancelled', 'missing'])('handles an RTE update that is %s without retrying', async outcome => {
+            fsUtils.deleteFileIfExists(path.join(tmpDir, 'component.c.update@1.0.0'));
+            if (outcome === 'failed') {
+                solutionManager.updateRte.mockRejectedValueOnce(new Error('RTE update failed or requires solution configuration. See the CMSIS Solution output for details.'));
+            } else if (outcome === 'cancelled') {
+                solutionManager.updateRte.mockRejectedValueOnce(new Error('RTE update cancelled.'));
+            }
+            await command['runVSCodeMerge'](fileNode);
+            expect(solutionManager.updateRte).toHaveBeenCalledTimes(1);
+            expect(mergeSessionCoordinator.startSession).not.toHaveBeenCalled();
+            expect(messageProvider.showErrorMessage).toHaveBeenCalledWith(outcome === 'missing'
+                ? 'Required update file is missing to perform merge.'
+                : outcome === 'cancelled' ? 'Cannot open merge view: RTE update cancelled.'
+                    : 'Cannot open merge view: RTE update failed or requires solution configuration. See the CMSIS Solution output for details.');
+        });
+
+        it('does not request an update when only the base file is missing', async () => {
+            fsUtils.deleteFileIfExists(path.join(tmpDir, 'component.c.base@1.0.0'));
+            await command['runVSCodeMerge'](fileNode);
+            expect(solutionManager.updateRte).not.toHaveBeenCalled();
+            expect(messageProvider.showErrorMessage).toHaveBeenCalledWith('Required base file is missing to perform merge.');
         });
     });
 
@@ -414,6 +479,7 @@ describe('MergeCommand', () => {
                 update: `${local}.update@1.0.0'unsafe`,
                 base: `${local}.base@1.0.0`,
             });
+            jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
             jest.spyOn(fsUtils, 'copyFile').mockImplementation(() => { });
             jest.spyOn(fsUtils, 'getFileModificationTime').mockReturnValue(1000);
 
