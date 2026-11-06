@@ -30,7 +30,8 @@ const ENV_VAR_SETTINGS_NAME = `${manifest.PACKAGE_NAME}.${manifest.CONFIG_ENVIRO
 
 export interface SolutionConverter {
     activate(context: vscode.ExtensionContext): void;
-    convertSolution(data: ConvertRequestData): Promise<ConvertResultData>;
+    /** Serializes conversion; lifecycle events are opt-in for internal solution updates. */
+    convertSolution(data: ConvertRequestData, publishEvents?: boolean): Promise<ConvertResultData>;
 }
 
 export class SolutionConverterImpl implements SolutionConverter {
@@ -100,18 +101,25 @@ export class SolutionConverterImpl implements SolutionConverter {
         return this.configProvider.getConfigVariable<boolean>(manifest.CONFIG_DOWNLOAD_MISSING_PACKS) ?? true;
     }
 
-    public async convertSolution(data: ConvertRequestData): Promise<ConvertResultData> {
+    public async convertSolution(data: ConvertRequestData, publishEvents = false): Promise<ConvertResultData> {
         if (!data.solutionPath) {
             throw new Error('Converting a solution requires a solution path');
         }
         const request = { ...data };
         return this.convertSolutionMutex.runExclusive(async () => {
-            const result = await this.runConversion(request);
-            return result!;
+            try {
+                const result = await this.runConversion(request, undefined, publishEvents);
+                return result!;
+            } catch (error) {
+                if (publishEvents) {
+                    await this.handleConvertFailure(error, false);
+                }
+                throw error;
+            }
         });
     }
 
-    private async runConversion(data: ConvertRequestData, signal?: AbortSignal): Promise<ConvertResultData | undefined> {
+    private async runConversion(data: ConvertRequestData, signal?: AbortSignal, publishEvents = !!signal): Promise<ConvertResultData | undefined> {
         if (signal?.aborted) {
             return;
         }
@@ -237,8 +245,8 @@ export class SolutionConverterImpl implements SolutionConverter {
             logMessages: logResult,
             toolsOutputMessages,
         };
-        if (signal) {
-            // Publish event-driven results before yielding back to the request handler.
+        if (publishEvents) {
+            // Publish lifecycle results before returning to the caller.
             this.eventHub.fireConvertCompleted(result);
             this.eventHub.fireConfigureSolutionDataReady({ availableCompilers, availableConfigurations });
         }
@@ -294,7 +302,7 @@ export class SolutionConverterImpl implements SolutionConverter {
         return result;
     }
 
-    private async handleConvertFailure(error: unknown): Promise<void> {
+    private async handleConvertFailure(error: unknown, showError = true): Promise<void> {
         const message = this.getErrorMessage(error);
         const outputChannel = this.outputChannelProvider.getOrCreate(manifest.CMSIS_SOLUTION_OUTPUT_CHANNEL);
 
@@ -317,6 +325,9 @@ export class SolutionConverterImpl implements SolutionConverter {
         });
         await this.eventHub.fireConfigureSolutionDataReady({ availableCompilers: [], availableConfigurations: undefined });
 
+        if (!showError) {
+            return; // The awaitable caller reports the error in its operation's context.
+        }
         if (this.isEnvironmentSettingsError(message)) {
             const selection = await vscode.window.showErrorMessage(
                 `Failed to load solution due to invalid environment variable settings: ${message}`,

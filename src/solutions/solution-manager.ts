@@ -21,7 +21,8 @@ import { ActiveSolutionTracker } from './active-solution-tracker';
 import { CSolution } from './csolution';
 import { UPDATE_DEBUG_TASKS_COMMAND_ID } from '../debug/debug-launch-provider';
 import { Severity } from './constants';
-import { SolutionEventHub, ConvertResultData, CbuildResultData } from './solution-event-hub';
+import { SolutionEventHub, ConvertRequestData, ConvertResultData, CbuildResultData } from './solution-event-hub';
+import type { SolutionConverter } from './solution-converter';
 import { ExtensionApiProvider } from '../vscode-api/extension-api-provider';
 import { EnvironmentManagerApiV1 } from '@arm-software/vscode-environment-manager';
 import { debounce } from 'lodash';
@@ -82,6 +83,9 @@ export interface SolutionManager {
     // triggers reload of solution
     refresh(): Promise<void>;
 
+    /** Updates RTE using the current solution and resolves after successful conversion. */
+    updateRte(): Promise<void>;
+
     markDirty(): void;
 }
 
@@ -115,6 +119,7 @@ export class SolutionManagerImpl implements SolutionManager {
             'onDidActivate' | 'onDidFailActivation' | 'getActiveTools' | 'isActivating'>>,
         private readonly environmentManager: EnvironmentManager,
         private readonly docManager: DocManager,
+        private readonly convertSolution: SolutionConverter['convertSolution'],
         private readonly toolsEnvironment = new ToolsEnvironment(environmentManager, environmentManagerApiProvider),
     ) { }
 
@@ -235,13 +240,43 @@ export class SolutionManagerImpl implements SolutionManager {
         await this.reloadActiveSolutionFiles();
     }
 
+    public async updateRte(): Promise<void> {
+        const solution = this.csolution;
+        if (!solution || !this.loadState.loaded) {
+            throw new Error('An RTE update requires a loaded solution.');
+        }
+        const targetSet = solution.getActiveTargetSetName();
+        const request = await this.prepareConvertRequest(true);
+        if (!request || this.csolution !== solution || solution.getActiveTargetSetName() !== targetSet) {
+            throw new Error('The active solution changed during the RTE update.');
+        }
+        const result = await this.convertSolution(request, true);
+        if (!result.success || result.severity === 'error' || result.detection) {
+            throw new Error('RTE update failed or requires solution configuration. See the CMSIS Solution output for details.');
+        }
+        if (this.csolution !== solution || !this.loadState.loaded || solution.getActiveTargetSetName() !== targetSet) {
+            throw new Error('The active solution changed during the RTE update.');
+        }
+    }
+
     private async requestConvert(updateRte?: boolean, restartRpc?: boolean, lockAbort?: boolean) {
-        if (!this.csolution || !this.csolution.solutionPath) {
+        const request = await this.prepareConvertRequest(updateRte, restartRpc, lockAbort);
+        if (request) {
+            this.eventHub.fireConvertRequest(request);
+        }
+    }
+
+    private async prepareConvertRequest(updateRte?: boolean, restartRpc?: boolean, lockAbort?: boolean): Promise<ConvertRequestData | undefined> {
+        const solution = this.csolution;
+        if (!solution || !solution.solutionPath) {
             return;
         }
 
         // check if updateRte is forced
         updateRte = await this.hasForceUpdateRte() || updateRte;
+        if (this.csolution !== solution) {
+            return;
+        }
         restartRpc = restartRpc || this.restartRpcOnConvert;
         this.restartRpcOnConvert = false;
 
@@ -252,17 +287,17 @@ export class SolutionManagerImpl implements SolutionManager {
         // Emit so subscribers (e.g. webviews) can show a 'Converting solution...' busy state
         this.setLoadState(newState, true);
 
-        const solutionPath = this.csolution.solutionPath;
+        const solutionPath = solution.solutionPath;
         void this.toolsEnvironment.captureAndQueueWrite(solutionPath).catch(error => {
             console.error(`Failed to queue tools environment write for '${solutionPath}'`, error);
         });
-        this.eventHub.fireConvertRequest({
+        return {
             solutionPath,
-            targetSet: this.csolution.getActiveTargetSetName(),
+            targetSet: solution.getActiveTargetSetName(),
             updateRte: updateRte,
             restartRpc: restartRpc,
             lockAbort: lockAbort,
-        });
+        };
     }
 
     private async updateRpcData() {

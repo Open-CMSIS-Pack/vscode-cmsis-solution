@@ -26,6 +26,7 @@ import { extractVersion } from '@open-cmsis-pack/cmsis-common/string-utils';
 import * as fsUtils from '../../../utils/fs-utils';
 import { MergeSessionCoordinator } from './merge-session-coordinator';
 import type { MessageProvider } from '../../../vscode-api/message-provider';
+import type { SolutionManager } from '../../../solutions/solution-manager';
 
 export class MergeCommand {
     public static readonly mergeFile = `${PACKAGE_NAME}.mergeFile`;
@@ -38,6 +39,7 @@ export class MergeCommand {
         private readonly commandsProvider: CommandsProvider,
         private readonly mergeSessionCoordinator: MergeSessionCoordinator,
         private readonly messageProvider: Pick<MessageProvider, 'showErrorMessage' | 'showInformationMessage' | 'showWarningMessage'>,
+        private readonly solutionManager: Pick<SolutionManager, 'updateRte'>,
     ) { }
 
     public async activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>) {
@@ -89,7 +91,7 @@ export class MergeCommand {
     }
 
     private async runVSCodeMergeForPath(localPath: string): Promise<void> {
-        const mergeFiles = this.discoverMergeFiles(localPath);
+        const mergeFiles = await this.discoverMergeFiles(localPath);
         if (!mergeFiles) {
             return;
         }
@@ -146,11 +148,21 @@ export class MergeCommand {
         }
     }
 
-    private discoverMergeFiles(local: string): { local: string; update: string; base: string } | undefined {
+    private async discoverMergeFiles(local: string): Promise<{ local: string; update: string; base: string } | undefined> {
 
-        const discovered = this.findNewestMergeFiles(local);
+        let discovered = this.findNewestMergeFiles(local);
+        if (!discovered.update) {
+            try {
+                await this.solutionManager.updateRte();
+            } catch (error) {
+                const details = error instanceof Error ? error.message : String(error);
+                this.messageProvider.showErrorMessage(`Cannot open merge view: ${details}`);
+                return undefined;
+            }
+            discovered = this.findNewestMergeFiles(local);
+        }
         const update = discovered.update;
-        if (!update) {
+        if (!update || !fsUtils.fileExists(update)) {
             this.messageProvider.showErrorMessage('Required update file is missing to perform merge.');
             return undefined;
         }
@@ -283,10 +295,6 @@ export class MergeCommand {
 
         const update = this.resolveNewestMergeSibling(fileNames, updatePrefix);
         const base = this.resolveNewestMergeSibling(fileNames, basePrefix);
-
-        if (!update || !base) {
-            return { update: undefined, base: undefined };
-        }
 
         return {
             update: update ? path.join(dir, update) : undefined,
