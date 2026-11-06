@@ -906,7 +906,7 @@
       },
       {
         "command": "cmsis-csolution.list.find",
-        "title": "Find a file in Solution"
+        "title": "Find a File in Solution"
       },
       {
         "category": "CMSIS",
