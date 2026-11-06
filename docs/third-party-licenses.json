@@ -162,7 +162,7 @@
     },
     {
         "name": "yargs-parser",
-        "version": "21.1.1",
+        "version": "22.0.0",
         "spdx": "ISC",
         "url": "https://github.com/yargs/yargs-parser",
         "license": "https://github.com/yargs/yargs-parser/blob/main/LICENSE.txt"
