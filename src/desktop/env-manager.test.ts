@@ -407,8 +407,8 @@ describe('EnvironmentManager', () => {
             } as unknown as vscode.WorkspaceConfiguration));
             const pythonApi = {
                 getEnvironment: jest.fn().mockResolvedValue(undefined),
-                getEnvironmentVariables: jest.fn().mockResolvedValue(undefined),
-                onDidChangeEnvironment: jest.fn(() => ({ dispose: jest.fn() })),
+                getEnvironmentVariables: jest.fn().mockResolvedValue(undefined).mockResolvedValueOnce({ PYTHON_MARKER: 'first' }),
+                onDidChangeEnvironment: jest.fn((_listener: () => void) => ({ dispose: jest.fn() })),
                 onDidChangeEnvironmentVariables: jest.fn(() => ({ dispose: jest.fn() })),
             };
             const extensionSpy = jest.mocked(vscode.extensions.getExtension).mockImplementation(id =>
@@ -418,12 +418,16 @@ describe('EnvironmentManager', () => {
                 await environmentManager.activate(mockContext);
                 expect(environmentManager.getConfiguredEnvironmentVariables()).toMatchObject({ FIRST_ONLY: 'first' });
                 expect(pythonApi.getEnvironment).toHaveBeenLastCalledWith(firstFolder);
+                expect(environmentManager.getEnvironmentVariables().PYTHON_MARKER).toBe('first');
+                pythonApi.onDidChangeEnvironment.mock.calls[0][0]();
+                expect(environmentManager.getEnvironmentVariables().PYTHON_MARKER).toBe('first');
 
                 tracker.activeSolution = path.join(secondFolder.fsPath, 'nested', 'App.csolution.yml');
                 tracker.onDidChangeActiveSolutionEmitter?.fire();
 
                 expect(environmentManager.getConfiguredEnvironmentVariables()).toMatchObject({ SECOND_ONLY: 'second' });
                 expect(environmentManager.getConfiguredEnvironmentVariables()).not.toHaveProperty('FIRST_ONLY');
+                expect(environmentManager.getEnvironmentVariables().PYTHON_MARKER).toBeUndefined();
                 expect(mockEnvironmentVariableCollection.clear).toHaveBeenCalledTimes(2);
                 expect(mockEnvironmentVariableCollection.replace).toHaveBeenLastCalledWith('SECOND_ONLY', 'second');
                 expect(pythonApi.getEnvironment).toHaveBeenLastCalledWith(secondFolder);

@@ -116,6 +116,7 @@ class PythonEnvironmentExtensionWrapper {
     private pyenvApi: Optional<PythonEnvironmentApi> = undefined;
     private pyenv: Optional<PythonEnvironment> = undefined;
     private pyenvVars: Optional<NodeJS.ProcessEnv> = undefined;
+    private resource: string | undefined;
     private readonly disposables: vscode.Disposable[] = [];
 
     constructor(private readonly getResource: () => vscode.Uri | undefined) {}
@@ -132,6 +133,7 @@ class PythonEnvironmentExtensionWrapper {
         this.pyenvApi = undefined;
         this.pyenv = undefined;
         this.pyenvVars = undefined;
+        this.resource = undefined;
         this.disposables.forEach(d => d.dispose());
         this.disposables.length = 0;
     }
@@ -181,8 +183,11 @@ class PythonEnvironmentExtensionWrapper {
 
     public async activatePythonEnv() {
         const resource = this.getResource();
-        this.pyenv = undefined;
-        this.pyenvVars = undefined;
+        if (this.resource !== resource?.toString()) {
+            this.pyenv = undefined;
+            this.pyenvVars = undefined;
+            this.resource = resource?.toString();
+        }
         const [pyenv, pyenvVars] = await Promise.all([
             this.pyenvApi?.getEnvironment(resource),
             this.pyenvApi?.getEnvironmentVariables(resource),
