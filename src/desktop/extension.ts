@@ -194,7 +194,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     );
 
     const buildTaskProvider = new BuildTaskProviderImpl(buildRunner);
-    const pyocdTaskProvider = new PyocdTaskProvider(() => envManager.getEnvironmentVariables(), outputChannelProvider);
+    const pyocdTaskProvider = new PyocdTaskProvider(() => envManager.getEnvironmentVariables());
     pyocdTaskProvider.activate(context);
     const buildTaskDefinitionBuilder = new BuildTaskDefinitionBuilderImpl(solutionManager, configurationProvider);
     const compileCommandsGenerator = new CompileCommandsGenerator(buildTaskProvider, buildTaskDefinitionBuilder, eventHub, outputChannelProvider, commandsProvider);

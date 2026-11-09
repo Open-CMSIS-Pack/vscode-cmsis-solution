@@ -20,7 +20,7 @@ import path from 'path';
 import { TestDataHandler } from '../__test__/test-data';
 import { pyocdWindowsHost } from './pyocd-windows';
 
-// Exercise the real Windows lookup and diagnostics without launching a console or pyOCD.
+// Exercise the real Windows lookup and error reporting without launching a console or pyOCD.
 const describeWindows = process.platform === 'win32' ? describe : describe.skip;
 describeWindows('Windows pyOCD executable resolution', () => {
     const data = new TestDataHandler();
@@ -54,7 +54,7 @@ ${setup}`);
             '-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand',
             Buffer.from(script, 'utf16le').toString('base64'),
         ], {
-            env: { ...process.env, PATH: directories.join(path.delimiter), CMSIS_PYOCD_ARGUMENTS: '[]', CMSIS_PYOCD_TASK_NAME: 'Lookup test' },
+            env: { ...process.env, PATH: directories.join(path.delimiter), CMSIS_PYOCD_ARGUMENTS: '[]' },
             encoding: 'utf8', windowsHide: true,
         });
         expect(result.error).toBeUndefined();
@@ -81,18 +81,26 @@ ${setup}`);
         const result = resolve([]);
         expect(result.status).toBe(1);
         expect(result.stdout).toBe('');
-        expect(result.stderr).toContain('[Lookup test] Operation failed: pyOCD executable resolution (Get-Command pyocd.exe)');
+        expect(result.stderr).toContain('pyOCD: pyOCD executable resolution (Get-Command pyocd.exe)');
         expect(result.stderr).toContain('pyocd.exe');
-        expect(result.stderr.trim().split(/\r?\n/)).toHaveLength(3);
+        expect(result.stderr.trim().split(/\r?\n/)).toHaveLength(1);
     });
 
     it('rejects an invalid resolved path before invoking the host', () => {
         const result = resolve([], 'function Get-Command { [PSCustomObject]@{ Source = $env:TEMP } }');
         expect(result.status).toBe(1);
         expect(result.stdout).toBe('');
-        expect(result.stderr).toContain('[Lookup test] Operation failed: pyOCD executable resolution (Get-Command pyocd.exe)');
+        expect(result.stderr).toContain('pyOCD: pyOCD executable resolution (Get-Command pyocd.exe)');
         expect(result.stderr).toContain('Resolved pyOCD executable does not exist or is not a file:');
-        expect(result.stderr.trim().split(/\r?\n/)).toHaveLength(3);
+        expect(result.stderr.trim().split(/\r?\n/)).toHaveLength(1);
+    });
+
+    it('reports process-launch exceptions from the host on stderr', () => {
+        const result = resolve([first], '', 'throw new System.ComponentModel.Win32Exception(2);');
+        expect(result.status).toBe(1);
+        expect(result.stdout).toBe('');
+        expect(result.stderr).toMatch(/^pyOCD: PyocdConsoleHost.Run: .+/);
+        expect(result.stderr.trim().split(/\r?\n/)).toHaveLength(1);
     });
 
     it.each([

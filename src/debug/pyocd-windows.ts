@@ -16,17 +16,16 @@
 
 // Windows PowerShell is part of Windows. Keep the native console boundary here,
 // rather than requiring a Python installation or a platform-specific Node addon.
-// stdin is a private control pipe; stderr also carries launch diagnostics.
+// stdin is a private control pipe; stderr also carries launch failures.
 export const pyocdWindowsHost = String.raw`
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-$diagnosticError = [Console]::OpenStandardError()
+$standardError = [Console]::OpenStandardError()
 $operation = 'C# helper compilation (Add-Type)'
 try {
 Add-Type -TypeDefinition @'
 using System;
 using System.Diagnostics;
-using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 public static class PyocdConsoleHost {
@@ -60,76 +59,23 @@ public static class PyocdConsoleHost {
         info.RedirectStandardError = true;
         using (var killer = Process.Start(info)) killer.WaitForExit();
     }
-    private static void Log(Stream error, string name, string value) {
-        try {
-            string task = Environment.GetEnvironmentVariable("CMSIS_PYOCD_TASK_NAME") ?? "pyOCD";
-            string message = "[" + task.Replace("\r", "\\r").Replace("\n", "\\n") + "] " + name + ": " +
-                value.Replace("\r", "\\r").Replace("\n", "\\n") + "\r\n";
-            byte[] bytes = System.Text.Encoding.UTF8.GetBytes(message);
-            error.Write(bytes, 0, bytes.Length);
-            error.Flush();
-        } catch { } // Diagnostics must not prevent launching pyOCD.
-    }
-    private static string DiagnosticArguments(string[] arguments) {
-        var values = (string[])arguments.Clone();
-        bool redactNext = false;
-        for (int i = 0; i < values.Length; i++) {
-            string value = values[i];
-            if (redactNext) { values[i] = "<redacted>"; redactNext = false; continue; }
-            if (System.Text.RegularExpressions.Regex.IsMatch(value,
-                @"(?i)^--?[^=]*(password|passwd|token|secret|credential|api[-_]?key|authorization)[^=]*(=|$)")) {
-                int equals = value.IndexOf('=');
-                if (equals >= 0) values[i] = value.Substring(0, equals + 1) + "<redacted>";
-                else redactNext = true;
-            }
-        }
-        return String.Join(" ", Array.ConvertAll(values, Quote));
-    }
     public static int Run(string executable, string[] arguments) {
         var input = Console.In;
         var output = Console.OpenStandardOutput();
         var error = Console.OpenStandardError();
-        Process process;
-        string operation = "console creation (AllocConsole)";
-        try {
-            FreeConsole();
-            if (!AllocConsole()) throw new System.ComponentModel.Win32Exception();
-            ShowWindow(GetConsoleWindow(), 0);
-            operation = "console control setup (SetConsoleCtrlHandler)";
-            if (!SetConsoleCtrlHandler(null, false)) throw new System.ComponentModel.Win32Exception();
-            // A handler (rather than the inheritable ignore flag) protects only this host.
-            if (!SetConsoleCtrlHandler(handler, true)) throw new System.ComponentModel.Win32Exception();
-            operation = "pyOCD launch parameter preparation";
-            var info = new ProcessStartInfo(executable, String.Join(" ", Array.ConvertAll(arguments, Quote)));
-            info.UseShellExecute = false;
-            info.CreateNoWindow = false;
-            info.RedirectStandardOutput = true;
-            info.RedirectStandardError = true;
-            info.RedirectStandardInput = true;
-            Log(error, "Executable", info.FileName);
-            Log(error, "Executable exists", File.Exists(info.FileName).ToString());
-            Log(error, "Working directory", Environment.CurrentDirectory + " (inherited; ProcessStartInfo.WorkingDirectory is empty)");
-            Log(error, "Working directory exists", Directory.Exists(Environment.CurrentDirectory).ToString());
-            Log(error, "Arguments", DiagnosticArguments(arguments));
-            string[] pathEntries = (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator);
-            string directory = Path.GetDirectoryName(executable) ?? "";
-            bool directoryOnPath = Array.Exists(pathEntries, entry => String.Equals(
-                entry.Trim('"').TrimEnd('\\', '/'), directory.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase));
-            Log(error, "PATH", pathEntries.Length + " entries; executable directory present: " + directoryOnPath);
-            Log(error, "Process creation", "System.Diagnostics.Process.Start(ProcessStartInfo); UseShellExecute=False; CreateNoWindow=False; RedirectStandardInput/Output/Error=True");
-            operation = "pyOCD process creation (System.Diagnostics.Process.Start)";
-            process = Process.Start(info);
-        } catch (Exception exception) {
-            // A diagnostic write must not replace the original launch exception.
-            try {
-                Log(error, "Operation failed", operation);
-                Log(error, "Exception type", exception.GetType().FullName);
-                var native = exception as System.ComponentModel.Win32Exception;
-                if (native != null) Log(error, "Win32Exception.NativeErrorCode", native.NativeErrorCode.ToString());
-                Log(error, "Error", exception.Message);
-            } catch { }
-            throw;
-        }
+        FreeConsole();
+        if (!AllocConsole()) throw new System.ComponentModel.Win32Exception();
+        ShowWindow(GetConsoleWindow(), 0);
+        if (!SetConsoleCtrlHandler(null, false)) throw new System.ComponentModel.Win32Exception();
+        // A handler (rather than the inheritable ignore flag) protects only this host.
+        if (!SetConsoleCtrlHandler(handler, true)) throw new System.ComponentModel.Win32Exception();
+        var info = new ProcessStartInfo(executable, String.Join(" ", Array.ConvertAll(arguments, Quote)));
+        info.UseShellExecute = false;
+        info.CreateNoWindow = false;
+        info.RedirectStandardOutput = true;
+        info.RedirectStandardError = true;
+        info.RedirectStandardInput = true;
+        var process = Process.Start(info);
         using (var child = process) {
             try {
                 var stdout = child.StandardOutput.BaseStream.CopyToAsync(output);
@@ -175,17 +121,10 @@ exit [PyocdConsoleHost]::Run($executable, $arguments)
 } catch {
     $failure = $_.Exception.GetBaseException()
     try {
-        $task = if ($env:CMSIS_PYOCD_TASK_NAME) { $env:CMSIS_PYOCD_TASK_NAME } else { 'pyOCD' }
-        $prefix = '[' + $task.Replace([string][char]13, '\r').Replace([string][char]10, '\n') + '] '
-        $lines = @($prefix + 'Operation failed: ' + $operation)
-        $lines += $prefix + 'Exception type: ' + $failure.GetType().FullName
-        if ($failure -is [System.ComponentModel.Win32Exception]) {
-            $lines += $prefix + 'Win32Exception.NativeErrorCode: ' + $failure.NativeErrorCode
-        }
-        $lines += $prefix + 'Error: ' + $failure.Message.Replace([string][char]13, '\r').Replace([string][char]10, '\n')
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes(($lines -join [Environment]::NewLine) + [Environment]::NewLine)
-        $diagnosticError.Write($bytes, 0, $bytes.Length)
-        $diagnosticError.Flush()
+        $message = 'pyOCD: ' + $operation + ': ' + $failure.Message + [Environment]::NewLine
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($message)
+        $standardError.Write($bytes, 0, $bytes.Length)
+        $standardError.Flush()
     } catch { }
     exit 1
 }
