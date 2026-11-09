@@ -213,9 +213,9 @@ provider instead of immediately calling VS Code's task termination API for an
 active managed task or its compound parent. The task terminal stays connected
 until the child exits, receives the final output and result, and remains visible
 because its presentation option `close` is set to `false`. Terminal Ctrl+C also
-requests graceful shutdown. Explicit task termination or closing the terminal
-can disconnect its UI early; the **CMSIS pyOCD** Output channel independently
-retains the process output.
+requests graceful shutdown. Standard pyOCD output and actionable helper errors
+are reported in the task terminal. Explicit task termination or closing the
+terminal can disconnect its UI early.
 
 Cancellation reports exit code **130**, even if pyOCD handles the interrupt and
 returns zero. A cancelled Load therefore fails its sequential dependency and

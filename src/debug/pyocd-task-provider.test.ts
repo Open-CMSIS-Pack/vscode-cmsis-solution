@@ -198,9 +198,22 @@ describe('managed pyOCD lifecycle', () => {
 
     it('completes exactly once after a launch failure', () => {
         const terminal = new PyocdTerminal(definition, {}, complete);
+        const write = jest.fn();
+        terminal.onDidWrite(write);
         terminal.open();
         child.emit('error', new Error('ENOENT'));
+        expect(write.mock.calls).toEqual([['pyOCD: ENOENT\r\n']]);
         child.emit('close', -2);
+        expect(complete.mock.calls).toEqual([[1]]);
+    });
+
+    it('reports synchronous launch failures in the terminal', () => {
+        jest.mocked(spawn).mockImplementationOnce(() => { throw new Error('spawn failed'); });
+        const terminal = new PyocdTerminal(definition, {}, complete);
+        const write = jest.fn();
+        terminal.onDidWrite(write);
+        terminal.open();
+        expect(write.mock.calls).toEqual([['pyOCD: Error: spawn failed\r\n']]);
         expect(complete.mock.calls).toEqual([[1]]);
     });
 
@@ -245,53 +258,15 @@ describe('managed pyOCD lifecycle', () => {
         provider.dispose();
     });
 
-    it('forwards helper diagnostics before pyOCD starts and preserves failure completion', async () => {
-        const output = { append: jest.fn(), appendLine: jest.fn() };
-        const channels = { getOrCreate: jest.fn().mockReturnValue(output) };
-        const provider = new PyocdTaskProvider(() => ({ PATH: '/tools' }), channels);
-        const task = new vscode.Task(definition, vscode.TaskScope.Workspace, 'CMSIS Load', 'Workspace');
-        const resolved = provider.resolveTask(task)!;
-        const execution = resolved.execution as unknown as { callback: (definition: vscode.TaskDefinition) => Promise<PyocdTerminal> };
-        const terminal = await execution.callback(definition);
-        const ended = jest.fn();
-        provider.onDidEndTask(ended);
+    it('forwards Windows helper launch failures to the task terminal', () => {
+        const terminal = new PyocdTerminal(definition, {}, complete, 'win32');
+        const write = jest.fn();
+        terminal.onDidWrite(write);
         terminal.open();
-        expect(spawn).toHaveBeenCalledWith(expect.any(String), expect.any(Array), expect.objectContaining({
-            env: expect.objectContaining({ PATH: '/tools', CMSIS_PYOCD_TASK_NAME: 'CMSIS Load' }),
-        }));
-        const diagnostics = '[CMSIS Load] Operation failed: pyOCD process creation (System.Diagnostics.Process.Start)\n'
-            + '[CMSIS Load] Exception type: System.ComponentModel.Win32Exception\n'
-            + '[CMSIS Load] Win32Exception.NativeErrorCode: 2\n'
-            + '[CMSIS Load] Error: The system cannot find the file specified.\n';
-        // stderr can arrive before any pyOCD output and without a terminal UI listener.
-        child.stderr!.emit('data', Buffer.from(diagnostics));
+        child.stderr!.emit('data', Buffer.from('pyOCD: PyocdConsoleHost.Run: The system cannot find the file specified.\n'));
         child.emit('close', 1);
-        expect(channels.getOrCreate).toHaveBeenCalledWith('CMSIS pyOCD');
-        expect(output.appendLine).toHaveBeenCalledWith('[CMSIS Load] Starting managed pyOCD task.');
-        expect(output.append).toHaveBeenCalledWith(diagnostics.replace(/\n/g, '\r\n'));
-        expect(output.appendLine).toHaveBeenLastCalledWith('[CMSIS Load] pyOCD task finished (exit code 1).');
-        expect(ended.mock.calls).toEqual([[{ task: resolved, exitCode: 1 }]]);
-        provider.dispose();
-    });
-
-    it('retains shutdown output after VS Code disconnects the task terminal', async () => {
-        const output = { append: jest.fn(), appendLine: jest.fn() };
-        const channels = { getOrCreate: jest.fn().mockReturnValue(output) };
-        const provider = new PyocdTaskProvider(() => ({}), channels);
-        const task = new vscode.Task(definition, vscode.TaskScope.Workspace, 'CMSIS Run', 'Workspace');
-        const resolved = provider.resolveTask(task)!;
-        const execution = resolved.execution as unknown as { callback: (definition: vscode.TaskDefinition) => Promise<PyocdTerminal> };
-        const terminal = await execution.callback(definition);
-        // No VS Code terminal write listener remains when its UI is closed.
-        terminal.open();
-        terminal.close();
-        child.stderr!.emit('data', Buffer.from('KeyboardInterrupt received; shutting down GDB servers\n'));
-        child.emit('close', 0);
-        expect(channels.getOrCreate).toHaveBeenCalledWith('CMSIS pyOCD');
-        expect(output.append).toHaveBeenCalledWith('\r\npyOCD: requesting graceful shutdown.\r\n');
-        expect(output.append).toHaveBeenCalledWith('KeyboardInterrupt received; shutting down GDB servers\r\n');
-        expect(output.appendLine).toHaveBeenLastCalledWith('[CMSIS Run] pyOCD task finished (exit code 130).');
-        provider.dispose();
+        expect(write.mock.calls).toEqual([['pyOCD: PyocdConsoleHost.Run: The system cannot find the file specified.\r\n']]);
+        expect(complete).toHaveBeenCalledWith(1);
     });
 
     it.each(['CMSIS Load', 'CMSIS Run'])('stops %s through its compound task while retaining terminal output', async name => {
@@ -316,7 +291,7 @@ describe('managed pyOCD lifecycle', () => {
         child.stderr!.emit('data', Buffer.from('GDB server on port 3333 stopped\n'));
         expect(write).toHaveBeenCalledWith('GDB server on port 3333 stopped\r\n');
         child.emit('close', 0);
-        expect(write).toHaveBeenLastCalledWith('\r\npyOCD task finished (exit code 130).\r\n');
+        expect(write.mock.calls).toEqual([['GDB server on port 3333 stopped\r\n']]);
         expect(close).toHaveBeenCalledWith(130);
         expect(provider.stopTask(compound)).toBe(false);
         provider.dispose();
