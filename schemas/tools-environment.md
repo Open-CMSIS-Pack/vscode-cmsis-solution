@@ -1,8 +1,10 @@
 # CMSIS tools environment
 
-The CMSIS Solution extension generates `.cmsis/tools-environment.yml` next to
-each converted csolution file. It provides a versioned, normalized description
-of the environment and external tools available to build tools and AI agents.
+The CMSIS Solution extension generates `.cmsis/tools-environment.yml` in the
+workspace folder owning the converted csolution file, or next to the solution
+when it is outside the workspace. Each workspace folder has its own file.
+It provides a versioned, normalized description of the environment and external
+tools available to build tools and AI agents.
 
 The extension is the sole owner and writer of this file. It captures the
 resolved environment when conversion is requested and rewrites the file only

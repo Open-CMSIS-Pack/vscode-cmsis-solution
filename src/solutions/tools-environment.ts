@@ -22,6 +22,7 @@ import { ActiveTool, EnvironmentManagerApiV1, VcpkgResults } from '@arm-software
 import { EnvironmentManager } from '../desktop/env-manager';
 import { CMSIS_TOOLBOX_FOLDER, PACKAGE_NAME } from '../manifest';
 import { getCmsisToolboxRoot } from '../utils/path-utils';
+import { getWorkspaceFolder } from '../utils/vscode-utils';
 import { ExtensionApiProvider } from '../vscode-api/extension-api-provider';
 
 const ENVIRONMENT_MANAGER_EXTENSION_ID = 'arm.environment-manager';
@@ -137,7 +138,7 @@ export class ToolsEnvironment {
 
     private createContent(solutionPath: string | undefined, installedTools: ActiveTool[]): string {
         return this.render({
-            folder: solutionPath ? path.dirname(solutionPath) : '',
+            folder: solutionPath ? this.getEnvironmentFolder(solutionPath) : '',
             solutionPath,
             environment: this.environmentManager.getEnvironmentVariables(),
             configuredVariables: this.environmentManager.getConfiguredEnvironmentVariables(),
@@ -212,7 +213,7 @@ export class ToolsEnvironment {
     }
 
     private async writeContent(solutionPath: string, content: string): Promise<void> {
-        const document = new ToolsEnvironmentFile(path.join(path.dirname(solutionPath), '.cmsis', 'tools-environment.yml'));
+        const document = new ToolsEnvironmentFile(path.join(this.getEnvironmentFolder(solutionPath), '.cmsis', 'tools-environment.yml'));
         if (document.exists()) {
             await document.load();
             if (document.text === content) {
@@ -227,7 +228,7 @@ export class ToolsEnvironment {
     }
 
     private queueWrite(solutionPath: string, content: string): void {
-        const outputPath = path.join(path.dirname(solutionPath), '.cmsis', 'tools-environment.yml');
+        const outputPath = path.join(this.getEnvironmentFolder(solutionPath), '.cmsis', 'tools-environment.yml');
         const previousWrite = this.pendingWrites.get(outputPath) ?? Promise.resolve();
         const pendingWrite = previousWrite
             .catch(() => undefined)
@@ -240,6 +241,10 @@ export class ToolsEnvironment {
                 this.pendingWrites.delete(outputPath);
             }
         });
+    }
+
+    private getEnvironmentFolder(solutionPath: string): string {
+        return getWorkspaceFolder(solutionPath) || path.dirname(solutionPath);
     }
 
     private async waitUntilReady(environmentManagerApi: EnvironmentManagerToolsApi): Promise<void> {

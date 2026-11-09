@@ -839,7 +839,7 @@ describe('SolutionManager', () => {
         await waitTimeout(200);
 
         expect(writeFile).toHaveBeenCalledWith(
-            path.join(path.dirname(testSolutionPath), '.cmsis', 'tools-environment.yml'),
+            path.join(tmpSolutionsDir, '.cmsis', 'tools-environment.yml'),
             expect.any(String),
         );
     });
@@ -947,7 +947,7 @@ describe('SolutionManager', () => {
 
         expect(cbuildSetupRequestedListener).not.toHaveBeenCalled();
         expect(writeFile).toHaveBeenCalledWith(
-            path.join(path.dirname(testSolutionPath), '.cmsis', 'tools-environment.yml'),
+            path.join(tmpSolutionsDir, '.cmsis', 'tools-environment.yml'),
             expect.any(String),
         );
     });

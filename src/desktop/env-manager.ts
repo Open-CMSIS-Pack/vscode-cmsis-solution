@@ -24,6 +24,7 @@ import process from 'process';
 import { PythonEnvironment, PythonEnvironmentApi } from '../vscode-api/ms-python.vscode-python-envs.api';
 import { extendEnvWithCmsisSettings } from '../util';
 import { getCmsisToolboxRoot, setPackRootEnvironment } from '../utils/path-utils';
+import type { ActiveSolutionTracker } from '../solutions/active-solution-tracker';
 
 const DEFAULT_PATH_VAR = (process.platform === 'win32') ? 'Path' : 'PATH';
 const ENV_VAR_NAME_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -117,6 +118,8 @@ class PythonEnvironmentExtensionWrapper {
     private pyenvVars: Optional<NodeJS.ProcessEnv> = undefined;
     private readonly disposables: vscode.Disposable[] = [];
 
+    constructor(private readonly getResource: () => vscode.Uri | undefined) {}
+
     async activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(
             vscode.extensions.onDidChange(() => this.activatePythonEnvApi()),
@@ -176,9 +179,18 @@ class PythonEnvironmentExtensionWrapper {
         }
     }
 
-    private async activatePythonEnv() {
-        this.pyenv = await this.pyenvApi?.getEnvironment(vscode.workspace.workspaceFolders?.[0]?.uri);
-        this.pyenvVars = await this.pyenvApi?.getEnvironmentVariables(vscode.workspace.workspaceFolders?.[0]?.uri);
+    public async activatePythonEnv() {
+        const resource = this.getResource();
+        this.pyenv = undefined;
+        this.pyenvVars = undefined;
+        const [pyenv, pyenvVars] = await Promise.all([
+            this.pyenvApi?.getEnvironment(resource),
+            this.pyenvApi?.getEnvironmentVariables(resource),
+        ]);
+        if (resource?.toString() === this.getResource()?.toString()) {
+            this.pyenv = pyenv;
+            this.pyenvVars = pyenvVars;
+        }
     }
 }
 
@@ -194,19 +206,26 @@ class EnvironmentManagerImpl implements EnvironmentManager {
 
     constructor(
         private readonly configurationProvider: ConfigurationProvider,
+        private readonly activeSolutionTracker?: ActiveSolutionTracker,
     ) {
     }
 
     public async activate(context: vscode.ExtensionContext): Promise<void> {
         this.context = context;
 
-        this.pyEnvWrapper = new PythonEnvironmentExtensionWrapper();
+        this.pyEnvWrapper = new PythonEnvironmentExtensionWrapper(() => this.workspaceResource);
         await this.pyEnvWrapper.activate(context);
 
         context.subscriptions.push(
             vscode.extensions.onDidChange(() => this.updateEnvironmentSafe(context)),
             this.envVarsChangeEmitter,
         );
+        this.activeSolutionTracker?.onDidChangeActiveSolution(() => {
+            const pythonEnvironmentUpdate = this.pyEnvWrapper?.activatePythonEnv();
+            this.updateEnvironmentSafe(context);
+            void pythonEnvironmentUpdate?.then(() => this.envVarsChangeEmitter.fire())
+                .catch(error => console.error('Failed to update Python environment', error));
+        }, undefined, context.subscriptions);
 
         this.configurationProvider.onChangeConfiguration(
             () => this.updateEnvironmentSafe(context),
@@ -233,13 +252,15 @@ class EnvironmentManagerImpl implements EnvironmentManager {
     }
 
     public getConfiguredEnvironmentVariables(): NodeJS.ProcessEnv {
-        const configuredEnv = this.configurationProvider.getConfigVariableOrDefault<NodeJS.ProcessEnv>(CONFIG_ENVIRONMENT_VARIABLES, {});
+        const configuredEnv = this.configurationProvider.getConfigVariableOrDefault<NodeJS.ProcessEnv>(
+            CONFIG_ENVIRONMENT_VARIABLES, {}, undefined, this.workspaceResource);
         const { validEnv } = this.partitionConfiguredEnvironment(configuredEnv);
         return new EnvironmentImpl(validEnv, process.env).vars;
     }
 
     private updateEnvironment(context: vscode.ExtensionContext) {
-        const configuredEnv = this.configurationProvider.getConfigVariableOrDefault<NodeJS.ProcessEnv>(CONFIG_ENVIRONMENT_VARIABLES, {});
+        const configuredEnv = this.configurationProvider.getConfigVariableOrDefault<NodeJS.ProcessEnv>(
+            CONFIG_ENVIRONMENT_VARIABLES, {}, undefined, this.workspaceResource);
         const { validEnv, invalidKeys } = this.partitionConfiguredEnvironment(configuredEnv);
         this.notifyOnInvalidKeys(invalidKeys);
 
@@ -338,6 +359,13 @@ class EnvironmentManagerImpl implements EnvironmentManager {
 
     private getErrorMessage(error: unknown): string {
         return error instanceof Error ? error.message : String(error);
+    }
+
+    private get workspaceResource(): vscode.Uri | undefined {
+        const solutionPath = this.activeSolutionTracker?.activeSolution;
+        return solutionPath
+            ? vscode.workspace.getWorkspaceFolder(vscode.Uri.file(solutionPath))?.uri ?? vscode.Uri.file(solutionPath)
+            : undefined;
     }
 }
 

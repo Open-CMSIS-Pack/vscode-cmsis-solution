@@ -42,6 +42,7 @@ describe('ToolsEnvironment', () => {
     let fileSystem: jest.Mocked<ITextFileSystem>;
 
     beforeEach(() => {
+        jest.mocked(vscode.workspace.getWorkspaceFolder).mockReturnValue(undefined);
         fileSystem = {
             exists: jest.fn().mockReturnValue(false),
             read: jest.fn(),
@@ -195,7 +196,34 @@ describe('ToolsEnvironment', () => {
         }));
     });
 
-    it('writes the resolved environment next to the solution', async () => {
+    it('writes nested solutions to their own workspace roots with folder-relative metadata', async () => {
+        const firstFolder = path.join(tempDir, 'first');
+        const secondFolder = path.join(tempDir, 'second');
+        jest.mocked(vscode.workspace.getWorkspaceFolder).mockImplementation(uri => ({
+            uri: vscode.Uri.file(uri.fsPath.startsWith(secondFolder) ? secondFolder : firstFolder),
+            name: 'Workspace folder',
+            index: 0,
+        }));
+        const environmentManager = {
+            getEnvironmentVariables: jest.fn().mockReturnValue({}),
+            getConfiguredEnvironmentVariables: jest.fn().mockReturnValue({}),
+        } as unknown as EnvironmentManager;
+        const owner = new ToolsEnvironment(environmentManager, extensionApiProviderFactory({
+            getActiveTools: jest.fn().mockReturnValue([]),
+        }));
+
+        await owner.write(path.join(firstFolder, 'nested', 'App.csolution.yml'));
+        await owner.write(path.join(secondFolder, 'nested', 'App.csolution.yml'));
+
+        expect(fileSystem.write).toHaveBeenCalledTimes(2);
+        for (const [index, folder] of [firstFolder, secondFolder].entries()) {
+            const [fileName, content] = fileSystem.write.mock.calls[index];
+            expect(fileName).toBe(path.join(folder, '.cmsis', 'tools-environment.yml'));
+            expect(yaml.parse(content)['cmsis-tools-environment'].solution).toBe('../nested/App.csolution.yml');
+        }
+    });
+
+    it('writes the resolved environment next to a solution outside workspace folders', async () => {
         const artifactsRoot = path.join('/home/user', '.vcpkg', 'artifacts', 'registry');
         const toolboxRoot = path.join(artifactsRoot, 'tools.open.cmsis.pack.cmsis.toolbox', '2.14.1');
         const toolboxBin = path.join(toolboxRoot, 'bin');

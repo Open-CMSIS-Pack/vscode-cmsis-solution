@@ -21,6 +21,8 @@ import path from 'path';
 import { CMSIS_TOOLBOX_FOLDER, CONFIG_ENVIRONMENT_VARIABLES } from '../manifest';
 import { waitTimeout } from '../__test__/test-waits';
 import { getCmsisPackRoot, setPackRootEnvironment } from '../utils/path-utils';
+import { activeSolutionTrackerFactory } from '../solutions/active-solution-tracker.factories';
+import { ConfigurationProviderImpl } from '../vscode-api/configuration-provider';
 
 const DEFAULT_PATH_VAR = (process.platform === 'win32') ? 'Path' : 'PATH';
 
@@ -390,6 +392,50 @@ describe('EnvironmentManager', () => {
     });
 
     describe('tools environment sources', () => {
+        it('resolves settings and Python environments from the active solution folder when switching roots', async () => {
+            const firstFolder = vscode.Uri.file(path.resolve('first'));
+            const secondFolder = vscode.Uri.file(path.resolve('second'));
+            const tracker = activeSolutionTrackerFactory({
+                activeSolution: path.join(firstFolder.fsPath, 'nested', 'App.csolution.yml'),
+            });
+            const folderSpy = jest.mocked(vscode.workspace.getWorkspaceFolder).mockImplementation(uri => ({
+                uri: uri.fsPath.startsWith(secondFolder.fsPath) ? secondFolder : firstFolder,
+                name: 'Workspace folder', index: 0,
+            }));
+            const configurationSpy = jest.mocked(vscode.workspace.getConfiguration).mockImplementation((_section, scope) => ({
+                get: () => scope === secondFolder ? { SECOND_ONLY: 'second' } : { FIRST_ONLY: 'first' },
+            } as unknown as vscode.WorkspaceConfiguration));
+            const pythonApi = {
+                getEnvironment: jest.fn().mockResolvedValue(undefined),
+                getEnvironmentVariables: jest.fn().mockResolvedValue(undefined),
+                onDidChangeEnvironment: jest.fn(() => ({ dispose: jest.fn() })),
+                onDidChangeEnvironmentVariables: jest.fn(() => ({ dispose: jest.fn() })),
+            };
+            const extensionSpy = jest.mocked(vscode.extensions.getExtension).mockImplementation(id =>
+                id === 'ms-python.vscode-python-envs' ? { isActive: true, exports: pythonApi } as unknown as vscode.Extension<unknown> : undefined);
+            environmentManager = new EnvironmentManager(new ConfigurationProviderImpl(mockContext), tracker);
+            try {
+                await environmentManager.activate(mockContext);
+                expect(environmentManager.getConfiguredEnvironmentVariables()).toMatchObject({ FIRST_ONLY: 'first' });
+                expect(pythonApi.getEnvironment).toHaveBeenLastCalledWith(firstFolder);
+
+                tracker.activeSolution = path.join(secondFolder.fsPath, 'nested', 'App.csolution.yml');
+                tracker.onDidChangeActiveSolutionEmitter?.fire();
+
+                expect(environmentManager.getConfiguredEnvironmentVariables()).toMatchObject({ SECOND_ONLY: 'second' });
+                expect(environmentManager.getConfiguredEnvironmentVariables()).not.toHaveProperty('FIRST_ONLY');
+                expect(mockEnvironmentVariableCollection.clear).toHaveBeenCalledTimes(2);
+                expect(mockEnvironmentVariableCollection.replace).toHaveBeenLastCalledWith('SECOND_ONLY', 'second');
+                expect(pythonApi.getEnvironment).toHaveBeenLastCalledWith(secondFolder);
+                expect(pythonApi.getEnvironmentVariables).toHaveBeenLastCalledWith(secondFolder);
+            } finally {
+                mockContext.subscriptions.forEach(subscription => subscription.dispose());
+                folderSpy.mockReset();
+                configurationSpy.mockReset();
+                extensionSpy.mockReset();
+            }
+        });
+
         it('returns resolved and configured environment variables', async () => {
             configurationProviderMock = configurationProviderFactory({
                 [CONFIG_ENVIRONMENT_VARIABLES]: {
