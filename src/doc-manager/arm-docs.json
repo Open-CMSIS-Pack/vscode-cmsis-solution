@@ -44,7 +44,7 @@
         "cortex-m0": "Armv6-M", "cortex-m0+": "Armv6-M", "cortex-m0plus": "Armv6-M", "cortex-m1": "Armv6-M", "sc000": "Armv6-M",
         "cortex-m3": "Armv7-M", "cortex-m4": "Armv7-M", "cortex-m7": "Armv7-M", "sc300": "Armv7-M",
         "cortex-m23": "Armv8-M", "cortex-m33": "Armv8-M", "cortex-m35p": "Armv8-M", "armv8mbl": "Armv8-M", "armv8mml": "Armv8-M",
-        "cortex-m52": "Armv8.1-M", "cortex-m55": "Armv8.1-M", "cortex-m85": "Armv8.1-M", "armv81mml": "Armv8.1-M",
+        "cortex-m42": "Armv8.1-M", "cortex-m52": "Armv8.1-M", "cortex-m55": "Armv8.1-M", "cortex-m85": "Armv8.1-M", "armv81mml": "Armv8.1-M",
         "star-mc1": "Armv8-M", "star-mc3": "Armv8.1-M"
     },
     "knownNpus": [
