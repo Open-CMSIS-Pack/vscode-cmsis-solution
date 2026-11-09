@@ -50,6 +50,70 @@ describe('managed pyOCD lifecycle', () => {
 
     const definition = { type: PYOCD_TASK_TYPE, args: ['load', '--cbuild-run', '/project with spaces/app.cbuild-run.yml'], options: { cwd: '/project' } };
 
+    it.each([undefined, '', 'pyocd', 'custom-pyocd', '/opt/tools/pyocd'])('launches Unix command %j separately from arguments', command => {
+        const terminal = new PyocdTerminal({ ...definition, command }, {}, complete, 'linux');
+        terminal.open();
+        expect(spawn).toHaveBeenCalledWith(command || 'pyocd', definition.args, expect.any(Object));
+        child.emit('close', 0);
+    });
+
+    it('falls back only for a missing command and ignores the replaced child close', () => {
+        const fallback = childProcess(456);
+        jest.mocked(spawn).mockReturnValueOnce(child).mockReturnValueOnce(fallback);
+        const terminal = new PyocdTerminal({ ...definition, command: 'missing-custom-pyocd', options: {} }, {}, complete, 'linux');
+        const write = jest.fn();
+        terminal.onDidWrite(write);
+        terminal.open();
+        child.emit('error', Object.assign(new Error('not found'), { code: 'ENOENT' }));
+        child.emit('close', -2);
+        expect(complete).not.toHaveBeenCalled();
+        fallback.emit('spawn');
+        expect(write).toHaveBeenCalledWith("Warning: configured executable 'missing-custom-pyocd' was not found; using 'pyocd'.\r\n");
+        fallback.emit('error', Object.assign(new Error('not found'), { code: 'ENOENT' }));
+        expect(complete).toHaveBeenCalledWith(1);
+        expect(write).toHaveBeenLastCalledWith(expect.stringContaining("configured command 'missing-custom-pyocd'"));
+        expect(spawn).toHaveBeenCalledTimes(2);
+    });
+
+    it.each(['EACCES', 'EINVAL', 'ENOENT'])('does not retry an existing executable after %s', code => {
+        const terminal = new PyocdTerminal({ ...definition, command: process.execPath, options: {} }, {}, complete, 'linux');
+        terminal.open();
+        child.emit('error', Object.assign(new Error('launch failed'), { code }));
+        expect(spawn).toHaveBeenCalledTimes(1);
+        expect(complete).toHaveBeenCalledWith(1);
+    });
+
+    it('completes successfully when the default executable replaces a missing command', () => {
+        const fallback = childProcess(456);
+        jest.mocked(spawn).mockReturnValueOnce(child).mockReturnValueOnce(fallback);
+        const terminal = new PyocdTerminal({ ...definition, command: 'missing-custom-pyocd', options: {} }, {}, complete, 'darwin');
+        terminal.open();
+        child.emit('error', Object.assign(new Error('not found'), { code: 'ENOENT' }));
+        child.emit('close', -2);
+        fallback.emit('spawn');
+        fallback.emit('close', 0);
+        expect(complete.mock.calls).toEqual([[0]]);
+    });
+
+    it('publishes a failed task and nonzero terminal exit to block sequential dependencies', async () => {
+        const provider = new PyocdTaskProvider(() => ({}));
+        const task = new vscode.Task({ ...definition, command: 'missing-command' }, vscode.TaskScope.Workspace, 'CMSIS Load', 'Workspace');
+        const resolved = provider.resolveTask(task)!;
+        const execution = resolved.execution as unknown as { callback: (definition: vscode.TaskDefinition) => Promise<PyocdTerminal> };
+        const terminal = await execution.callback(task.definition);
+        const end = jest.fn();
+        const close = jest.fn();
+        provider.onDidEndTask(end);
+        terminal.onDidClose(close);
+        terminal.open();
+        // The Windows host reports resolution failures through its existing exit path.
+        child.emit('close', 1);
+        expect(end).toHaveBeenCalledWith({ task: resolved, exitCode: 1 });
+        expect(close).toHaveBeenCalledWith(1);
+        expect(provider.stopTask(resolved)).toBe(false);
+        provider.dispose();
+    });
+
     it('preserves arguments, environment, output and successful completion', () => {
         const terminal = new PyocdTerminal(definition, { PATH: '/tools' }, complete, 'linux');
         const write = jest.fn();
@@ -88,7 +152,7 @@ describe('managed pyOCD lifecycle', () => {
         expect(spawn).toHaveBeenCalledWith(expect.stringMatching(/powershell.exe$/), [
             '-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand',
             Buffer.from(pyocdWindowsHost, 'utf16le').toString('base64'),
-        ], expect.objectContaining({ windowsHide: true, env: { CMSIS_PYOCD_ARGUMENTS: JSON.stringify(definition.args) } }));
+        ], expect.objectContaining({ windowsHide: true, env: { CMSIS_PYOCD_COMMAND: '', CMSIS_PYOCD_ARGUMENTS: JSON.stringify(definition.args) } }));
         terminal.handleInput('\x03');
         expect(write).toHaveBeenCalledWith('stop\n');
         expect(child.kill).not.toHaveBeenCalled();
@@ -202,7 +266,7 @@ describe('managed pyOCD lifecycle', () => {
         terminal.onDidWrite(write);
         terminal.open();
         child.emit('error', new Error('ENOENT'));
-        expect(write.mock.calls).toEqual([['pyOCD: ENOENT\r\n']]);
+        expect(write.mock.calls).toEqual([["pyOCD: executable 'pyocd': ENOENT\r\n"]]);
         child.emit('close', -2);
         expect(complete.mock.calls).toEqual([[1]]);
     });

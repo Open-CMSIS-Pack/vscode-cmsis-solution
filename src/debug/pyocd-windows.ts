@@ -112,7 +112,16 @@ public static class PyocdConsoleHost {
 $operation = 'pyOCD arguments decoding (ConvertFrom-Json)'
 $arguments = [string[]](ConvertFrom-Json $env:CMSIS_PYOCD_ARGUMENTS)
 $operation = 'pyOCD executable resolution (Get-Command pyocd.exe)'
-$executable = (Get-Command pyocd.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+$command = $env:CMSIS_PYOCD_COMMAND
+if ([string]::IsNullOrEmpty($command)) { $command = 'pyocd.exe' }
+$operation = "pyOCD executable resolution (Get-Command $command)"
+try {
+    $executable = (Get-Command $command -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+} catch [System.Management.Automation.CommandNotFoundException] {
+    if ($command -eq 'pyocd.exe') { throw }
+    $executable = (Get-Command pyocd.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+    [Console]::Error.WriteLine("Warning: configured executable '$command' was not found; using '$executable'.")
+}
 if ([string]::IsNullOrWhiteSpace($executable) -or !(Test-Path -LiteralPath $executable -PathType Leaf)) {
     throw "Resolved pyOCD executable does not exist or is not a file: '$executable'"
 }

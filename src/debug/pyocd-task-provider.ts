@@ -17,12 +17,14 @@
 import * as vscode from 'vscode';
 import { ChildProcess, spawn } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import { StringDecoder } from 'string_decoder';
 import { pyocdWindowsHost } from './pyocd-windows';
 
 export const PYOCD_TASK_TYPE = 'cmsis-csolution.pyocd';
 
 export interface PyocdTaskDefinition extends vscode.TaskDefinition {
+    command?: string;
     args: string[];
     options?: { cwd?: string; env?: NodeJS.ProcessEnv };
 }
@@ -54,18 +56,23 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
             this.finish(130);
             return;
         }
+        this.launch(this.definition.command || 'pyocd');
+    }
+
+    private launch(command: string): void {
         try {
             const windows = this.platform === 'win32';
             const executable = windows
                 ? path.win32.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
-                : 'pyocd';
+                : command;
             this.child = spawn(executable, windows ? [
                 '-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand',
                 Buffer.from(pyocdWindowsHost, 'utf16le').toString('base64'),
             ] : this.definition.args, {
                 cwd: this.definition.options?.cwd,
                 env: { ...this.env, ...this.definition.options?.env,
-                    ...(windows ? { CMSIS_PYOCD_ARGUMENTS: JSON.stringify(this.definition.args) } : {}) },
+                    ...(windows ? { CMSIS_PYOCD_ARGUMENTS: JSON.stringify(this.definition.args),
+                        CMSIS_PYOCD_COMMAND: this.definition.command || '' } : {}) },
                 windowsHide: true,
                 stdio: ['pipe', 'pipe', 'pipe'],
             });
@@ -74,13 +81,31 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
                 stream?.on('data', (data: Buffer) => this.writeEmitter.fire(decoder.write(data).replace(/\r?\n/g, '\r\n')));
                 stream?.on('end', () => this.writeEmitter.fire(decoder.end()));
             }
-            this.child.on('error', error => {
-                this.writeEmitter.fire(`pyOCD: ${error.message}\r\n`);
+            const child = this.child;
+            this.child.on('error', (error: NodeJS.ErrnoException) => {
+                // ENOENT can also mean a missing cwd or interpreter. Only retry a
+                // missing executable, never an existing program that failed to launch.
+                const cwd = this.definition.options?.cwd ?? process.cwd();
+                const searchPath = this.definition.options?.env?.PATH ?? this.env.PATH ?? process.env.PATH ?? '';
+                const candidates = command.includes('/') ? [path.resolve(cwd, command)]
+                    : searchPath.split(':').map(directory => path.resolve(cwd, directory, command));
+                if (!windows && error.code === 'ENOENT' && command !== 'pyocd' && !this.cancelled &&
+                    fs.existsSync(cwd) && !candidates.some(candidate => fs.existsSync(candidate))) {
+                    this.launch('pyocd');
+                    return;
+                }
+                const configured = this.definition.command ? ` (configured command '${this.definition.command}')` : '';
+                this.writeEmitter.fire(`pyOCD: executable '${command}'${configured}: ${error.message}\r\n`);
                 if (!this.cancelled || !this.child?.pid) {
                     this.finish(1);
                 }
             });
-            this.child.on('close', code => this.finish(code ?? 1));
+            this.child.on('spawn', () => {
+                if (!windows && command === 'pyocd' && this.definition.command && this.definition.command !== command) {
+                    this.writeEmitter.fire(`Warning: configured executable '${this.definition.command}' was not found; using '${command}'.\r\n`);
+                }
+            });
+            this.child.on('close', code => { if (this.child === child) this.finish(code ?? 1); });
             // A failed control pipe must never become an unhandled EPIPE exception.
             this.child.stdin?.on('error', () => {});
         } catch (error) {
