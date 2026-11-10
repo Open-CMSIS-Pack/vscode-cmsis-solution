@@ -83,14 +83,7 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
             }
             const child = this.child;
             this.child.on('error', (error: NodeJS.ErrnoException) => {
-                // ENOENT can also mean a missing cwd or interpreter. Only retry a
-                // missing executable, never an existing program that failed to launch.
-                const cwd = this.definition.options?.cwd ?? process.cwd();
-                const searchPath = this.definition.options?.env?.PATH ?? this.env.PATH ?? process.env.PATH ?? '';
-                const candidates = command.includes('/') ? [path.resolve(cwd, command)]
-                    : searchPath.split(':').map(directory => path.resolve(cwd, directory, command));
-                if (!windows && error.code === 'ENOENT' && command !== 'pyocd' && !this.cancelled &&
-                    fs.existsSync(cwd) && !candidates.some(candidate => fs.existsSync(candidate))) {
+                if (this.canFallBack(command, error)) {
                     this.launch('pyocd');
                     return;
                 }
@@ -112,6 +105,25 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
             this.writeEmitter.fire(`pyOCD: ${error}\r\n`);
             this.finish(1);
         }
+    }
+
+    private canFallBack(command: string, error: NodeJS.ErrnoException): boolean {
+        if (this.platform === 'win32' || error.code !== 'ENOENT') {
+            return false;
+        }
+        if (command === 'pyocd' || this.cancelled) {
+            return false;
+        }
+        // ENOENT can also mean a missing cwd or interpreter. Only retry a
+        // missing executable, never an existing program that failed to launch.
+        const cwd = this.definition.options?.cwd ?? process.cwd();
+        if (!fs.existsSync(cwd)) {
+            return false;
+        }
+        const searchPath = this.definition.options?.env?.PATH ?? this.env.PATH ?? process.env.PATH ?? '';
+        const candidates = command.includes('/') ? [path.resolve(cwd, command)]
+            : searchPath.split(':').map(directory => path.resolve(cwd, directory, command));
+        return !candidates.some(candidate => fs.existsSync(candidate));
     }
 
     public handleInput(data: string): void {
