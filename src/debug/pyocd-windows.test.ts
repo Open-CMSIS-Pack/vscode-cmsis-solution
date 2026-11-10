@@ -77,28 +77,6 @@ ${setup}`);
         expect(result.stdout.trim()).toBe(kind === 'absolute' ? command : path.join(first, kind === 'custom' ? 'custom.exe' : 'pyocd.exe'));
     });
 
-    it('resolves an explicit executable path containing square brackets literally', () => {
-        const directory = path.join(data.tmpDir, 'pyocd [test]');
-        fs.mkdirSync(directory);
-        const command = path.join(directory, 'pyocd.exe');
-        fs.writeFileSync(command, '');
-        const wildcardMatch = path.join(data.tmpDir, 'pyocd t');
-        fs.mkdirSync(wildcardMatch);
-        fs.writeFileSync(path.join(wildcardMatch, 'pyocd.exe'), '');
-        const result = resolve([first], '', undefined, command);
-        expect(result.status).toBe(0);
-        expect(result.stderr).toBe('');
-        expect(result.stdout.trim()).toBe(command);
-    });
-
-    it('warns when a missing explicit path needs fallback', () => {
-        const command = path.join(data.tmpDir, 'missing [test]', 'pyocd.exe');
-        const result = resolve([first], '', undefined, command);
-        expect(result.status).toBe(0);
-        expect(result.stderr).toContain(`configured executable '${command}' was not found`);
-        expect(result.stdout.trim()).toBe(path.join(first, 'pyocd.exe'));
-    });
-
     it('warns when a configured command needs fallback', () => {
         const result = resolve([first], '', undefined, 'missing-command');
         expect(result.status).toBe(0);

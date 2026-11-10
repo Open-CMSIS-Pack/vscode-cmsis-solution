@@ -116,14 +116,7 @@ $command = $env:CMSIS_PYOCD_COMMAND
 if ([string]::IsNullOrEmpty($command) -or $command -eq 'pyocd') { $command = 'pyocd.exe' }
 $operation = "pyOCD executable resolution (Get-Command $command)"
 try {
-    if ([System.IO.Path]::IsPathRooted($command) -or $command.Contains('\') -or $command.Contains('/')) {
-        if (!(Test-Path -LiteralPath $command -PathType Leaf)) {
-            throw [System.Management.Automation.CommandNotFoundException]::new("Configured executable '$command' was not found.")
-        }
-        $executable = (Get-Item -LiteralPath $command -ErrorAction Stop).FullName
-    } else {
-        $executable = (Get-Command $command -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
-    }
+    $executable = (Get-Command $command -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 } catch [System.Management.Automation.CommandNotFoundException] {
     if ($command -eq 'pyocd.exe') { throw }
     $executable = (Get-Command pyocd.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
