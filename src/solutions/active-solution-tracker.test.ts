@@ -323,8 +323,9 @@ describe('ActiveSolutionTracker', () => {
         const firstSolution = URI.file(path.join(firstFolder.uri.fsPath, 'First.csolution.yml'));
         const secondSolution = URI.file(path.join(secondFolder.uri.fsPath, 'nested', 'Second.csolution.yml'));
         workspaceFoldersProvider.updateWorkspaceFolders([firstFolder, secondFolder]);
-        workspaceFoldersProvider.findFiles.mockImplementation(async (pattern: vscode.RelativePattern) =>
-            pattern.baseUri.fsPath === firstFolder.uri.fsPath ? [firstSolution] : [secondSolution]);
+        workspaceFoldersProvider.findFiles
+            .mockResolvedValueOnce([firstSolution])
+            .mockResolvedValueOnce([secondSolution]);
         const firstSettings = path.join(firstFolder.uri.fsPath, '.vscode', 'cmsis.json');
         jest.spyOn(CmsisSettingsJsonFile.prototype, 'exists').mockImplementation(function (this: CmsisSettingsJsonFile) {
             return this.fileName !== firstSettings || firstDefault !== 'missing';

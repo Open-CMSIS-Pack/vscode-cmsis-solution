@@ -98,6 +98,7 @@ export class ToolsEnvironment {
         if (environmentManagerApi) {
             await this.waitUntilReady(environmentManagerApi);
         }
+        await this.environmentManager.waitUntilReady();
         return this.createContent(solutionPath, environmentManagerApi?.getActiveTools() ?? []);
     }
 
@@ -110,6 +111,7 @@ export class ToolsEnvironment {
         if (environmentManagerApi) {
             await this.waitUntilReady(environmentManagerApi);
         }
+        await this.environmentManager.waitUntilReady();
         const variables = this.mergeEnvironmentVariables(
             this.environmentManager.getEnvironmentVariables(),
             this.vcpkgResults?.variables,
@@ -125,13 +127,16 @@ export class ToolsEnvironment {
         });
     }
 
-    public async captureAndQueueWrite(solutionPath: string): Promise<void> {
+    public async captureAndQueueWrite(solutionPath: string, isCurrent: () => boolean = () => true): Promise<void> {
         const content = await this.getToolsEnvironment(solutionPath);
-        this.queueWrite(solutionPath, content);
+        if (isCurrent()) {
+            this.queueWrite(solutionPath, content);
+        }
     }
 
     public async write(solutionPath: string): Promise<void> {
         const environmentManagerApi = await this.environmentManagerApiProvider.activateIfEnabled();
+        await this.environmentManager.waitUntilReady();
         const content = this.createContent(solutionPath, environmentManagerApi?.getActiveTools() ?? []);
         await this.writeContent(solutionPath, content);
     }

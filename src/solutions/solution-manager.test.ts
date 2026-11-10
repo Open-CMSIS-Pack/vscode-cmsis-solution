@@ -868,7 +868,7 @@ describe('SolutionManager', () => {
         try {
             await activateTestSolution();
 
-            expect(captureSpy).toHaveBeenCalledWith(testSolutionPath);
+            expect(captureSpy).toHaveBeenCalledWith(testSolutionPath, expect.any(Function));
             expect(convertMock).toHaveBeenCalledTimes(1);
             expect(consoleErrorSpy).toHaveBeenCalledWith(
                 `Failed to queue tools environment write for '${testSolutionPath}'`,

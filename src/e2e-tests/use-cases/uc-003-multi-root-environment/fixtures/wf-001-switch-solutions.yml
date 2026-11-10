@@ -1,0 +1,9 @@
+roots:
+    - folder: first
+      solution: First
+      target: FirstTarget
+      marker: first-folder
+    - folder: second
+      solution: Second
+      target: SecondTarget
+      marker: second-folder

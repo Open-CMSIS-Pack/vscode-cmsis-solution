@@ -34,6 +34,7 @@ const CMSIS_DEBUGGER_EXTENSION_ID = 'arm.vscode-cmsis-debugger';
 
 export interface EnvironmentManager {
     activate(context: vscode.ExtensionContext): Promise<void>;
+    waitUntilReady(): Promise<void>;
     augmentEnv(env: Environment | undefined): Environment;
     getEnvironmentVariables(): NodeJS.ProcessEnv;
     getConfiguredEnvironmentVariables(): NodeJS.ProcessEnv;
@@ -117,9 +118,15 @@ class PythonEnvironmentExtensionWrapper {
     private pyenv: Optional<PythonEnvironment> = undefined;
     private pyenvVars: Optional<NodeJS.ProcessEnv> = undefined;
     private resource: string | undefined;
+    private generation = 0;
+    private pendingUpdate = Promise.resolve();
+    private cancelUpdate: (() => void) | undefined;
     private readonly disposables: vscode.Disposable[] = [];
 
-    constructor(private readonly getResource: () => vscode.Uri | undefined) {}
+    constructor(
+        private readonly getResource: () => vscode.Uri | undefined,
+        private readonly onDidChange: () => void,
+    ) {}
 
     async activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(
@@ -130,12 +137,22 @@ class PythonEnvironmentExtensionWrapper {
     }
 
     private dispose(): void {
+        this.generation++;
+        this.cancelUpdate?.();
         this.pyenvApi = undefined;
         this.pyenv = undefined;
         this.pyenvVars = undefined;
         this.resource = undefined;
         this.disposables.forEach(d => d.dispose());
         this.disposables.length = 0;
+    }
+
+    public async waitUntilReady(): Promise<void> {
+        let update: Promise<void>;
+        do {
+            update = this.pendingUpdate;
+            await update;
+        } while (update !== this.pendingUpdate);
     }
 
     public augmentEnv(env: Environment): Environment {
@@ -181,21 +198,34 @@ class PythonEnvironmentExtensionWrapper {
         }
     }
 
-    public async activatePythonEnv() {
+    public activatePythonEnv(): Promise<void> {
+        const generation = ++this.generation;
+        this.cancelUpdate?.();
         const resource = this.getResource();
         if (this.resource !== resource?.toString()) {
             this.pyenv = undefined;
             this.pyenvVars = undefined;
             this.resource = resource?.toString();
         }
-        const [pyenv, pyenvVars] = await Promise.all([
-            this.pyenvApi?.getEnvironment(resource),
-            this.pyenvApi?.getEnvironmentVariables(resource),
-        ]);
-        if (resource?.toString() === this.getResource()?.toString()) {
+        const cancelled = new Promise<void>(resolve => { this.cancelUpdate = resolve; });
+        const update = (async () => {
+            const [pyenv, pyenvVars] = await Promise.all([
+                this.pyenvApi?.getEnvironment(resource),
+                this.pyenvApi?.getEnvironmentVariables(resource),
+            ]);
+            if (generation !== this.generation || resource?.toString() !== this.getResource()?.toString()) {
+                return;
+            }
             this.pyenv = pyenv;
             this.pyenvVars = pyenvVars;
-        }
+            this.onDidChange();
+        })().catch(error => {
+            if (generation === this.generation) {
+                console.error('Failed to update Python environment', error);
+            }
+        });
+        this.pendingUpdate = Promise.race([update, cancelled]);
+        return this.pendingUpdate;
     }
 }
 
@@ -218,7 +248,8 @@ class EnvironmentManagerImpl implements EnvironmentManager {
     public async activate(context: vscode.ExtensionContext): Promise<void> {
         this.context = context;
 
-        this.pyEnvWrapper = new PythonEnvironmentExtensionWrapper(() => this.workspaceResource);
+        this.pyEnvWrapper = new PythonEnvironmentExtensionWrapper(
+            () => this.workspaceResource, () => this.envVarsChangeEmitter.fire());
         await this.pyEnvWrapper.activate(context);
 
         context.subscriptions.push(
@@ -226,10 +257,8 @@ class EnvironmentManagerImpl implements EnvironmentManager {
             this.envVarsChangeEmitter,
         );
         this.activeSolutionTracker?.onDidChangeActiveSolution(() => {
-            const pythonEnvironmentUpdate = this.pyEnvWrapper?.activatePythonEnv();
+            void this.pyEnvWrapper?.activatePythonEnv();
             this.updateEnvironmentSafe(context);
-            void pythonEnvironmentUpdate?.then(() => this.envVarsChangeEmitter.fire())
-                .catch(error => console.error('Failed to update Python environment', error));
         }, undefined, context.subscriptions);
 
         this.configurationProvider.onChangeConfiguration(
@@ -239,6 +268,10 @@ class EnvironmentManagerImpl implements EnvironmentManager {
         this.updateEnvironmentSafe(context);
         setPackRootEnvironment(() => this.getEnvironmentVariables());
         context.subscriptions.push({ dispose: () => setPackRootEnvironment(() => process.env) });
+    }
+
+    public async waitUntilReady(): Promise<void> {
+        await this.pyEnvWrapper?.waitUntilReady();
     }
 
     public augmentEnv(env: Environment | undefined): Environment {
