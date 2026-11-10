@@ -38,7 +38,7 @@ describeWindows('Windows pyOCD executable resolution', () => {
 
     afterAll(() => data.dispose());
 
-    function resolve(directories: string[], setup = '', runBody = 'System.Console.WriteLine(executable); return 0;') {
+    function resolve(directories: string[], setup = '', runBody = 'System.Console.WriteLine(executable); return 0;', command = '') {
         // Replace only the native process boundary; retain the production PowerShell script.
         const script = pyocdWindowsHost.replace(/Add-Type -TypeDefinition @'[\s\S]*?'@/, `
 Add-Type -TypeDefinition @'
@@ -54,7 +54,7 @@ ${setup}`);
             '-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand',
             Buffer.from(script, 'utf16le').toString('base64'),
         ], {
-            env: { ...process.env, PATH: directories.join(path.delimiter), CMSIS_PYOCD_ARGUMENTS: '[]' },
+            env: { ...process.env, PATH: directories.join(path.delimiter), CMSIS_PYOCD_ARGUMENTS: '[]', CMSIS_PYOCD_COMMAND: command },
             encoding: 'utf8', windowsHide: true,
         });
         expect(result.error).toBeUndefined();
@@ -66,6 +66,39 @@ ${setup}`);
         expect(result.stderr).toBe('');
         expect(result.status).toBe(0);
         expect(result.stdout.trim()).toBe(path.join(first, 'pyocd.exe'));
+    });
+
+    it.each(['pyocd', 'absolute', 'custom'])('resolves configured %s commands', kind => {
+        fs.writeFileSync(path.join(first, 'custom.exe'), '');
+        const command = kind === 'absolute' ? path.join(second, 'pyocd.exe') : kind === 'custom' ? 'custom' : 'pyocd';
+        const result = resolve([first], '', undefined, command);
+        expect(result.status).toBe(0);
+        expect(result.stderr).toBe('');
+        expect(result.stdout.trim()).toBe(kind === 'absolute' ? command : path.join(first, kind === 'custom' ? 'custom.exe' : 'pyocd.exe'));
+    });
+
+    it('warns when a configured command needs fallback', () => {
+        const result = resolve([first], '', undefined, 'missing-command');
+        expect(result.status).toBe(0);
+        expect(result.stderr).toContain("configured executable 'missing-command' was not found");
+        expect(result.stderr).toContain(path.join(first, 'pyocd.exe'));
+    });
+
+    it.each(['cmd', 'bat'])('resolves explicit pyocd to the executable after an earlier %s shim', extension => {
+        const shims = path.join(data.tmpDir, extension);
+        fs.mkdirSync(shims);
+        fs.writeFileSync(path.join(shims, `pyocd.${extension}`), '@echo off\r\n');
+        const result = resolve([shims, second], '', undefined, 'pyocd');
+        expect(result.status).toBe(0);
+        expect(result.stderr).toBe('');
+        expect(result.stdout.trim()).toBe(path.join(second, 'pyocd.exe'));
+    });
+
+    it('fails with the configured command when fallback is unavailable', () => {
+        const result = resolve([], '', undefined, 'missing-command');
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('missing-command');
+        expect(result.stdout).toBe('');
     });
 
     it('selects only the first installation and respects configured PATH priority', () => {
