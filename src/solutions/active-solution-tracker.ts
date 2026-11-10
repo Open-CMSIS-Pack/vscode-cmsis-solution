@@ -28,6 +28,7 @@ import { ConfigurationProvider } from '../vscode-api/configuration-provider';
 import { stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { CmsisSettingsJsonFile } from '../global/cmsis-settings-json-file';
+import { YamlFile } from '@open-cmsis-pack/cmsis-common/yaml-file';
 
 export const COMMAND_OPEN_SOLUTION = `${manifest.PACKAGE_NAME}.openSolution`;
 export const COMMAND_ACTIVATE_SOLUTION = `${manifest.PACKAGE_NAME}.activateSolution`;
@@ -308,10 +309,21 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
 
     private async promptUserToSelectSolution(): Promise<string | undefined> {
         const solutions = this._solutions;
-        const items = solutions
-            .map(solutionPath => this.getSolutionDetails(solutionPath).displayName);
+        const items = await Promise.all(solutions.map(async solutionPath => {
+            const file = new YamlFile(solutionPath);
+            const result = await file.load();
+            const content = file.content as { solution?: { description?: unknown } } | undefined;
+            const description = result !== ETextFileResult.Error && !file.hasErrors()
+                ? content?.solution?.description
+                : undefined;
+            return {
+                label: this.getSolutionDetails(solutionPath).displayName,
+                detail: typeof description === 'string' && description.trim() ? description : undefined,
+                path: solutionPath,
+            };
+        }));
         const result = await vscode.window.showQuickPick(items, { placeHolder: 'Select a solution' });
-        return result && solutions[items.indexOf(result)];
+        return result?.path;
     }
 
     private async handleGetSolutionFile(): Promise<string | undefined> {

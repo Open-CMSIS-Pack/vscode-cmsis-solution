@@ -39,6 +39,8 @@ import { faker } from '@faker-js/faker';
 import { MockWorkspaceFsProvider, workspaceFsProviderFactory } from '../vscode-api/workspace-fs-provider.factories';
 import { FileType } from '../vscode-api/workspace-fs-provider';
 import { CmsisSettingsJsonFile } from '../global/cmsis-settings-json-file';
+import { textFileSystemFactory } from '../__test__/text-file-system';
+import { TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 
 const WORKSPACE_PATH = __dirname;
@@ -587,6 +589,18 @@ describe('ActiveSolutionTracker', () => {
         });
 
         describe('activate command', () => {
+            const files = new Map<string, string>();
+
+            beforeEach(() => {
+                files.clear();
+                for (const uri of [SOLUTION_URI_BAR, SOLUTION_URI_FOO, SOLUTION_URI_DEFAULT]) {
+                    files.set(uri.fsPath, 'solution: {}\n');
+                }
+                TextFile.setFileSystem(textFileSystemFactory(files));
+            });
+
+            afterEach(() => TextFile.setFileSystem());
+
             it('is registered on activation', () => {
                 expect(commandsProvider.registerCommand).toHaveBeenCalledWith(COMMAND_ACTIVATE_SOLUTION, expect.any(Function), expect.anything());
             });
@@ -634,14 +648,55 @@ describe('ActiveSolutionTracker', () => {
                 expect(changeActiveListener).toHaveBeenCalledTimes(1);
             });
 
+            it('displays different solution descriptions and opens the selected solution', async () => {
+                files.set(SOLUTION_URI_BAR.fsPath, 'solution:\n  description: Bar example\n');
+                files.set(SOLUTION_URI_FOO.fsPath, 'solution:\n  description: Foo example\n');
+                files.set(SOLUTION_URI_DEFAULT.fsPath, 'solution: {}\n');
+                const mockShowQuickPick = vscode.window.showQuickPick as jest.Mock;
+                mockShowQuickPick.mockImplementation(async items => items[1]);
+
+                await commandsProvider.mockRunRegistered(COMMAND_ACTIVATE_SOLUTION, undefined);
+
+                expect(mockShowQuickPick.mock.calls[0][0]).toEqual([
+                    { label: `bar${path.sep}Bar`, detail: 'Bar example', path: SOLUTION_URI_BAR.fsPath },
+                    { label: `foo${path.sep}Foo`, detail: 'Foo example', path: SOLUTION_URI_FOO.fsPath },
+                    { label: 'test', detail: undefined, path: SOLUTION_URI_DEFAULT.fsPath },
+                ]);
+                expect(activeSolutionTracker.activeSolution).toBe(SOLUTION_URI_FOO.fsPath);
+            });
+
+            it.each(['', '""', '"   "', '42', '[broken'])(
+                'keeps solutions selectable when a description is absent, empty, invalid or malformed: %s',
+                async description => {
+                    files.set(SOLUTION_URI_BAR.fsPath, `solution:\n  description: ${description}\n`);
+                    files.set(SOLUTION_URI_FOO.fsPath, 'solution:\n  description: Valid example\n');
+                    const mockShowQuickPick = vscode.window.showQuickPick as jest.Mock;
+                    mockShowQuickPick.mockImplementation(async items => items[0]);
+                    jest.spyOn(console, 'error').mockImplementation(() => {});
+
+                    await commandsProvider.mockRunRegistered(COMMAND_ACTIVATE_SOLUTION, undefined);
+
+                    expect(mockShowQuickPick.mock.calls[0][0]).toEqual([
+                        { label: `bar${path.sep}Bar`, detail: undefined, path: SOLUTION_URI_BAR.fsPath },
+                        { label: `foo${path.sep}Foo`, detail: 'Valid example', path: SOLUTION_URI_FOO.fsPath },
+                        { label: 'test', detail: undefined, path: SOLUTION_URI_DEFAULT.fsPath },
+                    ]);
+                    expect(activeSolutionTracker.activeSolution).toBe(SOLUTION_URI_BAR.fsPath);
+                },
+            );
+
             it('shows a quick pick if no solution is passed as an argument', async () => {
                 const mockShowQuickPick = vscode.window.showQuickPick as jest.Mock;
-                mockShowQuickPick.mockResolvedValue(`foo${path.sep}Foo`);
+                mockShowQuickPick.mockImplementation(async items => items[1]);
 
                 await commandsProvider.mockRunRegistered(COMMAND_ACTIVATE_SOLUTION, undefined);
 
                 expect(mockShowQuickPick).toHaveBeenCalledTimes(1);
-                expect(mockShowQuickPick).toHaveBeenCalledWith([`bar${path.sep}Bar`, `foo${path.sep}Foo`, 'test'], expect.anything());
+                expect(mockShowQuickPick).toHaveBeenCalledWith([
+                    { label: `bar${path.sep}Bar`, detail: undefined, path: SOLUTION_URI_BAR.fsPath },
+                    { label: `foo${path.sep}Foo`, detail: undefined, path: SOLUTION_URI_FOO.fsPath },
+                    { label: 'test', detail: undefined, path: SOLUTION_URI_DEFAULT.fsPath },
+                ], expect.anything());
 
                 expect(activeSolutionTracker.activeSolution).toEqual(SOLUTION_URI_FOO.fsPath);
                 expect(changeActiveListener).toHaveBeenCalledTimes(1);
@@ -649,12 +704,16 @@ describe('ActiveSolutionTracker', () => {
 
             it('shows a quick pick if a non-URI object is passed as an argument', async () => {
                 const mockShowQuickPick = vscode.window.showQuickPick as jest.Mock;
-                mockShowQuickPick.mockResolvedValue(`foo${path.sep}Foo`);
+                mockShowQuickPick.mockImplementation(async items => items[1]);
 
                 await commandsProvider.mockRunRegistered(COMMAND_ACTIVATE_SOLUTION, { someKey: 'someValue' });
 
                 expect(mockShowQuickPick).toHaveBeenCalledTimes(1);
-                expect(mockShowQuickPick).toHaveBeenCalledWith([`bar${path.sep}Bar`, `foo${path.sep}Foo`, 'test'], expect.anything());
+                expect(mockShowQuickPick).toHaveBeenCalledWith([
+                    { label: `bar${path.sep}Bar`, detail: undefined, path: SOLUTION_URI_BAR.fsPath },
+                    { label: `foo${path.sep}Foo`, detail: undefined, path: SOLUTION_URI_FOO.fsPath },
+                    { label: 'test', detail: undefined, path: SOLUTION_URI_DEFAULT.fsPath },
+                ], expect.anything());
 
                 expect(activeSolutionTracker.activeSolution).toEqual(SOLUTION_URI_FOO.fsPath);
                 expect(changeActiveListener).toHaveBeenCalledTimes(1);
