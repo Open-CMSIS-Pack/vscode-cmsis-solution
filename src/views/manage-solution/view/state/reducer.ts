@@ -81,16 +81,19 @@ type ManageSolutionAction
     | { type: 'BLUR_PROPERTY', key: string }
     | SolutionUpdateAction;
 
+/** Identifies an editable field within its target, adapter, optional subsection, and processor. */
 export const editablePropertyKey = (
     solutionData: SolutionData,
     debuggerName: string | undefined,
     section: UISection | undefined,
     option: UISectionChildren | undefined,
+    subsection?: string[],
 ): string => [
     solutionData.selectedTarget?.name ?? '',
     solutionData.selectedTarget?.selectedSet ?? '',
     debuggerName ?? '',
-    section?.['yml-node'] ?? '',
+    section?.id ?? section?.['yml-node'] ?? section?.section ?? '',
+    ...(subsection ?? []),
     option?.pname ?? '',
     option?.['yml-node'] ?? '',
 ].join('::');
@@ -121,35 +124,52 @@ const getProperty = <T>(defaultValue: T | undefined, obj: Record<string, unknown
     return (result as T | undefined) ?? defaultValue;
 };
 
+/** Reads an adapter field from the current solution, applying its display scale and fallback. */
 const propertyValue = (
     selectedDebugger: Record<string, unknown>,
-    section: UISection,
+    sections: UISection[],
     option: UISectionChildren,
 ): string | number => {
-    const sectionNode = section['yml-node'];
     const optionNode = option['yml-node'];
+    let properties: unknown = selectedDebugger;
+
+    for (const [depth, section] of sections.entries()) {
+        const key = section['yml-node'] ?? (depth > 0 ? section.id : undefined);
+        if (!key) {
+            continue;
+        }
+        if (Array.isArray(properties)) {
+            properties = properties.find(entry => entry && typeof entry === 'object' && Object.prototype.hasOwnProperty.call(entry, key));
+        } else if (properties && typeof properties === 'object') {
+            properties = (properties as Record<string, unknown>)[key];
+        } else {
+            properties = undefined;
+        }
+    }
+
+    const values = (properties ?? {}) as Record<string, unknown>;
+    const processor = Array.isArray(properties) ? option.pname : undefined;
     if (option.type === 'number') {
         const defaultValue = option.default ?? option.range?.[1] ?? 0;
         const raw = getProperty<number>(
             option.scale === undefined ? defaultValue : defaultValue * option.scale,
-            selectedDebugger,
-            sectionNode,
-            option.pname ? 'pname' : undefined,
-            option.pname,
+            values,
+            processor ? 'pname' : undefined,
+            processor,
             optionNode,
         ) ?? defaultValue;
         return option.scale === undefined ? raw : raw / option.scale;
     }
     return getProperty<string>(
         option.default ?? '',
-        selectedDebugger,
-        sectionNode,
-        option.pname ? 'pname' : undefined,
-        option.pname,
+        values,
+        processor ? 'pname' : undefined,
+        processor,
         optionNode,
     ) ?? '';
 };
 
+/** Reconciles backend fields with local edits, retaining focused or unacknowledged input. */
 const reconcileEditableProperties = (state: ManageSolutionState): Record<string, EditableProperty> => {
     const adapter = state.debugAdapters.find(candidate => candidate.name === state.debugger);
     const selectedDebugger = state.solutionData.selectedTarget?.targetSets
@@ -157,14 +177,22 @@ const reconcileEditableProperties = (state: ManageSolutionState): Record<string,
         ?.debugger as Record<string, unknown> | undefined;
     const next: Record<string, EditableProperty> = {};
 
-    adapter?.['user-interface']?.forEach(section => section.options.forEach(option => {
-        const key = editablePropertyKey(state.solutionData, state.debugger, section, option);
-        const incomingValue = propertyValue(selectedDebugger ?? {}, section, option);
-        const current = state.editableProperties[key];
-        next[key] = current?.focused || (current?.dirty && current.value !== incomingValue)
-            ? current
-            : { value: incomingValue, focused: false, dirty: false };
-    }));
+    /** Reconciles a section and all descendants using their full identity and YAML paths. */
+    const reconcileSection = (section: UISection, parents: UISection[] = []): void => {
+        const sections = [...parents, section];
+        const path = sections.slice(1).map(node => node.id ?? node['yml-node'] ?? node.section);
+        section.options.forEach(option => {
+            const key = editablePropertyKey(state.solutionData, state.debugger, sections[0], option, path);
+            const incomingValue = propertyValue(selectedDebugger ?? {}, sections, option);
+            const current = state.editableProperties[key];
+            next[key] = current?.focused || (current?.dirty && current.value !== incomingValue)
+                ? current
+                : { value: incomingValue, focused: false, dirty: false };
+        });
+        section.subsections?.forEach(child => reconcileSection(child, sections));
+    };
+
+    adapter?.['user-interface']?.forEach(section => reconcileSection(section));
     return next;
 };
 
@@ -201,10 +229,12 @@ const incomingMessageReducer = (
                 return {
                     ...da,
                     ['user-interface']: da['user-interface']?.map(section => {
-                        if (section.select === undefined) return section;
+                        if (section.select === undefined || section.subsections !== undefined) {
+                            return section;
+                        }
                         return {
                             ...section,
-                            select: message.sectionsInUse.includes(section.section.toLowerCase()),
+                            select: message.sectionsInUse.includes(section['yml-node'] ?? section.section.toLowerCase()),
                         };
                     }) || da['user-interface'],
                 };

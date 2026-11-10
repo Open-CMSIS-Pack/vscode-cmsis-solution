@@ -35,11 +35,14 @@ export type OutgoingMessage
     | { type: 'SET_START_PROCESSOR', value: string }
     | { type: 'SAVE_CONTEXT_SELECTION' }
     | { type: 'OPEN_HELP' }
-    | { type: 'SET_DEBUG_ADAPTER_PROPERTY', service: string | undefined, key: string, value: string | number, pname?: string }
+    | { type: 'SET_DEBUG_ADAPTER_PROPERTY', service: string | undefined, key: string, value: string | number, pname?: string, subsection?: string[] }
     | { type: 'SELECT_FILE', requestId: string, options?: FileSelectorOptionsType }
     | { type: 'SET_AUTO_UPDATE', value: boolean }
     | { type: 'TOGGLE_DEBUGGER', value: boolean }
     | { type: 'TOGGLE_DEBUG_ADAPTER_SECTION', section: string }
+    | { type: 'ADD_DEBUG_ADAPTER_SUBSECTION', section: string, subsection: string[] }
+    | { type: 'REMOVE_DEBUG_ADAPTER_SUBSECTION', section: string, subsection: string[] }
+    | { type: 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED', section: string, subsection: string[], enabled: boolean }
     ;
 
 /**

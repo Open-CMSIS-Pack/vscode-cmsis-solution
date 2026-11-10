@@ -31,6 +31,14 @@ import { TargetsTable } from './targets-table';
 import { PathType } from '../../types';
 import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
 import { useDisableContextMenu } from '../../../hooks/use-disable-context-menu';
+import { DebugAdapterSectionLabel } from './debug-adapter-subsections';
+
+/** Keeps tab identities stable and safe for the DOM selectors used by Ant Design. */
+function sectionTabKey(path: string[]): string {
+    return `section-${Array.from(JSON.stringify(path), character => character.codePointAt(0)!.toString(16).padStart(6, '0')).join('')}`;
+}
+
+type DebugAdapterTab = NonNullable<React.ComponentProps<typeof Tabs>['items']>[number];
 
 export interface ManageSolutionProps {
     messageHandler: MessageHandler<IncomingMessage, OutgoingMessage>;
@@ -40,6 +48,8 @@ type PendingFileSelection = {
     service: string | undefined;
     key: string;
     localValueKey: string;
+    subsection?: string[];
+    pname?: string;
 };
 
 type SelectFileContext = {
@@ -49,6 +59,8 @@ type SelectFileContext = {
     title?: string;
     defaultUri?: string;
     pathType?: PathType;
+    subsection?: string[];
+    pname?: string;
 };
 
 export const manageSolutionTargetDocsUrl = 'https://mdk-packs.github.io/vscode-cmsis-solution-docs/manage_settings.html';
@@ -63,8 +75,8 @@ export const ManageSolution = (props: ManageSolutionProps) => {
     );
 
     const keyFor = React.useCallback(
-        (section: UISection | undefined, option: UISectionChildren | undefined) =>
-            editablePropertyKey(state.solutionData, state.debugger, section, option),
+        (section: UISection | undefined, option: UISectionChildren | undefined, subsection?: string[]) =>
+            editablePropertyKey(state.solutionData, state.debugger, section, option, subsection),
         [state.solutionData, state.debugger]
     );
 
@@ -113,7 +125,9 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                 type: 'SET_DEBUG_ADAPTER_PROPERTY',
                 service: pendingSelection.service,
                 key: pendingSelection.key,
-                value: selectedPath
+                value: selectedPath,
+                ...(pendingSelection.subsection ? { subsection: pendingSelection.subsection } : {}),
+                ...(pendingSelection.pname ? { pname: pendingSelection.pname } : {}),
             });
         };
 
@@ -168,14 +182,21 @@ export const ManageSolution = (props: ManageSolutionProps) => {
             ?.debugger as GenericPropertyList || {}
     ), [state.solutionData.selectedTarget?.targetSets, state.solutionData.selectedTarget?.selectedSet]);
 
-    function sendDebugAdapterProperty(service: string | undefined, key: string, value: string): void;
-    function sendDebugAdapterProperty(service: string | undefined, key: string, value: number, scale?: number): void;
-    function sendDebugAdapterProperty(service: string | undefined, key: string, value: string, scale: undefined, pname?: string): void;
-    function sendDebugAdapterProperty(service: string | undefined, key: string, value: string | number, scale?: number, pname?: string): void {
+    /** Sends stored-unit field values, shifting decimal exponents to avoid artifacts when scaling by powers of ten. */
+    function sendDebugAdapterProperty(service: string | undefined, key: string, value: string | number, scale?: number, pname?: string, subsection?: string[]): void {
         if (typeof value === 'number' && scale) {
-            value = value * scale;
+            const decimalExponent = Math.log10(scale);
+            if (Number.isInteger(decimalExponent) && 10 ** decimalExponent === scale) {
+                const [mantissa, exponent = '0'] = value.toString().split('e');
+                value = Number(`${mantissa}e${Number(exponent) + decimalExponent}`);
+            } else {
+                value = value * scale;
+            }
         }
-        props.messageHandler.push({ type: 'SET_DEBUG_ADAPTER_PROPERTY', service, key, value, pname });
+        props.messageHandler.push({
+            type: 'SET_DEBUG_ADAPTER_PROPERTY', service, key, value, pname,
+            ...(subsection ? { subsection } : {}),
+        });
     }
 
     const toggleDebugger = React.useCallback((e: CheckboxChangeEvent) => {
@@ -200,6 +221,8 @@ export const ManageSolution = (props: ManageSolutionProps) => {
             service: context.service,
             key: context.key,
             localValueKey: context.localValueKey,
+            subsection: context.subsection,
+            pname: context.pname,
         });
 
         props.messageHandler.push({
@@ -334,6 +357,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                 </table>
 
                                 <Tabs
+                                    className='debug-adapter-settings'
                                     tabPosition='left'
                                     style={{ width: '100%' }}
                                     renderTabBar={(props, DefaultTabBar) => (
@@ -347,7 +371,8 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                             })}
                                         </DefaultTabBar>
                                     )}
-                                    items={adapter?.['user-interface']?.map((section) => {
+                                    items={adapter?.['user-interface']?.flatMap((section) => {
+                                        const rootSection = section.id ?? section['yml-node'] ?? section.section.toLocaleLowerCase();
                                         const blurOnEnter = (e: React.KeyboardEvent<HTMLInputElement>) => (e.target as HTMLInputElement).blur();
 
                                         const pnameWrapper = (section: UISection, option: UISectionChildren, element: React.JSX.Element): React.JSX.Element => {
@@ -366,10 +391,11 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                             return element;
                                         };
 
-                                        const getPropertyControl = (o: UISectionChildren): React.JSX.Element => {
+                                        /** Renders a field for a static section or a dynamic subsection. */
+                                        const getPropertyControl = (o: UISectionChildren, subsection?: string[], disabled = false): React.JSX.Element => {
                                             return (
                                                 <div key={`option-${section.section}-${o.name}`} className='section-control' title={o.description || ''}>{(() => {
-                                                    const k = keyFor(section, o);
+                                                    const k = keyFor(section, o, subsection);
                                                     const propertyValue = state.editableProperties[k]?.value;
                                                     const focusProperty = () => dispatch({ type: 'FOCUS_PROPERTY', key: k });
                                                     const blurProperty = () => dispatch({ type: 'BLUR_PROPERTY', key: k });
@@ -377,6 +403,8 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                         case 'number':
                                                             return (
                                                                 <InputNumber
+                                                                    disabled={disabled}
+                                                                    aria-label={o.name}
                                                                     addonBefore={o.name}
                                                                     value={propertyValue as number}
                                                                     onPressEnter={blurOnEnter}
@@ -386,11 +414,19 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                     }}
                                                                     onBlur={() => {
                                                                         blurProperty();
+                                                                        if (!state.editableProperties[k]?.dirty) {
+                                                                            return;
+                                                                        }
+
                                                                         const displayVal = propertyValue;
                                                                         const numericDisplay = typeof displayVal === 'string' ? parseFloat(displayVal) : (displayVal as number);
                                                                         const fallback = o.default ?? o.range?.[1] ?? 0;
                                                                         const clamped = Math.min(Math.max(Number.isFinite(numericDisplay) ? numericDisplay : fallback, o.range?.[0] ?? -Infinity), o.range?.[1] ?? Infinity);
-                                                                        sendDebugAdapterProperty(section['yml-node'], o['yml-node'], clamped, o.scale); // commit (unscaled inside helper)
+                                                                        const committed = Math.trunc(clamped);
+                                                                        if (committed !== numericDisplay) {
+                                                                            dispatch({ type: 'EDIT_PROPERTY', key: k, value: committed });
+                                                                        }
+                                                                        sendDebugAdapterProperty(subsection ? rootSection : section['yml-node'], o['yml-node'], committed, o.scale, o.pname, subsection);
                                                                     }}
                                                                     min={o.range?.[0]}
                                                                     max={o.range?.[1]}
@@ -400,6 +436,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                         case 'string':
                                                             return (
                                                                 <Input
+                                                                    disabled={disabled}
                                                                     addonBefore={o.name}
                                                                     value={(propertyValue as string) ?? ''}
                                                                     onPressEnter={blurOnEnter}
@@ -407,7 +444,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                     onChange={e => dispatch({ type: 'EDIT_PROPERTY', key: k, value: e.target.value })}
                                                                     onBlur={() => {
                                                                         blurProperty();
-                                                                        sendDebugAdapterProperty(section['yml-node'], o['yml-node'], (propertyValue as string) ?? '');
+                                                                        sendDebugAdapterProperty(subsection ? rootSection : section['yml-node'], o['yml-node'], (propertyValue as string) ?? '', undefined, o.pname, subsection);
                                                                     }}
                                                                     title={o.description}
                                                                 />
@@ -415,6 +452,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                         case 'file':
                                                             return (
                                                                 <Input
+                                                                    disabled={disabled}
                                                                     addonBefore={<>{o.name}</>}
                                                                     addonAfter={
                                                                         <Space size={0}>
@@ -423,13 +461,16 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                                 type='primary'
                                                                                 className='file-button'
                                                                                 aria-label='Select File'
+                                                                                disabled={disabled}
                                                                                 onClick={() => selectFile({
-                                                                                    service: section['yml-node'],
+                                                                                    service: subsection ? rootSection : section['yml-node'],
                                                                                     key: o['yml-node'],
                                                                                     localValueKey: k,
                                                                                     title: o.description || 'Select File',
                                                                                     defaultUri: (propertyValue as string) ?? '',
                                                                                     pathType: o['path-type'],
+                                                                                    subsection,
+                                                                                    pname: o.pname,
                                                                                 })}
                                                                             >Browse</Button>
                                                                         </Space>
@@ -443,7 +484,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                     onChange={(e) => {
                                                                         dispatch({ type: 'EDIT_PROPERTY', key: k, value: e.target.value });
                                                                         // immediate commit for file path edits
-                                                                        sendDebugAdapterProperty(section['yml-node'], o['yml-node'], e.target.value);
+                                                                        sendDebugAdapterProperty(subsection ? rootSection : section['yml-node'], o['yml-node'], e.target.value, undefined, o.pname, subsection);
                                                                     }}
                                                                     title={o.description}
                                                                 />
@@ -453,6 +494,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                             const stringValue = propertyValue as string;
                                                             return (
                                                                 <CompactDropdown
+                                                                    disabled={disabled}
                                                                     addonBefore={o.name}
                                                                     available={[...valueMap.keys()]}
                                                                     displayText={(value) => valueMap.get(value)?.name || value}
@@ -461,7 +503,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                     warning={!valueMap.has(stringValue) && `Value '${stringValue}' not in enum options`}
                                                                     onChange={(value) => {
                                                                         dispatch({ type: 'EDIT_PROPERTY', key: k, value });
-                                                                        sendDebugAdapterProperty(section['yml-node'], o['yml-node'], value, undefined, o.pname);
+                                                                        sendDebugAdapterProperty(subsection ? rootSection : section['yml-node'], o['yml-node'], value, undefined, o.pname, subsection);
                                                                     }}
                                                                     title={o.description}
                                                                 />
@@ -475,24 +517,38 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                             );
                                         };
 
-                                        const getSectionLabel = (): React.JSX.Element => {
-                                            return <>
-                                                <span className='section-checkbox'>
-                                                    {section.select !== undefined && (
-                                                        <Checkbox checked={section.select} onClick={() => toggleSection(section['yml-node'] || section.section.toLocaleLowerCase())} />
-                                                    )}
-                                                </span>
-                                                <span className='section-label' title={section.description || ''}>
-                                                    {section.section}
-                                                </span>
-                                            </>;
+                                        /** Flattens a settings tree into navigation tabs while retaining its path and disabled ancestors. */
+                                        const renderSection = (node: UISection, path: string[] = [], parentDisabled = false): DebugAdapterTab[] => {
+                                            const disabled = parentDisabled || node.select === false;
+                                            const subsection = path.length > 0 ? path : undefined;
+                                            const tab: DebugAdapterTab = {
+                                                key: sectionTabKey([rootSection, ...path]),
+                                                label: <DebugAdapterSectionLabel
+                                                    section={node}
+                                                    rootSection={rootSection}
+                                                    path={path}
+                                                    disabled={parentDisabled}
+                                                    onToggle={() => toggleSection(rootSection)}
+                                                    messageHandler={props.messageHandler}
+                                                />,
+                                                children: <>
+                                                    {node.options.map(option => pnameWrapper(node, option, getPropertyControl(option, subsection, path.length > 0 && disabled)))}
+                                                    {node.subsections && <div className='description'>
+                                                        {node.subsections.length > 0
+                                                            ? 'Select an item to configure its settings.'
+                                                            : node.addOptions && 'Use + to add an item.'}
+                                                    </div>}
+                                                </>,
+                                            };
+                                            const children = node.subsections?.flatMap(child => renderSection(
+                                                child,
+                                                [...path, child.id ?? child['yml-node'] ?? child.section],
+                                                disabled,
+                                            )) ?? [];
+                                            return [tab, ...children];
                                         };
-                                        return {
-                                            label: getSectionLabel(),
-                                            key: section.section,
-                                            disabled: false,
-                                            children: section?.options?.map(option => pnameWrapper(section, option, getPropertyControl(option)))
-                                        };
+
+                                        return renderSection(section);
                                     })}
                                 />
                             </section>

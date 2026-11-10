@@ -29,6 +29,8 @@ import { extractSuffix, stripTwoExtensions } from '@open-cmsis-pack/cmsis-common
 import { CmsisSettingsJsonFile } from './../../global/cmsis-settings-json-file';
 import { GenericPropertyList, getSelectedTargetSet, ImageSelection, ProjectSelection, SolutionData, TargetSet, TargetType } from './view/state/manage-solution-state';
 import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
+import { DebugAdapterSections, sectionIdentity, sectionYamlPath } from '../../debug/debug-adapter-sections';
+import { createTraceSectionDefinition } from '../../debug/debug-adapter-trace';
 
 export type CustomDebugAdapterDefaults = { [adapterName: string]: { [propertyName: string]: string | number } };
 
@@ -426,16 +428,39 @@ export class ManageSolutionController {
     }
 
     /**
-     * Toggles a debugger section and applies computed defaults when enabling.
+     * Toggles a section only when its UI descriptor defines a switch, applying defaults when enabled.
      * @param section Section key in debugger configuration.
      */
-    public async toggleDebugAdapterSection(section: string) {
+    public async toggleDebugAdapterSection(section: string): Promise<void> {
+        const uiSection = this.sectionBranch(section, [])?.[0];
+        if (uiSection?.select === undefined) {
+            return;
+        }
+
+        const yamlNode = uiSection['yml-node'] ?? section;
+        const debuggerWrap = this.activeDebugger;
+        if (debuggerWrap?.isSectionEnabled(yamlNode)) {
+            debuggerWrap.toggleSection(yamlNode, {});
+            return;
+        }
+
+        await this.ensureDebugAdapterSection(section);
+    }
+
+    /** Loads core information and creates a missing section with defaults, preserving existing field values. */
+    public async ensureDebugAdapterSection(section: string): Promise<void> {
         const adapter = this.debugAdaptersYmlFile?.getAdapterByName(this.activeDebuggerName);
         this.customizeDebugAdapterDefaults(adapter);
         await this.getAvailableCoreNames();
-        const uiSection = adapter?.['user-interface']?.find(sec => sec['yml-node'] === section);
+        const uiSection = adapter?.['user-interface']?.find(sec => sec['yml-node'] === section || sectionIdentity(sec, true) === section);
+        const yamlNode = uiSection?.['yml-node'] ?? section;
+        const debuggerWrap = this.activeTargetSetWrap.ensureDebugger();
+        if (debuggerWrap.isSectionEnabled(yamlNode)) {
+            return;
+        }
+
         const defaults = uiSection ? this.buildSectionDefaults(uiSection, this.usedCoreNames) : {};
-        this.activeTargetSetWrap.ensureDebugger().toggleSection(section, defaults);
+        debuggerWrap.toggleSection(yamlNode, defaults);
     }
 
     /**
@@ -520,7 +545,7 @@ export class ManageSolutionController {
     }
 
     /**
-     * Rebuilds debug adapter definitions using current defaults and used cores.
+     * Rebuilds adapter definitions with current defaults, used cores, and dynamic settings.
      */
     public async refreshDebugAdapters(): Promise<DebugAdapter[]> {
         const adapters = this.debugAdaptersYmlFile?.debugAdapters ?? [];
@@ -528,14 +553,38 @@ export class ManageSolutionController {
         const usedCores = this.usedCoreNames;
         adapters.forEach(da => this.customizeDebugAdapterDefaults(da));
         adapters.forEach(da => {
-            da['user-interface']?.forEach(section => {
-                if (section['pname-options'] !== undefined) {
-                    section.options = this.expandPnameOptions(section, usedCores);
-                }
-            });
+            this.refreshSections(da['user-interface'] ?? [], usedCores);
+            da['user-interface'] = this.sectionModel(da).sections;
         });
         this.debugAdaptersCache = adapters;
         return adapters;
+    }
+
+    /** Expands processor options throughout the static settings tree. */
+    private refreshSections(sections: UISection[], usedCores: string[]): void {
+        sections.forEach(section => {
+            if (section['pname-options'] !== undefined) {
+                section.options = this.expandPnameOptions(section, usedCores);
+            }
+            this.refreshSections(section.subsections ?? [], usedCores);
+        });
+    }
+
+    /** Composes static UI and runtime extensions against the currently selected target set. */
+    private sectionModel(adapter?: DebugAdapter): DebugAdapterSections {
+        const definition = adapter ?? this.debugAdaptersCache.find(candidate => candidate.name === this.activeDebuggerName)
+            ?? this.debugAdaptersYmlFile?.getAdapterByName(this.activeDebuggerName);
+        return new DebugAdapterSections(
+            definition?.['user-interface'] ?? [],
+            [createTraceSectionDefinition(this.activeDebugger)],
+            () => this.activeDebugger,
+            () => this.activeTargetSetWrap.ensureDebugger(),
+        );
+    }
+
+    /** Resolves a displayed section path against the active adapter's descriptors. */
+    private sectionBranch(section: string, path: string[]): UISection[] | undefined {
+        return this.sectionModel().findBranch(section, path)?.map(definition => definition.ui);
     }
 
     /**
@@ -543,9 +592,32 @@ export class ManageSolutionController {
      * @param section Optional debugger section.
      * @param param Parameter key.
      * @param value Parameter value.
+     * @param subsection Optional identity path beneath the root section.
      */
-    public setDebuggerParameter(section: string | undefined, param: string, value: string | number) {
+    public setDebuggerParameter(section: string | undefined, param: string, value: string | number, subsection?: string[], pname?: string) {
+        if (subsection?.length) {
+            if (section) {
+                this.sectionModel().setParameter(section, subsection, param, value, pname);
+            }
+            return;
+        }
+
         this.activeTargetSetWrap.ensureDebugger().setParameter(section, param, value.toString());
+    }
+
+    /** Adds an available dynamic subsection using its registered template and YAML binding. */
+    public addDebugAdapterSubsection(section: string, subsection: string[]): void {
+        this.sectionModel().add(section, subsection);
+    }
+
+    /** Removes an explicitly removable subsection without changing unrelated settings. */
+    public removeDebugAdapterSubsection(section: string, subsection: string[]): void {
+        this.sectionModel().remove(section, subsection);
+    }
+
+    /** Applies the section's switch binding while retaining its declared persistence behavior. */
+    public setDebugAdapterSubsectionEnabled(section: string, subsection: string[], enabled: boolean): void {
+        this.sectionModel().setEnabled(section, subsection, enabled);
     }
 
     private expandPnameOptions(section: UISection, availableCores: string[]): UISectionChildren[] {
@@ -825,17 +897,24 @@ export class ManageSolutionController {
         }
     }
 
+    /** Applies user-provided default overrides to options throughout the adapter's section tree. */
     private customizeDebugAdapterDefaults(da: Optional<DebugAdapter>) {
         if (da && da.name in this.customDebugAdapterDefaults && da['user-interface']) {
             const customConfig = this.customDebugAdapterDefaults[da.name];
-            for (const section of da['user-interface']) {
-                for (const option of section.options) {
-                    const yamlKey = [section['yml-node'], option['yml-node']].filter(s => s).join('.');
-                    if (yamlKey in customConfig) {
-                        option.default = customConfig[yamlKey];
-                    }
-                }
-            }
+            /** Applies dotted YAML keys recursively, including sections identified by their child IDs. */
+            const applyDefaults = (sections: UISection[], parents: UISection[] = []): void => {
+                sections.forEach(section => {
+                    const branch = [...parents, section];
+                    section.options.forEach(option => {
+                        const yamlKey = [...sectionYamlPath(branch), option['yml-node']].join('.');
+                        if (yamlKey in customConfig) {
+                            option.default = customConfig[yamlKey];
+                        }
+                    });
+                    applyDefaults(section.subsections ?? [], branch);
+                });
+            };
+            applyDefaults(da['user-interface']);
         }
         return da;
     }
