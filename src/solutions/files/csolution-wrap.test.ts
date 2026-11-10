@@ -309,6 +309,27 @@ describe('CSolutionWrap', () => {
     });
 
     describe('DebuggerWrap', () => {
+        it('updates one processor inside nested sequence entries while retaining sibling settings', () => {
+            const item = new CTreeItem('debugger');
+            item.fromObject({
+                trace: [
+                    { 'trace-buffer': null, mode: 'file' },
+                    { 'swo-uart': null, settings: { processors: [{ pname: 'Core0', port: 3333 }, { pname: 'Core1', port: 3334 }] } },
+                ],
+            });
+            const wrap = new DebuggerWrap(item);
+
+            wrap.setSectionParameter(['trace', 'swo-uart', 'settings', 'processors'], 'port', 5555, 'Core1');
+
+            expect(item.toObject()).toEqual({
+                trace: [
+                    { 'trace-buffer': null, mode: 'file' },
+                    { 'swo-uart': null, settings: { processors: [{ pname: 'Core0', port: 3333 }, { pname: 'Core1', port: 5555 }] } },
+                ],
+            });
+            expect(wrap.getSection(['trace', 'missing'])).toBeUndefined();
+        });
+
         describe('setParameter', () => {
             it('should set parameter on debugger item when section is undefined', () => {
                 const item = new CTreeItem('debugger');
