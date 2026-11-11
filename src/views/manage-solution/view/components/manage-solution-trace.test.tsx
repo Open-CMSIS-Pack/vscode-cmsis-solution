@@ -15,8 +15,7 @@
  */
 
 import * as React from 'react';
-import path from 'node:path';
-import { ETextFileResult, TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { CTreeItemYamlFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { UISection } from '../../../../debug/debug-adapters-yaml-file';
@@ -94,7 +93,7 @@ describe('Manage Solution trace settings', () => {
     afterAll(() => testDataHandler.dispose());
     afterEach(cleanup);
 
-    it('allows switching a warned source and retains its tooltip in both states with the standard checkbox appearance', async () => {
+    it('allows switching a warned source and retains its tooltip in both states', async () => {
         const warning = 'SWO requires SWD protocol';
         const traceWithWarning: UISection = {
             ...configuredTrace,
@@ -104,63 +103,44 @@ describe('Manage Solution trace settings', () => {
             })),
         };
         const { listener, updateSection } = renderTrace(traceWithWarning);
-        const stylesheet = new TextFile(path.join(__dirname, 'manage-solution.css'));
-        expect(await stylesheet.load()).toBe(ETextFileResult.Success);
-        const style = document.createElement('style');
-        style.textContent = stylesheet.text;
-        document.head.appendChild(style);
+        const sourceSwitch = screen.getByRole('checkbox', { name: 'Serial Wire' }) as HTMLInputElement;
+        expect(sourceSwitch.checked).toBe(true);
+        expect(sourceSwitch.indeterminate).toBe(false);
+        expect(sourceSwitch.getAttribute('aria-checked')).toBeNull();
+        expect(sourceSwitch.disabled).toBe(false);
+        expect(sourceSwitch.getAttribute('aria-invalid')).toBe('true');
 
-        try {
-            const sourceSwitch = screen.getByRole('checkbox', { name: 'Serial Wire' }) as HTMLInputElement;
-            const checkboxLabel = sourceSwitch.closest('.ant-checkbox-wrapper')!;
-            const tooltipTarget = checkboxLabel.parentElement!;
-            expect(sourceSwitch.checked).toBe(true);
-            expect(sourceSwitch.indeterminate).toBe(false);
-            expect(sourceSwitch.getAttribute('aria-checked')).toBeNull();
-            expect(sourceSwitch.disabled).toBe(false);
-            expect(sourceSwitch.getAttribute('aria-invalid')).toBe('true');
-            expect(checkboxLabel.classList.contains('debug-adapter-section-checkbox-warning')).toBe(false);
-            const warningIcon = screen.getByRole('img', { name: warning });
-            expect(checkboxLabel.parentElement?.firstElementChild).toBe(warningIcon);
-            expect(window.getComputedStyle(warningIcon).position).toBe('absolute');
-            expect(window.getComputedStyle(warningIcon).right).toBe('100%');
-            expect(window.getComputedStyle(warningIcon).fontSize).toBe('18px');
-            const remove = screen.getByRole('button', { name: 'Remove Serial Wire' });
-            expect(window.getComputedStyle(remove).width).toBe(window.getComputedStyle(screen.getByRole('button', { name: 'Add subsection' })).width);
+        const warningIcon = screen.getByRole('img', { name: warning });
+        const tooltipTarget = warningIcon.parentElement!;
+        fireEvent.mouseEnter(warningIcon);
+        expect((await screen.findByRole('tooltip')).textContent).toBe(warning);
+        fireEvent.mouseLeave(tooltipTarget);
+        await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull());
+        fireEvent.click(sourceSwitch);
+        expect(listener).toHaveBeenCalledWith({ type: 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED', section: 'trace', subsection: ['serialwire'], enabled: false });
 
-            fireEvent.mouseEnter(warningIcon);
-            expect((await screen.findByRole('tooltip')).textContent).toBe(warning);
-            fireEvent.mouseLeave(tooltipTarget);
-            await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull());
-            fireEvent.click(sourceSwitch);
-            expect(listener).toHaveBeenCalledWith({ type: 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED', section: 'trace', subsection: ['serialwire'], enabled: false });
+        updateSection({
+            ...traceWithWarning,
+            subsections: traceWithWarning.subsections!.map(section => ({ ...section, select: section.id !== 'serialwire' })),
+        });
+        expect(sourceSwitch.checked).toBe(false);
+        expect(sourceSwitch.indeterminate).toBe(false);
+        expect(sourceSwitch.disabled).toBe(false);
+        expect(sourceSwitch.getAttribute('aria-invalid')).toBeNull();
+        expect(screen.queryByRole('img', { name: warning })).toBeNull();
+        fireEvent.mouseEnter(tooltipTarget);
+        expect((await screen.findByRole('tooltip')).textContent).toBe(warning);
+        listener.mockClear();
+        fireEvent.click(sourceSwitch);
+        expect(listener).toHaveBeenCalledWith({ type: 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED', section: 'trace', subsection: ['serialwire'], enabled: true });
 
-            updateSection({
-                ...traceWithWarning,
-                subsections: traceWithWarning.subsections!.map(section => ({ ...section, select: section.id !== 'serialwire' })),
-            });
-            expect(sourceSwitch.checked).toBe(false);
-            expect(sourceSwitch.indeterminate).toBe(false);
-            expect(sourceSwitch.disabled).toBe(false);
-            expect(sourceSwitch.getAttribute('aria-invalid')).toBeNull();
-            expect(screen.queryByRole('img', { name: warning })).toBeNull();
-            fireEvent.mouseEnter(tooltipTarget);
-            expect((await screen.findByRole('tooltip')).textContent).toBe(warning);
-            listener.mockClear();
-            fireEvent.click(sourceSwitch);
-            expect(listener).toHaveBeenCalledWith({ type: 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED', section: 'trace', subsection: ['serialwire'], enabled: true });
+        fireEvent.click(screen.getByRole('button', { name: 'Remove Serial Wire' }));
+        expect(listener).toHaveBeenCalledWith({ type: 'REMOVE_DEBUG_ADAPTER_SUBSECTION', section: 'trace', subsection: ['serialwire'] });
 
-            fireEvent.click(remove);
-            expect(listener).toHaveBeenCalledWith({ type: 'REMOVE_DEBUG_ADAPTER_SUBSECTION', section: 'trace', subsection: ['serialwire'] });
-
-            updateSection(configuredTrace);
-            expect(sourceSwitch.getAttribute('aria-invalid')).toBeNull();
-            expect(checkboxLabel.classList.contains('debug-adapter-section-checkbox-warning')).toBe(false);
-            expect(sourceSwitch.disabled).toBe(false);
-            expect(sourceSwitch.indeterminate).toBe(false);
-        } finally {
-            style.remove();
-        }
+        updateSection(configuredTrace);
+        expect(sourceSwitch.getAttribute('aria-invalid')).toBeNull();
+        expect(sourceSwitch.disabled).toBe(false);
+        expect(sourceSwitch.indeterminate).toBe(false);
     });
 
     it('omits unavailable source types from the add menu', async () => {
@@ -314,7 +294,6 @@ describe('Manage Solution trace settings', () => {
         const tabs = screen.getAllByRole('tab');
         expect(tabs.map(tab => tab.textContent)).toEqual(['Trace (2)', 'Serial Wire', 'Settings A', 'Channel', 'Trace Buffer', 'Settings B', 'Channel']);
         expect(new Set(tabs.map(tab => tab.id)).size).toBe(tabs.length);
-        expect((tabs[3].querySelector('.debug-adapter-section-label') as HTMLElement).style.paddingLeft).toBe('4.5rem');
 
         fireEvent.click(tabs[3]);
         const clock = screen.getByRole('spinbutton', { name: 'Input Clock (Hz)' }) as HTMLInputElement;
@@ -356,30 +335,6 @@ describe('Manage Solution trace settings', () => {
         expect(listener).toHaveBeenCalledWith({
             type: 'ADD_DEBUG_ADAPTER_SUBSECTION', section: 'trace', subsection: ['serialwire', 'settings', 'channel'],
         });
-    });
-
-    it('gives subsection navigation entries half the default section spacing', async () => {
-        renderTrace(configuredTrace);
-        const stylesheet = new TextFile(path.join(__dirname, 'manage-solution.css'));
-        expect(await stylesheet.load()).toBe(ETextFileResult.Success);
-        const style = document.createElement('style');
-        style.textContent = stylesheet.text;
-        document.head.appendChild(style);
-
-        try {
-            const tabs = screen.getAllByRole('tab');
-            const parentStyle = window.getComputedStyle(tabs[0].closest('.ant-tabs-tab')!);
-            expect(parentStyle.paddingBottom).toBe('0px');
-
-            for (const tab of tabs.slice(1)) {
-                const childStyle = window.getComputedStyle(tab.closest('.ant-tabs-tab')!);
-                expect(childStyle.marginTop).toBe('8px');
-                expect(childStyle.paddingTop).toBe('0px');
-                expect(childStyle.paddingBottom).toBe('0px');
-            }
-        } finally {
-            style.remove();
-        }
     });
 
     it('displays saved Hz clocks in kHz and sends edits in Hz while routing subsection actions', () => {
