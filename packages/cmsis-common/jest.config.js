@@ -25,6 +25,7 @@ module.exports = {
     coverageDirectory: 'coverage',
     coverageReporters: ['lcov', 'text'],
     moduleFileExtensions: ['ts', 'js'],
+    reporters: ['default', 'github-actions'],
     testEnvironment: 'node',
     testMatch: ['<rootDir>/src/**/*.test.ts'],
     transform: {
