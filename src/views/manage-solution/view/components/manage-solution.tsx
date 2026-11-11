@@ -393,12 +393,13 @@ export const ManageSolution = (props: ManageSolutionProps) => {
 
                                         /** Renders a field for a static section or a dynamic subsection. */
                                         const getPropertyControl = (o: UISectionChildren, subsection?: string[], disabled = false): React.JSX.Element => {
+                                            const propertyKey = keyFor(section, o, subsection);
+
                                             return (
-                                                <div key={`option-${section.section}-${o.name}`} className='section-control' title={o.description || ''}>{(() => {
-                                                    const k = keyFor(section, o, subsection);
-                                                    const propertyValue = state.editableProperties[k]?.value;
-                                                    const focusProperty = () => dispatch({ type: 'FOCUS_PROPERTY', key: k });
-                                                    const blurProperty = () => dispatch({ type: 'BLUR_PROPERTY', key: k });
+                                                <div key={propertyKey} className='section-control' title={o.description || ''}>{(() => {
+                                                    const propertyValue = state.editableProperties[propertyKey]?.value;
+                                                    const focusProperty = () => dispatch({ type: 'FOCUS_PROPERTY', key: propertyKey });
+                                                    const blurProperty = () => dispatch({ type: 'BLUR_PROPERTY', key: propertyKey });
                                                     switch (o.type) {
                                                         case 'number':
                                                             return (
@@ -410,11 +411,11 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                     onPressEnter={blurOnEnter}
                                                                     onFocus={focusProperty}
                                                                     onChange={(val) => {
-                                                                        if (val !== null) dispatch({ type: 'EDIT_PROPERTY', key: k, value: val });
+                                                                        if (val !== null) dispatch({ type: 'EDIT_PROPERTY', key: propertyKey, value: val });
                                                                     }}
                                                                     onBlur={() => {
                                                                         blurProperty();
-                                                                        if (!state.editableProperties[k]?.dirty) {
+                                                                        if (!state.editableProperties[propertyKey]?.dirty) {
                                                                             return;
                                                                         }
 
@@ -424,7 +425,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                         const clamped = Math.min(Math.max(Number.isFinite(numericDisplay) ? numericDisplay : fallback, o.range?.[0] ?? -Infinity), o.range?.[1] ?? Infinity);
                                                                         const committed = Math.trunc(clamped);
                                                                         if (committed !== numericDisplay) {
-                                                                            dispatch({ type: 'EDIT_PROPERTY', key: k, value: committed });
+                                                                            dispatch({ type: 'EDIT_PROPERTY', key: propertyKey, value: committed });
                                                                         }
                                                                         sendDebugAdapterProperty(subsection ? rootSection : section['yml-node'], o['yml-node'], committed, o.scale, o.pname, subsection);
                                                                     }}
@@ -441,7 +442,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                     value={(propertyValue as string) ?? ''}
                                                                     onPressEnter={blurOnEnter}
                                                                     onFocus={focusProperty}
-                                                                    onChange={e => dispatch({ type: 'EDIT_PROPERTY', key: k, value: e.target.value })}
+                                                                    onChange={e => dispatch({ type: 'EDIT_PROPERTY', key: propertyKey, value: e.target.value })}
                                                                     onBlur={() => {
                                                                         blurProperty();
                                                                         sendDebugAdapterProperty(subsection ? rootSection : section['yml-node'], o['yml-node'], (propertyValue as string) ?? '', undefined, o.pname, subsection);
@@ -465,7 +466,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                                 onClick={() => selectFile({
                                                                                     service: subsection ? rootSection : section['yml-node'],
                                                                                     key: o['yml-node'],
-                                                                                    localValueKey: k,
+                                                                                    localValueKey: propertyKey,
                                                                                     title: o.description || 'Select File',
                                                                                     defaultUri: (propertyValue as string) ?? '',
                                                                                     pathType: o['path-type'],
@@ -482,7 +483,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                     onFocus={focusProperty}
                                                                     onBlur={blurProperty}
                                                                     onChange={(e) => {
-                                                                        dispatch({ type: 'EDIT_PROPERTY', key: k, value: e.target.value });
+                                                                        dispatch({ type: 'EDIT_PROPERTY', key: propertyKey, value: e.target.value });
                                                                         // immediate commit for file path edits
                                                                         sendDebugAdapterProperty(subsection ? rootSection : section['yml-node'], o['yml-node'], e.target.value, undefined, o.pname, subsection);
                                                                     }}
@@ -502,7 +503,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                     selected={stringValue ?? ''}
                                                                     warning={!valueMap.has(stringValue) && `Value '${stringValue}' not in enum options`}
                                                                     onChange={(value) => {
-                                                                        dispatch({ type: 'EDIT_PROPERTY', key: k, value });
+                                                                        dispatch({ type: 'EDIT_PROPERTY', key: propertyKey, value });
                                                                         sendDebugAdapterProperty(subsection ? rootSection : section['yml-node'], o['yml-node'], value, undefined, o.pname, subsection);
                                                                     }}
                                                                     title={o.description}
