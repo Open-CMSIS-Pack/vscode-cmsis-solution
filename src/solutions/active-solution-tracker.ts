@@ -307,21 +307,21 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
         return path.join(inputSolutionPath, csolutionFileName);
     }
 
+    private async getSolutionQuickPickItem(solutionPath: string): Promise<vscode.QuickPickItem & { path: string }> {
+        const file = new YamlFile(solutionPath);
+        await file.load();
+        const content = file.content as { solution?: { description?: unknown } } | undefined;
+        const description = content?.solution?.description;
+        return {
+            label: this.getSolutionDetails(solutionPath).displayName,
+            detail: typeof description === 'string' && description.trim() ? description : undefined,
+            path: solutionPath,
+        };
+    }
+
     private async promptUserToSelectSolution(): Promise<string | undefined> {
         const solutions = this._solutions;
-        const items = await Promise.all(solutions.map(async solutionPath => {
-            const file = new YamlFile(solutionPath);
-            const result = await file.load();
-            const content = file.content as { solution?: { description?: unknown } } | undefined;
-            const description = result !== ETextFileResult.Error && !file.hasErrors()
-                ? content?.solution?.description
-                : undefined;
-            return {
-                label: this.getSolutionDetails(solutionPath).displayName,
-                detail: typeof description === 'string' && description.trim() ? description : undefined,
-                path: solutionPath,
-            };
-        }));
+        const items = await Promise.all(solutions.map(this.getSolutionQuickPickItem, this));
         const result = await vscode.window.showQuickPick(items, { placeHolder: 'Select a solution' });
         return result?.path;
     }
