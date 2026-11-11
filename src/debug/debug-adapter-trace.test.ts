@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { CTreeItemYamlFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
+import { TestDataHandler } from '../__test__/test-data';
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { DebuggerWrap } from '../solutions/files/csolution-wrap';
 import { DebugAdapterSections } from './debug-adapter-sections';
@@ -68,5 +71,28 @@ describe('trace section definition', () => {
         expect(debuggerWrap.getTraceSource('swo-uart')?.inputClock).toBe(96000500);
         settings.setParameter('trace', ['serialwire'], 'input-clock', Number.MAX_SAFE_INTEGER);
         expect(debuggerWrap.getTraceSource('swo-uart')?.inputClock).toBe(Number.MAX_SAFE_INTEGER);
+    });
+
+    it.each([1000, 96000000])('persists an edited %s Hz clock and retains unrelated settings', async stored => {
+        const testData = new TestDataHandler();
+        try {
+            const file = new CTreeItemYamlFile(testData.tmpFileName('trace.yml'));
+            const debuggerWrap = new DebuggerWrap(file.ensureTopItem('debugger'));
+            debuggerWrap.object = {
+                custom: 'retained', trace: [{ 'swo-uart': null, mode: 'file', 'input-clock': 48000000 }],
+            };
+            const settings = new DebugAdapterSections([], [createTraceSectionDefinition(debuggerWrap)], () => debuggerWrap, () => debuggerWrap);
+            settings.setParameter('trace', ['serialwire'], 'input-clock', stored);
+            expect(await file.save()).toBe(ETextFileResult.Success);
+
+            const reloaded = new CTreeItemYamlFile(file.fileName);
+            expect(await reloaded.load()).toBe(ETextFileResult.Success);
+            const savedDebugger = new DebuggerWrap(reloaded.topItem);
+            expect(savedDebugger.object).toEqual({
+                custom: 'retained', trace: [{ 'swo-uart': null, mode: 'file', 'input-clock': stored }],
+            });
+        } finally {
+            testData.dispose();
+        }
     });
 });
