@@ -286,6 +286,59 @@ describe('ContextSelectionWebviewMain', () => {
         );
     });
 
+    it('records trace subsection edits in snapshots and restores them through undo and redo', async () => {
+        const onEdit = jest.fn();
+        const main = manageSolutionWebviewMainFactory({ webviewManager, onEdit });
+        await main.activate(context as unknown as vscode.ExtensionContext);
+        main.controller.enableDebugger(true, 'Test Adapter');
+        const before = main.getSolutionSnapshot();
+
+        await fireAndWait('ADD_DEBUG_ADAPTER_SUBSECTION', { section: 'trace', subsection: ['serialwire'] });
+        await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', { service: 'trace', subsection: ['serialwire'], key: 'input-clock', value: 64000000 });
+        await fireAndWait('SET_DEBUG_ADAPTER_SUBSECTION_ENABLED', { section: 'trace', subsection: ['serialwire'], enabled: false });
+        const configured = main.getSolutionSnapshot();
+        expect(main.controller.activeDebugger?.item?.getChild('trace')?.toObject()).toEqual([
+            { 'swo-uart': null, mode: 'off', 'input-clock': 64000000 },
+        ]);
+
+        await fireAndWait('REMOVE_DEBUG_ADAPTER_SUBSECTION', { section: 'trace', subsection: ['serialwire'] });
+        expect(main.controller.activeDebugger?.item?.getChild('trace')).toBeUndefined();
+        expect(onEdit).toHaveBeenCalledTimes(4);
+        expect(onEdit.mock.calls.map(([label]) => label)).toEqual([
+            'ADD_DEBUG_ADAPTER_SUBSECTION', 'UPDATE_DEBUGGER_PARAMETER', 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED', 'REMOVE_DEBUG_ADAPTER_SUBSECTION',
+        ]);
+
+        await main.applySnapshot(before);
+        expect(main.controller.activeDebugger?.item?.getChild('trace')).toBeUndefined();
+        await main.applySnapshot(configured);
+        expect(main.getSolutionSnapshot()).toEqual(configured);
+    });
+
+    it('routes nested field messages by descriptor identity without creating a node for the display identity', async () => {
+        const main = manageSolutionWebviewMainFactory({ webviewManager });
+        await main.activate(context as unknown as vscode.ExtensionContext);
+        main.controller.enableDebugger(true, 'Test Adapter');
+        main.controller['debugAdaptersCache'] = [{
+            name: 'Test Adapter',
+            'user-interface': [{
+                id: 'advanced', section: 'Advanced', 'yml-node': 'settings', options: [],
+                subsections: [{
+                    id: 'transport', section: 'Transport', options: [],
+                    subsections: [{
+                        id: 'channel', section: 'Channel', options: [{ name: 'Clock', 'yml-node': 'input-clock', type: 'number' }],
+                    }],
+                }],
+            }],
+        }];
+
+        await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', {
+            service: 'advanced', subsection: ['transport', 'channel'], key: 'input-clock', value: 64000000,
+        });
+
+        expect(main.controller.activeDebugger?.item?.getChild('settings')?.toObject()).toEqual({ transport: { channel: { 'input-clock': 64000000 } } });
+        expect(main.controller.activeDebugger?.item?.getChild('advanced')).toBeUndefined();
+    });
+
     describe('onDidChangeLoadState callback', () => {
         it('publishes cores after conversion without reloading unsaved edits', async () => {
             const solutionManager = solutionManagerFactory();
@@ -559,6 +612,20 @@ describe('ContextSelectionWebviewMain', () => {
     });
 
     describe('updateDebuggerParameter', () => {
+        it('creates missing sections for field edits without invoking the switch action', async () => {
+            const main = manageSolutionWebviewMainFactory({ webviewManager });
+            await main.activate(context as unknown as vscode.ExtensionContext);
+            main.controller.enableDebugger(true, 'Test Adapter');
+            const toggle = jest.spyOn(main.controller, 'toggleDebugAdapterSection');
+
+            await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', { service: 'settings', key: 'port', value: 3333 });
+            expect(main.controller.activeDebugger?.item?.getChild('settings')?.toObject()).toEqual({ port: '3333' });
+            expect(toggle).not.toHaveBeenCalled();
+
+            await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', { service: 'settings', key: 'host', value: 'localhost' });
+            expect(main.controller.activeDebugger?.item?.getChild('settings')?.toObject()).toEqual({ port: '3333', host: 'localhost' });
+        });
+
         it('invokes setDebuggerParameter with stringified value and sends DEBUG_ADAPTERS + DATA_CONTEXT_SELECTION', async () => {
             const main = manageSolutionWebviewMainFactory({ webviewManager });
             await main.activate(context as unknown as vscode.ExtensionContext);

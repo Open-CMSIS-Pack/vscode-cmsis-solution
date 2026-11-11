@@ -274,7 +274,7 @@ export class ManageSolutionWebviewMain {
                 await this.commandsProvider.executeCommand(OpenCommand.openHelpCommandId, 'manage_settings.html#active-target');
                 break;
             case 'SET_DEBUG_ADAPTER_PROPERTY':
-                await this.updateDebuggerParameter(message.service, message.key, message.value, message.pname);
+                await this.updateDebuggerParameter(message.service, message.key, message.value, message.pname, message.subsection);
                 break;
             case 'SELECT_FILE':
                 await this.selectFileDialog(message.requestId, message.options);
@@ -289,6 +289,11 @@ export class ManageSolutionWebviewMain {
             case 'TOGGLE_DEBUG_ADAPTER_SECTION':
                 await this.toggleDebugAdapterSection(message.section);
                 break;
+            case 'ADD_DEBUG_ADAPTER_SUBSECTION':
+            case 'REMOVE_DEBUG_ADAPTER_SUBSECTION':
+            case 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED':
+                await this.updateDebugAdapterSubsection(message);
+                break;
         }
     }
 
@@ -300,10 +305,11 @@ export class ManageSolutionWebviewMain {
         });
     };
 
+    /** Toggles a static section and publishes the updated solution and descriptors. */
     private async toggleDebugAdapterSection(section: string): Promise<void> {
         await this.withEdit('TOGGLE_DEBUG_ADAPTER_SECTION', async () => {
             await this.controller.toggleDebugAdapterSection(section);
-            await this.sendDebugAdapters();
+            await this.sendContextData();
         });
     }
 
@@ -314,13 +320,36 @@ export class ManageSolutionWebviewMain {
         });
     }
 
-    private async updateDebuggerParameter(service: string | undefined, param: string, value: string | number, pname?: string) {
+    /** Applies a subsection edit and publishes the updated descriptors through the normal undoable edit flow. */
+    private async updateDebugAdapterSubsection(message: Extract<OutgoingMessage, {
+        type: 'ADD_DEBUG_ADAPTER_SUBSECTION' | 'REMOVE_DEBUG_ADAPTER_SUBSECTION' | 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED';
+    }>): Promise<void> {
+        await this.withEdit(message.type, async () => {
+            switch (message.type) {
+                case 'ADD_DEBUG_ADAPTER_SUBSECTION':
+                    this.controller.addDebugAdapterSubsection(message.section, message.subsection);
+                    break;
+                case 'REMOVE_DEBUG_ADAPTER_SUBSECTION':
+                    this.controller.removeDebugAdapterSubsection(message.section, message.subsection);
+                    break;
+                case 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED':
+                    this.controller.setDebugAdapterSubsectionEnabled(message.section, message.subsection, message.enabled);
+                    break;
+            }
+            await this.sendContextData();
+        });
+    }
+
+    /** Commits an adapter field, optionally addressing a processor or a dynamic subsection. */
+    private async updateDebuggerParameter(service: string | undefined, param: string, value: string | number, pname?: string, subsection?: string[]) {
         await this.withEdit('UPDATE_DEBUGGER_PARAMETER', async () => {
-            if (service && !this.controller.isDebuggerSectionEnabled(service)) {
-                await this.controller.toggleDebugAdapterSection(service);
+            if (service && !subsection?.length && !this.controller.isDebuggerSectionEnabled(service)) {
+                await this.controller.ensureDebugAdapterSection(service);
             }
 
-            if ((pname === undefined || pname === null) || this.controller.availableCoreNames.length <= 1) {
+            if (subsection) {
+                this.controller.setDebuggerParameter(service, param, value.toString(), subsection, pname);
+            } else if ((pname === undefined || pname === null) || this.controller.availableCoreNames.length <= 1) {
                 this.controller.setDebuggerParameter(service, param, value.toString());
             } else {
                 this.controller.setDebuggerParameterWithPname(service, pname, param, value.toString());
