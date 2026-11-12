@@ -34,9 +34,9 @@ export type SettingsTreeProps = SettingsCallbacks & {
 
 /** Connects recursive section navigation to the selected content pane using presentation data only. */
 export const SettingsTree = ({ sections, activeId, expanded, drafts, onSelect, onExpand, ...callbacks }: SettingsTreeProps) => {
-    const panelId = React.useId();
+    const panelId = `settings-${React.useId().replace(/:/g, '')}`;
     const selected = settingsNavigation(sections).find(entry => entry.section.id === activeId)?.section;
-    const labelledBy = selected ? `tab-${selected.id}` : undefined;
+    const labelledBy = selected ? `${panelId}-tab-${selected.id}` : undefined;
 
     return (
         <div className='settings-tree'>

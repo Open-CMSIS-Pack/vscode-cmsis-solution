@@ -32,7 +32,7 @@ import { CmsisSettingsJsonFile } from './../../global/cmsis-settings-json-file';
 import { GenericPropertyList, getSelectedTargetSet, ImageSelection, ProjectSelection, SolutionData, TargetSet, TargetType } from './view/state/manage-solution-state';
 import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
 import { DebugAdapterSections, sectionIdentity, sectionYamlPath } from '../../debug/debug-adapter-sections';
-import { createTraceSectionDefinition } from '../../debug/debug-adapter-trace';
+import type { AdapterSettingsAction, AdapterSettingsContext } from './adapter-settings-presenter';
 
 export type CustomDebugAdapterDefaults = { [adapterName: string]: { [propertyName: string]: string | number } };
 
@@ -54,7 +54,6 @@ export class ManageSolutionController {
     private readonly _csolutionYml = new CSolutionYamlFile();
     private readonly _cmsisJsonFile = new CmsisSettingsJsonFile();
     private debugAdaptersYmlFile?: DebugAdaptersYamlFile = undefined;
-    private debugAdaptersCache: DebugAdapter[] = [];
     private availableCoreNamesCache: string[] = [];
     private defaults?: TargetConfiguration;
     public customDebugAdapterDefaults: CustomDebugAdapterDefaults = {};
@@ -62,9 +61,6 @@ export class ManageSolutionController {
     private csolutionFileStamp?: FileStamp | null;
     private cmsisJsonFileStamp?: FileStamp | null;
     private cmsisJsonLoadResult?: ETextFileResult;
-
-    /** Controls whether experimental debugger sections are contributed to the adapter UI. */
-    public experimentalFeatures = false;
 
     /**
      * Gets the initialized csolution service instance.
@@ -476,17 +472,20 @@ export class ManageSolutionController {
             this.debugAdaptersYmlFile?.debugAdapters[0]?.name || '';
     }
 
-    /**
-     * Queries available processor core names for the active target device.
-     */
-    public async getAvailableCoreNames(): Promise<string[]> {
-        const device = this.activeTargetTypeWrap?.device ||
+    /** Resolves the active device, including applicable build-run defaults. */
+    private get activeDeviceId(): string | undefined {
+        return this.activeTargetTypeWrap?.device ||
             (this.defaults?.targetType === this.activeTargetTypeName ? this.defaults?.device : undefined);
-        const availableCores = device
-            ? (await this.csolutionService.getDeviceInfo({ id: device })).device?.processors?.flatMap((processor: { name?: string; core: string }) => processor.name ? [processor.name] : []) || []
-            : [];
-        this.availableCoreNamesCache = availableCores;
-        return availableCores;
+    }
+
+    /** Refreshes stored processor names for an explicit context update, ignoring an obsolete device response. */
+    public async getAvailableCoreNames(): Promise<string[]> {
+        const device = this.activeDeviceId;
+        const info = device ? await this.csolutionService.getDeviceInfo({ id: device }) : undefined;
+        if (device === this.activeDeviceId) {
+            this.availableCoreNamesCache = info?.device?.processors?.flatMap(processor => processor.name ? [processor.name] : []) ?? [];
+        }
+        return this.availableCoreNamesCache;
     }
 
     /**
@@ -539,32 +538,6 @@ export class ManageSolutionController {
         return image;
     }
 
-    /**
-     * Gets debug adapters, loading and caching them if needed.
-     */
-    public get debugAdapters(): Promise<DebugAdapter[]> {
-        if (this.debugAdaptersCache.length === 0) {
-            return this.refreshDebugAdapters();
-        }
-        return Promise.resolve(this.debugAdaptersCache);
-    }
-
-    /**
-     * Rebuilds adapter definitions with current defaults, used cores, and dynamic settings.
-     */
-    public async refreshDebugAdapters(): Promise<DebugAdapter[]> {
-        const adapters = this.debugAdaptersYmlFile?.debugAdapters ?? [];
-        await this.getAvailableCoreNames();
-        const usedCores = this.usedCoreNames;
-        adapters.forEach(da => this.customizeDebugAdapterDefaults(da));
-        adapters.forEach(da => {
-            this.refreshSections(da['user-interface'] ?? [], usedCores);
-            da['user-interface'] = this.sectionModel(da).sections;
-        });
-        this.debugAdaptersCache = adapters;
-        return adapters;
-    }
-
     /** Expands processor options throughout the static settings tree. */
     private refreshSections(sections: UISection[], usedCores: string[]): void {
         sections.forEach(section => {
@@ -575,21 +548,45 @@ export class ManageSolutionController {
         });
     }
 
-    /** Composes static UI and runtime extensions against the currently selected target set. */
-    private sectionModel(adapter?: DebugAdapter): DebugAdapterSections {
-        const definition = adapter ?? this.debugAdaptersCache.find(candidate => candidate.name === this.activeDebuggerName)
-            ?? this.debugAdaptersYmlFile?.getAdapterByName(this.activeDebuggerName);
+    /** Resolves fresh registry declarations so stored states never replace declared initial values. */
+    private sectionModel(): DebugAdapterSections {
+        const definition = this.debugAdaptersYmlFile?.getAdapterByName(this.activeDebuggerName);
+        this.customizeDebugAdapterDefaults(definition);
+        this.refreshSections(definition?.['user-interface'] ?? [], this.usedCoreNames);
         return new DebugAdapterSections(
-            definition?.['user-interface']?.filter(section => sectionIdentity(section, true) !== 'trace') ?? [],
-            this.experimentalFeatures ? [createTraceSectionDefinition(this.activeDebugger)] : [],
+            definition?.['user-interface'] ?? [],
             () => this.activeDebugger,
             () => this.activeTargetSetWrap.ensureDebugger(),
         );
     }
 
+    /** Supplies the host presentation layer with registry-driven sections and the active storage context. */
+    public async adapterSettingsContext(autoUpdate: boolean): Promise<AdapterSettingsContext> {
+        return {
+            identity: [this.solutionPath, this.activeTargetTypeName ?? '', this.activeTargetSetName ?? '', this.activeDebuggerName],
+            adapters: this.debugAdaptersYmlFile?.listAdapterNames() ?? [],
+            adapter: this.activeDebuggerName, processors: this.usedCoreNames,
+            startProcessor: this.activeDebugger?.startPname ?? '', autoUpdate,
+            sections: this.sectionModel().sections, debugger: this.activeDebugger,
+        };
+    }
+
+    /** Applies a resolved generic tree action; the webview owner supplies the undo/redo transaction. */
+    public applySettingsAction(action: AdapterSettingsAction): void {
+        const model = this.sectionModel();
+        switch (action.kind) {
+            case 'edit':
+                model.setParameter(action.root, action.path, action.option!['yml-node'], action.value as string | number, action.option?.pname);
+                break;
+            case 'toggle': model.setEnabled(action.root, action.path, action.value as boolean); break;
+            case 'add': model.add(action.root, action.path); break;
+            case 'remove': model.remove(action.root, action.path); break;
+        }
+    }
+
     /** Resolves a displayed section path against the active adapter's descriptors. */
     private sectionBranch(section: string, path: string[]): UISection[] | undefined {
-        return this.sectionModel().findBranch(section, path)?.map(definition => definition.ui);
+        return this.sectionModel().descriptorBranch(section, path);
     }
 
     /**
@@ -726,12 +723,21 @@ export class ManageSolutionController {
      * Set data from SolutionData object to CSolutionYmlFile
      */
     public set solutionData(selectedContextState: SolutionData) {
+        this.applySelection(selectedContextState, true);
+    }
+
+    /** Table messages edit project/image selection; debugger state is restored only by host undo/redo snapshots. */
+    public applyDialogSelection(selectedContextState: SolutionData): void {
+        this.applySelection(selectedContextState, false);
+    }
+
+    private applySelection(selectedContextState: SolutionData, restoreDebugger: boolean): void {
 
         this.setActiveTargetSet(selectedContextState.selectedTarget?.name ?? '', selectedContextState.selectedTarget?.selectedSet);
         const activeTargetSetWrap = this.activeTargetSetWrap;
         this.updateSelectedProjects(activeTargetSetWrap, selectedContextState.projects);
         this.updateSelectedImages(activeTargetSetWrap, selectedContextState.images ?? []);
-        this.updateDebuggerFromSnapshot(selectedContextState);
+        if (restoreDebugger) this.updateDebuggerFromSnapshot(selectedContextState);
         this.activeTargetSetWrap.purgeImages();
     }
 

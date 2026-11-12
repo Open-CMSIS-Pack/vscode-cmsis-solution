@@ -15,8 +15,6 @@
  */
 
 import type { AdapterSnapshot, SettingsActionRequest, SettingsActionResult } from './settings-contract';
-import { DebugAdapter } from '../../debug/debug-adapters-yaml-file';
-import { FileSelectorOptionsType } from './types';
 import { ActiveTargetSet, SolutionData } from './view/state/manage-solution-state';
 
 /**
@@ -29,23 +27,12 @@ export type OutgoingMessage
     | { type: 'SET_SELECTED_TARGET', target: string, set: string | undefined }
     | { type: 'OPEN_FILE', path: string, external?: boolean }
     | { type: 'SET_SELECTED_CONTEXTS', data: SolutionData }
-    | { type: 'GET_DEBUG_ADAPTERS' }
-    | { type: 'SET_DEBUGGER', name: string }
     | { type: 'ADD_NEW_CONTEXT' }
     | { type: 'ADD_NEW_PROJECT' }
     | { type: 'ADD_NEW_IMAGE' }
     | { type: 'UNLINK_IMAGE', image: string }
-    | { type: 'SET_START_PROCESSOR', value: string }
     | { type: 'SAVE_CONTEXT_SELECTION' }
     | { type: 'OPEN_HELP' }
-    | { type: 'SET_DEBUG_ADAPTER_PROPERTY', service: string | undefined, key: string, value: string | number, pname?: string, subsection?: string[] }
-    | { type: 'SELECT_FILE', requestId: string, options?: FileSelectorOptionsType }
-    | { type: 'SET_AUTO_UPDATE', value: boolean }
-    | { type: 'TOGGLE_DEBUGGER', value: boolean }
-    | { type: 'TOGGLE_DEBUG_ADAPTER_SECTION', section: string }
-    | { type: 'ADD_DEBUG_ADAPTER_SUBSECTION', section: string, subsection: string[] }
-    | { type: 'REMOVE_DEBUG_ADAPTER_SUBSECTION', section: string, subsection: string[] }
-    | { type: 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED', section: string, subsection: string[], enabled: boolean }
     ;
 
 /**
@@ -55,11 +42,7 @@ export type IncomingMessage
     = { type: 'ADAPTER_SETTINGS', snapshot: AdapterSnapshot }
     | { type: 'SETTINGS_ACTION_RESULT', result: SettingsActionResult }
     | { type: 'DATA_CONTEXT_SELECTION', data: SolutionData }
-    | { type: 'DEBUG_ADAPTERS', data: DebugAdapter[], sectionsInUse: string[] }
-    | { type: 'DEBUGGER', data: string }
     | { type: 'ACTIVE_TARGET_SET', data: ActiveTargetSet }
     | { type: 'IS_DIRTY', data: boolean }
     | { type: 'IS_BUSY', data: boolean }
-    | { type: 'FILE_SELECTED', data: string[], requestId: string }
-    | { type: 'AUTO_UPDATE', data: boolean }
     ;

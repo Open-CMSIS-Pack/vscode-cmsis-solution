@@ -64,6 +64,17 @@ function renderEditableField(field: Field) {
 }
 
 describe('isolated settings tree', () => {
+    it('gives simultaneous trees distinct tab and panel associations', () => {
+        renderTree([section('Same')]);
+        renderTree([section('Same')]);
+        const tabs = screen.getAllByRole('tab');
+        expect(new Set(tabs.map(tab => tab.id)).size).toBe(2);
+        for (const tab of tabs) {
+            const panel = document.getElementById(tab.getAttribute('aria-controls')!);
+            expect(panel).toHaveAttribute('aria-labelledby', tab.id);
+        }
+    });
+
     it('uses default closed content containers and separates activation from expansion', () => {
         const { onAction } = renderTree([section('Root', { children: [section('Nested', {
             selected: false, toggleAction: 'toggle', disabled: true,
@@ -247,6 +258,23 @@ describe('isolated settings fields', () => {
         expect(onAction).not.toHaveBeenCalled();
         fireEvent.blur(input);
         expect(onAction).toHaveBeenCalledWith('edit', '3.7', 'number');
+    });
+
+    it('commits a string on Enter through blur', () => {
+        const onAction = jest.fn();
+        function Field() {
+            const [draft, setDraft] = React.useState<SettingsDraft>({ value: 'old', dirty: false, focused: false, version: 0 });
+            return <SettingsField field={{ id: 'text', type: 'string', label: 'Name', value: 'old', disabled: false, editAction: 'edit' }} draft={draft}
+                onAction={onAction} onEdit={(_, value) => setDraft(current => ({ ...current, value, dirty: true }))}
+                onFocus={(_, focused) => setDraft(current => ({ ...current, focused }))} />;
+        }
+        render(<Field />);
+        const input = screen.getByRole('textbox', { name: 'Name' });
+        act(() => input.focus());
+        fireEvent.change(input, { target: { value: 'new' } });
+        expect(onAction).not.toHaveBeenCalled();
+        fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', keyCode: 13 });
+        expect(onAction).toHaveBeenCalledWith('edit', 'new', 'text');
     });
 
     it('shows enum descriptions below the labels and commits a choice from its description', async () => {

@@ -67,12 +67,9 @@ export type UISection = {
     select?: boolean;                   // If present, the section can be enabled. Applies to all options.
     usage?: 'available' | 'used';
     'subsections-layout'?: 'navigation' | 'content';
-    /** @deprecated Removed when the dialog switches to the prepared settings contract. */
-    removable?: boolean;                // If true, the subsection can be removed independently of addOptions.
     options: UISectionChildren[];       // List of available options.
     'pname-options'?: boolean;          // Indicates if the option is pname based. Then the same property will be created for each pname instance.
     subsections?: UISection[];         // Nested settings sections supplied by the backend.
-    addOptions?: { id: string; name: string }[]; // Currently addable subsection types, filtered by the backend.
 }
 
 export interface DebugAdapter {

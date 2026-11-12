@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-import { UISection, UISectionChildren } from '../../../../debug/debug-adapters-yaml-file';
-import { sectionYamlNodeName } from '../../../../debug/section-yaml-binding';
 import { IncomingMessage } from '../../messages';
-import { EditableProperty, SolutionData, ManageSolutionState, LoadType } from './manage-solution-state';
+import { SolutionData, ManageSolutionState, LoadType } from './manage-solution-state';
 
 /**
  * An action that updates the selected context.
@@ -75,127 +73,7 @@ export const contextUpdateReducer = (solutionData: SolutionData, action: Solutio
     }
 };
 
-type ManageSolutionAction
-    = { type: 'INCOMING_MESSAGE', message: IncomingMessage }
-    | { type: 'EDIT_PROPERTY', key: string, value: string | number }
-    | { type: 'FOCUS_PROPERTY', key: string }
-    | { type: 'BLUR_PROPERTY', key: string }
-    | SolutionUpdateAction;
-
-/** Identifies an editable field within its target, adapter, optional subsection, and processor. */
-export const editablePropertyKey = (
-    solutionData: SolutionData,
-    debuggerName: string | undefined,
-    section: UISection | undefined,
-    option: UISectionChildren | undefined,
-    subsection?: string[],
-): string => [
-    solutionData.selectedTarget?.name ?? '',
-    solutionData.selectedTarget?.selectedSet ?? '',
-    debuggerName ?? '',
-    section?.id ?? (section && sectionYamlNodeName(section)) ?? section?.section ?? '',
-    ...(subsection ?? []),
-    option?.pname ?? '',
-    option?.['yml-node'] ?? '',
-].join('::');
-
-const getProperty = <T>(defaultValue: T | undefined, obj: Record<string, unknown>, ...keys: (string | undefined)[]): T | undefined => {
-    let result: unknown = obj;
-    let index = 0;
-    while (index < keys.length) {
-        const key = keys[index];
-        if (!key || !result) {
-            index++;
-            continue;
-        }
-        if (Array.isArray(result)) {
-            if (key === 'pname' && keys[index + 1] && keys[index + 2]) {
-                const pname = keys[index + 1];
-                const valueKey = keys[index + 2]!;
-                result = result.find(item => item.pname === pname)?.[valueKey];
-                index += 3;
-                continue;
-            }
-            result = result[0]?.[key];
-        } else {
-            result = (result as Record<string, unknown>)[key];
-        }
-        index++;
-    }
-    return (result as T | undefined) ?? defaultValue;
-};
-
-/** Reads an adapter field from the current solution, applying its display scale and fallback. */
-const propertyValue = (
-    selectedDebugger: Record<string, unknown>,
-    sections: UISection[],
-    option: UISectionChildren,
-): string | number => {
-    const optionNode = option['yml-node'];
-    let properties: unknown = selectedDebugger;
-
-    for (const [depth, section] of sections.entries()) {
-        const key = sectionYamlNodeName(section) ?? (depth > 0 ? section.id : undefined);
-        if (!key) {
-            continue;
-        }
-        if (Array.isArray(properties)) {
-            properties = properties.find(entry => entry && typeof entry === 'object' && Object.prototype.hasOwnProperty.call(entry, key));
-        } else if (properties && typeof properties === 'object') {
-            properties = (properties as Record<string, unknown>)[key];
-        } else {
-            properties = undefined;
-        }
-    }
-
-    const values = (properties ?? {}) as Record<string, unknown>;
-    const processor = Array.isArray(properties) ? option.pname : undefined;
-    if (option.type === 'number') {
-        const defaultValue = option.default ?? option.range?.[1] ?? 0;
-        const raw = getProperty<number>(
-            option.scale === undefined ? defaultValue : defaultValue * option.scale,
-            values,
-            processor ? 'pname' : undefined,
-            processor,
-            optionNode,
-        ) ?? defaultValue;
-        return option.scale === undefined ? raw : raw / option.scale;
-    }
-    return getProperty<string>(
-        option.default ?? '',
-        values,
-        processor ? 'pname' : undefined,
-        processor,
-        optionNode,
-    ) ?? '';
-};
-
-/** Reconciles backend fields with local edits, retaining focused or unacknowledged input. */
-const reconcileEditableProperties = (state: ManageSolutionState): Record<string, EditableProperty> => {
-    const adapter = state.debugAdapters.find(candidate => candidate.name === state.debugger);
-    const selectedDebugger = state.solutionData.selectedTarget?.targetSets
-        ?.find(({ name }) => name === (state.solutionData.selectedTarget?.selectedSet ?? ''))
-        ?.debugger as Record<string, unknown> | undefined;
-    const next: Record<string, EditableProperty> = {};
-
-    /** Reconciles a section and all descendants using their full identity and YAML paths. */
-    const reconcileSection = (section: UISection, parents: UISection[] = []): void => {
-        const sections = [...parents, section];
-        const path = sections.slice(1).map(node => node.id ?? sectionYamlNodeName(node) ?? node.section);
-        section.options.forEach(option => {
-            const key = editablePropertyKey(state.solutionData, state.debugger, sections[0], option, path);
-            const incomingValue = propertyValue(selectedDebugger ?? {}, sections, option);
-            const current = state.editableProperties[key];
-            next[key] = current?.focused || (current?.dirty && current.value !== incomingValue)
-                ? current
-                : { value: incomingValue, focused: false, dirty: false };
-        });
-        section.subsections?.forEach(child => reconcileSection(child, sections));
-    };
-
-    adapter?.['user-interface']?.forEach(section => reconcileSection(section));
-    return next;
-};
+type ManageSolutionAction = { type: 'INCOMING_MESSAGE', message: IncomingMessage } | SolutionUpdateAction;
 
 export const initialState: ManageSolutionState = {
     solutionData: {
@@ -208,90 +86,18 @@ export const initialState: ManageSolutionState = {
         availableCoreNames: [],
         usedCoreNames: [],
     },
-    debugAdapters: [],
-    debugger: undefined,
-    editableProperties: {},
     isDirty: false,
-    autoUpdate: true,
     busy: true,
 };
 
-const incomingMessageReducer = (
-    state: ManageSolutionState,
-    { message }: Extract<ManageSolutionAction, { type: 'INCOMING_MESSAGE' }>,
-): ManageSolutionState => {
-    switch (message.type) {
-        case 'DATA_CONTEXT_SELECTION': {
-            const next = { ...state, solutionData: message.data };
-            return { ...next, editableProperties: reconcileEditableProperties(next) };
-        }
-        case 'DEBUG_ADAPTERS': {
-            const updatedAdapters = message.data.map(da => {
-                return {
-                    ...da,
-                    ['user-interface']: da['user-interface']?.map(section => {
-                        if (section.select === undefined || section.subsections !== undefined) {
-                            return section;
-                        }
-                        return {
-                            ...section,
-                            select: message.sectionsInUse.includes(sectionYamlNodeName(section) ?? section.section.toLowerCase()),
-                        };
-                    }) || da['user-interface'],
-                };
-            });
-            const next = { ...state, debugAdapters: updatedAdapters };
-            return { ...next, editableProperties: reconcileEditableProperties(next) };
-        }
-        case 'IS_DIRTY':
-            return { ...state, isDirty: message.data };
-        case 'IS_BUSY':
-            return { ...state, busy: message.data };
-        case 'DEBUGGER': {
-            const next = { ...state, debugger: message.data };
-            return { ...next, editableProperties: reconcileEditableProperties(next) };
-        }
-        case 'ACTIVE_TARGET_SET':
-            return { ...state };
-        case 'FILE_SELECTED':
-            return state;
-        case 'AUTO_UPDATE':
-            return { ...state, autoUpdate: message.data };
-        default:
-            console.warn(`Unhandled message: ${JSON.stringify(message)}`);
-            return state;
-    }
-};
-
 export const manageSolutionReducer = (state: ManageSolutionState, action: ManageSolutionAction): ManageSolutionState => {
-    switch (action.type) {
-        case 'INCOMING_MESSAGE':
-            return incomingMessageReducer(state, action);
-        case 'EDIT_PROPERTY':
-            return {
-                ...state,
-                editableProperties: {
-                    ...state.editableProperties,
-                    [action.key]: { value: action.value, dirty: true, focused: state.editableProperties[action.key]?.focused ?? false },
-                },
-            };
-        case 'FOCUS_PROPERTY':
-        case 'BLUR_PROPERTY': {
-            const property = state.editableProperties[action.key];
-            if (!property) return state;
-            return {
-                ...state,
-                editableProperties: {
-                    ...state.editableProperties,
-                    [action.key]: { ...property, focused: action.type === 'FOCUS_PROPERTY' },
-                },
-            };
+    if (action.type === 'INCOMING_MESSAGE') {
+        switch (action.message.type) {
+            case 'DATA_CONTEXT_SELECTION': return { ...state, solutionData: action.message.data };
+            case 'IS_DIRTY': return { ...state, isDirty: action.message.data };
+            case 'IS_BUSY': return { ...state, busy: action.message.data };
+            default: return state;
         }
-        case 'SET_SELECTED_TARGET':
-        case 'SET_PROJECT_SELECTION':
-        case 'SET_BUILD_TYPE_SELECTION':
-        case 'SET_LOAD_TYPE_SELECTION':
-        case 'SET_CORE_SELECTION':
-            return { ...state, solutionData: contextUpdateReducer(state.solutionData, action) };
     }
+    return { ...state, solutionData: contextUpdateReducer(state.solutionData, action) };
 };
