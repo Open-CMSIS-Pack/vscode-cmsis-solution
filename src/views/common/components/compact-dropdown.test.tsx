@@ -33,6 +33,14 @@ describe('CompactDropdown', () => {
         container.remove();
     });
 
+    it('accepts an accessible name independently of a visible addon', () => {
+        React.act(() => {
+            createRoot(container).render(<CompactDropdown aria-label='Debug Adapter' onChange={onChange} selected='Adapter' available={['Adapter']} />);
+        });
+        expect(container.querySelector('[role=combobox]')?.getAttribute('aria-label')).toBe('Debug Adapter');
+        expect(container.querySelector('.compact-dropdown-addon-before')).toBeNull();
+    });
+
     it('renders an empty string if there are no options', () => {
         React.act(() => {
             createRoot(container).render(<CompactDropdown onChange={onChange} selected="" available={[]} />);

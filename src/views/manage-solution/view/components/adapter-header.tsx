@@ -73,21 +73,23 @@ export const AdapterHeader = ({ header, onAction }: AdapterHeaderProps) => {
 
     return (
         <div className='settings-adapter-header'>
-            <Checkbox
-                aria-label='Enable debug adapter'
-                checked={header.enabled}
-                disabled={!header.toggleDebuggerAction}
-                onChange={handleDebuggerChange}
-            />
-            <CompactDropdown
-                warning={header.adapterWarning}
-                addonBefore='Debug Adapter'
-                available={availableAdapters}
-                selected={header.selectedAdapter}
-                displayText={getAdapterLabel}
-                disabled={!header.selectAdapterAction}
-                onChange={handleAdapterChange}
-            />
+            <div className='settings-adapter-choice'>
+                <Checkbox
+                    aria-label='Enable debug adapter'
+                    checked={header.enabled}
+                    disabled={!header.toggleDebuggerAction}
+                    onChange={handleDebuggerChange}
+                />
+                <CompactDropdown
+                    warning={header.adapterWarning}
+                    aria-label='Debug Adapter'
+                    available={availableAdapters}
+                    selected={header.selectedAdapter}
+                    displayText={getAdapterLabel}
+                    disabled={!header.selectAdapterAction}
+                    onChange={handleAdapterChange}
+                />
+            </div>
 
             {header.showProcessor && (
                 <CompactDropdown

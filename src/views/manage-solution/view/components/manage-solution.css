@@ -34,6 +34,10 @@ h4 {
     width: 50rem;
 }
 
+.manage-solution-frame .debug-adapter {
+    max-width: 100%;
+}
+
 .manage-solution-frame table {
     margin: 0.5rem 0;
     /* width: 100%; */
@@ -196,113 +200,6 @@ h4 {
     color: var(--keil-studio-blue);
 }
 
-.codicon-fix-size-sub {
-    font-size: .9em !important;
-}
-
-.debug-adapter .dropdown-select-input {
-    margin-top: 0.5rem;
-}
-
-.debug-adapter-selection div {
-    width: 100%;
-    border-spacing: 0;
-}
-
-.ant-tabs-content-holder .compact-dropdown {
-    background-color: var(--vscode-editor-background);
-}
-
-.capability-control {
-    margin-bottom: 2em;
-}
-
-.section-control {
-    padding: 5px;
-}
-
-.section-checkbox {
-    width: 1.5rem;
-    display: inline-block;
-    text-align: left;
-}
-
-.section-label {
-    width: fit-content;
-}
-
-.debug-adapter-settings > .ant-tabs-nav .ant-tabs-tab {
-    margin: 0;
-    padding: 6px 12px;
-}
-
-.debug-adapter-settings.ant-tabs-left > .ant-tabs-nav .ant-tabs-tab:has(.debug-adapter-parent-section-label) {
-    padding-bottom: 0;
-}
-
-.debug-adapter-settings.ant-tabs-left > .ant-tabs-nav .ant-tabs-tab:has(.debug-adapter-subsection-label) {
-    margin: 8px 0 0;
-    padding: 0 12px;
-}
-
-.debug-adapter-settings > .ant-tabs-nav .ant-tabs-tab-btn {
-    width: 100%;
-}
-
-.debug-adapter-section-label {
-    display: flex;
-    align-items: center;
-    min-height: 24px;
-    width: 100%;
-    text-align: left;
-    box-sizing: border-box;
-}
-
-.debug-adapter-section-label .section-checkbox {
-    flex: 0 0 1.5rem;
-    position: relative;
-}
-
-.debug-adapter-section-warning {
-    position: absolute;
-    right: 100%;
-    top: 50%;
-    transform: translateY(-50%);
-    margin-right: 4px;
-    font-size: 18px;
-    color: var(--vscode-debugConsole-warningForeground, #cca700);
-}
-
-.debug-adapter-section-label .section-label {
-    flex: 1;
-}
-
-.debug-adapter-section-label .debug-adapter-section-action {
-    flex: 0 0 24px;
-    width: 24px;
-    height: 24px;
-    margin-left: 8px;
-    border: none;
-    background: transparent;
-    box-shadow: none;
-}
-
-.debug-adapter-section-label .debug-adapter-section-action:disabled {
-    color: var(--vscode-disabledForeground);
-    opacity: 1;
-    background: transparent;
-    border: none;
-    box-shadow: none;
-}
-
-.debug-adapter-subsection-label {
-    padding-left: 1.5rem;
-}
-
-.debug-adapter-subsection-label::before {
-    content: none;
-}
-
 thead th:nth-child(1) {
     width: 2rem;
 }
@@ -325,24 +222,6 @@ thead th:nth-child(5) {
 
 thead .ant-btn {
     height: 24px;
-}
-
-.ant-input-group-addon:has(.file-button) {
-    padding: 0;
-    width: 5rem;
-    min-width: unset;
-    max-width: 12rem;
-}
-
-.file-open-icon-button {
-    height: 26px;
-}
-
-.file-button {
-    height: 26px;
-    float: right;
-    border-radius: 0 var(--arm-input-border-radius) var(--arm-input-border-radius) 0;
-    width: 5rem;
 }
 
 th,

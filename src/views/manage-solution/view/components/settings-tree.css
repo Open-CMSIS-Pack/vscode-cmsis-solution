@@ -15,7 +15,9 @@
  */
 
 .settings-tree { display: grid; grid-template-columns: 190px minmax(0, 1fr); margin-top: 20px; min-height: 225px; }
-.settings-navigation-row { cursor: pointer; border-right: 2px solid transparent; outline-offset: -2px; margin-bottom: 8px; }
+.settings-navigation { border-right: 1px solid var(--vscode-panel-border); }
+.settings-navigation-row { cursor: pointer; border-right: 2px solid transparent; outline-offset: -2px; margin-bottom: 8px; margin-right: -1px; }
+.settings-navigation-row:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
 .settings-navigation-row.active { color: var(--vscode-textLink-foreground); border-right-color: var(--vscode-focusBorder); }
 .settings-navigation .settings-section-header { padding: 0 10px 0 12px; gap: 4px; }
 .settings-navigation .settings-checkbox-slot { flex-basis: 20px; }
@@ -46,10 +48,13 @@
 .settings-file-actions .ant-btn { width: 22px; min-width: 22px; height: 20px; padding: 0; border: 0; box-shadow: none; font-size: 14px; }
 .settings-processor { min-width: 70px; }
 .settings-warning { color: var(--vscode-editorWarning-foreground); }
-.settings-adapter-header { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; margin-bottom: 16px; }
+.settings-adapter-choice { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.settings-adapter-header .settings-adapter-choice .compact-dropdown { width: 252px; }
+.manage-solution-frame .settings-adapter-header > .compact-dropdown { width: auto; }
+.settings-adapter-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-bottom: 16px; }
 @media (max-width: 550px) {
     .settings-tree { grid-template-columns: minmax(0, 1fr); }
-    .settings-navigation { border-bottom: 1px solid var(--vscode-panel-border); }
+    .settings-navigation { border-right: 0; border-bottom: 1px solid var(--vscode-panel-border); }
     .settings-content { padding: 16px 0 13px; }
     .settings-section-header { padding: 0 10px; gap: 8px; }
     .settings-container > .settings-section-body { padding: 0 8px; }
