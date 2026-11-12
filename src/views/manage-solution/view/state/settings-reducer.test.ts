@@ -25,7 +25,7 @@ const section = (id: string, overrides: Partial<SettingsSection> = {}): Settings
 function snapshot(revision: number, value = 1, contextId = 'one'): AdapterSnapshot {
     return {
         contextId, revision,
-        header: { adapters: [], selectedAdapter: '', processors: [], selectedProcessor: '', showProcessor: false, autoUpdate: true },
+        header: { enabled: true, adapters: [], selectedAdapter: '', processors: [], selectedProcessor: '', showProcessor: false, autoUpdate: true },
         sections: [section('root', { childrenLayout: 'navigation', children: [section('child', {
             fields: [{ id: 'field', label: 'Value', type: 'number', value, disabled: false, editAction: 'edit' }],
         })] })],

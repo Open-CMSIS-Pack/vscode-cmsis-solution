@@ -52,6 +52,9 @@ export type SettingsSection = {
 };
 
 export type AdapterHeader = {
+    enabled: boolean;
+    toggleDebuggerAction?: SettingsActionId;
+    adapterWarning?: string;
     adapters: SettingsChoice[];
     selectedAdapter: string;
     selectAdapterAction?: SettingsActionId;

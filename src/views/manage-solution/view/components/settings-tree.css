@@ -1,0 +1,40 @@
+/**
+ * Copyright 2026 Arm Limited
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+.settings-tree { display: grid; grid-template-columns: minmax(155px, 25%) minmax(0, 1fr); gap: 16px; }
+.settings-navigation { border-right: 1px solid var(--vscode-panel-border); }
+.settings-navigation-row { cursor: pointer; border-right: 2px solid transparent; outline-offset: -2px; }
+.settings-navigation-row.active { color: var(--vscode-textLink-foreground); border-right-color: var(--vscode-focusBorder); }
+.settings-section-header { display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 3px 6px; }
+.settings-checkbox-slot { flex: 0 0 16px; }
+.settings-chevron-slot { flex: 0 0 16px; }
+.settings-expand { background: transparent; border: 0; color: inherit; cursor: pointer; padding: 0; }
+.settings-label { flex: 1; }
+.settings-actions { display: inline-flex; margin-left: auto; }
+.settings-actions .ant-btn:disabled { color: var(--vscode-disabledForeground); background: transparent; border-color: transparent; opacity: 1; }
+.settings-container { border: 1px solid var(--vscode-panel-border); margin-bottom: 8px; }
+.settings-section-body { padding: 8px; }
+.settings-content-section > .settings-section-body { padding-top: 0; }
+.settings-field { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.settings-field > .ant-input-number-group-wrapper, .settings-field > .ant-input-group-wrapper { flex: 1; min-width: 0; }
+.settings-field .ant-input-affix-wrapper { height: 28px; padding: 0 8px; }
+.settings-field .ant-input-affix-wrapper > input.ant-input { height: auto; }
+.settings-file-actions { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.settings-file-actions:empty { display: none; }
+.settings-file-actions .ant-btn { width: 22px; min-width: 22px; height: 20px; padding: 0; border: 0; box-shadow: none; font-size: 14px; }
+.settings-processor { min-width: 70px; }
+.settings-warning { color: var(--vscode-editorWarning-foreground); }
+.settings-adapter-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
