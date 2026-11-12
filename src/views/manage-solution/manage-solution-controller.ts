@@ -18,6 +18,7 @@ import path from 'path';
 import * as fs from 'node:fs';
 import { DebugAdapter, DebugAdaptersYamlFile, loadDebugAdaptersYml, UISection, UISectionChildren } from '../../debug/debug-adapters-yaml-file';
 import { sectionYamlNodeName } from '../../debug/section-yaml-binding';
+import { storedOptionDefault } from '../../debug/debug-adapter-options';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
@@ -954,15 +955,9 @@ export class ManageSolutionController {
 
         const uiSection = adapter?.['user-interface']?.find(sec => sectionYamlNodeName(sec) === undefined);
         uiSection?.options?.forEach(option => {
-            if (option.default !== undefined) {
-                switch (option.type) {
-                    case 'number':
-                        selectedDebugger[option['yml-node']] = option.default * (option.scale ?? 1);
-                        break;
-                    default:
-                        selectedDebugger[option['yml-node']] = option.default;
-                        break;
-                }
+            const value = storedOptionDefault(option);
+            if (value !== undefined) {
+                selectedDebugger[option['yml-node']] = value;
             }
         });
 
