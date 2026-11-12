@@ -18,6 +18,7 @@ import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { CTreeItemWrap } from '@open-cmsis-pack/cmsis-common/tree-item-wrapper';
 import { DebuggerWrap } from '../solutions/files/csolution-wrap';
 import { UISection } from './debug-adapters-yaml-file';
+import { sectionYamlNodeName } from './section-yaml-binding';
 
 /** Binds a checkbox to a stored value instead of the presence of its section. */
 export type SectionSwitchBinding = {
@@ -42,13 +43,13 @@ export type DebugAdapterSectionDefinition = {
 
 /** Resolves the identity used in section messages, retaining legacy root label normalization. */
 export function sectionIdentity(section: UISection, root = false): string {
-    return section.id ?? section['yml-node'] ?? (root ? section.section.toLocaleLowerCase() : section.section);
+    return section.id ?? sectionYamlNodeName(section) ?? (root ? section.section.toLocaleLowerCase() : section.section);
 }
 
 /** Converts a descriptor branch into map keys or markers identifying sequence entries. */
 export function sectionYamlPath(branch: UISection[]): string[] {
     return branch.flatMap((section, depth) => {
-        const key = section['yml-node'] ?? (depth > 0 ? section.id : undefined);
+        const key = sectionYamlNodeName(section) ?? (depth > 0 ? section.id : undefined);
         return key ? [key] : [];
     });
 }

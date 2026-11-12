@@ -15,6 +15,7 @@
  */
 
 import { UISection, UISectionChildren } from '../../../../debug/debug-adapters-yaml-file';
+import { sectionYamlNodeName } from '../../../../debug/section-yaml-binding';
 import { IncomingMessage } from '../../messages';
 import { EditableProperty, SolutionData, ManageSolutionState, LoadType } from './manage-solution-state';
 
@@ -92,7 +93,7 @@ export const editablePropertyKey = (
     solutionData.selectedTarget?.name ?? '',
     solutionData.selectedTarget?.selectedSet ?? '',
     debuggerName ?? '',
-    section?.id ?? section?.['yml-node'] ?? section?.section ?? '',
+    section?.id ?? (section && sectionYamlNodeName(section)) ?? section?.section ?? '',
     ...(subsection ?? []),
     option?.pname ?? '',
     option?.['yml-node'] ?? '',
@@ -134,7 +135,7 @@ const propertyValue = (
     let properties: unknown = selectedDebugger;
 
     for (const [depth, section] of sections.entries()) {
-        const key = section['yml-node'] ?? (depth > 0 ? section.id : undefined);
+        const key = sectionYamlNodeName(section) ?? (depth > 0 ? section.id : undefined);
         if (!key) {
             continue;
         }
@@ -180,7 +181,7 @@ const reconcileEditableProperties = (state: ManageSolutionState): Record<string,
     /** Reconciles a section and all descendants using their full identity and YAML paths. */
     const reconcileSection = (section: UISection, parents: UISection[] = []): void => {
         const sections = [...parents, section];
-        const path = sections.slice(1).map(node => node.id ?? node['yml-node'] ?? node.section);
+        const path = sections.slice(1).map(node => node.id ?? sectionYamlNodeName(node) ?? node.section);
         section.options.forEach(option => {
             const key = editablePropertyKey(state.solutionData, state.debugger, sections[0], option, path);
             const incomingValue = propertyValue(selectedDebugger ?? {}, sections, option);
@@ -234,7 +235,7 @@ const incomingMessageReducer = (
                         }
                         return {
                             ...section,
-                            select: message.sectionsInUse.includes(section['yml-node'] ?? section.section.toLowerCase()),
+                            select: message.sectionsInUse.includes(sectionYamlNodeName(section) ?? section.section.toLowerCase()),
                         };
                     }) || da['user-interface'],
                 };

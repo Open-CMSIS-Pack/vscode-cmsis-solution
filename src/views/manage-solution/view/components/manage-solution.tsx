@@ -20,6 +20,7 @@ import { LoadingOutlined } from '@ant-design/icons';
 import { Button, Checkbox, CheckboxChangeEvent, Col, ConfigProvider, Flex, Input, InputNumber, Row, Space, Spin, Tabs, theme } from 'antd';
 import * as React from 'react';
 import { UISection, UISectionChildren } from '../../../../debug/debug-adapters-yaml-file';
+import { sectionYamlNodeName } from '../../../../debug/section-yaml-binding';
 import { CompactDropdown } from '../../../common/components/compact-dropdown';
 import { useVSCodeTheme } from '../../../hooks/use-vscode-theme';
 import { MessageHandler } from '../../../message-handler';
@@ -372,7 +373,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                         </DefaultTabBar>
                                     )}
                                     items={adapter?.['user-interface']?.flatMap((section) => {
-                                        const rootSection = section.id ?? section['yml-node'] ?? section.section.toLocaleLowerCase();
+                                        const rootSection = section.id ?? sectionYamlNodeName(section) ?? section.section.toLocaleLowerCase();
                                         const blurOnEnter = (e: React.KeyboardEvent<HTMLInputElement>) => (e.target as HTMLInputElement).blur();
 
                                         const pnameWrapper = (section: UISection, option: UISectionChildren, element: React.JSX.Element): React.JSX.Element => {
@@ -427,7 +428,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                         if (committed !== numericDisplay) {
                                                                             dispatch({ type: 'EDIT_PROPERTY', key: propertyKey, value: committed });
                                                                         }
-                                                                        sendDebugAdapterProperty(subsection ? rootSection : section['yml-node'], o['yml-node'], committed, o.scale, o.pname, subsection);
+                                                                        sendDebugAdapterProperty(subsection ? rootSection : sectionYamlNodeName(section), o['yml-node'], committed, o.scale, o.pname, subsection);
                                                                     }}
                                                                     min={o.range?.[0]}
                                                                     max={o.range?.[1]}
@@ -445,7 +446,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                     onChange={e => dispatch({ type: 'EDIT_PROPERTY', key: propertyKey, value: e.target.value })}
                                                                     onBlur={() => {
                                                                         blurProperty();
-                                                                        sendDebugAdapterProperty(subsection ? rootSection : section['yml-node'], o['yml-node'], (propertyValue as string) ?? '', undefined, o.pname, subsection);
+                                                                        sendDebugAdapterProperty(subsection ? rootSection : sectionYamlNodeName(section), o['yml-node'], (propertyValue as string) ?? '', undefined, o.pname, subsection);
                                                                     }}
                                                                     title={o.description}
                                                                 />
@@ -464,7 +465,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                                 aria-label='Select File'
                                                                                 disabled={disabled}
                                                                                 onClick={() => selectFile({
-                                                                                    service: subsection ? rootSection : section['yml-node'],
+                                                                                    service: subsection ? rootSection : sectionYamlNodeName(section),
                                                                                     key: o['yml-node'],
                                                                                     localValueKey: propertyKey,
                                                                                     title: o.description || 'Select File',
@@ -485,7 +486,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                     onChange={(e) => {
                                                                         dispatch({ type: 'EDIT_PROPERTY', key: propertyKey, value: e.target.value });
                                                                         // immediate commit for file path edits
-                                                                        sendDebugAdapterProperty(subsection ? rootSection : section['yml-node'], o['yml-node'], e.target.value, undefined, o.pname, subsection);
+                                                                        sendDebugAdapterProperty(subsection ? rootSection : sectionYamlNodeName(section), o['yml-node'], e.target.value, undefined, o.pname, subsection);
                                                                     }}
                                                                     title={o.description}
                                                                 />
@@ -504,7 +505,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                                     warning={!valueMap.has(stringValue) && `Value '${stringValue}' not in enum options`}
                                                                     onChange={(value) => {
                                                                         dispatch({ type: 'EDIT_PROPERTY', key: propertyKey, value });
-                                                                        sendDebugAdapterProperty(subsection ? rootSection : section['yml-node'], o['yml-node'], value, undefined, o.pname, subsection);
+                                                                        sendDebugAdapterProperty(subsection ? rootSection : sectionYamlNodeName(section), o['yml-node'], value, undefined, o.pname, subsection);
                                                                     }}
                                                                     title={o.description}
                                                                 />
@@ -543,7 +544,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                             };
                                             const children = node.subsections?.flatMap(child => renderSection(
                                                 child,
-                                                [...path, child.id ?? child['yml-node'] ?? child.section],
+                                                [...path, child.id ?? sectionYamlNodeName(child) ?? child.section],
                                                 disabled,
                                             )) ?? [];
                                             return [tab, ...children];

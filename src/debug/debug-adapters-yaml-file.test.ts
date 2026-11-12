@@ -104,7 +104,9 @@ describe('DebugAdaptersYamlFile', () => {
     template: nested.adapter.json
     user-interface:
       - section: Root
-        yml-node: root
+        yml-node:
+          name: root
+          kind: map
         options: []
         subsections:
           - section: Transport
