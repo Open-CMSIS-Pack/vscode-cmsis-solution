@@ -14,21 +14,30 @@
  * limitations under the License.
  */
 
-.settings-tree { display: grid; grid-template-columns: minmax(155px, 25%) minmax(0, 1fr); gap: 16px; }
-.settings-navigation { border-right: 1px solid var(--vscode-panel-border); }
-.settings-navigation-row { cursor: pointer; border-right: 2px solid transparent; outline-offset: -2px; }
+.settings-tree { display: grid; grid-template-columns: 190px minmax(0, 1fr); margin-top: 20px; min-height: 225px; }
+.settings-navigation-row { cursor: pointer; border-right: 2px solid transparent; outline-offset: -2px; margin-bottom: 8px; }
 .settings-navigation-row.active { color: var(--vscode-textLink-foreground); border-right-color: var(--vscode-focusBorder); }
-.settings-section-header { display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 3px 6px; }
+.settings-navigation .settings-section-header { padding: 0 10px 0 12px; gap: 4px; }
+.settings-navigation .settings-checkbox-slot { flex-basis: 20px; }
+.settings-section-header { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 14px; }
 .settings-checkbox-slot { flex: 0 0 16px; }
 .settings-chevron-slot { flex: 0 0 16px; }
-.settings-expand { background: transparent; border: 0; color: inherit; cursor: pointer; padding: 0; }
-.settings-label { flex: 1; }
-.settings-actions { display: inline-flex; margin-left: auto; }
+.settings-expand { display: flex; flex: 1; align-items: center; gap: 10px; text-align: left; font: inherit; background: transparent; border: 0; color: inherit; cursor: pointer; padding: 0; min-height: 42px; }
+.settings-expand > .codicon { flex: 0 0 16px; }
+.settings-expand:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.settings-label { flex: 1; overflow-wrap: anywhere; }
+.settings-actions { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.settings-actions .ant-btn { width: 20px; height: 25px; padding: 0; }
 .settings-actions .ant-btn:disabled { color: var(--vscode-disabledForeground); background: transparent; border-color: transparent; opacity: 1; }
-.settings-container { border: 1px solid var(--vscode-panel-border); margin-bottom: 8px; }
-.settings-section-body { padding: 8px; }
-.settings-content-section > .settings-section-body { padding-top: 0; }
-.settings-field { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.settings-content { min-width: 0; padding: 5px 0 13px 24px; }
+.settings-container { border: 1px solid var(--vscode-panel-border); border-radius: 3px; margin-bottom: 8px; }
+.settings-container > .settings-section-header { background: var(--vscode-sideBarSectionHeader-background); }
+.settings-container > .settings-section-body { border-top: 1px solid var(--vscode-panel-border); padding: 0 14px; }
+.settings-section-body > .settings-container:first-of-type { margin-top: 15px; }
+.settings-section-body > .settings-container:first-child { margin-top: 0; }
+.settings-container .settings-section-body > .settings-container:last-child { margin-bottom: 10px; }
+.settings-field { display: flex; align-items: center; gap: 8px; margin: 14px 0; flex-wrap: wrap; }
+.settings-content-section > .settings-section-body > .settings-field:first-child { margin-top: 0; }
 .settings-field > .ant-input-number-group-wrapper, .settings-field > .ant-input-group-wrapper { flex: 1; min-width: 0; }
 .settings-field .ant-input-affix-wrapper { height: 28px; padding: 0 8px; }
 .settings-field .ant-input-affix-wrapper > input.ant-input { height: auto; }
@@ -37,4 +46,14 @@
 .settings-file-actions .ant-btn { width: 22px; min-width: 22px; height: 20px; padding: 0; border: 0; box-shadow: none; font-size: 14px; }
 .settings-processor { min-width: 70px; }
 .settings-warning { color: var(--vscode-editorWarning-foreground); }
-.settings-adapter-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
+.settings-adapter-header { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; margin-bottom: 16px; }
+@media (max-width: 550px) {
+    .settings-tree { grid-template-columns: minmax(0, 1fr); }
+    .settings-navigation { border-bottom: 1px solid var(--vscode-panel-border); }
+    .settings-content { padding: 16px 0 13px; }
+    .settings-section-header { padding: 0 10px; gap: 8px; }
+    .settings-container > .settings-section-body { padding: 0 8px; }
+}
+@media (pointer: coarse) {
+    .settings-actions .ant-btn, .settings-expand { min-width: 44px; min-height: 44px; }
+}

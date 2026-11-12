@@ -86,8 +86,9 @@ describe('isolated settings tree', () => {
         expect(onAction).toHaveBeenCalledWith('toggle', true);
         expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
         const expand = screen.getByRole('button', { name: 'Expand Nested' });
-        fireEvent.click(expand);
+        fireEvent.click(screen.getByText('Nested'));
         expect(expand).toHaveAttribute('aria-expanded', 'true');
+        expect(expand).toHaveAccessibleName('Collapse Nested');
         expect(screen.getByRole('textbox', { name: 'Value' })).toBeDisabled();
         expect(onAction).toHaveBeenCalledTimes(1);
         expect(screen.getAllByText('Root')).toHaveLength(1);
