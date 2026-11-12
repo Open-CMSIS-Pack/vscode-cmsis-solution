@@ -16,7 +16,7 @@
 
 import * as React from 'react';
 import { Button, Checkbox, Tooltip, type CheckboxChangeEvent } from 'antd';
-import { MinusSquareOutlined, WarningOutlined } from '@ant-design/icons';
+import { WarningOutlined } from '@ant-design/icons';
 import type { SettingsSection } from '../../settings-contract';
 import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
 import { SettingsAddMenu } from './settings-add-menu';
@@ -34,8 +34,9 @@ export type SettingsSectionHeaderProps = {
 export const SettingsSectionHeader = ({ section, onAction, collapsible, expanded, onExpand, navigation }: SettingsSectionHeaderProps) => {
     const label = section.childCount === undefined ? section.label : `${section.label} (${section.childCount})`;
     const showToggle = section.selected !== undefined && !!section.toggleAction;
+    const showExpand = !navigation && collapsible;
     const showAdd = section.childCount !== undefined || section.addActions.length > 0;
-    const expandLabel = `Expand ${section.label}`;
+    const expandLabel = `${expanded ? 'Collapse' : 'Expand'} ${section.label}`;
     const expandIcon = expanded ? 'chevron-down' : 'chevron-right';
     const removeLabel = `Remove ${section.label}`;
 
@@ -82,27 +83,29 @@ export const SettingsSectionHeader = ({ section, onAction, collapsible, expanded
                 </span>
             )}
 
-            {!navigation && (
-                <span className='settings-chevron-slot'>
-                    {collapsible && (
-                        <button
-                            type='button'
-                            className='settings-expand'
-                            aria-label={expandLabel}
-                            aria-expanded={expanded}
-                            onClick={handleExpand}
-                        >
-                            <CmsisCodicon name={expandIcon} />
-                        </button>
-                    )}
-                </span>
+            {showExpand ? (
+                <button
+                    type='button'
+                    className='settings-expand'
+                    aria-label={expandLabel}
+                    title={section.description}
+                    aria-expanded={expanded}
+                    onClick={handleExpand}
+                >
+                    <CmsisCodicon name={expandIcon} />
+                    <span className='settings-label'>{label}</span>
+                </button>
+            ) : (
+                <>
+                    {!navigation && <span className='settings-chevron-slot' />}
+                    <span
+                        className='settings-label'
+                        title={section.description}
+                    >
+                        {label}
+                    </span>
+                </>
             )}
-            <span
-                className='settings-label'
-                title={section.description}
-            >
-                {label}
-            </span>
 
             {section.warning && (
                 <Tooltip title={section.warning}>
@@ -135,7 +138,7 @@ export const SettingsSectionHeader = ({ section, onAction, collapsible, expanded
                         size='small'
                         aria-label={removeLabel}
                         title={removeLabel}
-                        icon={<MinusSquareOutlined />}
+                        icon={<CmsisCodicon name='trash' />}
                         onClick={handleRemove}
                     />
                 )}

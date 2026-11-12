@@ -16,7 +16,7 @@
 
 import * as React from 'react';
 import { Button, Dropdown, type MenuProps } from 'antd';
-import { PlusSquareOutlined } from '@ant-design/icons';
+import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
 
 export type SettingsAddMenuProps = {
     label: string;
@@ -55,7 +55,7 @@ export const SettingsAddMenu = ({ label, actions, onAction }: SettingsAddMenuPro
                 disabled={actions.length === 0}
                 aria-label={actionLabel}
                 title={actionLabel}
-                icon={<PlusSquareOutlined />}
+                icon={<CmsisCodicon name='add' />}
                 onClick={handleTriggerClick}
             />
         </Dropdown>
