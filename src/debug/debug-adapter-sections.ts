@@ -18,7 +18,7 @@ import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { CTreeItemWrap } from '@open-cmsis-pack/cmsis-common/tree-item-wrapper';
 import { DebuggerWrap } from '../solutions/files/csolution-wrap';
 import { UISection } from './debug-adapters-yaml-file';
-import { sectionYamlNodeName } from './section-yaml-binding';
+import { resolveSectionYamlBinding, sectionYamlNodeName } from './section-yaml-binding';
 
 /** Binds a checkbox to a stored value instead of the presence of its section. */
 export type SectionSwitchBinding = {
@@ -65,7 +65,7 @@ export class DebugAdapterSections {
         private readonly getDebugger: () => DebuggerWrap | undefined,
         private readonly ensureDebugger: () => DebuggerWrap,
     ) {
-        this.definitions = sections.map(ui => ({ ui }));
+        this.definitions = sections.map(ui => this.fromUI(ui));
         extensions.forEach(extension => {
             const index = this.definitions.findIndex(definition => sectionIdentity(definition.ui, true) === sectionIdentity(extension.ui, true));
             if (index < 0) {
@@ -74,6 +74,30 @@ export class DebugAdapterSections {
                 this.definitions[index] = extension;
             }
         });
+    }
+
+    /** Compiles declarative instructions into generic tree operations, independently of section names. */
+    private fromUI(ui: UISection): DebugAdapterSectionDefinition {
+        const binding = ui['yml-node'] === undefined ? undefined : resolveSectionYamlBinding(ui['yml-node']);
+        const children = ui.subsections?.map(child => this.fromUI(child));
+        const dynamic = children?.filter(child => child.ui.usage !== undefined) ?? [];
+        const select = binding?.select;
+        return {
+            ui,
+            subsections: children?.filter(child => child.ui.usage === undefined),
+            ...(dynamic.length ? { dynamic: { kind: binding?.kind ?? 'map', types: dynamic } } : {}),
+            ...(select ? {
+                switch: {
+                    read: section => {
+                        const value = section.getValue(select.node);
+                        return value !== undefined && select.selected.includes(value);
+                    },
+                    write: (section, enabled) => {
+                        section.setValue(select.node, (enabled ? select.selected : select.unselected)[0]);
+                    },
+                },
+            } : {}),
+        };
     }
 
     /** Reads current switches, configured children, and add choices without mutating the debugger tree. */
@@ -122,7 +146,11 @@ export class DebugAdapterSections {
         Object.entries(definition.initialValues ?? {}).forEach(([key, value]) => node.ensureItem().createChild(key, true).fromObject(value));
         this.applyDefaults(branch);
         if (definition.ui.select !== undefined) {
-            definition.switch?.write(node, true);
+            if (definition.switch) {
+                definition.switch.write(node, definition.ui.select);
+            } else if (!definition.ui.select) {
+                node.remove();
+            }
         }
     }
 
@@ -130,7 +158,7 @@ export class DebugAdapterSections {
     public remove(root: string, path: string[]): void {
         const branch = path.length > 0 ? this.findBranch(root, path) : undefined;
         const ui = branch?.at(-1)?.ui;
-        if (!branch || !ui?.removable || !(ui['yml-node'] ?? ui.id)) {
+        if (!branch || !(ui?.usage !== undefined || ui?.removable) || !(ui['yml-node'] ?? ui.id)) {
             return;
         }
         this.node(branch)?.remove();
@@ -150,8 +178,12 @@ export class DebugAdapterSections {
         }
         const existing = this.node(branch);
         if (definition.switch) {
-            if (existing) {
-                definition.switch.write(existing, enabled);
+            const node = existing ?? this.ensureBranch(branch);
+            if (node) {
+                if (!existing) {
+                    this.applyDefaults(branch);
+                }
+                definition.switch.write(node, enabled);
             }
         } else if (!enabled) {
             existing?.remove();
@@ -202,11 +234,16 @@ export class DebugAdapterSections {
         const ui = { ...definition.ui };
         const children = this.children(branch);
         const node = this.node(branch);
+        if (ui.usage !== undefined) {
+            ui.usage = node ? 'used' : 'available';
+        }
         if (ui.select !== undefined) {
             ui.select = !!node && (definition.switch ? definition.switch.read(node) : true);
         }
         if (ui.subsections !== undefined || definition.subsections !== undefined || definition.dynamic) {
-            ui.subsections = children.map(child => this.toUI([...branch, child]));
+            const declaredCandidates = definition.dynamic?.types.filter(child => child.ui.usage !== undefined
+                && child.addable !== false && !children.includes(child)) ?? [];
+            ui.subsections = [...children, ...declaredCandidates].map(child => this.toUI([...branch, child]));
         }
         if (definition.dynamic) {
             ui.section = definition.dynamic.label?.(children.length) ?? ui.section;
@@ -242,7 +279,9 @@ export class DebugAdapterSections {
             const processorNames = new Set(definition.ui.options.map(option => option.pname).filter(Boolean));
             const multipleProcessors = definition.ui['pname-options'] !== undefined && processorNames.size > 1;
             if (!existing) {
-                const sequence = definition.dynamic?.kind === 'sequence' || multipleProcessors;
+                const binding = definition.ui['yml-node'];
+                const sequence = (binding !== undefined && resolveSectionYamlBinding(binding).kind === 'sequence')
+                    || definition.dynamic?.kind === 'sequence' || multipleProcessors;
                 node?.item?.setKind(sequence ? ETreeItemKind.Sequence : ETreeItemKind.Map).setText(undefined);
             } else if (multipleProcessors && node?.item?.isMap()) {
                 const fields = node.item.getChildren();

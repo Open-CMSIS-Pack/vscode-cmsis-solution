@@ -542,7 +542,7 @@ export const ManageSolution = (props: ManageSolutionProps) => {
                                                     </div>}
                                                 </>,
                                             };
-                                            const children = node.subsections?.flatMap(child => renderSection(
+                                            const children = node.subsections?.filter(child => child.usage !== 'available').flatMap(child => renderSection(
                                                 child,
                                                 [...path, child.id ?? sectionYamlNodeName(child) ?? child.section],
                                                 disabled,
