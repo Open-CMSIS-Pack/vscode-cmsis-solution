@@ -277,23 +277,20 @@ describe('TerminalTaskRunner - Build Process Cancellation', () => {
         expect(buildProcess!.kill).toHaveBeenCalled();
     });
 
-    it('closes with the runner exit code', async () => {
+    it.each([
+        [0, 0],
+        [7, 7],
+        [-1, 1],
+    ])('closes with %s normalized to %s and reports completion only on success', async (exitCode, expectedCloseCode) => {
         const closeCodes: number[] = [];
-        terminalTaskRunner.onDidClose(exitCode => closeCodes.push(exitCode));
-        mockRunner.run.mockResolvedValue(7);
+        const output: string[] = [];
+        terminalTaskRunner.onDidClose(code => closeCodes.push(code));
+        terminalTaskRunner.onDidWrite(message => output.push(message));
+        mockRunner.run.mockResolvedValue(exitCode);
 
         await terminalTaskRunner.open(undefined);
 
-        expect(closeCodes).toEqual([7]);
-    });
-
-    it('maps a negative runner exit code to a generic failure', async () => {
-        const closeCodes: number[] = [];
-        terminalTaskRunner.onDidClose(exitCode => closeCodes.push(exitCode));
-        mockRunner.run.mockResolvedValue(-1);
-
-        await terminalTaskRunner.open(undefined);
-
-        expect(closeCodes).toEqual([1]);
+        expect(closeCodes).toEqual([expectedCloseCode]);
+        expect(output).toEqual(exitCode === 0 ? [terminalTask.completeMessage] : []);
     });
 });
