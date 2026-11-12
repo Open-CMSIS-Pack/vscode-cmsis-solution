@@ -219,3 +219,88 @@ describe('DebugAdapterSections', () => {
         expect(settings.sections[0].subsections?.[0].select).toBe(false);
     });
 });
+
+/** Uses arbitrary names so the same bindings cannot depend on trace transports or mode fields. */
+describe('declarative section storage', () => {
+    const description: UISection = {
+        section: 'Acquisition', 'yml-node': { name: 'sources', kind: 'sequence' }, options: [],
+        subsections: [{
+            id: 'stream', section: 'Channel', usage: 'available', select: true,
+            'yml-node': { name: 'channel-marker', select: {
+                node: 'status', selected: ['record', 'listen'], unselected: ['paused', 'stopped'],
+            } },
+            options: [{ name: 'Rate', 'yml-node': 'frequency', type: 'number', default: 2, scale: 1000 }],
+        }],
+    };
+
+    function model(data: object = {}, sections = [description]) {
+        const item = new CTreeItem('debugger');
+        item.fromObject(data);
+        const wrapper = new DebuggerWrap(item);
+        return { item, settings: new DebugAdapterSections(sections, [], () => wrapper, () => wrapper) };
+    }
+
+    it('resolves candidates without writing, initializes once, and removes the whole entry', () => {
+        const { item, settings } = model({ custom: 'keep' });
+        expect(settings.sections[0].subsections?.[0].usage).toBe('available');
+        expect(item.toObject()).toEqual({ custom: 'keep' });
+        settings.add('sources', ['stream']);
+        settings.add('sources', ['stream']);
+        expect(settings.sections[0].subsections?.[0]).toMatchObject({ usage: 'used', select: true });
+        expect(item.toObject()).toEqual({ custom: 'keep', sources: [{ 'channel-marker': null, status: 'record', frequency: 2000 }] });
+        settings.setEnabled('sources', ['stream'], false);
+        expect(settings.sections[0].subsections?.[0]).toMatchObject({ usage: 'used', select: false });
+        expect(item.toObject()).toEqual({ custom: 'keep', sources: [{ 'channel-marker': null, status: 'paused', frequency: 2000 }] });
+        settings.remove('sources', ['stream']);
+        expect(item.toObject()).toEqual({ custom: 'keep' });
+        expect(settings.sections[0].subsections?.[0].usage).toBe('available');
+    });
+
+    it.each(['record', 'listen', 'paused', 'stopped', 'unknown', undefined])('reads %s without normalizing or dropping siblings', status => {
+        const entry = { 'channel-marker': null, ...(status === undefined ? {} : { status }), custom: 23 };
+        const { item, settings } = model({ sources: [entry] });
+        expect(settings.sections[0].subsections?.[0]).toMatchObject({ usage: 'used', select: status === 'record' || status === 'listen' });
+        expect(item.toObject()).toEqual({ sources: [entry] });
+        settings.setEnabled('sources', ['stream'], true);
+        expect(item.toObject()).toEqual({ sources: [{ ...entry, status: 'record' }] });
+        settings.setEnabled('sources', ['stream'], false);
+        expect(item.toObject()).toEqual({ sources: [{ ...entry, status: 'paused' }] });
+    });
+
+    it.each(['link', { name: 'link' }])('uses presence switches for %j and keeps static descriptions after deletion', binding => {
+        const { item, settings } = model({}, [{
+            section: 'Connection', 'yml-node': binding, select: false, options: [{
+                name: 'Port', 'yml-node': 'port', type: 'number', default: 7,
+            }],
+        }]);
+        settings.setEnabled('link', [], true);
+        expect(item.toObject()).toEqual({ link: { port: 7 } });
+        settings.setEnabled('link', [], false);
+        expect(item.toObject()).toEqual({});
+        expect(settings.sections).toMatchObject([{ section: 'Connection', select: false }]);
+    });
+
+    it('uses a false initial value and accepts scalar states in either direction', () => {
+        const { item, settings } = model({}, [{ ...description, subsections: [{
+            ...description.subsections![0], select: false,
+            'yml-node': { name: 'channel-marker', select: { node: 'status', selected: 'ready', unselected: 'idle' } },
+        }] }]);
+        settings.add('sources', ['stream']);
+        expect(item.toObject()).toEqual({ sources: [{ 'channel-marker': null, status: 'idle', frequency: 2000 }] });
+        expect(settings.sections[0].subsections?.[0]).toMatchObject({ usage: 'used', select: false });
+    });
+
+    it('does not interpret a missing switch value as an empty-string alias', () => {
+        const { settings } = model({ link: {} }, [{
+            section: 'Connection', select: true, options: [],
+            'yml-node': { name: 'link', select: { node: 'state', selected: '', unselected: 'idle' } },
+        }]);
+        expect(settings.sections[0].select).toBe(false);
+    });
+
+    it('rejects invalid bindings before any editing can occur', () => {
+        expect(() => model({}, [{ ...description, 'yml-node': {
+            name: 'bad', select: { node: 'status', selected: 'same', unselected: 'same' },
+        } }])).toThrow('overlap');
+    });
+});
