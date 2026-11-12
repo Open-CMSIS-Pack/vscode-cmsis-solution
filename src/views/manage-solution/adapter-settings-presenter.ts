@@ -190,7 +190,8 @@ export class AdapterSettingsPresenter {
             const valueNode = sectionNode?.isSequence()
                 ? sectionNode.getChildren().find(entry => !option.pname || entry.getValue('pname') === option.pname)
                 : sectionNode;
-            const processor = option.pname || undefined;
+            const processor = section['pname-options'] !== undefined && context.processors.length > 1
+                ? option.pname || undefined : undefined;
 
             /** Registers a field action without exposing its storage address to the webview. */
             const fieldAction = (kind: 'edit' | 'browse' | 'open') => action({ kind, root, path, option }, fieldIdentity);
