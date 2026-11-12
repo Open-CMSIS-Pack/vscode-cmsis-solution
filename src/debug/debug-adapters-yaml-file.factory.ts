@@ -15,6 +15,7 @@
  */
 
 import { UISection, UISectionChildren } from './debug-adapters-yaml-file';
+import { sectionYamlNodeName } from './section-yaml-binding';
 
 /**
  * Search the user-interface declaration for an option with the given yaml node name.
@@ -26,7 +27,7 @@ export function findUIOptionByYmlNode(ui: UISection[], yamlNode: string): UISect
     /** Searches each descendant using the same YAML path rules as the section bindings. */
     const findOption = (sections: UISection[], path: string[] = [], depth = 0): UISectionChildren | undefined => {
         for (const section of sections) {
-            const key = section['yml-node'] ?? (depth > 0 ? section.id : undefined);
+            const key = sectionYamlNodeName(section) ?? (depth > 0 ? section.id : undefined);
             const sectionPath = key ? [...path, key] : path;
             const option = section.options.find(candidate => [...sectionPath, candidate['yml-node']].join('.') === yamlNode);
             const match = option ?? findOption(section.subsections ?? [], sectionPath, depth + 1);

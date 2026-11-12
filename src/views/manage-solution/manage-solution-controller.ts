@@ -17,6 +17,7 @@
 import path from 'path';
 import * as fs from 'node:fs';
 import { DebugAdapter, DebugAdaptersYamlFile, loadDebugAdaptersYml, UISection, UISectionChildren } from '../../debug/debug-adapters-yaml-file';
+import { sectionYamlNodeName } from '../../debug/section-yaml-binding';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
@@ -440,7 +441,7 @@ export class ManageSolutionController {
             return;
         }
 
-        const yamlNode = uiSection['yml-node'] ?? section;
+        const yamlNode = sectionYamlNodeName(uiSection) ?? section;
         const debuggerWrap = this.activeDebugger;
         if (debuggerWrap?.isSectionEnabled(yamlNode)) {
             debuggerWrap.toggleSection(yamlNode, {});
@@ -455,8 +456,8 @@ export class ManageSolutionController {
         const adapter = this.debugAdaptersYmlFile?.getAdapterByName(this.activeDebuggerName);
         this.customizeDebugAdapterDefaults(adapter);
         await this.getAvailableCoreNames();
-        const uiSection = adapter?.['user-interface']?.find(sec => sec['yml-node'] === section || sectionIdentity(sec, true) === section);
-        const yamlNode = uiSection?.['yml-node'] ?? section;
+        const uiSection = adapter?.['user-interface']?.find(sec => sectionYamlNodeName(sec) === section || sectionIdentity(sec, true) === section);
+        const yamlNode = (uiSection && sectionYamlNodeName(uiSection)) ?? section;
         const debuggerWrap = this.activeTargetSetWrap.ensureDebugger();
         if (debuggerWrap.isSectionEnabled(yamlNode)) {
             return;
@@ -935,7 +936,7 @@ export class ManageSolutionController {
 
         const selectedDebugger: Record<string, string | number> = { name: adapterName };
 
-        const uiSection = adapter?.['user-interface']?.find(sec => sec['yml-node'] === undefined);
+        const uiSection = adapter?.['user-interface']?.find(sec => sectionYamlNodeName(sec) === undefined);
         uiSection?.options?.forEach(option => {
             if (option.default !== undefined) {
                 switch (option.type) {

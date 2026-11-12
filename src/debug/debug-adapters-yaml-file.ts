@@ -20,8 +20,10 @@ import { ITreeItem, CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { DEBUG_ADAPTERS_YAML_FILE_PATH } from '../manifest';
+import { resolveSectionYamlBinding, type UISectionYamlNode } from './section-yaml-binding';
 import type { PathType } from '../views/manage-solution/types';
 
+export type { UISectionYamlNode } from './section-yaml-binding';
 
 export type UIOption<T extends string, V> = {
     name: string;                                   //Label text for the option in the user interface.
@@ -61,8 +63,11 @@ export type UISection = {
     section: string;                    // Label text for the section in the tab group.
     description?: string;               // Hover over text.
     warning?: string;                   // Constraint tooltip, including when disabled; active sections also show a warning icon.
-    'yml-node'?: string;                // Map key or marker identifying this section in a YAML sequence.
+    'yml-node'?: UISectionYamlNode;                // Map key or marker identifying this section in a YAML sequence.
     select?: boolean;                   // If present, the section can be enabled. Applies to all options.
+    usage?: 'available' | 'used';
+    'subsections-layout'?: 'navigation' | 'content';
+    /** @deprecated Removed when the dialog switches to the prepared settings contract. */
     removable?: boolean;                // If true, the subsection can be removed independently of addOptions.
     options: UISectionChildren[];       // List of available options.
     'pname-options'?: boolean;          // Indicates if the option is pname based. Then the same property will be created for each pname instance.
@@ -118,6 +123,9 @@ class DebugAdaptersYamlFileImpl extends CTreeItemYamlFile implements DebugAdapte
     protected static normalizeUserInterface(ui: Optional<UISection[]>): UISection[] {
         ui = (ui ?? []) as UISection[];
         ui.forEach(section => {
+            if (section['yml-node'] !== undefined) {
+                resolveSectionYamlBinding(section['yml-node']);
+            }
             section.options.forEach(option => {
                 if (option.type === 'enum' && Array.isArray(option.values)) {
                     option.values = option.values.map(v => {
