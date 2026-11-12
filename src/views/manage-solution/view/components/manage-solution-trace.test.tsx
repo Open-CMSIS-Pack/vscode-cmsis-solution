@@ -141,8 +141,8 @@ describe('Manage Solution trace settings', () => {
         const { listener, navigation, getPanel, updateSection } = renderTrace(section, {
             trace: [{ 'swo-uart': null, processors: { ports: [{ pname: 'Core0', port: 3333 }, { pname: 'Core1', port: 3334 }] } }],
         });
-        fireEvent.click(navigation.getByRole('tab', { name: 'Ports' }));
-        const ports = getPanel().getAllByRole('spinbutton', { name: 'Port' }) as HTMLInputElement[];
+        fireEvent.click(navigation.getByText('Ports'));
+        const ports = getPanel().getAllByLabelText('Port') as HTMLInputElement[];
         expect(ports.map(port => port.value)).toEqual(['3333', '3334']);
         fireEvent.change(ports[1], { target: { value: '5555' } });
         fireEvent.blur(ports[1]);
@@ -162,7 +162,7 @@ describe('Manage Solution trace settings', () => {
                 }],
             }],
         });
-        const reordered = getPanel().getAllByRole('spinbutton', { name: 'Port' });
+        const reordered = getPanel().getAllByLabelText('Port');
         expect(reordered[0]).toBe(ports[1]);
         expect(reordered[1]).toBe(ports[0]);
     });
@@ -178,9 +178,9 @@ describe('Manage Solution trace settings', () => {
                 ],
             }],
         }, { settings: { connection: { port: 5555, host: 'saved-host' } } });
-        fireEvent.click(navigation.getByRole('tab', { name: 'Connection' }));
+        fireEvent.click(navigation.getByText('Connection'));
         const panel = getPanel();
-        const port = panel.getByRole('spinbutton', { name: 'Port' }) as HTMLInputElement;
+        const port = panel.getByLabelText('Port') as HTMLInputElement;
         const host = panel.getByRole('textbox') as HTMLInputElement;
         expect(port.value).toBe('5555');
         expect(host.value).toBe('saved-host');
@@ -200,8 +200,8 @@ describe('Manage Solution trace settings', () => {
         const { listener, updateDebuggerProperties, navigation, getPanel } = renderTrace(section, properties);
         const tab = source === 'trace' ? 'Serial Wire' : 'Debug Interface';
         const label = source === 'trace' ? 'Input Clock (kHz)' : 'Clock (kHz)';
-        fireEvent.click(navigation.getByRole('tab', { name: new RegExp(tab) }));
-        const clock = getPanel().getByRole('spinbutton', { name: label }) as HTMLInputElement;
+        fireEvent.click(navigation.getByText(tab));
+        const clock = getPanel().getByLabelText(label) as HTMLInputElement;
         expect(clock.value).toBe('96000.5');
 
         fireEvent.focus(clock);
@@ -223,8 +223,8 @@ describe('Manage Solution trace settings', () => {
         debuggerWrap.object = { trace: [{ 'swo-uart': null, mode: 'file', 'input-clock': 48000000 }] };
         const settings = new DebugAdapterSections([], [createTraceSectionDefinition(debuggerWrap)], () => debuggerWrap, () => debuggerWrap);
         const { listener, updateDebuggerProperties, navigation, getPanel } = renderTrace(settings.sections[0], debuggerWrap.object as GenericPropertyList);
-        fireEvent.click(navigation.getByRole('tab', { name: /Serial Wire/ }));
-        const clock = getPanel().getByRole('spinbutton', { name: 'Input Clock (kHz)' }) as HTMLInputElement;
+        fireEvent.click(navigation.getByText('Serial Wire'));
+        const clock = getPanel().getByLabelText('Input Clock (kHz)') as HTMLInputElement;
 
         fireEvent.change(clock, { target: { value: input } });
         fireEvent.blur(clock);
@@ -247,8 +247,8 @@ describe('Manage Solution trace settings', () => {
         const savedDebugger = new DebuggerWrap(reloaded.topItem);
         expect(savedDebugger.getTraceSource('swo-uart')?.inputClock).toBe(stored);
         const reopened = renderTrace(settings.sections[0], savedDebugger.object as GenericPropertyList);
-        fireEvent.click(reopened.navigation.getByRole('tab', { name: /Serial Wire/ }));
-        expect((reopened.getPanel().getByRole('spinbutton', { name: 'Input Clock (kHz)' }) as HTMLInputElement).value).toBe(display);
+        fireEvent.click(reopened.navigation.getByText('Serial Wire'));
+        expect((reopened.getPanel().getByLabelText('Input Clock (kHz)') as HTMLInputElement).value).toBe(display);
     });
 
     it('routes property edits to the correct branch when leaf identities repeat', () => {
@@ -258,7 +258,7 @@ describe('Manage Solution trace settings', () => {
         expect(new Set(tabs.map(tab => tab.id)).size).toBe(tabs.length);
 
         fireEvent.click(tabs[3]);
-        const clock = getPanel().getByRole('spinbutton', { name: 'Input Clock (Hz)' }) as HTMLInputElement;
+        const clock = getPanel().getByLabelText('Input Clock (Hz)') as HTMLInputElement;
         expect(clock.value).toBe('42000000');
         fireEvent.change(clock, { target: { value: '64000000' } });
         fireEvent.blur(clock);
@@ -266,7 +266,7 @@ describe('Manage Solution trace settings', () => {
             type: 'SET_DEBUG_ADAPTER_PROPERTY', service: 'trace', subsection: ['serialwire', 'settings', 'channel'], key: 'input-clock', value: 64000000,
         }));
         fireEvent.click(tabs[6]);
-        expect((getPanel().getByRole('spinbutton', { name: 'Input Clock (Hz)' }) as HTMLInputElement).value).toBe('84000000');
+        expect((getPanel().getByLabelText('Input Clock (Hz)') as HTMLInputElement).value).toBe('84000000');
     });
 
     it('disables descendants only within the disabled branch', () => {
@@ -279,7 +279,7 @@ describe('Manage Solution trace settings', () => {
         expect((within(tabs[3]).getByLabelText('Channel') as HTMLInputElement).disabled).toBe(true);
         expect((within(tabs[6]).getByLabelText('Channel') as HTMLInputElement).disabled).toBe(false);
         fireEvent.click(tabs[3]);
-        expect((getPanel().getByRole('spinbutton', { name: 'Input Clock (Hz)' }) as HTMLInputElement).disabled).toBe(true);
+        expect((getPanel().getByLabelText('Input Clock (Hz)') as HTMLInputElement).disabled).toBe(true);
     });
 
     it('routes switch and removal actions to the selected nested branch', () => {
@@ -289,7 +289,7 @@ describe('Manage Solution trace settings', () => {
         expect(listener).toHaveBeenCalledWith({
             type: 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED', section: 'trace', subsection: ['serialwire', 'settings', 'channel'], enabled: false,
         });
-        fireEvent.click(within(tabs[6]).getByRole('button', { name: 'Remove Channel' }));
+        fireEvent.click(within(tabs[6]).getByLabelText('Remove Channel'));
         expect(listener).toHaveBeenCalledWith({
             type: 'REMOVE_DEBUG_ADAPTER_SUBSECTION', section: 'trace', subsection: ['tracebuffer', 'settings', 'channel'],
         });
@@ -303,10 +303,8 @@ describe('Manage Solution trace settings', () => {
                 subsections: [{ section: 'Settings A', id: 'settings', options: [], subsections: [], addOptions: [{ id: 'channel', name: 'Channel' }] }],
             }],
         });
-        const settingsTab = navigation.getByRole('tab', { name: /Settings A/ });
-        fireEvent.click(within(settingsTab).getByRole('button', { name: 'Add subsection' }));
-        const menu = within(await screen.findByRole('menu'));
-        fireEvent.click(menu.getByRole('menuitem', { name: 'Channel' }));
+        fireEvent.click(navigation.getByTitle('Add to Settings A'));
+        fireEvent.click(await screen.findByText('Channel'));
         expect(listener).toHaveBeenCalledWith({
             type: 'ADD_DEBUG_ADAPTER_SUBSECTION', section: 'trace', subsection: ['serialwire', 'settings', 'channel'],
         });
@@ -314,8 +312,8 @@ describe('Manage Solution trace settings', () => {
 
     it('displays saved Hz clocks in kHz and sends edits in Hz', () => {
         const { listener, navigation, getPanel } = renderTrace(configuredTrace);
-        fireEvent.click(navigation.getByRole('tab', { name: /Serial Wire/ }));
-        const clock = getPanel().getByRole('spinbutton', { name: 'Input Clock (kHz)' });
+        fireEvent.click(navigation.getByText('Serial Wire'));
+        const clock = getPanel().getByLabelText('Input Clock (kHz)');
         expect((clock as HTMLInputElement).value).toBe('48000');
         expect(navigation.getByRole('tab', { name: /Trace \(2\)/ }).textContent).toContain('Trace (2)');
         expect(getPanel().getAllByRole('spinbutton')).toHaveLength(1);
@@ -334,7 +332,7 @@ describe('Manage Solution trace settings', () => {
         fireEvent.click(navigation.getByLabelText('Trace Buffer'));
         expect(listener).toHaveBeenCalledWith({ type: 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED', section: 'trace', subsection: ['tracebuffer'], enabled: false });
         expect(serialWire.getAttribute('aria-selected')).toBe('true');
-        fireEvent.click(navigation.getByRole('button', { name: 'Remove Trace Buffer' }));
+        fireEvent.click(navigation.getByLabelText('Remove Trace Buffer'));
         expect(listener).toHaveBeenCalledWith({ type: 'REMOVE_DEBUG_ADAPTER_SUBSECTION', section: 'trace', subsection: ['tracebuffer'] });
         expect(serialWire.getAttribute('aria-selected')).toBe('true');
         expect(navigation.queryByRole('checkbox', { name: 'Enable Trace (2)' })).toBeNull();
@@ -351,8 +349,8 @@ describe('Manage Solution trace settings', () => {
         ['0.0000001', 0],
     ])('cuts off fractions in %s kHz before converting to %s Hz', (display, stored) => {
         const { listener, navigation, getPanel } = renderTrace(configuredTrace);
-        fireEvent.click(navigation.getByRole('tab', { name: /Serial Wire/ }));
-        const clock = getPanel().getByRole('spinbutton', { name: 'Input Clock (kHz)' });
+        fireEvent.click(navigation.getByText('Serial Wire'));
+        const clock = getPanel().getByLabelText('Input Clock (kHz)');
 
         fireEvent.change(clock, { target: { value: display } });
         fireEvent.blur(clock);
@@ -367,8 +365,8 @@ describe('Manage Solution trace settings', () => {
             ...configuredTrace,
             subsections: configuredTrace.subsections!.map(source => ({ ...source, select: false })),
         });
-        fireEvent.click(navigation.getByRole('tab', { name: /Serial Wire/ }));
-        const clock = getPanel().getByRole('spinbutton', { name: 'Input Clock (kHz)' }) as HTMLInputElement;
+        fireEvent.click(navigation.getByText('Serial Wire'));
+        const clock = getPanel().getByLabelText('Input Clock (kHz)') as HTMLInputElement;
         const sourceSwitch = navigation.getByLabelText('Serial Wire') as HTMLInputElement;
         expect(clock.disabled).toBe(true);
         expect(clock.value).toBe('48000');
@@ -417,8 +415,8 @@ describe('Manage Solution trace settings', () => {
         expect(navigation.queryByRole('button', { name: 'Add subsection' })).toBeNull();
         expect(navigation.queryByRole('button', { name: 'Remove Serial Wire' })).toBeNull();
 
-        fireEvent.click(navigation.getByRole('tab', { name: 'Serial Wire' }));
-        const clock = getPanel().getByRole('spinbutton', { name: 'Input Clock (kHz)' }) as HTMLInputElement;
+        fireEvent.click(navigation.getByText('Serial Wire'));
+        const clock = getPanel().getByLabelText('Input Clock (kHz)') as HTMLInputElement;
         expect(clock.disabled).toBe(false);
         fireEvent.change(clock, { target: { value: '64000' } });
         fireEvent.blur(clock);
@@ -438,24 +436,23 @@ describe('Manage Solution trace settings', () => {
         });
 
         expect(navigation.queryByRole('checkbox', { name: 'Enable Trace (0)' })).toBeNull();
-        fireEvent.click(navigation.getByRole('button', { name: 'Add subsection' }));
-        const menu = within(await screen.findByRole('menu'));
-        fireEvent.click(menu.getByRole('menuitem', { name: 'Serial Wire' }));
+        fireEvent.click(navigation.getByTitle('Add to Trace (0)'));
+        fireEvent.click(await screen.findByText('Serial Wire'));
         expect(listener).toHaveBeenCalledWith({ type: 'ADD_DEBUG_ADAPTER_SUBSECTION', section: 'trace', subsection: ['serialwire'] });
 
         updateSection(configuredTrace);
         const tabs = navigation.getAllByRole('tab');
         expect(tabs.map(tab => tab.textContent)).toEqual(['Trace (2)', 'Serial Wire', 'Trace Buffer']);
         expect(tabs[0].getAttribute('aria-selected')).toBe('true');
-        expect(navigation.getByRole('button', { name: 'Remove Serial Wire' }).closest('[role="tab"]')).toBe(tabs[1]);
-        expect(navigation.getByRole('button', { name: 'Remove Trace Buffer' }).closest('[role="tab"]')).toBe(tabs[2]);
+        expect(navigation.getByLabelText('Remove Serial Wire').closest('[role="tab"]')).toBe(tabs[1]);
+        expect(navigation.getByLabelText('Remove Trace Buffer').closest('[role="tab"]')).toBe(tabs[2]);
     });
 
     it('shows fields only in the selected source panel', () => {
         const { navigation, getPanel } = renderTrace(configuredTrace);
         const tabs = navigation.getAllByRole('tab');
         fireEvent.click(tabs[1]);
-        expect(getPanel().getByRole('spinbutton', { name: 'Input Clock (kHz)' })).toBeDefined();
+        expect(getPanel().getByLabelText('Input Clock (kHz)')).toBeDefined();
         fireEvent.click(tabs[2]);
         expect(tabs[2].getAttribute('aria-selected')).toBe('true');
         expect(getPanel().queryByRole('spinbutton', { name: 'Input Clock (kHz)' })).toBeNull();
