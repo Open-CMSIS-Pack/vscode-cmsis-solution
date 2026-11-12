@@ -142,6 +142,23 @@ describe('DebugAdapterSections', () => {
         ] } });
     });
 
+    it('initializes declared defaults on the first field edit and preserves existing siblings on later edits', () => {
+        const item = new CTreeItem('debugger');
+        item.fromObject({});
+        const wrapper = new DebuggerWrap(item);
+        const settings = new DebugAdapterSections([{
+            section: 'Input', 'yml-node': 'input', options: [
+                { name: 'Value', type: 'string', 'yml-node': 'value' },
+                { name: 'Rate', type: 'number', 'yml-node': 'rate', scale: 1000, default: 2 },
+            ],
+        }], () => wrapper, () => wrapper);
+        settings.setParameter('input', [], 'value', 'first');
+        expect(item.toObject()).toEqual({ input: { rate: 2000, value: 'first' } });
+        settings.setParameter('input', [], 'rate', 3000);
+        settings.setParameter('input', [], 'value', 'second');
+        expect(item.toObject()).toEqual({ input: { rate: 3000, value: 'second' } });
+    });
+
     it('creates nested map and sequence children once and restores choices after removal', () => {
         const { settings, item } = createSettings({ unrelated: { keep: true } });
         expect(settings.sections[0].subsections?.[0].usage).toBe('available');

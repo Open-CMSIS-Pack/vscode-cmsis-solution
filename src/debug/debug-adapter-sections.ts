@@ -124,11 +124,6 @@ export class DebugAdapterSections {
         return branch;
     }
 
-    /** Resolves descriptor addresses without exposing compiled storage operations. */
-    public descriptorBranch(root: string, path: string[]): UISection[] | undefined {
-        return this.findBranch(root, path)?.map(definition => definition.ui);
-    }
-
     /** Creates an allowed dynamic child once, applying typed defaults and its optional switch binding. */
     public add(root: string, path: string[]): void {
         if (path.length === 0) {
@@ -216,7 +211,11 @@ export class DebugAdapterSections {
                 return;
             }
         }
+        const exists = !!this.node(branch);
         this.ensureBranch(branch);
+        if (!exists) {
+            this.applyDefaults(branch);
+        }
         this.ensureDebugger().setSectionParameter(this.yamlPath(branch), key, storedValue, pname);
     }
 
