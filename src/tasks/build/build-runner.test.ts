@@ -189,6 +189,17 @@ describe('BuildRunner', () => {
     });
 
     describe('run', () => {
+        it('returns the cbuild exit code', async () => {
+            jest.spyOn(cmsisToolboxManager, 'runCmsisTool').mockResolvedValue([7, 'cbuild']);
+            const desktopBuildRunner = new BuildRunner(cmsisToolboxManager);
+
+            await expect(desktopBuildRunner.run(
+                { type: 'some-task', solution: 'some-solution' },
+                jest.fn(),
+                cancellationTokenFactory().token,
+            )).resolves.toBe(7);
+        });
+
         it('spawns a process with the params from the given build task definition', async () => {
             const buildTaskDefinition: BuildTaskDefinition = {
                 type: 'some-task',

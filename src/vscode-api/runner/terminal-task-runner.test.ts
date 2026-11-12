@@ -109,10 +109,10 @@ describe('TerminalTaskRunner - Build Process Cancellation', () => {
                 cancellationCallback?.();
             });
 
-            return new Promise<void>((resolve) => {
-                cancellationCallback = () => resolve(); // Build stops when cancelled
+            return new Promise<number>((resolve) => {
+                cancellationCallback = () => resolve(0); // Build stops when cancelled
                 // Without cancellation, this would timeout
-                setTimeout(() => resolve(), 5000);
+                setTimeout(() => resolve(0), 5000);
             });
         });
 
@@ -146,7 +146,7 @@ describe('TerminalTaskRunner - Build Process Cancellation', () => {
                 cancellationRequested = true;
             });
 
-            return Promise.resolve();
+            return Promise.resolve(0);
         });
 
         // Start and wait for build to complete
@@ -166,8 +166,8 @@ describe('TerminalTaskRunner - Build Process Cancellation', () => {
                 cancelCallCount++;
             });
             // Simulate long-running task
-            return new Promise<void>((resolve) => {
-                setTimeout(() => resolve(), 1000);
+            return new Promise<number>((resolve) => {
+                setTimeout(() => resolve(0), 1000);
             });
         });
 
@@ -186,7 +186,7 @@ describe('TerminalTaskRunner - Build Process Cancellation', () => {
     });
 
     it('should pass real cancellation token to runner', async () => {
-        mockRunner.run.mockResolvedValue();
+        mockRunner.run.mockResolvedValue(0);
 
         await terminalTaskRunner.open(undefined);
 
@@ -240,17 +240,17 @@ describe('TerminalTaskRunner - Build Process Cancellation', () => {
             });
 
             // Simulate long build that gets interrupted
-            return new Promise<void>((resolve) => {
+            return new Promise<number>((resolve) => {
                 const timeout = setTimeout(() => {
                     buildSteps.push('Build completed normally');
-                    resolve();
+                    resolve(0);
                 }, 2000);
 
                 // If cancelled, resolve immediately
                 cancellationToken?.onCancellationRequested(() => {
                     clearTimeout(timeout);
                     buildSteps.push('Build cancelled');
-                    resolve();
+                    resolve(130);
                 });
             });
         });
@@ -275,5 +275,25 @@ describe('TerminalTaskRunner - Build Process Cancellation', () => {
 
         expect(buildProcess).toBeDefined();
         expect(buildProcess!.kill).toHaveBeenCalled();
+    });
+
+    it('closes with the runner exit code', async () => {
+        const closeCodes: number[] = [];
+        terminalTaskRunner.onDidClose(exitCode => closeCodes.push(exitCode));
+        mockRunner.run.mockResolvedValue(7);
+
+        await terminalTaskRunner.open(undefined);
+
+        expect(closeCodes).toEqual([7]);
+    });
+
+    it('maps a negative runner exit code to a generic failure', async () => {
+        const closeCodes: number[] = [];
+        terminalTaskRunner.onDidClose(exitCode => closeCodes.push(exitCode));
+        mockRunner.run.mockResolvedValue(-1);
+
+        await terminalTaskRunner.open(undefined);
+
+        expect(closeCodes).toEqual([1]);
     });
 });
