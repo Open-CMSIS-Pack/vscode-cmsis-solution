@@ -26,7 +26,7 @@ it('subscribes before requesting state, sends scoped actions, and unsubscribes o
     const subscribe = jest.spyOn(handler, 'subscribe');
     const snapshot: AdapterSnapshot = {
         contextId: 'context', revision: 12,
-        header: { adapters: [], selectedAdapter: '', processors: [], selectedProcessor: '', showProcessor: false, autoUpdate: false },
+        header: { enabled: true, adapters: [], selectedAdapter: '', processors: [], selectedProcessor: '', showProcessor: false, autoUpdate: false },
         sections: [],
     };
     sent.mockImplementation((message: OutgoingMessage) => {

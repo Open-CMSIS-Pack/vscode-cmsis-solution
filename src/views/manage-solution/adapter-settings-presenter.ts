@@ -36,7 +36,7 @@ export type AdapterSettingsContext = {
 
 /** Host-only addresses. These never form part of a snapshot or an action request. */
 export type AdapterSettingsAction = {
-    kind: 'edit' | 'browse' | 'open' | 'toggle' | 'add' | 'remove' | 'adapter' | 'processor' | 'autoUpdate';
+    kind: 'edit' | 'browse' | 'open' | 'toggle' | 'add' | 'remove' | 'adapter' | 'processor' | 'autoUpdate' | 'enableDebugger';
     root: string;
     path: string[];
     option?: UISectionChildren;
@@ -108,6 +108,7 @@ export class AdapterSettingsPresenter {
                 }
                 break;
             }
+            case 'enableDebugger':
             case 'toggle':
             case 'autoUpdate':
                 if (typeof value !== 'boolean') {
@@ -142,17 +143,22 @@ export class AdapterSettingsPresenter {
     /** Resolves adapter and processor choices independently of the recursive section tree. */
     private prepareHeader(context: AdapterSettingsContext, action: RegisterAction): AdapterHeader {
         /** Registers an action belonging to the separate adapter header. */
-        const headerAction = (kind: 'adapter' | 'processor' | 'autoUpdate') => action({ kind, root: '', path: [] }, []);
-        const selectedProcessor = context.startProcessor;
+        const headerAction = (kind: 'adapter' | 'processor' | 'autoUpdate' | 'enableDebugger') => action({ kind, root: '', path: [] }, []);
+        const selectedProcessor = context.processors.includes(context.startProcessor)
+            ? context.startProcessor : context.processors[0] ?? '';
 
         return {
+            enabled: !!context.debugger,
+            toggleDebuggerAction: headerAction('enableDebugger'),
+            adapterWarning: context.adapter && !context.adapters.includes(context.adapter)
+                ? 'Select a registered debug adapter from drop down' : undefined,
             adapters: context.adapters.map(value => ({ label: value, value })),
             selectedAdapter: context.adapter,
             selectAdapterAction: headerAction('adapter'),
             processors: context.processors.map(value => ({ label: value, value })),
             selectedProcessor,
             showProcessor: context.processors.length > 1,
-            selectProcessorAction: context.processors.length > 1 ? headerAction('processor') : undefined,
+            selectProcessorAction: context.debugger && context.processors.length > 1 ? headerAction('processor') : undefined,
             autoUpdate: context.autoUpdate,
             autoUpdateAction: headerAction('autoUpdate'),
         };
