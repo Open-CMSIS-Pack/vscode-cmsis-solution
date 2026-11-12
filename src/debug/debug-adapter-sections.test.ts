@@ -16,32 +16,21 @@
 
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { DebuggerWrap } from '../solutions/files/csolution-wrap';
-import { DebugAdapterSectionDefinition, DebugAdapterSections } from './debug-adapter-sections';
+import { DebugAdapterSections } from './debug-adapter-sections';
 import { UISection } from './debug-adapters-yaml-file';
 
 /** Defines an independent feature with a dynamic map containing dynamic sequence entries. */
-const captureDefinition: DebugAdapterSectionDefinition = {
-    ui: { id: 'capture', section: 'Capture', 'yml-node': 'capture-settings', options: [] },
-    dynamic: {
-        kind: 'map',
-        types: [{
-            ui: { id: 'group', section: 'Group', 'yml-node': 'group-sinks', removable: true, options: [] },
-            dynamic: {
-                kind: 'sequence',
-                types: [{
-                    ui: {
-                        id: 'sink', section: 'Sink', 'yml-node': 'stream', select: true, removable: true,
-                        options: [{ name: 'Rate', 'yml-node': 'rate', type: 'number', scale: 10, default: 2, range: [0, 10] }],
-                    },
-                    initialValues: { state: 'enabled' },
-                    switch: {
-                        read: node => node.getValue('state') === 'enabled',
-                        write: (node, enabled) => { node.setValue('state', enabled ? 'enabled' : 'disabled'); },
-                    },
-                }],
-            },
+const captureDefinition: UISection = {
+    id: 'capture', section: 'Capture', 'yml-node': 'capture-settings', options: [],
+    subsections: [{
+        id: 'group', section: 'Group', usage: 'available',
+        'yml-node': { name: 'group-sinks', kind: 'sequence' }, options: [],
+        subsections: [{
+            id: 'sink', section: 'Sink', usage: 'available', select: true,
+            'yml-node': { name: 'stream', select: { node: 'state', selected: 'enabled', unselected: 'disabled' } },
+            options: [{ name: 'Rate', 'yml-node': 'rate', type: 'number', scale: 10, default: 2, range: [0, 10] }],
         }],
-    },
+    }],
 };
 
 /** Creates a real in-memory debugger tree for structured editing without filesystem or transport mocks. */
@@ -49,11 +38,24 @@ function createSettings(data: object = {}) {
     const item = new CTreeItem('debugger');
     item.fromObject(data);
     const debuggerWrap = new DebuggerWrap(item);
-    const settings = new DebugAdapterSections([], [captureDefinition], () => debuggerWrap, () => debuggerWrap);
+    const settings = new DebugAdapterSections([captureDefinition], () => debuggerWrap, () => debuggerWrap);
     return { settings, item };
 }
 
 describe('DebugAdapterSections', () => {
+    it('rejects duplicate siblings and fields while permitting repeated leaf identities across branches', () => {
+        const leaf: UISection = { id: 'leaf', section: 'Leaf', options: [] };
+        const wrapper = new DebuggerWrap(new CTreeItem('debugger'));
+        const create = (sections: UISection[]) => new DebugAdapterSections(sections, () => wrapper, () => wrapper);
+        expect(() => create([{ section: 'Root', options: [], subsections: [leaf, leaf] }])).toThrow('Duplicate section identity');
+        const field = { name: 'Value', 'yml-node': 'value', type: 'string' as const };
+        expect(() => create([{ section: 'Root', options: [field, field] }])).toThrow('Duplicate field identity');
+        expect(() => create([
+            { id: 'a', section: 'A', options: [], subsections: [leaf] },
+            { id: 'b', section: 'B', options: [], subsections: [leaf] },
+        ])).not.toThrow();
+    });
+
     it.each([
         { cores: [] },
         { cores: ['Core0'] },
@@ -69,7 +71,7 @@ describe('DebugAdapterSections', () => {
         };
         const settings = new DebugAdapterSections([{
             section: 'Settings', 'yml-node': 'settings', options: [], subsections: [processors],
-        }], [], () => debuggerWrap, () => debuggerWrap);
+        }], () => debuggerWrap, () => debuggerWrap);
 
         settings.setEnabled('settings', ['processors'], true);
         settings.setParameter('settings', ['processors'], 'port', 5555, cores.at(-1));
@@ -91,7 +93,7 @@ describe('DebugAdapterSections', () => {
         };
         const settings = new DebugAdapterSections([{
             section: 'Settings', 'yml-node': 'settings', options: [], subsections: [processors],
-        }], [], () => debuggerWrap, () => debuggerWrap);
+        }], () => debuggerWrap, () => debuggerWrap);
         const processorNode = debuggerWrap.getSection(['settings', 'processors'])!.item!;
         processorNode.getChild('custom')!.setProperty('comments', { comment: ' Retained setting' });
 
@@ -129,7 +131,7 @@ describe('DebugAdapterSections', () => {
                 id: 'processors', section: 'Processors', 'pname-options': true,
                 options: ['Core0', 'Core1'].map(pname => ({ name: 'Port', 'yml-node': 'port', type: 'number', pname })),
             }],
-        }], [], () => debuggerWrap, () => debuggerWrap);
+        }], () => debuggerWrap, () => debuggerWrap);
 
         settings.setParameter('settings', ['processors'], 'port', 3333, 'Core0');
         settings.setParameter('settings', ['processors'], 'port', 3334, 'Core1');
@@ -142,23 +144,23 @@ describe('DebugAdapterSections', () => {
 
     it('creates nested map and sequence children once and restores choices after removal', () => {
         const { settings, item } = createSettings({ unrelated: { keep: true } });
-        expect(settings.sections[0].addOptions).toEqual([{ id: 'group', name: 'Group' }]);
+        expect(settings.sections[0].subsections?.[0].usage).toBe('available');
         expect(item.toObject()).toEqual({ unrelated: { keep: true } });
 
         settings.add('capture', ['group']);
-        expect(settings.sections[0].addOptions).toEqual([]);
-        expect(settings.sections[0].subsections?.[0].addOptions).toEqual([{ id: 'sink', name: 'Sink' }]);
+        expect(settings.sections[0].subsections?.[0].usage).toBe('used');
+        expect(settings.sections[0].subsections?.[0].subsections?.[0].usage).toBe('available');
         settings.add('capture', ['group', 'sink']);
         settings.add('capture', ['group', 'sink']);
         expect(item.toObject()).toEqual({
             unrelated: { keep: true },
             'capture-settings': { 'group-sinks': [{ stream: null, state: 'enabled', rate: 20 }] },
         });
-        expect(settings.sections[0].subsections?.[0].addOptions).toEqual([]);
+        expect(settings.sections[0].subsections?.[0].subsections?.[0].usage).toBe('used');
 
         settings.remove('capture', ['group', 'sink']);
         expect(item.toObject()).toEqual({ unrelated: { keep: true }, 'capture-settings': {} });
-        expect(settings.sections[0].addOptions).toEqual([{ id: 'group', name: 'Group' }]);
+        expect(settings.sections[0].subsections?.[0].usage).toBe('available');
     });
 
     it('applies value-based switches and validates scaled fields without losing other settings', () => {
@@ -179,15 +181,12 @@ describe('DebugAdapterSections', () => {
 
     it('rejects unavailable types and unconfigured paths while retaining existing unavailable children', () => {
         const { item } = createSettings({ 'capture-settings': { 'group-sinks': [] } });
-        const group = captureDefinition.dynamic!.types[0];
-        const extension: DebugAdapterSectionDefinition = {
-            ...captureDefinition,
-            dynamic: { kind: 'map', types: [{ ...group, addable: false }] },
+        const description: UISection = {
+            ...captureDefinition, subsections: [{ ...captureDefinition.subsections![0], usage: 'used' }],
         };
         const debuggerWrap = new DebuggerWrap(item);
-        const settings = new DebugAdapterSections([], [extension], () => debuggerWrap, () => debuggerWrap);
-        expect(settings.sections[0].addOptions).toEqual([]);
-        expect(settings.sections[0].subsections?.[0].removable).toBe(true);
+        const settings = new DebugAdapterSections([description], () => debuggerWrap, () => debuggerWrap);
+        expect(settings.sections[0].subsections?.[0].usage).toBe('used');
 
         settings.add('capture', ['missing']);
         settings.setParameter('capture', ['group', 'sink'], 'rate', 50);
@@ -205,9 +204,9 @@ describe('DebugAdapterSections', () => {
             section: 'Fixed', 'yml-node': 'fixed', options: [],
             subsections: [
                 { id: 'child', section: 'Child', select: true, options: [{ name: 'Count', 'yml-node': 'count', type: 'number', default: 3 }] },
-                { section: 'Display Group', removable: true, options: [] },
+                { section: 'Display Group', options: [] },
             ],
-        }], [], () => debuggerWrap, () => debuggerWrap);
+        }], () => debuggerWrap, () => debuggerWrap);
         settings.setEnabled('fixed', ['child'], true);
         settings.setParameter('fixed', ['child'], 'count', 7);
         settings.setEnabled('fixed', ['child'], true);
@@ -237,7 +236,7 @@ describe('declarative section storage', () => {
         const item = new CTreeItem('debugger');
         item.fromObject(data);
         const wrapper = new DebuggerWrap(item);
-        return { item, settings: new DebugAdapterSections(sections, [], () => wrapper, () => wrapper) };
+        return { item, settings: new DebugAdapterSections(sections, () => wrapper, () => wrapper) };
     }
 
     it('resolves candidates without writing, initializes once, and removes the whole entry', () => {

@@ -26,6 +26,8 @@ import { CommandsProvider } from '../../vscode-api/commands-provider';
 import { ConfigurationProvider } from '../../vscode-api/configuration-provider';
 import { WebviewManager, WebviewManagerOptions } from '../webview-manager';
 import { ManageSolutionController } from './manage-solution-controller';
+import { AdapterSettingsPresenter, type AdapterSettingsAction } from './adapter-settings-presenter';
+import { settingsFields, type AdapterSnapshot, type SettingsActionRequest, type SettingsActionResult, type SettingsField } from './settings-contract';
 import { IncomingMessage, OutgoingMessage } from './messages';
 import { SolutionData } from './view/state/manage-solution-state';
 import { initialState } from './view/state/reducer';
@@ -33,8 +35,14 @@ import debounce from 'lodash.debounce';
 import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
 import { isDeepStrictEqual } from 'util';
 import { OpenCommand } from '../solution-outline/commands/open-command';
-import { FileSelectorOptionsType } from './types';
 import { IOpenFileExternal } from '../../open-file-external-if';
+
+/** Carries a chosen file path and its validity token into the queued edit. */
+type SettingsFileSelection = {
+    editAction: string;
+    token: symbol;
+    value: string;
+};
 
 export const MANAGE_SOLUTION_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> = {
     title: 'Manage Solution',
@@ -48,7 +56,6 @@ export const MANAGE_SOLUTION_WEBVIEW_OPTIONS: Readonly<WebviewManagerOptions> = 
     enableSerializer: false,
 };
 
-
 export class ManageSolutionWebviewMain {
     private readonly webviewManager: WebviewManager<IncomingMessage, OutgoingMessage>;
 
@@ -56,6 +63,11 @@ export class ManageSolutionWebviewMain {
 
     protected _controller?: ManageSolutionController;
     private wasDirty: boolean = false;
+    private readonly settingsPresenter = new AdapterSettingsPresenter();
+    /** Tracks file choices so edits and restored state invalidate delayed results. */
+    private readonly fileSelections = new Map<string, symbol>();
+    /** Orders model operations from admission, including asynchronous settings validation. */
+    private editQueue: Promise<void> = Promise.resolve();
 
     private readonly absolutePath = (inputPath: string, baseDir: string) =>
         path.isAbsolute(inputPath) ? inputPath : path.resolve(baseDir, inputPath);
@@ -120,6 +132,7 @@ export class ManageSolutionWebviewMain {
         const externalFilesChanged = csolutionChanged || defaultsUpdated ? false : this.controller.hasExternalFileChanges();
 
         if (csolutionChanged || externalFilesChanged) {
+            this.fileSelections.clear();
             const result = await this.loadSolution();
             if (result === ETextFileResult.Error || result === ETextFileResult.NotExists) {
                 this.setBusyState(false);
@@ -130,6 +143,7 @@ export class ManageSolutionWebviewMain {
         const activeTargetTypeUpdated = !defaultsUpdated && await this.controller.ensureActiveTargetTypeName();
 
         if (csolutionChanged || externalFilesChanged || activeTargetTypeUpdated || defaultsUpdated) {
+            await this.controller.getAvailableCoreNames();
             await this.sendContextDataFromControllerState();
         }
 
@@ -154,7 +168,6 @@ export class ManageSolutionWebviewMain {
         const controller = new ManageSolutionController();
         controller.customDebugAdapterDefaults = this.configurationProvider.getConfigVariableOrDefault('debug-adapters', {});
         controller.csolutionService = this.csolutionService;
-        controller.experimentalFeatures = this.configurationProvider.getConfigVariableOrDefault(manifest.CONFIG_EXPERIMENTAL_FEATURES, false);
         return controller;
     }
 
@@ -165,8 +178,7 @@ export class ManageSolutionWebviewMain {
 
         // get notified about updates on the value of autoDebugLaunch and update the UI
         this.configurationProvider.onChangeConfiguration(async () => {
-            const autoUpdate = this.configurationProvider.getConfigVariableOrDefault(manifest.CONFIG_AUTO_DEBUG_LAUNCH, true);
-            await this.webviewManager.sendMessage({ type: 'AUTO_UPDATE', data: autoUpdate });
+            await this.sendAdapterSettings();
         }, manifest.CONFIG_AUTO_DEBUG_LAUNCH);
 
         await this.webviewManager.activate(context);
@@ -184,9 +196,18 @@ export class ManageSolutionWebviewMain {
         this.webviewManager.attachPanel(panel);
     }
 
+    /** Restores undo/redo state after earlier operations without recording another edit. */
     public async applySnapshot(snapshot: SolutionData): Promise<void> {
-        this.controller.solutionData = this.cloneSolutionData(snapshot);
-        await this.broadcastState();
+        this.fileSelections.clear();
+        await this.enqueueOperation(async () => {
+            this.fileSelections.clear();
+            const previousContext = this.controller.getActiveTypeAndSetNames();
+            this.controller.solutionData = this.cloneSolutionData(snapshot);
+            if (!isDeepStrictEqual(previousContext, this.controller.getActiveTypeAndSetNames())) {
+                await this.controller.getAvailableCoreNames();
+            }
+            await this.broadcastState();
+        });
     }
 
     public getSolutionSnapshot(): SolutionData {
@@ -197,7 +218,20 @@ export class ManageSolutionWebviewMain {
         return structuredClone(data) as SolutionData;
     }
 
+    /** Admits an operation immediately and lets later operations proceed after a failure. */
+    private enqueueOperation<T>(action: () => Promise<T>): Promise<T> {
+        const operation = this.editQueue.then(action);
+        this.editQueue = operation.then(() => undefined, () => undefined);
+        return operation;
+    }
+
+    /** Queues one undoable mutation alongside saves, restorations, and settings requests. */
     private async withEdit(label: string, action: () => Promise<void>): Promise<void> {
+        await this.enqueueOperation(() => this.recordEdit(label, action));
+    }
+
+    /** Records one mutation while its caller holds the operation queue. */
+    private async recordEdit(label: string, action: () => Promise<void>): Promise<void> {
         const before = this.cloneSolutionData(this.controller.solutionData);
         await action();
         const after = this.cloneSolutionData(this.controller.solutionData);
@@ -207,17 +241,171 @@ export class ManageSolutionWebviewMain {
         await this.calculateDirtyState();
     }
 
-    private async broadcastState(): Promise<void> {
-        await this.controller.refreshDebugAdapters();
-        const debugAdapters = await this.controller.debugAdapters;
-        const activeDebugger = this.controller.activeDebugger;
+    private async settingsSnapshot(): Promise<AdapterSnapshot> {
+        const autoUpdate = this.configurationProvider.getConfigVariableOrDefault(manifest.CONFIG_AUTO_DEBUG_LAUNCH, true);
+        return this.settingsPresenter.prepare(await this.controller.adapterSettingsContext(autoUpdate));
+    }
 
+    private async sendAdapterSettings(): Promise<void> {
+        await this.webviewManager.sendMessage({ type: 'ADAPTER_SETTINGS', snapshot: await this.settingsSnapshot() });
+    }
+
+    /** Acknowledges an action with its outcome and the canonical settings snapshot. */
+    private async applySettingsRequest(request: SettingsActionRequest): Promise<void> {
+        let status: SettingsActionResult['status'] = 'rejected';
+        try {
+            status = await this.executeSettingsRequest(request);
+        } catch {
+            status = 'rejected';
+        }
+
+        await this.webviewManager.sendMessage({
+            type: 'SETTINGS_ACTION_RESULT',
+            result: { requestId: request.requestId, status, snapshot: await this.settingsSnapshot() },
+        });
+    }
+
+    /** Orders validation, edits, and Open while releasing the queue before a file dialog. */
+    private async executeSettingsRequest(request: SettingsActionRequest): Promise<SettingsActionResult['status']> {
+        const prepared = await this.enqueueOperation(async () => {
+            const snapshot = await this.settingsSnapshot();
+            const action = this.settingsPresenter.resolve(request);
+            if (!action) {
+                return 'rejected';
+            }
+
+            if (action.kind !== 'browse' && action.kind !== 'open') {
+                return this.commitSettingsAction(request);
+            }
+
+            const field = settingsFields(snapshot.sections).find(field => field.type === 'file'
+                && (field.browseAction === request.actionId || field.openAction === request.actionId));
+            if (!field) {
+                return 'rejected';
+            }
+
+            if (action.kind === 'open') {
+                await this.openFile(field.value.toString());
+                return 'applied';
+            }
+
+            if (!field.editAction) {
+                return 'rejected';
+            }
+            const token = Symbol();
+            this.fileSelections.set(field.editAction, token);
+            return { action, field, token };
+        });
+
+        if (typeof prepared === 'string') {
+            return prepared;
+        }
+
+        return this.browseSettingsFile(request, prepared.action, prepared.field, prepared.token);
+    }
+
+    /** Selects and converts a file path, retaining its validity token until the queued edit finishes. */
+    private async browseSettingsFile(
+        request: SettingsActionRequest,
+        action: AdapterSettingsAction,
+        field: SettingsField,
+        token: symbol,
+    ): Promise<SettingsActionResult['status']> {
+        const editAction = field.editAction;
+        if (!editAction) {
+            return 'rejected';
+        }
+
+        const solutionDir = this.getSolutionDir();
+        const currentPath = field.value.toString();
+        try {
+            const files = await vscode.window.showOpenDialog({
+                canSelectMany: false,
+                openLabel: 'Select File',
+                title: action.option?.description ?? 'Select File',
+                filters: { 'All Files': ['*'] },
+                defaultUri: vscode.Uri.file(currentPath ? this.absolutePath(currentPath, solutionDir) : solutionDir),
+            });
+
+            await this.settingsSnapshot();
+            if (!this.settingsPresenter.resolve(request) || this.fileSelections.get(editAction) !== token) {
+                return 'rejected';
+            }
+
+            const selectedFile = files?.[0];
+            if (!selectedFile) {
+                return 'cancelled';
+            }
+
+            const selectedPath = action.option?.['path-type'] === 'absolute'
+                ? selectedFile.fsPath
+                : path.relative(solutionDir, selectedFile.fsPath);
+            const value = backToForwardSlashes(selectedPath);
+
+            return await this.enqueueOperation(() => this.commitSettingsAction(request, { editAction, token, value }));
+        } finally {
+            if (this.fileSelections.get(editAction) === token) {
+                this.fileSelections.delete(editAction);
+            }
+        }
+    }
+
+    /** Revalidates and records an action while its caller holds the operation queue. */
+    private async commitSettingsAction(
+        request: SettingsActionRequest,
+        selection?: SettingsFileSelection,
+    ): Promise<SettingsActionResult['status']> {
+        let status: SettingsActionResult['status'] = 'rejected';
+
+        await this.recordEdit('UPDATE_ADAPTER_SETTINGS', async () => {
+            await this.settingsSnapshot();
+            const current = this.settingsPresenter.resolve(request);
+            if (!current || (selection && this.fileSelections.get(selection.editAction) !== selection.token)) {
+                return;
+            }
+
+            const action = selection ? { ...current, kind: 'edit' as const, value: selection.value } : current;
+            switch (action.kind) {
+                case 'adapter':
+                    this.controller.setSelectedDebugger(action.value as string);
+                    break;
+                case 'enableDebugger':
+                    this.controller.enableDebugger(action.value as boolean);
+                    break;
+                case 'processor':
+                    this.controller.activeDebugger!.startPname = action.value as string;
+                    break;
+                case 'autoUpdate':
+                    await this.configurationProvider.setConfigVariable(manifest.CONFIG_AUTO_DEBUG_LAUNCH, action.value, undefined, true);
+                    break;
+                default:
+                    if (action.kind === 'edit') {
+                        this.fileSelections.delete(request.actionId);
+                    }
+                    this.controller.applySettingsAction(action);
+            }
+
+            status = 'applied';
+            await this.sendContextDataFromControllerState();
+        });
+
+        return status;
+    }
+
+    /** Keep raw debugger configuration out of table messages and prevent it returning in project edits. */
+    private browserSolutionData(): SolutionData {
+        const data = this.cloneSolutionData(this.controller.solutionData);
+        for (const target of [...data.targets, ...(data.selectedTarget ? [data.selectedTarget] : [])]) {
+            target.targetSets?.forEach(set => { delete set.debugger; });
+        }
+        return data;
+    }
+
+    private async broadcastState(): Promise<void> {
         await Promise.all([
-            this.webviewManager.sendMessage({ type: 'DATA_CONTEXT_SELECTION', data: this.controller.solutionData }),
-            this.webviewManager.sendMessage({ type: 'DEBUGGER', data: this.controller.activeDebuggerName }),
+            this.sendAdapterSettings(),
+            this.webviewManager.sendMessage({ type: 'DATA_CONTEXT_SELECTION', data: this.browserSolutionData() }),
             this.webviewManager.sendMessage({ type: 'IS_DIRTY', data: this.isDirty }),
-            this.webviewManager.sendMessage({ type: 'AUTO_UPDATE', data: this.configurationProvider.getConfigVariableOrDefault(manifest.CONFIG_AUTO_DEBUG_LAUNCH, true) }),
-            this.webviewManager.sendMessage({ type: 'DEBUG_ADAPTERS', data: debugAdapters, sectionsInUse: activeDebugger?.sectionNames ?? [] }),
         ]);
     }
 
@@ -235,6 +423,8 @@ export class ManageSolutionWebviewMain {
 
     private async handleMessage(message: OutgoingMessage): Promise<void> {
         switch (message.type) {
+            case 'GET_ADAPTER_SETTINGS': await this.sendAdapterSettings(); break;
+            case 'SETTINGS_ACTION': await this.applySettingsRequest(message.request); break;
             case 'GET_CONTEXT_SELECTION_DATA':
                 await this.sendContextData();
                 break;
@@ -246,12 +436,6 @@ export class ManageSolutionWebviewMain {
                 break;
             case 'SET_SELECTED_TARGET':
                 await this.setSelectedTarget(message.target, message.set);
-                break;
-            case 'GET_DEBUG_ADAPTERS':
-                await this.sendDebugAdapters();
-                break;
-            case 'SET_DEBUGGER':
-                await this.setSelectedDebugger(message.name);
                 break;
             case 'ADD_NEW_CONTEXT':
                 // not implemented yet
@@ -265,35 +449,11 @@ export class ManageSolutionWebviewMain {
             case 'UNLINK_IMAGE':
                 await this.unlinkImage(message.image);
                 break;
-            case 'SET_START_PROCESSOR':
-                await this.updateStartProcessor(message.value);
-                break;
             case 'SAVE_CONTEXT_SELECTION':
                 await this.commandsProvider.executeCommand('workbench.action.files.save');
                 break;
             case 'OPEN_HELP':
                 await this.commandsProvider.executeCommand(OpenCommand.openHelpCommandId, 'manage_settings.html#active-target');
-                break;
-            case 'SET_DEBUG_ADAPTER_PROPERTY':
-                await this.updateDebuggerParameter(message.service, message.key, message.value, message.pname, message.subsection);
-                break;
-            case 'SELECT_FILE':
-                await this.selectFileDialog(message.requestId, message.options);
-                break;
-            case 'SET_AUTO_UPDATE':
-                await this.configurationProvider.setConfigVariable(manifest.CONFIG_AUTO_DEBUG_LAUNCH, message.value, undefined, true);
-                await this.webviewManager.sendMessage({ type: 'AUTO_UPDATE', data: message.value });
-                break;
-            case 'TOGGLE_DEBUGGER':
-                await this.toggleDebugger(message.value);
-                break;
-            case 'TOGGLE_DEBUG_ADAPTER_SECTION':
-                await this.toggleDebugAdapterSection(message.section);
-                break;
-            case 'ADD_DEBUG_ADAPTER_SUBSECTION':
-            case 'REMOVE_DEBUG_ADAPTER_SUBSECTION':
-            case 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED':
-                await this.updateDebugAdapterSubsection(message);
                 break;
         }
     }
@@ -306,80 +466,27 @@ export class ManageSolutionWebviewMain {
         });
     };
 
-    /** Toggles a static section and publishes the updated solution and descriptors. */
-    private async toggleDebugAdapterSection(section: string): Promise<void> {
-        await this.withEdit('TOGGLE_DEBUG_ADAPTER_SECTION', async () => {
-            await this.controller.toggleDebugAdapterSection(section);
-            await this.sendContextData();
-        });
-    }
-
-    private async toggleDebugger(enabled: boolean): Promise<void> {
-        await this.withEdit('TOGGLE_DEBUGGER', async () => {
-            this.controller.enableDebugger(enabled);
-            await this.sendContextData();
-        });
-    }
-
-    /** Applies a subsection edit and publishes the updated descriptors through the normal undoable edit flow. */
-    private async updateDebugAdapterSubsection(message: Extract<OutgoingMessage, {
-        type: 'ADD_DEBUG_ADAPTER_SUBSECTION' | 'REMOVE_DEBUG_ADAPTER_SUBSECTION' | 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED';
-    }>): Promise<void> {
-        await this.withEdit(message.type, async () => {
-            switch (message.type) {
-                case 'ADD_DEBUG_ADAPTER_SUBSECTION':
-                    this.controller.addDebugAdapterSubsection(message.section, message.subsection);
-                    break;
-                case 'REMOVE_DEBUG_ADAPTER_SUBSECTION':
-                    this.controller.removeDebugAdapterSubsection(message.section, message.subsection);
-                    break;
-                case 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED':
-                    this.controller.setDebugAdapterSubsectionEnabled(message.section, message.subsection, message.enabled);
-                    break;
-            }
-            await this.sendContextData();
-        });
-    }
-
-    /** Commits an adapter field, optionally addressing a processor or a dynamic subsection. */
-    private async updateDebuggerParameter(service: string | undefined, param: string, value: string | number, pname?: string, subsection?: string[]) {
-        await this.withEdit('UPDATE_DEBUGGER_PARAMETER', async () => {
-            if (service && !subsection?.length && !this.controller.isDebuggerSectionEnabled(service)) {
-                await this.controller.ensureDebugAdapterSection(service);
-            }
-
-            if (subsection) {
-                this.controller.setDebuggerParameter(service, param, value.toString(), subsection, pname);
-            } else if (!pname) {
-                this.controller.setDebuggerParameter(service, param, value.toString());
-            } else {
-                await this.controller.setDebuggerParameterWithPname(service, pname, param, value.toString());
-            }
-            await this.sendContextData();
-        });
-    }
-
-    private async updateStartProcessor(name: string) {
-        await this.updateDebuggerParameter('', 'start-pname', name);
-    }
-
+    /** Saves after previously admitted edits, checking dirty state only when they have finished. */
     public async saveChanges(force: boolean = false): Promise<void> {
-        if (!this.isDirty && !force) {
-            return;
-        }
-        await this.setBusyState(true);
-        try {
-            const saved = await this.controller.saveSolution(this.solutionManager);
-            if (saved) {
-                this.wasDirty = false;
-                await this.sendContextData();
+        await this.enqueueOperation(async () => {
+            if (!this.isDirty && !force) {
+                return;
             }
-        } finally {
-            await this.setBusyState(false);
-        }
+            await this.setBusyState(true);
+            try {
+                const saved = await this.controller.saveSolution(this.solutionManager);
+                if (saved) {
+                    this.wasDirty = false;
+                    await this.sendContextData();
+                }
+            } finally {
+                await this.setBusyState(false);
+            }
+        });
     }
 
     public async revertToDisk(): Promise<void> {
+        this.fileSelections.clear();
         this._controller = this.createController();
         this.wasDirty = false;
         await this.sendContextData();
@@ -387,7 +494,7 @@ export class ManageSolutionWebviewMain {
 
     private async setSelectedContexts(selectedContextState: SolutionData): Promise<void> {
         await this.withEdit('SET_SELECTED_CONTEXTS', async () => {
-            this.controller.solutionData = selectedContextState;
+            this.controller.applyDialogSelection(selectedContextState);
             await this.sendContextData();
         });
     }
@@ -410,14 +517,12 @@ export class ManageSolutionWebviewMain {
     }
 
     private async clearContext(): Promise<void> {
+        this.fileSelections.clear();
         this._controller = undefined;
         this.wasDirty = false;
         await Promise.all([
             this.webviewManager.sendMessage({ type: 'DATA_CONTEXT_SELECTION', data: initialState.solutionData }),
-            this.webviewManager.sendMessage({ type: 'DEBUG_ADAPTERS', data: [], sectionsInUse: [] }),
-            this.webviewManager.sendMessage({ type: 'DEBUGGER', data: '' }),
             this.webviewManager.sendMessage({ type: 'IS_DIRTY', data: false }),
-            this.webviewManager.sendMessage({ type: 'AUTO_UPDATE', data: false }),
         ]);
     }
 
@@ -428,32 +533,17 @@ export class ManageSolutionWebviewMain {
             return;
         }
 
+        await this.controller.getAvailableCoreNames();
         await this.sendContextDataFromControllerState();
     }
 
     private async sendContextDataFromControllerState(): Promise<void> {
-        const controller = this.controller;
-        await controller.getAvailableCoreNames();
         await Promise.all([
-            this.sendDebugAdapters(),
-            this.webviewManager.sendMessage({ type: 'DATA_CONTEXT_SELECTION', data: controller.solutionData }),
-            this.webviewManager.sendMessage({ type: 'DEBUGGER', data: controller.activeDebuggerName }),
+            this.sendAdapterSettings(),
+            this.webviewManager.sendMessage({ type: 'DATA_CONTEXT_SELECTION', data: this.browserSolutionData() }),
             this.webviewManager.sendMessage({ type: 'IS_DIRTY', data: this.isDirty }),
-            this.webviewManager.sendMessage({ type: 'AUTO_UPDATE', data: this.configurationProvider.getConfigVariableOrDefault(manifest.CONFIG_AUTO_DEBUG_LAUNCH, true) }),
             this.setBusyState(false),
         ]);
-    }
-
-    private async sendDebugAdapters(): Promise<void> {
-        await this.controller.refreshDebugAdapters();
-
-        const debugAdaters = await this.controller.debugAdapters;
-        const activeDebugger = this.controller.activeDebugger;
-        return this.webviewManager.sendMessage({
-            type: 'DEBUG_ADAPTERS',
-            data: debugAdaters,
-            sectionsInUse: activeDebugger?.sectionNames ?? []
-        });
     }
 
     private async addNewProject(): Promise<void> {
@@ -470,36 +560,6 @@ export class ManageSolutionWebviewMain {
                 await this.setBusyState(false);
             }
         });
-    }
-
-    private async selectFileDialog(requestId: string, options?: FileSelectorOptionsType): Promise<void> {
-        const solutionDir = this.getSolutionDir();
-        if (options?.defaultUri) {
-            options.defaultUri = URI.file(this.absolutePath(options.defaultUri, solutionDir)).toString();
-        }
-
-        const localOptions: vscode.OpenDialogOptions = {
-            canSelectMany: options?.canSelectMany || false,
-            openLabel: options?.openLabel || 'Select File',
-            title: options?.title || 'Select File',
-            filters: options?.filters || { 'All Files': ['*'] },
-            defaultUri: options?.defaultUri ? URI.parse(options.defaultUri) : URI.file(solutionDir),
-        };
-
-        const fileUri = await vscode.window.showOpenDialog(localOptions);
-
-        if (fileUri && fileUri[0]) {
-            const paths = fileUri.map(u =>
-                backToForwardSlashes(options?.pathType === 'absolute'
-                    ? u.fsPath
-                    : path.relative(solutionDir, u.fsPath)
-                )
-            );
-
-            await this.webviewManager.sendMessage({ type: 'FILE_SELECTED', data: paths, requestId });
-        } else {
-            await this.webviewManager.sendMessage({ type: 'FILE_SELECTED', data: [], requestId });
-        }
     }
 
     private async addNewImage() {
@@ -529,13 +589,6 @@ export class ManageSolutionWebviewMain {
             } finally {
                 await this.setBusyState(false);
             }
-        });
-    }
-
-    private async setSelectedDebugger(name: string): Promise<void> {
-        await this.withEdit('SET_DEBUGGER', async () => {
-            this.controller.setSelectedDebugger(name);
-            await this.sendContextData();
         });
     }
 

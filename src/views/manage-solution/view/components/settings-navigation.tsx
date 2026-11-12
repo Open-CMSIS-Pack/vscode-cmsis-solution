@@ -67,7 +67,7 @@ export const SettingsNavigation = ({ sections, activeId, onSelect, onAction, dep
         <>
             {sections.map(section => {
                 const active = activeId === section.id;
-                const tabId = `tab-${section.id}`;
+                const tabId = `${panelId}-tab-${section.id}`;
                 const className = `settings-navigation-row${active ? ' active' : ''}`;
 
                 return (

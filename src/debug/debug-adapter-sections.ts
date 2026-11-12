@@ -21,24 +21,17 @@ import { UISection } from './debug-adapters-yaml-file';
 import { storedOptionDefault } from './debug-adapter-options';
 import { resolveSectionYamlBinding, sectionYamlNodeName } from './section-yaml-binding';
 
-/** Binds a checkbox to a stored value instead of the presence of its section. */
-export type SectionSwitchBinding = {
-    read: (section: CTreeItemWrap) => boolean;
-    write: (section: CTreeItemWrap, enabled: boolean) => void;
-};
-
-/** Keeps runtime bindings and dynamic templates separate from the serializable UI description. */
-export type DebugAdapterSectionDefinition = {
+/** Internal compilation of declarative section storage. */
+type DebugAdapterSectionDefinition = {
     ui: UISection;
     subsections?: DebugAdapterSectionDefinition[];
-    switch?: SectionSwitchBinding;
-    initialValues?: Record<string, string | number | null>;
-    validators?: Record<string, (value: string | number) => boolean>;
-    addable?: boolean;
+    switch?: {
+        read: (section: CTreeItemWrap) => boolean;
+        write: (section: CTreeItemWrap, enabled: boolean) => void;
+    };
     dynamic?: {
         kind: 'map' | 'sequence';
         types: DebugAdapterSectionDefinition[];
-        label?: (count: number) => string;
     };
 };
 
@@ -59,22 +52,30 @@ export function sectionYamlPath(branch: UISection[]): string[] {
 export class DebugAdapterSections {
     private readonly definitions: DebugAdapterSectionDefinition[];
 
-    /** Combines static descriptions with runtime extensions; debugger access follows the owning target set. */
+    /** Compiles registry descriptions; debugger access follows the owning target set. */
     constructor(
         sections: UISection[],
-        extensions: DebugAdapterSectionDefinition[],
         private readonly getDebugger: () => DebuggerWrap | undefined,
         private readonly ensureDebugger: () => DebuggerWrap,
     ) {
-        this.definitions = sections.map(ui => this.fromUI(ui));
-        extensions.forEach(extension => {
-            const index = this.definitions.findIndex(definition => sectionIdentity(definition.ui, true) === sectionIdentity(extension.ui, true));
-            if (index < 0) {
-                this.definitions.push(extension);
-            } else {
-                this.definitions[index] = extension;
+        const validate = (siblings: UISection[], root: boolean): void => {
+            const identities = new Set<string>();
+            for (const section of siblings) {
+                const identity = sectionIdentity(section, root);
+                if (identities.has(identity)) throw new Error(`Duplicate section identity: ${identity}`);
+                identities.add(identity);
+                const fields = new Set<string>();
+                for (const option of section.options) {
+                    const field = JSON.stringify([option['yml-node'], option.pname ?? '']);
+                    if (fields.has(field)) throw new Error(`Duplicate field identity in section: ${identity}`);
+                    fields.add(field);
+                }
+                validate(section.subsections ?? [], false);
             }
-        });
+        };
+        validate(sections, true);
+        this.definitions = sections.map(ui => this.fromUI(ui));
+
     }
 
     /** Compiles declarative instructions into generic tree operations, independently of section names. */
@@ -107,7 +108,7 @@ export class DebugAdapterSections {
     }
 
     /** Resolves a configured section at any depth; unconfigured dynamic templates cannot be edited. */
-    public findBranch(root: string, path: string[]): DebugAdapterSectionDefinition[] | undefined {
+    private findBranch(root: string, path: string[]): DebugAdapterSectionDefinition[] | undefined {
         let definition = this.definitions.find(candidate => sectionIdentity(candidate.ui, true) === root);
         if (!definition) {
             return undefined;
@@ -123,6 +124,11 @@ export class DebugAdapterSections {
         return branch;
     }
 
+    /** Resolves descriptor addresses without exposing compiled storage operations. */
+    public descriptorBranch(root: string, path: string[]): UISection[] | undefined {
+        return this.findBranch(root, path)?.map(definition => definition.ui);
+    }
+
     /** Creates an allowed dynamic child once, applying typed defaults and its optional switch binding. */
     public add(root: string, path: string[]): void {
         if (path.length === 0) {
@@ -130,7 +136,7 @@ export class DebugAdapterSections {
         }
         const parent = this.findBranch(root, path.slice(0, -1));
         const dynamic = parent?.at(-1)?.dynamic;
-        const definition = dynamic?.types.find(candidate => sectionIdentity(candidate.ui) === path.at(-1) && candidate.addable !== false);
+        const definition = dynamic?.types.find(candidate => sectionIdentity(candidate.ui) === path.at(-1) && candidate.ui.usage === 'available');
         if (!parent || !dynamic || !definition || this.node([...parent, definition])) {
             return;
         }
@@ -144,7 +150,6 @@ export class DebugAdapterSections {
         if (!node) {
             return;
         }
-        Object.entries(definition.initialValues ?? {}).forEach(([key, value]) => node.ensureItem().createChild(key, true).fromObject(value));
         this.applyDefaults(branch);
         if (definition.ui.select !== undefined) {
             if (definition.switch) {
@@ -159,7 +164,7 @@ export class DebugAdapterSections {
     public remove(root: string, path: string[]): void {
         const branch = path.length > 0 ? this.findBranch(root, path) : undefined;
         const ui = branch?.at(-1)?.ui;
-        if (!branch || !(ui?.usage !== undefined || ui?.removable) || !(ui['yml-node'] ?? ui.id)) {
+        if (!branch || ui?.usage === undefined || !(ui['yml-node'] ?? ui.id)) {
             return;
         }
         this.node(branch)?.remove();
@@ -211,9 +216,6 @@ export class DebugAdapterSections {
                 return;
             }
         }
-        if (definition.validators?.[key] && !definition.validators[key](storedValue)) {
-            return;
-        }
         this.ensureBranch(branch);
         this.ensureDebugger().setSectionParameter(this.yamlPath(branch), key, storedValue, pname);
     }
@@ -243,16 +245,8 @@ export class DebugAdapterSections {
         }
         if (ui.subsections !== undefined || definition.subsections !== undefined || definition.dynamic) {
             const declaredCandidates = definition.dynamic?.types.filter(child => child.ui.usage !== undefined
-                && child.addable !== false && !children.includes(child)) ?? [];
+                && child.ui.usage === 'available' && !children.includes(child)) ?? [];
             ui.subsections = [...children, ...declaredCandidates].map(child => this.toUI([...branch, child]));
-        }
-        if (definition.dynamic) {
-            ui.section = definition.dynamic.label?.(children.length) ?? ui.section;
-            ui.addOptions = definition.dynamic.types
-                .filter(candidate => candidate.addable !== false && !children.some(child => sectionIdentity(child.ui) === sectionIdentity(candidate.ui)))
-                .map(candidate => ({ id: sectionIdentity(candidate.ui), name: candidate.ui.section }));
-        } else {
-            delete ui.addOptions;
         }
         return ui;
     }

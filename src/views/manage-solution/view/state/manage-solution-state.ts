@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import { DebugAdapter } from '../../../../debug/debug-adapters-yaml-file';
-
 /**
  * Specifies the type of data to load for a project or image.
 *
@@ -103,18 +101,8 @@ export type Config = {
 
 export type ManageSolutionState = {
     solutionData: SolutionData;
-    debugAdapters: DebugAdapter[];
-    debugger: string | undefined;
-    editableProperties: Record<string, EditableProperty>;
     isDirty: boolean;
-    autoUpdate: boolean;
     busy: boolean;
-}
-
-export type EditableProperty = {
-    value: string | number;
-    dirty: boolean;
-    focused: boolean;
 }
 
 export function getSelectedTargetSet(tt?: TargetType): TargetSet | undefined {
