@@ -67,6 +67,11 @@ async function getSolutionDataStrings(solutionDir: string, solutionName: string)
     return { generated, reference };
 }
 
+/** Applies a field edit through the generic controller action used by the settings host. */
+function editSetting(controller: ManageSolutionController, root: string, key: string, value: string | number, path: string[] = [], pname?: string): void {
+    controller.applySettingsAction({ kind: 'edit', root, path, option: { name: key, type: 'string', 'yml-node': key, pname }, value });
+}
+
 describe('manage-solution-controller', () => {
 
     const testDataHandler = new TestDataHandler();
@@ -376,35 +381,35 @@ describe('manage-solution-controller', () => {
 
         it('offers both sources independently of protocol and separates usage, switching and removal', async () => {
             const controller = await createTraceController();
-            controller.setDebuggerParameter(undefined, 'protocol', 'jtag');
-            controller.addDebugAdapterSubsection('trace', ['serialwire']);
-            controller.addDebugAdapterSubsection('trace', ['tracebuffer']);
-            controller.setDebuggerParameter('trace', 'input-clock', 64000000, ['serialwire']);
-            controller.setDebugAdapterSubsectionEnabled('trace', ['serialwire'], false);
+            editSetting(controller, 'debug interface', 'protocol', 'jtag');
+            controller.applySettingsAction({ kind: 'add', root: 'trace', path: ['serialwire'] });
+            controller.applySettingsAction({ kind: 'add', root: 'trace', path: ['tracebuffer'] });
+            editSetting(controller, 'trace', 'input-clock', 64000000, ['serialwire']);
+            controller.applySettingsAction({ kind: 'toggle', root: 'trace', path: ['serialwire'], value: false });
             expect((await getTraceSection(controller))?.subsections).toMatchObject([
                 { id: 'serialwire', usage: 'used', select: false }, { id: 'tracebuffer', usage: 'used', select: true },
             ]);
             expect((await getTraceSection(controller))?.subsections?.every(child => child.warning === undefined)).toBe(true);
             const before = controller.activeDebugger?.object;
-            controller.setDebuggerParameter(undefined, 'protocol', 'swd');
+            editSetting(controller, 'debug interface', 'protocol', 'swd');
             expect(controller.activeDebugger?.item?.getChild('trace')?.toObject()).toEqual((before as { trace: object }).trace);
-            await controller.toggleDebugAdapterSection('trace');
+            controller.applySettingsAction({ kind: 'toggle', root: 'trace', path: [], value: true });
             expect((await getTraceSection(controller))?.select).toBeUndefined();
-            controller.removeDebugAdapterSubsection('trace', ['serialwire']);
+            controller.applySettingsAction({ kind: 'remove', root: 'trace', path: ['serialwire'] });
             const candidates = (await controller.adapterSettingsContext(true)).sections.find(section => sectionYamlNodeName(section) === 'trace')?.subsections;
             expect(candidates?.find(child => child.id === 'serialwire')?.usage).toBe('available');
-            controller.addDebugAdapterSubsection('trace', ['serialwire']);
+            controller.applySettingsAction({ kind: 'add', root: 'trace', path: ['serialwire'] });
             expect(controller.activeDebugger?.getTraceSource('swo-uart')?.enabled).toBe(true);
             expect(controller.activeDebugger?.getTraceSource('swo-uart')?.inputClock).toBe(0);
         });
 
         it('saves and reloads disabled entries without rewriting read aliases', async () => {
             const controller = await createTraceController();
-            controller.addDebugAdapterSubsection('trace', ['serialwire']);
+            controller.applySettingsAction({ kind: 'add', root: 'trace', path: ['serialwire'] });
             controller.activeDebugger?.getTraceSource('swo-uart')?.setValue('mode', 'server');
             expect((await getTraceSection(controller))?.subsections?.[0].select).toBe(true);
             expect(controller.activeDebugger?.getTraceSource('swo-uart')?.getValue('mode')).toBe('server');
-            controller.setDebugAdapterSubsectionEnabled('trace', ['serialwire'], false);
+            controller.applySettingsAction({ kind: 'toggle', root: 'trace', path: ['serialwire'], value: false });
             const file = path.join(tmpSolutionDir, 'simple/declarative-trace.csolution.yml');
             expect(await controller.csolutionYml.save(file)).toBe(ETextFileResult.Success);
             const reloaded = new ManageSolutionController();
@@ -412,7 +417,7 @@ describe('manage-solution-controller', () => {
             expect(await reloaded.loadSolution(file)).toBe(ETextFileResult.Success);
             await installRegistry(reloaded);
             expect((await getTraceSection(reloaded))?.subsections).toMatchObject([{ usage: 'used', select: false }]);
-            reloaded.setDebugAdapterSubsectionEnabled('trace', ['serialwire'], true);
+            reloaded.applySettingsAction({ kind: 'toggle', root: 'trace', path: ['serialwire'], value: true });
             expect(reloaded.activeDebugger?.getTraceSource('swo-uart')?.getValue('mode')).toBe('file');
         });
 
@@ -443,7 +448,7 @@ describe('manage-solution-controller', () => {
             await installRegistry(controller);
             expect((await getTraceSection(controller))?.subsections?.map(source => source.select)).toEqual([true, false]);
 
-            controller.setDebuggerParameter('trace', 'input-clock', 64000000, ['serialwire']);
+            editSetting(controller, 'trace', 'input-clock', 64000000, ['serialwire']);
             expect(await controller.csolutionYml.save()).toBe(ETextFileResult.Success);
             expect(await solutionFile.load()).toBe(ETextFileResult.Success);
             expect(solutionFile.text).toContain('# Preserve this clock comment');
@@ -457,7 +462,7 @@ describe('manage-solution-controller', () => {
                 { 'swo-uart': null, mode: 'file', 'input-clock': 64000000, 'output-clock': 2000000, file: './trace.raw' },
                 { 'other-transport': null, 'custom-option': 'preserved' },
             ]);
-            reloaded.removeDebugAdapterSubsection('trace', ['serialwire']);
+            reloaded.applySettingsAction({ kind: 'remove', root: 'trace', path: ['serialwire'] });
             expect(reloaded.activeDebugger?.item?.getChild('trace')?.toObject()).toEqual([
                 { 'trace-buffer': null, 'server-port': 5556 },
                 { 'other-transport': null, 'custom-option': 'preserved' },
@@ -502,16 +507,16 @@ describe('manage-solution-controller', () => {
             expect(initialContext.sections[0].subsections?.[0].subsections?.[0].select).toBe(false);
             expect(findUIOptionByYmlNode(initialContext.sections, 'settings.transport-map.channel-map.input-clock')?.default).toBe(48000000);
 
-            controller.setDebugAdapterSubsectionEnabled('advanced', ['transport', 'channel'], true);
+            controller.applySettingsAction({ kind: 'toggle', root: 'advanced', path: ['transport', 'channel'], value: true });
             expect(controller.activeDebugger?.item?.getChild('settings')?.getChild('transport-map')?.getChild('channel-map')?.toObject())
                 .toEqual({ 'input-clock': 48000000 });
-            controller.setDebuggerParameter('advanced', 'input-clock', '64000000', ['transport', 'channel']);
+            editSetting(controller, 'advanced', 'input-clock', '64000000', ['transport', 'channel']);
             const settings = controller.activeDebugger?.item?.getChild('settings');
             expect(settings?.toObject()).toEqual({ 'transport-map': { 'channel-map': { 'input-clock': 64000000 } } });
             const configuredContext = await controller.adapterSettingsContext(true);
             expect(configuredContext.sections[0].subsections?.[0].subsections?.[0].select).toBe(true);
 
-            controller.setDebuggerParameter('advanced', 'input-clock', 1, ['unknown', 'channel']);
+            editSetting(controller, 'advanced', 'input-clock', 1, ['unknown', 'channel']);
             expect(settings?.toObject()).toEqual({ 'transport-map': { 'channel-map': { 'input-clock': 64000000 } } });
             const savedPath = path.join(tmpSolutionDir, 'simple/nested.csolution.yml');
             expect(await controller.csolutionYml.save(savedPath)).toBe(ETextFileResult.Success);
@@ -520,7 +525,7 @@ describe('manage-solution-controller', () => {
             expect(await reloaded.loadSolution(savedPath)).toBe(ETextFileResult.Success);
             expect(reloaded.activeDebugger?.item?.getChild('settings')?.toObject()).toEqual(settings?.toObject());
 
-            controller.setDebugAdapterSubsectionEnabled('advanced', ['transport', 'channel'], false);
+            controller.applySettingsAction({ kind: 'toggle', root: 'advanced', path: ['transport', 'channel'], value: false });
             expect(settings?.getChild('transport-map')?.getChild('channel-map')).toBeUndefined();
             const disabledContext = await controller.adapterSettingsContext(true);
             expect(disabledContext.sections[0].subsections?.[0].subsections?.[0].select).toBe(false);
@@ -775,7 +780,7 @@ describe('manage-solution-controller', () => {
         const targetSet = controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
         controller.activeTargetTypeName = 'test-target';
         controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
-        targetSet.ensureDebugger('Test Debugger').startPname = configuredStart;
+        targetSet.ensureDebugger('CMSIS-DAP@pyOCD').startPname = configuredStart;
         controller.csolutionService = csolutionServiceFactory({
             getDeviceInfo: jest.fn().mockResolvedValue({
                 result: 'success',
@@ -820,7 +825,7 @@ describe('manage-solution-controller', () => {
         const targetSet = controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
         controller.activeTargetTypeName = 'test-target';
         controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
-        targetSet.ensureDebugger('Test Debugger');
+        targetSet.ensureDebugger('CMSIS-DAP@pyOCD');
         controller.csolutionService = csolutionServiceFactory({
             getDeviceInfo: jest.fn().mockResolvedValue({
                 result: 'success',
@@ -846,22 +851,12 @@ describe('manage-solution-controller', () => {
         expect(context.adapters).toEqual(expect.arrayContaining(['CMSIS-DAP@pyOCD', 'Keil uVision']));
     });
 
-    it('should set debugger parameter', async () => {
-        const controller = new ManageSolutionController();
-        await controller.loadSolution('test-resources/solutions/solution-with-debuggers.csolution');
-
-        controller.enableDebugger(true, 'Keil uVision');
-        controller.setDebuggerParameter('section1', 'param1', 'value1');
-
-        expect(controller.activeDebugger).toBeDefined();
-    });
-
     it('creates a missing processor entry when setting a pname parameter', async () => {
         const controller = new ManageSolutionController();
         const targetSet = controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
         controller.activeTargetTypeName = 'test-target';
         controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
-        const telnet = targetSet.ensureDebugger('Test Debugger').item
+        const telnet = targetSet.ensureDebugger('CMSIS-DAP@pyOCD').item
             ?.createChild('telnet', true)
             ?.setKind(ETreeItemKind.Sequence);
         const hpEntry = telnet?.createChild('-');
@@ -882,7 +877,11 @@ describe('manage-solution-controller', () => {
             }),
         });
 
-        await controller.setDebuggerParameterWithPname('telnet', 'M55_HE', 'mode', 'off');
+        const registry = new DebugAdaptersYamlFile();
+        expect(await registry.load(path.join(__dirname, '../../../test-data/debug-adapters/declarative.yml'))).toBe(ETextFileResult.Success);
+        controller['debugAdaptersYmlFile'] = registry;
+        await controller.adapterSettingsContext(true);
+        editSetting(controller, 'telnet', 'mode', 'off', [], 'M55_HE');
 
         expect(telnet?.getChildren()).toHaveLength(2);
         expect(telnet?.getChildByValue('pname', 'M55_HP')?.getValue('mode')).toBe('console');
@@ -1018,48 +1017,26 @@ describe('manage-solution-controller', () => {
             const controller = await createController(select);
             expect((await controller.adapterSettingsContext(true)).sections[0].select).toBe(false);
 
-            await controller.toggleDebugAdapterSection('optional');
-            expect(controller.activeDebugger?.item?.getChild('optional-settings')?.toObject()).toEqual({ port: '5555' });
+            controller.applySettingsAction({ kind: 'toggle', root: 'optional', path: [], value: !controller.activeDebugger?.getSection(['optional-settings']) });
+            expect(controller.activeDebugger?.item?.getChild('optional-settings')?.toObject()).toEqual({ port: 5555 });
             expect(controller.activeDebugger?.item?.getChild('optional')).toBeUndefined();
             expect((await controller.adapterSettingsContext(true)).sections[0].select).toBe(true);
 
-            await controller.toggleDebugAdapterSection('optional');
+            controller.applySettingsAction({ kind: 'toggle', root: 'optional', path: [], value: !controller.activeDebugger?.getSection(['optional-settings']) });
             expect(controller.activeDebugger?.item?.getChild('optional-settings')).toBeUndefined();
             expect((await controller.adapterSettingsContext(true)).sections[0].select).toBe(false);
         });
 
-        it.each(['optional', 'optional-settings'])('initializes defaults when a root field addresses %s', async section => {
-            const controller = await createController();
-
-            await controller.ensureDebugAdapterSection(section);
-            controller.setDebuggerParameter('optional-settings', 'host', 'example');
-
-            expect(controller.activeDebugger?.item?.getChild('optional-settings')?.toObject()).toEqual({ port: '5555', host: 'example' });
-            expect(controller.activeDebugger?.item?.getChild('optional')).toBeUndefined();
-        });
-
-        it('ignores fixed and unknown sections without creating or removing configuration', async () => {
+        it('ignores switches on fixed and unknown sections and initializes defaults when editing a fixed section', async () => {
             const controller = await createController();
             const initial = controller.activeDebugger?.object;
-            await controller.toggleDebugAdapterSection('fixed-settings');
-            await controller.toggleDebugAdapterSection('unknown');
+            controller.applySettingsAction({ kind: 'toggle', root: 'fixed-settings', path: [], value: true });
+            controller.applySettingsAction({ kind: 'toggle', root: 'unknown', path: [], value: true });
             expect(controller.activeDebugger?.object).toEqual(initial);
-
-            await controller.ensureDebugAdapterSection('fixed-settings');
-            const configured = controller.activeDebugger?.object;
-            await controller.adapterSettingsContext(true);
-            await controller.toggleDebugAdapterSection('fixed-settings');
-            expect(controller.activeDebugger?.object).toEqual(configured);
-        });
-
-        it('creates fixed sections with defaults for field edits and preserves them on repeated ensure calls', async () => {
-            const controller = await createController();
-            await controller.ensureDebugAdapterSection('fixed-settings');
-            expect(controller.activeDebugger?.item?.getChild('fixed-settings')?.toObject()).toEqual({ port: '4444' });
-
-            controller.setDebuggerParameter('fixed-settings', 'port', 6666);
-            await controller.ensureDebugAdapterSection('fixed-settings');
-            expect(controller.activeDebugger?.item?.getChild('fixed-settings')?.toObject()).toEqual({ port: '6666' });
+            editSetting(controller, 'fixed-settings', 'port', 6666);
+            expect(controller.activeDebugger?.item?.getChild('fixed-settings')?.toObject()).toEqual({ port: 6666 });
+            editSetting(controller, 'fixed-settings', 'port', 7777);
+            expect(controller.activeDebugger?.item?.getChild('fixed-settings')?.toObject()).toEqual({ port: 7777 });
         });
     });
 
@@ -1077,42 +1054,6 @@ describe('manage-solution-controller', () => {
         const options = controller['expandPnameOptions'](section, ['core0', 'core1']);
         expect(options).toHaveLength(2);
         expect(options.map((opt: { pname?: string }) => opt.pname)).toEqual(['core0', 'core1']);
-    });
-
-    it('builds per-core defaults when pname options are enabled', () => {
-        const controller = new ManageSolutionController();
-        const section: UISection = {
-            section: 'test',
-            'yml-node': 'section1',
-            'pname-options': true,
-            options: [
-                { name: 'Port', 'yml-node': 'port', type: 'string', default: '3333' },
-                { name: 'Host', 'yml-node': 'host', type: 'string', default: 'localhost' }
-            ]
-        };
-
-        const defaults = controller['buildSectionDefaults'](section, ['core0', 'core1']);
-        expect(defaults).toEqual({
-            core0: { pname: 'core0', port: '3333', host: 'localhost' },
-            core1: { pname: 'core1', port: '3333', host: 'localhost' }
-        });
-    });
-
-    it('builds empty-core defaults when no cores are available', () => {
-        const controller = new ManageSolutionController();
-        const section: UISection = {
-            section: 'test',
-            'yml-node': 'section1',
-            'pname-options': true,
-            options: [
-                { name: 'Port', 'yml-node': 'port', type: 'string', default: '3333' }
-            ]
-        };
-
-        const defaults = controller['buildSectionDefaults'](section, []);
-        expect(defaults).toEqual({
-            '': { port: '3333' }
-        });
     });
 
     it('should add project context when project is selected', async () => {

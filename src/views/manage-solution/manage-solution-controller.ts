@@ -20,7 +20,6 @@ import { DebugAdapter, DebugAdaptersYamlFile, loadDebugAdaptersYml, UISection, U
 import { sectionYamlNodeName } from '../../debug/section-yaml-binding';
 import { storedOptionDefault } from '../../debug/debug-adapter-options';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
-import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { DebuggerWrap, ImageWrap, ProjectRefWrap, TargetSetWrap, TargetTypeWrap } from '../../solutions/files/csolution-wrap';
 import { CSolutionYamlFile } from '../../solutions/files/csolution-yaml-file';
@@ -31,7 +30,7 @@ import { extractSuffix, stripTwoExtensions } from '@open-cmsis-pack/cmsis-common
 import { CmsisSettingsJsonFile } from './../../global/cmsis-settings-json-file';
 import { GenericPropertyList, getSelectedTargetSet, ImageSelection, ProjectSelection, SolutionData, TargetSet, TargetType } from './view/state/manage-solution-state';
 import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
-import { DebugAdapterSections, sectionIdentity, sectionYamlPath } from '../../debug/debug-adapter-sections';
+import { DebugAdapterSections, sectionYamlPath } from '../../debug/debug-adapter-sections';
 import type { AdapterSettingsAction, AdapterSettingsContext } from './adapter-settings-presenter';
 
 export type CustomDebugAdapterDefaults = { [adapterName: string]: { [propertyName: string]: string | number } };
@@ -421,50 +420,6 @@ export class ManageSolutionController {
     }
 
     /**
-     * Checks whether a debugger UI section is enabled.
-     * @param section Section key in debugger configuration.
-     */
-    public isDebuggerSectionEnabled(section: string): boolean {
-        return this.activeTargetSetWrap.ensureDebugger().isSectionEnabled(section);
-    }
-
-    /**
-     * Toggles a section only when its UI descriptor defines a switch, applying defaults when enabled.
-     * @param section Section key in debugger configuration.
-     */
-    public async toggleDebugAdapterSection(section: string): Promise<void> {
-        const uiSection = this.sectionBranch(section, [])?.[0];
-        if (uiSection?.select === undefined) {
-            return;
-        }
-
-        const yamlNode = sectionYamlNodeName(uiSection) ?? section;
-        const debuggerWrap = this.activeDebugger;
-        if (debuggerWrap?.isSectionEnabled(yamlNode)) {
-            debuggerWrap.toggleSection(yamlNode, {});
-            return;
-        }
-
-        await this.ensureDebugAdapterSection(section);
-    }
-
-    /** Loads core information and creates a missing section with defaults, preserving existing field values. */
-    public async ensureDebugAdapterSection(section: string): Promise<void> {
-        const adapter = this.debugAdaptersYmlFile?.getAdapterByName(this.activeDebuggerName);
-        this.customizeDebugAdapterDefaults(adapter);
-        await this.getAvailableCoreNames();
-        const uiSection = adapter?.['user-interface']?.find(sec => sectionYamlNodeName(sec) === section || sectionIdentity(sec, true) === section);
-        const yamlNode = (uiSection && sectionYamlNodeName(uiSection)) ?? section;
-        const debuggerWrap = this.activeTargetSetWrap.ensureDebugger();
-        if (debuggerWrap.isSectionEnabled(yamlNode)) {
-            return;
-        }
-
-        const defaults = uiSection ? this.buildSectionDefaults(uiSection, this.usedCoreNames) : {};
-        debuggerWrap.toggleSection(yamlNode, defaults);
-    }
-
-    /**
      * Gets the default debugger adapter name.
      */
     private get defaultDebuggerName() {
@@ -584,44 +539,6 @@ export class ManageSolutionController {
         }
     }
 
-    /** Resolves a displayed section path against the active adapter's descriptors. */
-    private sectionBranch(section: string, path: string[]): UISection[] | undefined {
-        return this.sectionModel().descriptorBranch(section, path);
-    }
-
-    /**
-     * Sets a debugger parameter on the active target set.
-     * @param section Optional debugger section.
-     * @param param Parameter key.
-     * @param value Parameter value.
-     * @param subsection Optional identity path beneath the root section.
-     */
-    public setDebuggerParameter(section: string | undefined, param: string, value: string | number, subsection?: string[], pname?: string) {
-        if (subsection?.length) {
-            if (section) {
-                this.sectionModel().setParameter(section, subsection, param, value, pname);
-            }
-            return;
-        }
-
-        this.activeTargetSetWrap.ensureDebugger().setParameter(section, param, value.toString());
-    }
-
-    /** Adds an available dynamic subsection using its registered template and YAML binding. */
-    public addDebugAdapterSubsection(section: string, subsection: string[]): void {
-        this.sectionModel().add(section, subsection);
-    }
-
-    /** Removes an explicitly removable subsection without changing unrelated settings. */
-    public removeDebugAdapterSubsection(section: string, subsection: string[]): void {
-        this.sectionModel().remove(section, subsection);
-    }
-
-    /** Applies the section's switch binding while retaining its declared persistence behavior. */
-    public setDebugAdapterSubsectionEnabled(section: string, subsection: string[], enabled: boolean): void {
-        this.sectionModel().setEnabled(section, subsection, enabled);
-    }
-
     private expandPnameOptions(section: UISection, availableCores: string[]): UISectionChildren[] {
         if (section['pname-options'] === undefined) {
             return section.options;
@@ -630,74 +547,6 @@ export class ManageSolutionController {
             return section.options.map(option => ({ ...option, pname: '' }));
         }
         return availableCores.flatMap(core => section.options.map(option => ({ ...option, pname: core })));
-    }
-
-    private buildSectionDefaults(section: UISection, availableCores: string[]): Record<string, string | Record<string, string>> {
-        const defaults: Record<string, string | Record<string, string>> = {};
-        const options = this.expandPnameOptions(section, availableCores);
-
-        if (section['pname-options'] !== undefined) {
-            if (availableCores.length > 1) {
-                options.forEach(option => {
-                    if (option.default !== undefined) {
-                        const core = option.pname ?? '';
-                        if (!defaults[core]) {
-                            defaults[core] = { pname: core };
-                        }
-                        (defaults[core] as Record<string, string>)[option['yml-node'] as string] = option.default.toString();
-                    }
-                });
-            } else {
-                options.forEach(option => {
-                    if (option.default !== undefined) {
-                        if (!defaults['']) {
-                            defaults[''] = {};
-                        }
-                        (defaults[''] as Record<string, string>)[option['yml-node'] as string] = option.default.toString();
-                    }
-                });
-            }
-            return defaults;
-        }
-
-        options.forEach(option => {
-            if (option.default !== undefined) {
-                defaults[option['yml-node'] as string] = option.default.toString();
-            }
-        });
-        return defaults;
-    }
-
-    /**
-     * Sets a debugger parameter for a specific processor core (`pname`).
-     * @param section Optional debugger section.
-     * @param pname Processor/core name.
-     * @param param Parameter key.
-     * @param value Parameter value.
-     */
-    public async setDebuggerParameterWithPname(section: string | undefined, pname: string, param: string, value: string | number) {
-        if ((await this.getAvailableCoreNames()).length === 0) {
-            const sequence = this.activeTargetSetWrap.ensureDebugger().item
-                ?.createChild(section, true)
-                ?.setKind(ETreeItemKind.Sequence);
-            let child = sequence?.getChildren(true)?.at(0);
-            if (!child) {
-                child = sequence?.createChild('', true);
-            }
-            child?.setValue(param, value as string);
-        } else {
-            const sectionNode = this.activeTargetSetWrap.ensureDebugger().item
-                ?.createChild(section, true)
-                ?.setKind(ETreeItemKind.Sequence);
-            let processorNode = sectionNode?.getChildByValue('pname', pname);
-            if (!processorNode) {
-                processorNode = sectionNode?.createChild('-');
-                processorNode?.setKind(ETreeItemKind.Map).setText(undefined);
-                processorNode?.setValue('pname', pname);
-            }
-            processorNode?.setValue(param, value as string);
-        }
-
     }
 
     /**
