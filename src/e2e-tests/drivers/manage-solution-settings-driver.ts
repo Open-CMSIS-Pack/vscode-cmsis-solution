@@ -63,8 +63,8 @@ export class ManageSolutionSettingsDriver {
         const section = frame.locator('section.debug-adapter').filter({
             has: frame.getByRole('heading', { name: /Debug Adapter for Target/i }),
         });
-        const enabledCheckbox = section.locator('.hasDebugAdapter input[type="checkbox"]');
-        const dropdown = section.locator('.debug-adapter-dropdown');
+        const enabledCheckbox = section.getByRole('checkbox', { name: 'Enable debug adapter' });
+        const dropdown = section.locator('.settings-adapter-choice .compact-dropdown');
         const trigger = dropdown.getByRole('combobox');
 
         if (!(await trigger.textContent())?.includes(adapter)) {
@@ -108,14 +108,14 @@ export class ManageSolutionSettingsDriver {
 
     private getDropdownControl(frame: FrameLocator, addonText: string | RegExp): Locator {
         return frame
-            .locator('.section-control')
+            .locator('.settings-field')
             .filter({ has: frame.locator('.compact-dropdown-addon-before', { hasText: addonText }) })
             .first();
     }
 
     private getInputControl(frame: FrameLocator, addonText: string | RegExp): Locator {
         return frame
-            .locator('.section-control')
+            .locator('.settings-field')
             .filter({ has: frame.locator('.ant-input-group-addon', { hasText: addonText }) })
             .first();
     }
