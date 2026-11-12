@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import type { AdapterSnapshot, SettingsActionRequest, SettingsActionResult } from './settings-contract';
 import { DebugAdapter } from '../../debug/debug-adapters-yaml-file';
 import { FileSelectorOptionsType } from './types';
 import { ActiveTargetSet, SolutionData } from './view/state/manage-solution-state';
@@ -22,7 +23,9 @@ import { ActiveTargetSet, SolutionData } from './view/state/manage-solution-stat
  * Messages that the context selection view can pass to the extension.
  */
 export type OutgoingMessage
-    = { type: 'GET_CONTEXT_SELECTION_DATA' }
+    = { type: 'GET_ADAPTER_SETTINGS' }
+    | { type: 'SETTINGS_ACTION', request: SettingsActionRequest }
+    | { type: 'GET_CONTEXT_SELECTION_DATA' }
     | { type: 'SET_SELECTED_TARGET', target: string, set: string | undefined }
     | { type: 'OPEN_FILE', path: string, external?: boolean }
     | { type: 'SET_SELECTED_CONTEXTS', data: SolutionData }
@@ -49,7 +52,9 @@ export type OutgoingMessage
  * Messages that the extension can pass to the context selection view.
  */
 export type IncomingMessage
-    = { type: 'DATA_CONTEXT_SELECTION', data: SolutionData }
+    = { type: 'ADAPTER_SETTINGS', snapshot: AdapterSnapshot }
+    | { type: 'SETTINGS_ACTION_RESULT', result: SettingsActionResult }
+    | { type: 'DATA_CONTEXT_SELECTION', data: SolutionData }
     | { type: 'DEBUG_ADAPTERS', data: DebugAdapter[], sectionsInUse: string[] }
     | { type: 'DEBUGGER', data: string }
     | { type: 'ACTIVE_TARGET_SET', data: ActiveTargetSet }
