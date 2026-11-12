@@ -18,7 +18,7 @@
 export type SettingsActionId = string;
 export type SettingsChoice = { label: string; value: string; description?: string };
 
-type SettingsFieldBase = {
+export type SettingsFieldBase = {
     id: string;
     label: string;
     description?: string;
@@ -87,4 +87,14 @@ export type SettingsActionResult = {
 /** Encodes full paths as JSON tuples to keep repeated leaf names and delimiter characters collision-free. */
 export function settingsIdentity(path: readonly string[]): string {
     return JSON.stringify(path);
+}
+
+/** Collects every section in display order, including descendants rendered inside content containers. */
+export function settingsSections(sections: SettingsSection[]): SettingsSection[] {
+    return sections.flatMap(section => [section, ...settingsSections(section.children)]);
+}
+
+/** Collects fields across the complete settings tree for host and webview lookups. */
+export function settingsFields(sections: SettingsSection[]): SettingsField[] {
+    return settingsSections(sections).flatMap(section => section.fields);
 }

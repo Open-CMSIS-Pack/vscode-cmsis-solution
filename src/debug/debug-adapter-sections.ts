@@ -18,6 +18,7 @@ import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { CTreeItemWrap } from '@open-cmsis-pack/cmsis-common/tree-item-wrapper';
 import { DebuggerWrap } from '../solutions/files/csolution-wrap';
 import { UISection } from './debug-adapters-yaml-file';
+import { storedOptionDefault } from './debug-adapter-options';
 import { resolveSectionYamlBinding, sectionYamlNodeName } from './section-yaml-binding';
 
 /** Binds a checkbox to a stored value instead of the presence of its section. */
@@ -302,8 +303,8 @@ export class DebugAdapterSections {
     private applyDefaults(branch: DebugAdapterSectionDefinition[]): void {
         const debuggerWrap = this.ensureDebugger();
         branch.at(-1)!.ui.options.forEach(option => {
-            if (option.default !== undefined) {
-                const value = option.type === 'number' ? Number(option.default) * (option.scale ?? 1) : option.default;
+            const value = storedOptionDefault(option);
+            if (value !== undefined) {
                 debuggerWrap.setSectionParameter(this.yamlPath(branch), option['yml-node'], value, option.pname);
             }
         });
