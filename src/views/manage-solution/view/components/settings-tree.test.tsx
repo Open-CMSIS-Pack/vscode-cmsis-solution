@@ -285,7 +285,7 @@ describe('isolated settings fields', () => {
                 { label: 'Beta', value: 'b', description: 'Second mode' },
             ] }}
         onAction={onAction} onEdit={jest.fn()} onFocus={jest.fn()} />);
-        fireEvent.click(screen.getByRole('combobox'));
+        fireEvent.click(screen.getByRole('combobox', { name: 'Choice' }));
         expect(await screen.findByText('First mode')).toHaveClass('search-list-tag');
         const description = screen.getByText('Second mode');
         expect(description).toHaveClass('search-list-tag');

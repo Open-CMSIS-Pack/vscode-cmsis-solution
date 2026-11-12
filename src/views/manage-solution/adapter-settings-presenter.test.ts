@@ -56,6 +56,20 @@ describe('AdapterSettingsPresenter', () => {
         expect(JSON.stringify(snapshot)).not.toContain('private-');
     });
 
+    it.each([{ processors: [] }, { processors: ['CPU0'] }])('keeps single-processor fields unlabelled while retaining their storage assignment for $processors', ({ processors }) => {
+        const presenter = new AdapterSettingsPresenter();
+        const input = context([{
+            section: 'Console', 'yml-node': 'console', 'pname-options': true,
+            options: [{ name: 'Port', 'yml-node': 'port', type: 'number', pname: 'CPU0', default: 3333 }],
+        }], { console: { port: 4444 } });
+        input.processors = processors;
+        const snapshot = presenter.prepare(input);
+        const field = snapshot.sections[0].fields[0];
+        expect(field).toMatchObject({ value: 4444, processor: undefined });
+        expect(presenter.resolve({ contextId: snapshot.contextId, revision: snapshot.revision,
+            requestId: 'edit', actionId: field.editAction!, value: 5555 })).toMatchObject({ option: { pname: 'CPU0' }, value: 5555 });
+    });
+
     it('counts only used dynamic children, hides available children, and inherits disabled state', () => {
         const presenter = new AdapterSettingsPresenter();
         const snapshot = presenter.prepare(context([{
