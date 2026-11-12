@@ -80,7 +80,7 @@ export const SettingsNavigation = ({ sections, activeId, onSelect, onAction, dep
                             id={tabId}
                             aria-label={section.label}
                             className={className}
-                            style={{ paddingLeft: depth * 16 }}
+                            style={{ paddingLeft: depth * 15 }}
                             onClick={() => onSelect(section.id)}
                             onKeyDown={handleNavigationKey}
                         >
