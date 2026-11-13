@@ -25,6 +25,6 @@ export interface Runner<T extends Pick<vscode.TaskDefinition, 'type'> = vscode.T
      * Run the task.
      */
     run(definition: T, onOutput: (line: string) => void, cancellationToken: CancellationToken,
-        dimensions: vscode.TerminalDimensions | undefined): Promise<void>;
+        dimensions: vscode.TerminalDimensions | undefined): Promise<number>;
 
 }

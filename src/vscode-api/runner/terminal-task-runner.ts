@@ -46,15 +46,17 @@ export class TerminalTaskRunner implements vscode.Pseudoterminal {
         this.outputBuffer = [];
 
         try {
-            await this.terminalTask.runner.run(
+            const exitCode = await this.terminalTask.runner.run(
                 this.terminalTask.definition,
                 this.handleTaskOutput.bind(this),
                 this.cancellationTokenSource.token,
                 this.terminalTask.dimensions,
             );
             if (!this.isManuallyTerminated) {
-                this.handleTaskOutput(this.terminalTask.completeMessage);
-                this.closeEmitter.fire(0);
+                if (exitCode === 0) {
+                    this.handleTaskOutput(this.terminalTask.completeMessage);
+                }
+                this.closeEmitter.fire(exitCode >= 0 ? exitCode : 1);
             }
         } catch (error) {
             if (this.isManuallyTerminated) {
