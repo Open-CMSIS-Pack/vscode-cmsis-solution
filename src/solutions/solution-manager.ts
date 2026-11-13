@@ -50,8 +50,8 @@ export const solutionLoadStatesEqual = (a: SolutionLoadState, b: SolutionLoadSta
         && a.activated === b.activated;
 };
 
-export const isAutoConvertOnFileChangeEnabled = (): boolean => vscode.workspace.getConfiguration(manifest.CONFIG_ROOT)
-    .get<boolean>(manifest.CONFIG_AUTO_CONVERT_ON_FILE_CHANGE, true);
+export const isAutoRefreshOnFileChangeEnabled = (): boolean => vscode.workspace.getConfiguration(manifest.CONFIG_ROOT)
+    .get<boolean>(manifest.CONFIG_AUTO_REFRESH_ON_FILE_CHANGE, true);
 
 export interface SolutionLoadStateChangeEvent {
     previousState: SolutionLoadState;
@@ -97,7 +97,7 @@ export class SolutionManagerImpl implements SolutionManager {
 
     private readonly debouncedHandleEnvironmentChange = debounce(this.handleEnvironmentChange.bind(this), 500);
     private readonly debouncedRefreshOnFileChange = debounce((solutionPath: string) => {
-        if (this.loadState.solutionPath === solutionPath && this.loadState.loaded && isAutoConvertOnFileChangeEnabled()) {
+        if (this.loadState.solutionPath === solutionPath && this.loadState.loaded && isAutoRefreshOnFileChangeEnabled()) {
             void this.refresh();
         }
     }, 100);
@@ -203,7 +203,7 @@ export class SolutionManagerImpl implements SolutionManager {
         if (!this.loadState.solutionPath || !this.loadState.loaded) {
             return;
         }
-        if (!isAutoConvertOnFileChangeEnabled() && !this.loadState.dirty) {
+        if (!isAutoRefreshOnFileChangeEnabled() && !this.loadState.dirty) {
             this.setLoadState({ ...this.loadState, dirty: true }, true);
         }
     }
@@ -216,7 +216,7 @@ export class SolutionManagerImpl implements SolutionManager {
         if (isSolutionYmlFile || isUsedDbgconfFile) {
             this.markDirty();
             const solutionPath = this.loadState.solutionPath;
-            if (solutionPath && isAutoConvertOnFileChangeEnabled()) {
+            if (solutionPath && isAutoRefreshOnFileChangeEnabled()) {
                 this.debouncedRefreshOnFileChange(solutionPath);
             }
         }
