@@ -231,7 +231,7 @@ export class SolutionManagerImpl implements SolutionManager {
             return;
         }
         if (await this.loadSolution(false)) { // no update RTE before convert
-            this.requestConvert(true, false, false);
+            await this.requestConvert(true, false, false);
         }
     }
 

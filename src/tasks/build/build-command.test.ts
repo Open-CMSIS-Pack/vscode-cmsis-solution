@@ -21,6 +21,8 @@ import { BuildTaskProvider, BuildTaskProviderImpl } from './build-task-provider'
 import { commandsProviderFactory, MockCommandsProvider } from '../../vscode-api/commands-provider.factories';
 import { MockBuildTaskDefinitionBuilder, buildTaskDefinitionBuilderFactory } from './build-task-definition-builder.factories';
 import { BuildTaskDefinition } from './build-task-definition';
+import { MockSolutionManager, solutionManagerFactory } from '../../solutions/solution-manager.factories';
+import { CONFIG_AUTO_REFRESH_ON_FILE_CHANGE, CONFIG_ROOT } from '../../manifest';
 
 const mockExecuteTask = vscode.tasks.executeTask as jest.Mock;
 const mockShowWarningMessage = vscode.window.showWarningMessage as jest.Mock;
@@ -32,7 +34,9 @@ describe('BuildCommand', () => {
     let commandsProvider: MockCommandsProvider;
     let buildTaskDefinitionBuilder: MockBuildTaskDefinitionBuilder;
     let saveParticipant: jest.Mocked<BuildCommandSaveParticipant>;
+    let solutionManager: MockSolutionManager;
     let taskSaveBeforeRun: 'always' | 'never' | 'prompt';
+    let autoRefreshOnFileChange: boolean | undefined;
 
     const buildTaskDefinition: BuildTaskDefinition = {
         type: BuildTaskProviderImpl.taskType,
@@ -42,6 +46,10 @@ describe('BuildCommand', () => {
 
     beforeEach(async () => {
         commandsProvider = commandsProviderFactory();
+        solutionManager = solutionManagerFactory({
+            loadState: { solutionPath: buildTaskDefinition.solution, loaded: true, converted: true, dirty: false },
+        });
+        solutionManager.refresh.mockResolvedValue(undefined);
         (vscode.tasks as unknown as {
             taskExecutions: vscode.TaskExecution[];
             onDidEndTask: (listener: (event: vscode.TaskEndEvent) => void) => vscode.Disposable;
@@ -64,10 +72,17 @@ describe('BuildCommand', () => {
             saveChangesBeforeBuild: jest.fn().mockResolvedValue(true),
         };
         taskSaveBeforeRun = 'always';
+        autoRefreshOnFileChange = undefined;
         mockGetConfiguration.mockImplementation((section: string) => {
             if (section === 'task') {
                 return {
                     get: jest.fn().mockImplementation((_name: string, defaultValue: string) => taskSaveBeforeRun ?? defaultValue),
+                };
+            }
+            if (section === CONFIG_ROOT) {
+                return {
+                    get: jest.fn((name: string, defaultValue: unknown) => name === CONFIG_AUTO_REFRESH_ON_FILE_CHANGE
+                        ? autoRefreshOnFileChange ?? defaultValue : defaultValue),
                 };
             }
             return { get: jest.fn() };
@@ -81,6 +96,7 @@ describe('BuildCommand', () => {
         mockBuildTaskProvider,
         commandsProvider,
         buildTaskDefinitionBuilder,
+        solutionManager,
         saveParticipant,
     );
 
@@ -93,6 +109,107 @@ describe('BuildCommand', () => {
         expect(commandsProvider.registerCommand).toHaveBeenCalledWith(BuildCommand.buildCommandType, expect.any(Function), buildCommand);
         expect(commandsProvider.registerCommand).toHaveBeenCalledWith(BuildCommand.cleanCommandType, expect.any(Function), buildCommand);
         expect(commandsProvider.registerCommand).toHaveBeenCalledWith(BuildCommand.rebuildCommandType, expect.any(Function), buildCommand);
+    });
+
+    it.each([
+        BuildCommand.buildCommandType,
+        BuildCommand.rebuildCommandType,
+        BuildCommand.cleanCommandType,
+    ])('refreshes files made dirty by saving before starting %s', async command => {
+        autoRefreshOnFileChange = false;
+        saveParticipant.saveChangesBeforeBuild.mockImplementationOnce(async () => {
+            solutionManager.loadState.dirty = true;
+            return true;
+        });
+        solutionManager.refresh.mockImplementationOnce(async () => {
+            solutionManager.loadState.converted = false;
+        });
+        const buildCommand = createBuildCommand();
+        await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+
+        await commandsProvider.mockRunRegistered(command);
+
+        expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
+        expect(saveParticipant.saveChangesBeforeBuild.mock.invocationCallOrder[0])
+            .toBeLessThan(solutionManager.refresh.mock.invocationCallOrder[0]);
+        expect(solutionManager.refresh.mock.invocationCallOrder[0])
+            .toBeLessThan(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode.mock.invocationCallOrder[0]);
+        expect(mockExecuteTask).toHaveBeenCalledTimes(1);
+        expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: false, dirty: true }));
+    });
+
+    it.each([
+        [undefined, true],
+        [true, true],
+        [true, false],
+        [false, false],
+    ])('builds without refreshing with automatic refresh=%s and dirty=%s', async (automatic, dirty) => {
+        autoRefreshOnFileChange = automatic;
+        solutionManager.loadState.dirty = dirty;
+        const buildCommand = createBuildCommand();
+        await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+
+        await commandsProvider.mockRunRegistered(BuildCommand.buildCommandType);
+
+        expect(solutionManager.refresh).not.toHaveBeenCalled();
+        expect(mockExecuteTask).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits for the refresh call before creating the task while conversion remains pending', async () => {
+        autoRefreshOnFileChange = false;
+        solutionManager.loadState.dirty = true;
+        let releaseRefresh!: () => void;
+        const refreshPending = new Promise<void>(resolve => { releaseRefresh = resolve; });
+        let notifyRefreshStarted!: () => void;
+        const refreshStarted = new Promise<void>(resolve => { notifyRefreshStarted = resolve; });
+        solutionManager.refresh.mockImplementationOnce(async () => {
+            solutionManager.loadState.converted = false;
+            notifyRefreshStarted();
+            await refreshPending;
+        });
+        const buildCommand = createBuildCommand();
+        await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+
+        const build = commandsProvider.mockRunRegistered(BuildCommand.buildCommandType);
+        await refreshStarted;
+
+        expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).not.toHaveBeenCalled();
+        expect(mockExecuteTask).not.toHaveBeenCalled();
+        releaseRefresh();
+        await build;
+
+        expect(mockExecuteTask).toHaveBeenCalledTimes(1);
+        expect(solutionManager.loadState.converted).toBe(false);
+    });
+
+    it('does not duplicate a refresh started by saving Software Components changes', async () => {
+        autoRefreshOnFileChange = false;
+        solutionManager.loadState.dirty = true;
+        saveParticipant.saveChangesBeforeBuild.mockImplementationOnce(async () => {
+            solutionManager.loadState.converted = false;
+            return true;
+        });
+        const buildCommand = createBuildCommand();
+        await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+
+        await commandsProvider.mockRunRegistered(BuildCommand.buildCommandType);
+
+        expect(solutionManager.refresh).not.toHaveBeenCalled();
+        expect(mockExecuteTask).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not launch a build when the refresh call rejects', async () => {
+        autoRefreshOnFileChange = false;
+        solutionManager.loadState.dirty = true;
+        const error = new Error('Refresh failed');
+        solutionManager.refresh.mockRejectedValueOnce(error);
+        const buildCommand = createBuildCommand();
+        await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+
+        await expect(commandsProvider.mockRunRegistered(BuildCommand.buildCommandType)).rejects.toThrow(error);
+
+        expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).not.toHaveBeenCalled();
+        expect(mockExecuteTask).not.toHaveBeenCalled();
     });
 
     describe('build command', () => {
@@ -124,6 +241,8 @@ describe('BuildCommand', () => {
 
         it('respects task.saveBeforeRun never and starts build without saving', async () => {
             taskSaveBeforeRun = 'never';
+            autoRefreshOnFileChange = false;
+            solutionManager.loadState.dirty = true;
             const buildCommand = createBuildCommand();
             await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
 
@@ -131,6 +250,7 @@ describe('BuildCommand', () => {
 
             expect(mockSaveAll).not.toHaveBeenCalled();
             expect(saveParticipant.saveChangesBeforeBuild).not.toHaveBeenCalled();
+            expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
             expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).toHaveBeenCalledWith('build', undefined);
             expect(mockExecuteTask).toHaveBeenCalledTimes(1);
         });
@@ -158,6 +278,8 @@ describe('BuildCommand', () => {
 
         it('respects task.saveBeforeRun prompt and starts build without saving when the user chooses Don\'t Save', async () => {
             taskSaveBeforeRun = 'prompt';
+            autoRefreshOnFileChange = false;
+            solutionManager.loadState.dirty = true;
             saveParticipant.isModifiedBeforeBuild.mockResolvedValue(true);
             mockShowWarningMessage.mockResolvedValue({ title: 'Don\'t Save' });
             const buildCommand = createBuildCommand();
@@ -167,12 +289,15 @@ describe('BuildCommand', () => {
 
             expect(mockSaveAll).not.toHaveBeenCalled();
             expect(saveParticipant.saveChangesBeforeBuild).not.toHaveBeenCalled();
+            expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
             expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).toHaveBeenCalledWith('build', undefined);
             expect(mockExecuteTask).toHaveBeenCalledTimes(1);
         });
 
         it('respects task.saveBeforeRun prompt and aborts build when the user chooses Cancel', async () => {
             taskSaveBeforeRun = 'prompt';
+            autoRefreshOnFileChange = false;
+            solutionManager.loadState.dirty = true;
             saveParticipant.isModifiedBeforeBuild.mockResolvedValue(true);
             mockShowWarningMessage.mockResolvedValue({ title: 'Cancel' });
             const buildCommand = createBuildCommand();
@@ -185,10 +310,13 @@ describe('BuildCommand', () => {
             expect(saveParticipant.saveChangesBeforeBuild).not.toHaveBeenCalled();
             expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).not.toHaveBeenCalled();
             expect(mockExecuteTask).not.toHaveBeenCalled();
+            expect(solutionManager.refresh).not.toHaveBeenCalled();
         });
 
         it('respects task.saveBeforeRun prompt and skips prompt when nothing is modified', async () => {
             taskSaveBeforeRun = 'prompt';
+            autoRefreshOnFileChange = false;
+            solutionManager.loadState.dirty = true;
             const buildCommand = createBuildCommand();
             await buildCommand.activate({ subscriptions: [] } as unknown as vscode.ExtensionContext);
 
@@ -204,6 +332,7 @@ describe('BuildCommand', () => {
             );
             expect(mockSaveAll).not.toHaveBeenCalled();
             expect(saveParticipant.saveChangesBeforeBuild).not.toHaveBeenCalled();
+            expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
             expect(mockExecuteTask).toHaveBeenCalledTimes(1);
         });
 
@@ -298,6 +427,8 @@ describe('BuildCommand', () => {
         });
 
         it('aborts build when saving modified editors fails or is cancelled', async () => {
+            autoRefreshOnFileChange = false;
+            solutionManager.loadState.dirty = true;
             mockSaveAll.mockResolvedValue(false);
 
             const buildCommand = createBuildCommand();
@@ -310,10 +441,13 @@ describe('BuildCommand', () => {
             expect(saveParticipant.saveChangesBeforeBuild).not.toHaveBeenCalled();
             expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).not.toHaveBeenCalled();
             expect(mockExecuteTask).not.toHaveBeenCalled();
+            expect(solutionManager.refresh).not.toHaveBeenCalled();
             expect(mockShowWarningMessage).toHaveBeenCalledWith('Build cancelled because modified files could not be saved.');
         });
 
         it('aborts build when Software Components changes cannot be saved', async () => {
+            autoRefreshOnFileChange = false;
+            solutionManager.loadState.dirty = true;
             saveParticipant.saveChangesBeforeBuild.mockResolvedValue(false);
 
             const buildCommand = createBuildCommand();
@@ -326,6 +460,7 @@ describe('BuildCommand', () => {
             expect(saveParticipant.saveChangesBeforeBuild).toHaveBeenCalledTimes(1);
             expect(buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode).not.toHaveBeenCalled();
             expect(mockExecuteTask).not.toHaveBeenCalled();
+            expect(solutionManager.refresh).not.toHaveBeenCalled();
             expect(mockShowWarningMessage).toHaveBeenCalledWith('Build cancelled because Software Components changes could not be saved.');
         });
 
