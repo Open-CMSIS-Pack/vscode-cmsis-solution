@@ -70,7 +70,7 @@ describe('manage-solution-controller', () => {
     const testDataHandler = new TestDataHandler();
     let tmpSolutionDir: string;
     let cmsisJsonFilePath: string;
-    let autoConvertOnFileChange: boolean | undefined;
+    let autoRefreshOnFileChange: boolean | undefined;
 
     beforeAll(async () => {
         tmpSolutionDir = testDataHandler.copyTestDataToTmp('solutions');
@@ -79,9 +79,9 @@ describe('manage-solution-controller', () => {
     });
 
     beforeEach(() => {
-        autoConvertOnFileChange = undefined;
+        autoRefreshOnFileChange = undefined;
         jest.mocked(vscode.workspace.getConfiguration).mockReturnValue({
-            get: jest.fn((_key: string, defaultValue: unknown) => autoConvertOnFileChange ?? defaultValue),
+            get: jest.fn((_key: string, defaultValue: unknown) => autoRefreshOnFileChange ?? defaultValue),
         } as unknown as vscode.WorkspaceConfiguration);
     });
 
@@ -159,7 +159,7 @@ describe('manage-solution-controller', () => {
     });
 
     it('refreshes after a modified solution save in dirty-only mode', async () => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         const controller = new ManageSolutionController();
         const solutionManager = solutionManagerFactory();
         await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'));
@@ -185,7 +185,7 @@ describe('manage-solution-controller', () => {
     });
 
     it('refreshes when only cmsis.json changes in dirty-only mode', async () => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         const controller = new ManageSolutionController();
         const solutionManager = solutionManagerFactory();
         await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'));

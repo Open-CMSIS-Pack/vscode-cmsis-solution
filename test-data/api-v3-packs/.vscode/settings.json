@@ -1,5 +1,5 @@
 {
     "cmsis-csolution.downloadPacks": false,
     "cmsis-csolution.useWebServices": false,
-    "cmsis-csolution.autoConvertOnFileChange": false
+    "cmsis-csolution.autoRefreshOnFileChange": false
 }

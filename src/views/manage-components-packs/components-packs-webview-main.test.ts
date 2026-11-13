@@ -55,13 +55,13 @@ describe('ComponentsPacksWebviewMain', () => {
     let extensionContext: { subscriptions: vscode.Disposable[] };
     let messageProvider: MockMessageProvider;
     let csolutionService: CsolutionService;
-    let autoConvertOnFileChange: boolean | undefined;
+    let autoRefreshOnFileChange: boolean | undefined;
     const usedItemsReturn = { packs: [{ pack: 'ARM::CMSIS@1.0.0', origin: '/tmp/file1.yml' }, { pack: 'Keil::MDK-Middleware@8.0.0', origin: '/tmp/file2.yml' }], components: [{ id: 'CMSIS Driver:I2C' }, { id: 'MDK Middleware Component' }] };
 
     beforeEach(async () => {
-        autoConvertOnFileChange = undefined;
+        autoRefreshOnFileChange = undefined;
         jest.mocked(vscode.workspace.getConfiguration).mockReturnValue({
-            get: jest.fn((_key: string, defaultValue: unknown) => autoConvertOnFileChange ?? defaultValue),
+            get: jest.fn((_key: string, defaultValue: unknown) => autoRefreshOnFileChange ?? defaultValue),
         } as unknown as vscode.WorkspaceConfiguration);
         messageProvider = messageProviderFactory();
 
@@ -618,14 +618,14 @@ describe('ComponentsPacksWebviewMain', () => {
         });
 
         it('refreshes after a tracked project save in dirty-only mode', async () => {
-            autoConvertOnFileChange = false;
+            autoRefreshOnFileChange = false;
 
             expect(await (componentsPacksWebviewMain as any).handleApplyComponentSet()).toBe(true);
             expect(solutionManager.refresh).toHaveBeenCalledTimes(1);
         });
 
         it('refreshes after a pack-only save in dirty-only mode', async () => {
-            autoConvertOnFileChange = false;
+            autoRefreshOnFileChange = false;
             const csolution = solutionManager.getCsolution()!;
             jest.spyOn(csolution.cbuildPackFile, 'save').mockResolvedValue(ETextFileResult.Success);
             jest.spyOn(csolution.cbuildPackFile, 'isModified').mockReturnValue(true);
