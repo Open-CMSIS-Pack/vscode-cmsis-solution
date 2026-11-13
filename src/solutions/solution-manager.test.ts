@@ -839,7 +839,7 @@ describe('SolutionManager', () => {
         await waitTimeout(200);
 
         expect(writeFile).toHaveBeenCalledWith(
-            path.join(path.dirname(testSolutionPath), '.cmsis', 'tools-environment.yml'),
+            path.join(tmpSolutionsDir, '.cmsis', 'tools-environment.yml'),
             expect.any(String),
         );
     });
@@ -868,7 +868,7 @@ describe('SolutionManager', () => {
         try {
             await activateTestSolution();
 
-            expect(captureSpy).toHaveBeenCalledWith(testSolutionPath);
+            expect(captureSpy).toHaveBeenCalledWith(testSolutionPath, expect.any(Function));
             expect(convertMock).toHaveBeenCalledTimes(1);
             expect(consoleErrorSpy).toHaveBeenCalledWith(
                 `Failed to queue tools environment write for '${testSolutionPath}'`,
@@ -947,7 +947,7 @@ describe('SolutionManager', () => {
 
         expect(cbuildSetupRequestedListener).not.toHaveBeenCalled();
         expect(writeFile).toHaveBeenCalledWith(
-            path.join(path.dirname(testSolutionPath), '.cmsis', 'tools-environment.yml'),
+            path.join(tmpSolutionsDir, '.cmsis', 'tools-environment.yml'),
             expect.any(String),
         );
     });

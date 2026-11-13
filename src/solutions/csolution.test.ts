@@ -98,6 +98,7 @@ describe('CSolution', () => {
         it('persists the default target type and named target set selection', async () => {
             const csolution = new CSolution();
             const fullPath = path.join(testDataHandler.tmpDir, 'solutions', 'targetSet', 'TargetSets.csolution.yml');
+            csolution.cmsisJsonFile.solutionPath = fullPath;
             csolution.cmsisJsonFile.unlink();
 
             expect(await csolution.load(fullPath)).toEqual(ETextFileResult.Success);
@@ -118,6 +119,7 @@ describe('CSolution', () => {
         it('does not overwrite cmsis.json when loading it fails', async () => {
             const csolution = new CSolution();
             const fullPath = path.join(testDataHandler.tmpDir, 'solutions', 'simple', 'test.csolution.yml');
+            csolution.cmsisJsonFile.solutionPath = fullPath;
             const invalidSettings = '{ invalid json';
             const settingsFile = new TextFile(csolution.cmsisJsonFile.fileName);
             settingsFile.text = invalidSettings;
@@ -128,11 +130,13 @@ describe('CSolution', () => {
             expect(writeFileSpy).not.toHaveBeenCalled();
             expect(await settingsFile.load()).toBe(ETextFileResult.Success);
             expect(settingsFile.text).toBe(invalidSettings);
+            settingsFile.unlink();
         });
 
         it('returns an error when saving cmsis.json fails', async () => {
             const csolution = new CSolution();
             const fullPath = path.join(testDataHandler.tmpDir, 'solutions', 'simple', 'test.csolution.yml');
+            csolution.cmsisJsonFile.solutionPath = fullPath;
             csolution.cmsisJsonFile.unlink();
             jest.spyOn(csolution.cmsisJsonFile, 'save').mockResolvedValue(ETextFileResult.Error);
 

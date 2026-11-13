@@ -56,8 +56,25 @@ describe('process-manager.ts', () => {
     });
 
     describe('spawn', () => {
+        it('does not spawn when cancelled while waiting for the environment', async () => {
+            let finish!: () => void;
+            const environmentManager = {
+                waitUntilReady: () => new Promise<void>(resolve => { finish = resolve; }),
+                augmentEnv: jest.fn(),
+            };
+            const processManager = new ProcessManagerImpl(environmentManager as never);
+            const token = { isCancellationRequested: false, onCancellationRequested: jest.fn() };
+            const result = processManager.spawn('cbuild', [], {}, jest.fn(), token);
+            expect(spawnMock).not.toHaveBeenCalled();
+            token.isCancellationRequested = true;
+            finish();
+            await expect(result).rejects.toEqual({ code: 130 });
+            expect(environmentManager.augmentEnv).not.toHaveBeenCalled();
+            expect(spawnMock).not.toHaveBeenCalled();
+        });
+
         it.each([false, true])('rejects an already-cancelled request without spawning (usePty: %s)', async (usePty) => {
-            const environmentManager = { augmentEnv: jest.fn() };
+            const environmentManager = { waitUntilReady: jest.fn().mockResolvedValue(undefined), augmentEnv: jest.fn() };
             const processManager = new ProcessManagerImpl(environmentManager as never);
             const cancellationToken = { isCancellationRequested: true, onCancellationRequested: jest.fn() };
 
@@ -70,7 +87,10 @@ describe('process-manager.ts', () => {
         });
 
         it.each(['queued', 'version check'])('releases the toolbox after setup is cancelled during %s', async (cancelDuring) => {
-            const environmentManager = { augmentEnv: jest.fn(() => ({ vars: {} })) };
+            const environmentManager = {
+                waitUntilReady: jest.fn().mockResolvedValue(undefined),
+                augmentEnv: jest.fn(() => ({ vars: {} })),
+            };
             const processManager = new ProcessManagerImpl(environmentManager as never);
             const service = csolutionServiceFactory();
             service.getLogMessages.mockResolvedValue({ success: true });
@@ -136,6 +156,7 @@ describe('process-manager.ts', () => {
             spawnMock.mockReturnValue(childProcess);
 
             const environmentManager = {
+                waitUntilReady: jest.fn().mockResolvedValue(undefined),
                 augmentEnv: jest.fn(() => ({ vars: { AUGMENTED: '1' } })),
             };
 
@@ -144,6 +165,8 @@ describe('process-manager.ts', () => {
             const spawnOptions: ProcessSpawnOptions = { cwd: '.', env: { ORIGINAL: '1' }, filterOutput: true };
 
             const resultPromise = processManager.spawn('tool', ['--flag'], spawnOptions, onOutput);
+
+            await Promise.resolve();
 
             lineCallbacks.get(stdoutStream)?.('stdout line');
             lineCallbacks.get(stderrStream)?.('stderr line');
@@ -191,6 +214,7 @@ describe('process-manager.ts', () => {
             spawnMock.mockReturnValue(childProcess);
 
             const environmentManager = {
+                waitUntilReady: jest.fn().mockResolvedValue(undefined),
                 augmentEnv: jest.fn(() => ({ vars: { AUGMENTED: '1' } })),
             };
             const processManager = new ProcessManagerImpl(environmentManager as never);
@@ -198,6 +222,8 @@ describe('process-manager.ts', () => {
 
             const args = ['run', 'd:\\examples\\csolution examples\\DualCore\\HelloWorld.csolution.yml', '-g', 'MCUXpressoConfig', '-c', 'HelloWorld_cm0plus.Debug+FRDM-K32L3A6'];
             const resultPromise = processManager.spawn('tool', args, { usePty: true }, onOutput, undefined, dimensions);
+
+            await Promise.resolve();
 
             lineCallbacks.get(stdoutStream)?.('output');
             childProcess.emit('close', 0);
@@ -224,6 +250,7 @@ describe('process-manager.ts', () => {
             (pty.spawn as jest.Mock).mockReturnValue(ptyProcess);
 
             const environmentManager = {
+                waitUntilReady: jest.fn().mockResolvedValue(undefined),
                 augmentEnv: jest.fn(() => ({ vars: { AUGMENTED: '1' } })),
             };
             const processManager = new ProcessManagerImpl(environmentManager as never);
@@ -235,6 +262,8 @@ describe('process-manager.ts', () => {
                 { cwd: '.', env: { ORIGINAL: '1' }, usePty: true },
                 onOutput,
             );
+
+            await Promise.resolve();
 
             onData?.('\x1b[?9001h\x1b[?1004houtput chunk');
             onExit?.({ exitCode: 0 });
@@ -265,12 +294,15 @@ describe('process-manager.ts', () => {
             (pty.spawn as jest.Mock).mockReturnValue(ptyProcess);
 
             const environmentManager = {
+                waitUntilReady: jest.fn().mockResolvedValue(undefined),
                 augmentEnv: jest.fn(() => ({ vars: {} })),
             };
             const processManager = new ProcessManagerImpl(environmentManager as never);
             const onOutput = jest.fn();
 
             const resultPromise = processManager.spawn('tool', [], { usePty: true, filterOutput: true }, onOutput);
+
+            await Promise.resolve();
 
             onData?.('\x1b[?90');
             onData?.('01hGenerator output\r\n');

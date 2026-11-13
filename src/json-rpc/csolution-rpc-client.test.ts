@@ -5,6 +5,7 @@
 
 import path from 'path';
 import fs from 'node:fs';
+import { EventEmitter } from 'node:events';
 import * as pathUtils from '../utils/path-utils';
 import * as childProcess from 'node:child_process';
 import * as jsonrpc from 'vscode-jsonrpc/node';
@@ -177,6 +178,7 @@ describe('csolution-rpc-client', () => {
     function createService(envManager?: EnvironmentManager, commandsProvider?: AnyService): AnyService {
         // `constructor(...)` wrapper shape is repo-specific; treat as constructible in tests.
         const mockEnvManager = envManager ?? ({
+            waitUntilReady: jest.fn().mockResolvedValue(undefined),
             augmentEnv: jest.fn().mockReturnValue(new Environment({}))
         } as unknown as EnvironmentManager);
         const mockCommandsProvider = commandsProvider ?? ({
@@ -202,6 +204,11 @@ describe('csolution-rpc-client', () => {
 
         beforeEach(() => {
             service = createService();
+        });
+
+        it('does not launch a process just to shut it down', async () => {
+            await expect(service.shutdown()).resolves.toEqual({ success: true });
+            expect(childProcess.spawn).not.toHaveBeenCalled();
         });
 
         it('returns undefined when no child is running and launch() returns false, and always releases the mutex', async () => {
@@ -459,6 +466,7 @@ describe('csolution-rpc-client', () => {
 
         it('watches both indexes under the RPC environment pack root', () => {
             const environmentManager = {
+                waitUntilReady: jest.fn().mockResolvedValue(undefined),
                 augmentEnv: jest.fn().mockReturnValue(new Environment({ CMSIS_PACK_ROOT: '/configured/packs' })),
             } as unknown as EnvironmentManager;
             service = createService(environmentManager);
@@ -862,6 +870,7 @@ describe('csolution-rpc-client', () => {
             jest.clearAllMocks();
 
             environmentManager = {
+                waitUntilReady: jest.fn().mockResolvedValue(undefined),
                 augmentEnv: jest.fn().mockReturnValue(new Environment({})),
             } as unknown as EnvironmentManager;
 
@@ -913,8 +922,105 @@ describe('csolution-rpc-client', () => {
             };
         }
 
+        it('waits for environment readiness before launching a process', async () => {
+            let finish!: () => void;
+            const ready = new Promise<void>(resolve => { finish = resolve; });
+            jest.mocked(environmentManager.waitUntilReady).mockReturnValue(ready);
+            const service = createService(environmentManager);
+            spawnMock.mockReturnValue(makeChild());
+            createMessageConnectionMock.mockReturnValue(makeConnection());
+            const launching = service.launch();
+            await Promise.resolve();
+            expect(spawnMock).not.toHaveBeenCalled();
+            expect(environmentManager.augmentEnv).not.toHaveBeenCalled();
+            finish();
+            await launching;
+            expect(spawnMock).toHaveBeenCalledTimes(1);
+        });
+
+        it('restarts for changed folder environments and refreshes packs before serving queries', async () => {
+            let folder = 'first';
+            let delaySecond = false;
+            let finishLoading!: (result: LoadPacksResult) => void;
+            let loadingSecond!: () => void;
+            const delayedLoad = new Promise<LoadPacksResult>(resolve => { finishLoading = resolve; });
+            const startedLoading = new Promise<void>(resolve => { loadingSecond = resolve; });
+            jest.mocked(environmentManager.augmentEnv).mockImplementation(() => new Environment({
+                CMSIS_PACK_ROOT: path.resolve(folder, 'packs'),
+                FOLDER_MARKER: folder,
+            }));
+            existsSyncMock.mockReturnValue(false);
+            statSyncMock.mockReturnValue({ mtimeMs: 1 });
+            const watcherClose = jest.fn();
+            jest.spyOn(fs, 'watch').mockReturnValue({ close: watcherClose } as unknown as fs.FSWatcher);
+            const children: EventEmitter[] = [];
+            const requests: string[] = [];
+            spawnMock.mockImplementation(() => {
+                const child = Object.assign(new EventEmitter(), {
+                    pid: children.length + 1, stdin: {}, stdout: {}, stderr: new EventEmitter(),
+                });
+                children.push(child);
+                return child;
+            });
+            createMessageConnectionMock.mockImplementation(() => {
+                const child = children[children.length - 1];
+                const marker = folder;
+                return {
+                    ...makeConnection(),
+                    sendRequest: jest.fn(async (method: string) => {
+                        requests.push(`${marker}:${method}`);
+                        if (method === 'Shutdown') {
+                            queueMicrotask(() => child.emit('exit', 0));
+                        }
+                        if (marker === 'second' && method === 'LoadPacks' && delaySecond) {
+                            loadingSecond();
+                            return delayedLoad;
+                        }
+                        return { success: true, version: marker, packs: [marker] };
+                    }),
+                };
+            });
+            const service = createService(environmentManager);
+            const args = { context: '', all: true };
+            await expect(service.getPacksInfo(args)).resolves.toMatchObject({ packs: ['first'] });
+            await service.getVersion();
+            expect(spawnMock).toHaveBeenCalledTimes(1);
+
+            folder = 'second';
+            await expect(service.getPacksInfo(args)).resolves.toMatchObject({ packs: ['second'] });
+            expect(requests).toEqual([
+                'first:GetVersion', 'first:LoadPacks', 'first:GetPacksInfo', 'first:Shutdown',
+                'second:GetVersion', 'second:LoadPacks', 'second:GetPacksInfo',
+            ]);
+            expect(spawnMock.mock.calls[1][2].env.FOLDER_MARKER).toBe('second');
+            expect(watcherClose).toHaveBeenCalledTimes(2);
+            expect(fs.watch).toHaveBeenCalledWith(path.resolve('second', 'packs', 'pack.idx'), expect.any(Function));
+            await expect(service.getVersion()).resolves.toMatchObject({ version: 'second' });
+
+            // A late close from the old child must not dispose the replacement connection.
+            children[0].emit('close', 0);
+            await service.getPacksInfo(args);
+            expect(spawnMock).toHaveBeenCalledTimes(2);
+
+            folder = 'first';
+            await expect(service.getPacksInfo(args)).resolves.toMatchObject({ packs: ['first'] });
+            expect(spawnMock).toHaveBeenCalledTimes(3);
+
+            // Switching again during initialization must not serve the intermediate catalog.
+            delaySecond = true;
+            folder = 'second';
+            const querying = service.getPacksInfo(args);
+            await startedLoading;
+            folder = 'first';
+            finishLoading({ success: true });
+            await expect(querying).resolves.toMatchObject({ packs: ['first'] });
+            expect(spawnMock).toHaveBeenCalledTimes(5);
+            await service.dispose();
+        });
+
         it('spawns csolution from CMSIS Toolbox installation directory when present and wires up the json-rpc connection', async () => {
             environmentManager = {
+                waitUntilReady: jest.fn().mockResolvedValue(undefined),
                 augmentEnv: jest.fn().mockReturnValue(new Environment({ CSOLUTION_ARGS: 'a, b' })),
             } as unknown as EnvironmentManager;
 
@@ -973,6 +1079,7 @@ describe('csolution-rpc-client', () => {
 
         it('uses CMSIS_SOLUTION_TOOLBOX when set (overrides CMSIS Toolbox path)', async () => {
             environmentManager = {
+                waitUntilReady: jest.fn().mockResolvedValue(undefined),
                 augmentEnv: jest.fn().mockReturnValue(new Environment({
                     CMSIS_SOLUTION_TOOLBOX: path.join(mockExtensionPath, 'custom'),
                     CSOLUTION_ARGS: 'x'
@@ -1002,6 +1109,7 @@ describe('csolution-rpc-client', () => {
 
         it('waits for activation before using csolution from PATH', async () => {
             environmentManager = {
+                waitUntilReady: jest.fn().mockResolvedValue(undefined),
                 augmentEnv: jest.fn().mockReturnValue(new Environment({
                     PATH: '/after-activation',
                     CSOLUTION_ARGS: 'after',

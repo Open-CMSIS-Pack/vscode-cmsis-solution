@@ -35,8 +35,10 @@ Paths use forward slashes on every platform.
 The extension reads `activeSolution` as the default solution when a workspace
 has no valid persisted selection. A persisted user selection or explicit
 deactivation in VS Code workspace storage takes precedence. In a multi-root
-workspace, the extension reads `.vscode/cmsis.json` from the first workspace
-folder. `activeTarget` mirrors the current state for people and external tools;
+workspace, each solution uses `.vscode/cmsis.json` in its owning workspace
+folder. When no selection is persisted, workspace folders are checked in order
+for a valid `activeSolution` belonging to that folder. `activeTarget` mirrors
+the current state for people and external tools;
 target selection is restored from `targetSet`.
 
 ### Persisted Target Selection

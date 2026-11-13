@@ -93,6 +93,46 @@ describe('WorkspaceSettingsService', () => {
         });
     });
 
+    it('keeps state and solution keys independent when switching workspace folders', async () => {
+        const firstFolder = path.join(testDir, 'first');
+        const secondFolder = path.join(testDir, 'second');
+        jest.mocked(vscodeUtils.getWorkspaceFolder).mockImplementation(solutionPath =>
+            solutionPath?.startsWith(secondFolder) ? secondFolder : firstFolder);
+        const settings = new CmsisSettingsJsonFile();
+        const firstSolution = path.join(firstFolder, 'solutions', 'App.csolution.yml');
+        const secondSolution = path.join(secondFolder, 'solutions', 'App.csolution.yml');
+        try {
+            settings.solutionPath = firstSolution;
+            settings.activeTargetTypeName = 'FirstTarget';
+            settings.setActiveSolution();
+            expect(await settings.save()).toBe(ETextFileResult.Success);
+
+            settings.solutionPath = secondSolution;
+            expect(settings.fileName).toBe(path.join(secondFolder, '.vscode', 'cmsis.json'));
+            expect(settings.solutionDisplayName).toBe('solutions/App');
+            expect(settings.activeTargetTypeName).toBeUndefined();
+            settings.activeTargetTypeName = 'SecondTarget';
+            settings.setActiveSolution();
+            expect(await settings.save()).toBe(ETextFileResult.Success);
+
+            settings.solutionPath = firstSolution;
+            expect(await settings.load()).toBe(ETextFileResult.Success);
+            expect(settings.activeTargetTypeName).toBe('FirstTarget');
+            expect(settings.get('activeSolution')).toBe('../solutions/App.csolution.yml');
+            settings.solutionPath = secondSolution;
+            expect(await settings.load()).toBe(ETextFileResult.Success);
+            expect(settings.activeTargetTypeName).toBe('SecondTarget');
+        } finally {
+            jest.mocked(vscodeUtils.getWorkspaceFolder).mockReturnValue(testDir);
+        }
+    });
+
+    it('preserves an explicitly supplied settings path for a solution in another folder', () => {
+        cmsisJson.solutionPath = path.join(testDir, 'other', 'App.csolution.yml');
+
+        expect(cmsisJson.fileName).toBe(testFilePath);
+    });
+
     it('validates persisted target selections against the CMSIS settings schema', () => {
         cmsisJson.setSettings({
             activeSolution: '../solutions/MySolution.csolution.yml',

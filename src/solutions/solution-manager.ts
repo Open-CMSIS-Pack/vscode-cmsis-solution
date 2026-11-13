@@ -190,6 +190,10 @@ export class SolutionManagerImpl implements SolutionManager {
 
         if (solutionPath) {
             this.setLoadState(newState, false);
+            await this.environmentManager.waitUntilReady();
+            if (solutionPath !== this.activeSolutionTracker.activeSolution) {
+                return;
+            }
             if (await this.loadSolution(true)) { // first load, read RPC data for fast update of the views
                 // trigger solution convert without RTE update
                 this.requestConvert(false, false, true);
@@ -253,7 +257,9 @@ export class SolutionManagerImpl implements SolutionManager {
         this.setLoadState(newState, true);
 
         const solutionPath = this.csolution.solutionPath;
-        void this.toolsEnvironment.captureAndQueueWrite(solutionPath).catch(error => {
+        void this.toolsEnvironment.captureAndQueueWrite(
+            solutionPath, () => solutionPath === this.activeSolutionTracker.activeSolution,
+        ).catch(error => {
             console.error(`Failed to queue tools environment write for '${solutionPath}'`, error);
         });
         this.eventHub.fireConvertRequest({

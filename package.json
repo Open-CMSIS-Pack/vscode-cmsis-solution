@@ -1572,7 +1572,8 @@
             }
           },
           "default": {},
-          "markdownDescription": "Specify additional environment variables to be set for build, run, and terminals."
+          "markdownDescription": "Specify additional environment variables to be set for build, run, and terminals.",
+          "scope": "resource"
         },
         "cmsis-csolution.buildOutputVerbosity": {
           "type": "string",

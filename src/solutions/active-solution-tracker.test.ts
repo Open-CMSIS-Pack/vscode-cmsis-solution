@@ -294,7 +294,7 @@ describe('ActiveSolutionTracker', () => {
         expect(activeSolutionTracker.activeSolution).toBe(SOLUTION_URI_DEFAULT.fsPath);
     });
 
-    it('reads cmsis.json from the first workspace folder', async () => {
+    it('uses the first valid folder-local default in workspace order', async () => {
         const firstWorkspaceFolder = { uri: URI.file(path.join(WORKSPACE_PATH, 'workspace-1')), name: 'Workspace Folder 1', index: 0 } as WorkspaceFolder;
         const secondWorkspaceFolder = { uri: URI.file(path.join(WORKSPACE_PATH, 'workspace-2')), name: 'Workspace Folder 2', index: 1 } as WorkspaceFolder;
         const firstSolution = URI.file(path.join(firstWorkspaceFolder.uri.fsPath, 'First.csolution.yml'));
@@ -317,6 +317,35 @@ describe('ActiveSolutionTracker', () => {
         expect(loadCmsisJson).toHaveBeenCalledTimes(1);
         expect(cmsisJsonPath).toBe(path.join(firstWorkspaceFolder.uri.fsPath, '.vscode', 'cmsis.json'));
         expect(activeSolutionTracker.activeSolution).toBe(firstSolution.fsPath);
+    });
+
+    it.each(['missing', 'error', 'stale', 'other folder'])('uses a later folder default when the first is %s', async firstDefault => {
+        const firstFolder = { uri: URI.file(path.join(WORKSPACE_PATH, 'first')), name: 'First', index: 0 };
+        const secondFolder = { uri: URI.file(path.join(WORKSPACE_PATH, 'second')), name: 'Second', index: 1 };
+        const firstSolution = URI.file(path.join(firstFolder.uri.fsPath, 'First.csolution.yml'));
+        const secondSolution = URI.file(path.join(secondFolder.uri.fsPath, 'nested', 'Second.csolution.yml'));
+        workspaceFoldersProvider.updateWorkspaceFolders([firstFolder, secondFolder]);
+        workspaceFoldersProvider.findFiles
+            .mockResolvedValueOnce([firstSolution])
+            .mockResolvedValueOnce([secondSolution]);
+        const firstSettings = path.join(firstFolder.uri.fsPath, '.vscode', 'cmsis.json');
+        jest.spyOn(CmsisSettingsJsonFile.prototype, 'exists').mockImplementation(function (this: CmsisSettingsJsonFile) {
+            return this.fileName !== firstSettings || firstDefault !== 'missing';
+        });
+        jest.spyOn(CmsisSettingsJsonFile.prototype, 'load').mockImplementation(async function (this: CmsisSettingsJsonFile) {
+            return this.fileName === firstSettings && firstDefault === 'error'
+                ? ETextFileResult.Error : ETextFileResult.Success;
+        });
+        jest.spyOn(CmsisSettingsJsonFile.prototype, 'get').mockImplementation(function (this: CmsisSettingsJsonFile) {
+            return this.fileName === firstSettings
+                ? (firstDefault === 'other folder' ? '../../second/nested/Second.csolution.yml' : '../stale.csolution.yml')
+                : '../nested/Second.csolution.yml';
+        });
+
+        activeSolutionTracker.activate(context as unknown as vscode.ExtensionContext);
+        await waitForEvent(activeSolutionTracker.onDidChangeActiveSolution, undefined, 200);
+
+        expect(activeSolutionTracker.activeSolution).toBe(secondSolution.fsPath);
     });
 
     it('uses the existing root solution when cmsis.json cannot be loaded', async () => {
