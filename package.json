@@ -113,7 +113,7 @@
     "semver": "^7.7.4",
     "tcp-port-used": "^1.0.2",
     "tmp": "^0.2.5",
-    "vscode-jsonrpc": "^8.2.1",
+    "vscode-jsonrpc": "^9.0.3",
     "vscode-messenger": "~0.6.0",
     "vscode-messenger-common": "~0.6.0",
     "vscode-messenger-webview": "~0.6.0",
