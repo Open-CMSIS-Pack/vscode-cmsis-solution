@@ -239,7 +239,7 @@
     },
     {
         "name": "glob",
-        "version": "13.0.6",
+        "version": "14.0.2",
         "spdx": "BlueOak-1.0.0",
         "url": "https://github.com/isaacs/node-glob",
         "license": "https://github.com/isaacs/node-glob/blob/main/LICENSE.md"
