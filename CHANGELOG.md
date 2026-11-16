@@ -2,19 +2,18 @@
 
 ## 1.74.0
 
-- Updates:
-  - Added access to Cortex-M42 architecture documentation from the **CMSIS-View**.
-  - Added API V3 getPacks support to discover and filter available, installed, used and missing packs, including version requirements and source references for missing packs.
-  - Added the `build-commands` option to `cmsis-csolution.buildOutputVerbosity` to show the commands executed during a build.
-  - Introduced API V3 for extension integrations to manage solutions and targets, install packs, convert solutions and discover tools, debuggers and toolchains.
-  - Added document management in the **CMSIS-View** to add, remove, download and import documents, with overwrite confirmations and badges showing locations and errors.
-  - Added Arm architecture, core, debug and NPU manuals for the selected target, with shared downloads to avoid duplicate PDF files.
-  - Added a **Trace** section to **Manage Solution** for configuring Serial Wire and Trace Buffer capture, including the input clock and protocol compatibility checks.
-  - Added cmsis-csolution.autoRefreshOnFileChange to control automatic build information refresh, with indicators in the CMSIS-View when manual refresh is needed. This replaces cmsis-csolution.autoConvertOnFileChange.
-  - Added graceful stopping of pyOCD tasks using Stop or Ctrl+C, ensuring proper debugger cleanup and preventing Run from starting when Load is cancelled.
-  - Added descriptions to the workspace solution picker to make solutions easier to identify.
-  - Added **What's New** to the **CMSIS-View** menu for access to release notes.
-  - Added pack information to identify the source of examples retrieved from web services.
+- Updates: 
+  - Cortex-M42 architecture documentation is now accessible from the **CMSIS-View**.
+  - The new `build-commands` option in `cmsis-csolution.buildOutputVerbosity` displays commands executed during a build.
+  - Introduced API V3 for extension integrations to manage solutions and targets, convert solutions, install and query packs, and discover tools, debuggers and toolchains, including support for filtering available, installed, used and missing packs through `getPacks`.
+  - Document management in the **CMSIS-View** now supports adding, removing, downloading and importing documents, with overwrite confirmations and indicators for document locations and errors.
+  - Arm architecture, core, debug and NPU manuals are now available for the selected target, with shared downloads to avoid duplicate PDF files.
+  - A new **Trace** section in **Manage Solution** provides configuration options for Serial Wire and Trace Buffer capture, including input clock settings and protocol compatibility checks.
+  - The new `cmsis-csolution.autoRefreshOnFileChange` setting controls automatic build information refresh, with indicators in the **CMSIS-View** when manual refresh is needed.
+  - CMSIS Load & Run pyOCD tasks can now be stopped gracefully using Stop or Ctrl+C, ensuring proper debugger cleanup and preventing Run from starting when Load is cancelled.
+  - Solution descriptions are now displayed in the workspace solution picker to make solutions easier to identify.
+  - The **What's New** option in the **CMSIS-View** menu provides access to release notes.
+  - Source pack information is now available for examples retrieved from web services.
   - Improved portability of clangd settings when moving or sharing a workspace by using workspace-relative compilation database paths.
 
 - Solved issues: 
