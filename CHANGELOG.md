@@ -1,6 +1,6 @@
 # Change Log
 
-## Unreleased
+## 1.74.0
 
 - Updates:
   - Added access to Cortex-M42 architecture documentation from the **CMSIS-View**.
