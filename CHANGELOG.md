@@ -2,10 +2,32 @@
 
 ## Unreleased
 
-- Added Cortex-M42 architecture documentation lookup.
+- Updates:
+  - Added access to Cortex-M42 architecture documentation from the **CMSIS-View**.
+  - Added API V3 getPacks support to discover and filter available, installed, used and missing packs, including version requirements and source references for missing packs.
+  - Added the `build-commands` option to `cmsis-csolution.buildOutputVerbosity` to show the commands executed during a build.
+  - Introduced API V3 for extension integrations to manage solutions and targets, install packs, convert solutions and discover tools, debuggers and toolchains.
+  - Added document management in the **CMSIS-View** to add, remove, download and import documents, with overwrite confirmations and badges showing locations and errors.
+  - Added Arm architecture, core, debug and NPU manuals for the selected target, with shared downloads to avoid duplicate PDF files.
+  - Added a **Trace** section to **Manage Solution** for configuring Serial Wire and Trace Buffer capture, including the input clock and protocol compatibility checks.
+  - Added cmsis-csolution.autoRefreshOnFileChange to control automatic build information refresh, with indicators in the CMSIS-View when manual refresh is needed. This replaces cmsis-csolution.autoConvertOnFileChange.
+  - Added graceful stopping of pyOCD tasks using Stop or Ctrl+C, ensuring proper debugger cleanup and preventing Run from starting when Load is cancelled.
+  - Added descriptions to the workspace solution picker to make solutions easier to identify.
+  - Added **What's New** to the **CMSIS-View** menu for access to release notes.
+  - Added pack information to identify the source of examples retrieved from web services.
+  - Improved portability of clangd settings when moving or sharing a workspace by using workspace-relative compilation database paths.
 
-- Added V3 `getPacks` catalogs from the local pack index and installed RPC packs, plus read-only used/missing pack discovery in an explicit loaded-solution context. Missing references retain their original requirements and origins. Added text filtering across all/installed/used/missing scopes.
-- Added `build-commands` to the `cmsis-csolution.buildOutputVerbosity` setting to show command invocations during build process.
+- Solved issues: 
+  - Build, rebuild and clean commands now refresh outdated build information before running when automatic refresh is disabled.
+  - Build failures are now correctly reported in the task terminal.
+  - Cancelling `cbuild setup` no longer blocks subsequent solution operations.
+  - Managed pyOCD tasks now respect configured commands and task templates, with improved executable discovery on Windows.
+  - **Create Solution** now opens the correct solution when an example or template contains a solution file in a subfolder.
+  - **Configuration Wizard** selections now stay synchronized with the source editor without interrupting keyboard focus.
+  - **Run Generator** actions now use the context of the selected component or diagnostic.
+  - **Manage Solution** now shows the available processor cores when the device is supplied by the build-run configuration.
+  - **Merge View** now opens correctly even when required RTE update files are initially missing.
+  - Generator input files no longer appear as project source files in the **CMSIS-View**.
 
 ## 1.72.0
 
