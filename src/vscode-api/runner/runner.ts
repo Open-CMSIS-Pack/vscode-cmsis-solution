@@ -22,9 +22,10 @@ export type { CancellationToken } from 'vscode';
 export interface Runner<T extends Pick<vscode.TaskDefinition, 'type'> = vscode.TaskDefinition> {
 
     /**
-     * Run the task.
+     * Run the task. Notify onCancelledBeforeStart when cancellation prevents execution.
      */
     run(definition: T, onOutput: (line: string) => void, cancellationToken: CancellationToken,
-        dimensions: vscode.TerminalDimensions | undefined, onSkipped?: () => void): Promise<number>;
+        dimensions: vscode.TerminalDimensions | undefined, onSkipped?: () => void,
+        onCancelledBeforeStart?: () => void): Promise<number>;
 
 }

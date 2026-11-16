@@ -122,6 +122,28 @@ describe('BuildOperation', () => {
         expect(output).not.toHaveBeenCalled();
     });
 
+    it('omits the exit code when cancellation prevents execution', async () => {
+        const completion = deferred<number>();
+        runner.run.mockImplementation(async (_definition, _output, _token, _dimensions, _onSkipped, onCancelledBeforeStart) => {
+            await completion.promise;
+            onCancelledBeforeStart?.();
+            return 130;
+        });
+        const operation = submit();
+        await started.promise;
+        operation.cancel();
+        completion.resolve(130);
+        await expect(operation.result).resolves.toEqual({ status: 'cancelled', exitCode: undefined, logFile: expect.anything() });
+    });
+
+    it('retains multibyte output without treating byte length as a short write', async () => {
+        const text = '编译完成 ✅\r\n';
+        runner.run.mockImplementation(async (_definition, output) => { output(text); return 0; });
+        const result = await submit().result;
+        expect(result.status).toBe('success');
+        expect(readFileSync(result.logFile.fsPath, 'utf8')).toBe(text);
+    });
+
     it('retains large output without truncation', async () => {
         const chunk = 'compiler output\r\n'.repeat(4096);
         runner.run.mockImplementation(async (_definition, output) => {
@@ -194,6 +216,21 @@ describe('BuildOperation', () => {
         });
         await expect(submit().result).rejects.toThrow('disk full');
         await expect(run).rejects.toThrow('disk full');
+    });
+
+    it('rejects short log writes and requests cancellation without publishing incomplete output', async () => {
+        jest.mocked(fs.writeSync).mockReturnValueOnce(1);
+        runner.run.mockImplementation(async (_definition, output, token) => {
+            expect(() => output('compiler output')).not.toThrow();
+            expect(token.isCancellationRequested).toBe(true);
+            return 130;
+        });
+        const operation = submit();
+        const output = jest.fn();
+        operation.onOutput(output);
+        await expect(operation.result).rejects.toThrow('Incomplete build log write');
+        await expect(run).rejects.toThrow('Incomplete build log write');
+        expect(output).not.toHaveBeenCalled();
     });
 
     it('rejects task submission failure', async () => {

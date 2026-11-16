@@ -99,13 +99,14 @@ export class ProcessManagerImpl implements ProcessManager {
                     ptyProcess.write('\x03');
                     killTimer = setTimeout(() => ptyProcess.kill(), 500);
                 });
-                ptyProcess.onExit(({ exitCode }) => {
+                ptyProcess.onExit(({ exitCode, signal }) => {
                     clearTimeout(killTimer);
                     cancellation?.dispose();
-                    if (exitCode === 0) {
+                    const code = signal ? (cancellationToken?.isCancellationRequested ? 130 : 128 + signal) : exitCode;
+                    if (code === 0) {
                         resolve({ code: 0 });
                     } else {
-                        reject({ code: exitCode });
+                        reject({ code });
                     }
                 });
 

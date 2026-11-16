@@ -110,9 +110,12 @@ export class BuildRunner implements Runner {
     ) {}
 
     public async run(definition: BuildTaskDefinition, onOutput: (line: string) => void, cancellationToken: CancellationToken,
-        dimensions?: TerminalDimensions, onSkipped?: () => void): Promise<number> {
+        dimensions?: TerminalDimensions, onSkipped?: () => void, onCancelledBeforeStart?: () => void): Promise<number> {
         const args = cbuildArgsFromTaskDefinition(definition);
-        const [exitCode] = await this.cmsisToolboxManager.runCmsisTool('cbuild', args, onOutput, cancellationToken, dimensions, true, { emitExecuteLine: false, ...(definition.operationId ? { rejectOnError: true, onSkipped } : {}) });
+        const [exitCode, toolCmd] = await this.cmsisToolboxManager.runCmsisTool('cbuild', args, onOutput, cancellationToken, dimensions, true, { emitExecuteLine: false, ...(definition.operationId ? { rejectOnError: true, onSkipped } : {}) });
+        if (exitCode === 130 && toolCmd === undefined) {
+            onCancelledBeforeStart?.();
+        }
         return exitCode;
     }
 }

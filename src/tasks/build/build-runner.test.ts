@@ -200,6 +200,25 @@ describe('BuildRunner', () => {
             await first;
         });
 
+        it('forwards cancellation before execution while preserving the terminal exit code', async () => {
+            let release!: (result: { code: number }) => void;
+            mockProcessManager.spawn.mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
+            const blocker = cmsisToolboxManager.runCmsisTool('cpackget', ['blocker'], jest.fn());
+            const token = cancellationTokenFactory();
+            const onCancelledBeforeStart = jest.fn();
+            const runner = new BuildRunner(cmsisToolboxManager);
+            const queued = runner.run(
+                { type: 'some-task', solution: 'some-solution', operationId: 'managed' },
+                jest.fn(), token.token, undefined, undefined, onCancelledBeforeStart,
+            );
+            token.cancel();
+            await expect(queued).resolves.toBe(130);
+            expect(onCancelledBeforeStart).toHaveBeenCalledTimes(1);
+            expect(mockProcessManager.spawn.mock.calls.some(call => call[1].includes('some-solution'))).toBe(false);
+            release({ code: 0 });
+            await blocker;
+        });
+
         it('returns the cbuild exit code', async () => {
             jest.spyOn(cmsisToolboxManager, 'runCmsisTool').mockResolvedValue([7, 'cbuild']);
             const desktopBuildRunner = new BuildRunner(cmsisToolboxManager);

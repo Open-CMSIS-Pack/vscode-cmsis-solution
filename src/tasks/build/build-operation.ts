@@ -113,11 +113,14 @@ export class BuildOperation implements CsolutionApiV3.BuildOperation {
                 }
                 let outputError: unknown;
                 let skipped = false;
+                let cancelledBeforeStart = false;
                 try {
                     const exitCode = await runner.run(definition, text => {
                         if (!this.completed && !outputError) {
                             try {
-                                writeSync(this.log!, text, undefined, 'utf8');
+                                if (writeSync(this.log!, text, undefined, 'utf8') !== Buffer.byteLength(text, 'utf8')) {
+                                    throw new Error('Incomplete build log write');
+                                }
                                 this.output.fire({ sequence: ++this.sequence, timestamp: Date.now(), text, stream: 'combined' });
                             } catch (error) {
                                 outputError = error;
@@ -125,13 +128,13 @@ export class BuildOperation implements CsolutionApiV3.BuildOperation {
                             }
                         }
                         onOutput(text);
-                    }, this.cancellation.token, dimensions, () => { skipped = true; });
+                    }, this.cancellation.token, dimensions, () => { skipped = true; }, () => { cancelledBeforeStart = true; });
                     if (outputError) {
                         throw outputError;
                     }
                     this.finish({
                         status: skipped ? 'skipped' : exitCode === 0 ? 'success' : this.cancellation.token.isCancellationRequested && exitCode === 130 ? 'cancelled' : 'failed',
-                        exitCode: !skipped && exitCode >= 0 ? exitCode : undefined,
+                        exitCode: !skipped && !cancelledBeforeStart && exitCode >= 0 ? exitCode : undefined,
                         logFile: this.logFile,
                     });
                     return exitCode;

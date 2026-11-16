@@ -221,6 +221,55 @@ describe('process-manager.ts', () => {
             expect(onOutput).toHaveBeenCalledWith('output\r\n');
         });
 
+        it.each([
+            { cancel: false, force: false, exitCode: 0, signal: 2, code: 130 },
+            { cancel: false, force: false, exitCode: 0, signal: 15, code: 143 },
+            { cancel: true, force: false, exitCode: 0, signal: 2, code: 130 },
+            { cancel: true, force: true, exitCode: 0, signal: 9, code: 130 },
+            { cancel: true, force: false, exitCode: 0, signal: 0, code: 0 },
+        ])('handles PTY termination ($cancel, $force, $signal)', async ({ cancel, force, exitCode, signal, code }) => {
+            jest.useFakeTimers();
+            try {
+                Object.defineProperty(process, 'platform', { value: 'linux' });
+                let onExit!: (event: { exitCode: number; signal: number }) => void;
+                let onCancel!: () => void;
+                const dispose = jest.fn();
+                const ptyProcess = {
+                    onData: jest.fn(),
+                    onExit: jest.fn(callback => { onExit = callback; }),
+                    write: jest.fn(),
+                    kill: jest.fn(),
+                };
+                jest.mocked(pty.spawn).mockReturnValue(ptyProcess as unknown as pty.IPty);
+                const token = {
+                    isCancellationRequested: false,
+                    onCancellationRequested: jest.fn(callback => { onCancel = callback; return { dispose }; }),
+                };
+                const manager = new ProcessManagerImpl({ augmentEnv: () => ({ vars: {} }) } as never);
+                const result = manager.spawn('tool', [], {}, jest.fn(), token, { columns: 80, rows: 24 });
+                if (cancel) {
+                    token.isCancellationRequested = true;
+                    onCancel();
+                    expect(ptyProcess.write).toHaveBeenCalledWith('\x03');
+                }
+                if (force) {
+                    jest.advanceTimersByTime(500);
+                    expect(ptyProcess.kill).toHaveBeenCalledTimes(1);
+                }
+                onExit({ exitCode, signal });
+                if (code === 0) {
+                    await expect(result).resolves.toEqual({ code });
+                } else {
+                    await expect(result).rejects.toEqual({ code });
+                }
+                jest.runOnlyPendingTimers();
+                expect(ptyProcess.kill).toHaveBeenCalledTimes(force ? 1 : 0);
+                expect(dispose).toHaveBeenCalledTimes(1);
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
         it('uses PTY with default dimensions when not debugging on Windows', async () => {
             Object.defineProperty(process, 'platform', { value: 'win32' });
 
