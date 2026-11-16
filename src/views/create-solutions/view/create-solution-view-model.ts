@@ -100,7 +100,7 @@ export class CreateSolutionViewModel {
 
     private createSnapshot(): CreateSolutionViewModelSnapshot {
         const validationErrors = validate(this.state, this.state.solutionExists, false);
-        const templateOptions = hardwareTemplateOptions(this.state.deviceSelection.value, this.state.datamanagerApps);
+        const templateOptions = hardwareTemplateOptions(this.state.deviceSelection.value);
         const exampleEntries: Array<TreeViewCategory<string>> = [];
         if (templateOptions.length) {
             exampleEntries.push({
@@ -217,7 +217,7 @@ export class CreateSolutionViewModel {
     public selectExample(value: string): void {
         if (value.startsWith(TEMPLATE_PREFIX)) {
             const templateName = value.slice(TEMPLATE_PREFIX.length);
-            const template = hardwareTemplateOptions(this.state.deviceSelection.value, this.state.datamanagerApps)
+            const template = hardwareTemplateOptions(this.state.deviceSelection.value)
                 .find(candidate => candidate.name === templateName);
             if (template) {
                 this.dispatch({ type: 'SET_SELECTED_TEMPLATE', template: { type: 'template', value: template } });
