@@ -101,6 +101,41 @@ describe('CreateSolutionViewModel', () => {
         }));
     });
 
+    it.each([false, true])('keeps compatible built-in templates selectable alongside pack templates (TrustZone: %s)', (supportsTrustZone) => {
+        const device = deviceHardwareOptionFactory({
+            processors: [{ name: '', core: 'Cortex-M33', supportsTrustZone }],
+        });
+        viewModel.dispatch({ type: 'SET_DEVICE_SELECTION', deviceSelection: device });
+        const draftsRequest = getLastRequest('DATA_GET_DATAMANAGER_APPS');
+        const packTemplates = {
+            header: 'Local',
+            categories: [{ header: 'Templates', categories: [], items: [{ label: 'Pack template', value: 'pack-template' }] }],
+            items: [],
+        };
+        messageHandler.postWindowMessage({
+            type: 'DATAMANAGER_APPS_DATA',
+            requestId: draftsRequest.requestId,
+            data: [packTemplates],
+        });
+
+        const templateNames = supportsTrustZone ? ['Blank solution', 'TrustZone solution'] : ['Blank solution'];
+        const entries = viewModel.getSnapshot().exampleEntries;
+        expect(entries.map(category => category.header)).toEqual(['Templates', 'Local']);
+        expect(entries[0].items.map(item => item.label)).toEqual(templateNames);
+        expect(entries[1]).toEqual(packTemplates);
+
+        for (const name of templateNames) {
+            viewModel.selectExample(`template::${name}`);
+            const snapshot = viewModel.getSnapshot();
+            expect(snapshot.state.selectedTemplate.value).toEqual({
+                type: 'template', value: expect.objectContaining({ name }),
+            });
+            expect(snapshot.projectRows.map(row => row.project.value.trustzone)).toEqual(
+                name === 'TrustZone solution' ? ['secure', 'non-secure'] : ['off'],
+            );
+        }
+    });
+
     it('updates existence state for correlated success and conflict responses', async () => {
         const success = viewModel.checkSolutionExists('/location', 'folder');
         const successRequest = getLastRequest('CHECK_SOLUTION_DOES_NOT_EXIST');

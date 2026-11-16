@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { TreeViewCategory } from '../../../common/components/tree-view';
 import { DeviceHardwareOption, NewProject, ProcessorInfo, Trustzone, validTrustZone } from '../../cmsis-solution-types';
 import { FieldAndInteraction, hadInteraction } from './field-and-interaction';
 
@@ -30,27 +29,7 @@ const staticTemplates: CSolutionTemplate[] = [
     trustZoneTemplate,
 ];
 
-function dataManagerHasTemplates(datamanagerApps?: Array<TreeViewCategory<string>>): boolean {
-    if (!datamanagerApps) {
-        return false;
-    }
-
-    if (datamanagerApps.some(item => item.header == 'Templates')) {
-        return true;
-    }
-
-    if (datamanagerApps.some(item => item.header == 'Local' && item.categories.some(subItem => subItem.header == 'Templates'))) {
-        return true;
-    }
-
-    return false;
-}
-
-export const hardwareTemplateOptions = (deviceSelection?: DeviceHardwareOption, datamanagerApps?: Array<TreeViewCategory<string>>): CSolutionTemplate[] => {
-    if (dataManagerHasTemplates(datamanagerApps)) {
-        return [];
-    }
-
+export const hardwareTemplateOptions = (deviceSelection?: DeviceHardwareOption): CSolutionTemplate[] => {
     if (!deviceSelection) { return staticTemplates; }
     const processors = deviceSelection?.processors ?? [];
     const valid = processors.some(processor => validTrustZone(processor));
