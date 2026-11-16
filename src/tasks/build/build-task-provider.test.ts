@@ -21,8 +21,17 @@ import * as path from 'path';
 import { BuildTaskDefinition } from './build-task-definition';
 import * as vscode from 'vscode';
 
+jest.mock('vscode', () => ({
+    ...jest.requireActual('../../../__mocks__/vscode'),
+    CancellationTokenSource: jest.fn(() => ({
+        token: { isCancellationRequested: false, onCancellationRequested: jest.fn() },
+        cancel: jest.fn(),
+        dispose: jest.fn(),
+    })),
+}));
+
 interface MockCustomExecution {
-    callback: () => void;
+    callback: (definition: vscode.TaskDefinition) => Promise<vscode.Pseudoterminal>;
 }
 
 interface MockTerminalRunner {
@@ -58,6 +67,39 @@ describe('BuildTaskProviderImpl', () => {
         expect(first.name).not.toBe(second.name);
         expect(first.definition.operationId).toBe('first');
         expect(second.definition.operationId).toBe('second');
+    });
+
+    it.each([true, false])('tracks the runner lifecycle for a managed task: %s', async managed => {
+        const runner: Runner = {
+            run: jest.fn(async (_definition, onOutput) => {
+                onOutput('build output\r\n');
+                return 0;
+            }),
+        };
+        const provider = new BuildTaskProviderImpl(runner, 'Build');
+        const definition = {
+            type: 'build',
+            solution: 'test.csolution.yml',
+            ...(managed ? { operationId: 'managed-build' } : {}),
+        };
+        const wrapRunner = jest.fn((original: Runner) => original);
+        const task = provider.createTask(definition, managed ? wrapRunner : undefined);
+        const terminal = await (task.execution as unknown as MockCustomExecution).callback(definition);
+        const activeRunner = provider.getActiveTaskRunner(task.name)!;
+
+        expect(activeRunner).toBe(terminal);
+        await activeRunner.open(undefined);
+
+        expect(runner.run).toHaveBeenCalledTimes(1);
+        if (managed) {
+            expect(wrapRunner).toHaveBeenCalledWith(runner);
+            expect(provider.getActiveTaskRunner(task.name)).toBeUndefined();
+            expect(activeRunner.getOutputBuffer()).toEqual([]);
+        } else {
+            expect(wrapRunner).not.toHaveBeenCalled();
+            expect(provider.getActiveTaskRunner(task.name)).toBe(activeRunner);
+            expect(activeRunner.getOutputBuffer()).toContain('build output');
+        }
     });
 
     it('should create a task', () => {
