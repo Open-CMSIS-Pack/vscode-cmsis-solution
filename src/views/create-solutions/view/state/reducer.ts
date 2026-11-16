@@ -66,6 +66,7 @@ export type CreateSolutionState = {
     webServicesEnabled: boolean;
     selectedDraftProjectId: string;
     fromAllPackVersions: boolean;
+    showWebAndUvExamples: FieldAndInteraction<boolean>;
     servicesErrors: string[];
 }
 
@@ -96,6 +97,7 @@ export const initialState: CreateSolutionState = {
     webServicesEnabled: false,
     selectedDraftProjectId: '',
     fromAllPackVersions: false,
+    showWebAndUvExamples: { value: false, hadInteraction: false },
     servicesErrors: [],
 };
 
@@ -126,7 +128,34 @@ export type CreateSolutionAction
     | { type: 'TOGGLE_OPEN_MODAL' }
     | { type: 'SET_SELECTED_DRAFTPROJECT_ID', id: string }
     | { type: 'TOGGLE_ALL_PACK_VERSIONS' }
+    | { type: 'TOGGLE_WEB_AND_UV_EXAMPLES' }
     ;
+
+export const visibleDraftProjects = (state: Pick<CreateSolutionState, 'datamanagerApps' | 'showWebAndUvExamples'>): Array<TreeViewCategory<string>> => {
+    if (state.showWebAndUvExamples.value) {
+        return state.datamanagerApps;
+    }
+    return state.datamanagerApps.filter(category => category.header !== 'Web').flatMap(category => {
+        const categories = category.header === 'Local'
+            ? category.categories.filter(child => child.header !== 'uVision Examples' && (child.items.length || child.categories.length))
+            : category.categories;
+        return category.items.length || categories.length ? [{ ...category, categories }] : [];
+    });
+};
+
+const clearHiddenDraftProject = (state: CreateSolutionState): CreateSolutionState => {
+    const containsSelection = (categories: Array<TreeViewCategory<string>>): boolean => categories.some(category =>
+        category.items.some(item => item.value === state.selectedDraftProjectId) || containsSelection(category.categories));
+    if (!state.selectedDraftProjectId || containsSelection(visibleDraftProjects(state))) {
+        return state;
+    }
+    return {
+        ...state,
+        selectedDraftProjectId: '',
+        selectedTemplate: { value: undefined, hadInteraction: false },
+        projects: [],
+    };
+};
 
 export const incomingMessageReducer = (state: CreateSolutionState, message: Messages.IncomingMessage): CreateSolutionState => {
     switch (message.type) {
@@ -168,6 +197,11 @@ export const incomingMessageReducer = (state: CreateSolutionState, message: Mess
                 connectedBoard,
                 boardSelection: { value: boardSelection, hadInteraction: !!boardSelection },
                 deviceSelection: { value: deviceSelection, hadInteraction: !!deviceSelection },
+                ...(state.boardSelection.value?.key !== boardSelection?.key || state.deviceSelection.value?.key !== deviceSelection?.key ? {
+                    datamanagerApps: [],
+                    selectedDraftProjectId: '',
+                    showWebAndUvExamples: { value: false, hadInteraction: false },
+                } : {}),
             };
         }
         case 'PLATFORM':
@@ -176,10 +210,15 @@ export const incomingMessageReducer = (state: CreateSolutionState, message: Mess
                 platform: message.data.name
             };
         case 'DATAMANAGER_APPS_DATA': {
-            return {
+            const hasLocalExamples = message.data.some(category => category.header === 'Local' && category.categories.some(child =>
+                (child.header === 'Csolution Examples' || child.header === 'Reference Applications') && child.items.length > 0));
+            return clearHiddenDraftProject({
                 ...state,
                 datamanagerApps: message.data,
-            };
+                showWebAndUvExamples: state.showWebAndUvExamples.hadInteraction
+                    ? state.showWebAndUvExamples
+                    : { value: !hasLocalExamples, hadInteraction: false },
+            });
         }
         case 'STATE_USE_WEBSERVICES':
             return {
@@ -289,11 +328,15 @@ const selectBoard = (state: CreateSolutionState, boardSelection: BoardHardwareOp
         solutionFolder: { hadInteraction: false, value: '' },
     };
 
-    if (boardSelection?.mountedDevices.length === 1) {
-        return selectDevice(newState, boardSelection.mountedDevices[0]);
-    }
-
-    return newState;
+    const selectedState = boardSelection?.mountedDevices.length === 1
+        ? selectDevice(newState, boardSelection.mountedDevices[0])
+        : newState;
+    const hardwareChanged = state.boardSelection.value?.key !== selectedState.boardSelection.value?.key
+        || state.deviceSelection.value?.key !== selectedState.deviceSelection.value?.key;
+    return {
+        ...selectedState,
+        showWebAndUvExamples: hardwareChanged ? { value: false, hadInteraction: false } : state.showWebAndUvExamples,
+    };
 };
 
 const convertToTargetTypeName = (name: string): string => {
@@ -303,8 +346,14 @@ const convertToTargetTypeName = (name: string): string => {
 };
 
 const selectDevice = (state: CreateSolutionState, deviceSelection: DeviceHardwareOption): CreateSolutionState => {
+    const hardwareChanged = state.deviceSelection.value?.key !== deviceSelection.key;
     return applyTemplateIfValid({
         ...state,
+        ...(hardwareChanged ? {
+            datamanagerApps: [],
+            selectedDraftProjectId: '',
+            showWebAndUvExamples: { value: false, hadInteraction: false },
+        } : {}),
         deviceSelection: hadInteraction(deviceSelection),
         selectedTemplate: alignTemplate(state.selectedTemplate.value, deviceSelection),
         devicePreview: deviceSelection,
@@ -359,6 +408,7 @@ export const createSolutionReducer = (state: CreateSolutionState, action: Create
             return applyTemplateIfValid({
                 ...state,
                 selectedTemplate: hadInteraction(action.template),
+                selectedDraftProjectId: '',
                 solutionName: { hadInteraction: false, value: validSolutionName },
                 solutionFolder: { hadInteraction: false, value: validSolutionName },
             });
@@ -405,6 +455,11 @@ export const createSolutionReducer = (state: CreateSolutionState, action: Create
             return { ...state, showOpenDialog: !state.showOpenDialog };
         case 'TOGGLE_ALL_PACK_VERSIONS':
             return { ...state, fromAllPackVersions: !state.fromAllPackVersions };
+        case 'TOGGLE_WEB_AND_UV_EXAMPLES':
+            return clearHiddenDraftProject({
+                ...state,
+                showWebAndUvExamples: hadInteraction(!state.showWebAndUvExamples.value),
+            });
         default:
             // Exhaustiveness check
             return action;
