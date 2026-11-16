@@ -25,6 +25,7 @@ export interface TerminalTask {
     completeMessage: string,
     terminationMessage: string,
     dimensions: vscode.TerminalDimensions | undefined;
+    retainOutput?: boolean;
 }
 
 export class TerminalTaskRunner implements vscode.Pseudoterminal {
@@ -52,7 +53,10 @@ export class TerminalTaskRunner implements vscode.Pseudoterminal {
                 this.cancellationTokenSource.token,
                 this.terminalTask.dimensions,
             );
-            if (!this.isManuallyTerminated) {
+            if (this.isManuallyTerminated) {
+                this.handleTaskOutput(this.terminalTask.terminationMessage);
+                this.closeEmitter.fire(130);
+            } else {
                 if (exitCode === 0) {
                     this.handleTaskOutput(this.terminalTask.completeMessage);
                 }
@@ -60,8 +64,8 @@ export class TerminalTaskRunner implements vscode.Pseudoterminal {
             }
         } catch (error) {
             if (this.isManuallyTerminated) {
-                // Manual termination is handled in terminateProcess(), don't duplicate
-                // The exit code will be fired immediately there
+                this.handleTaskOutput(this.terminalTask.terminationMessage);
+                this.closeEmitter.fire(130);
             } else {
                 this.handleTaskOutput((error as Error).message);
                 this.closeEmitter.fire(1);
@@ -89,20 +93,13 @@ export class TerminalTaskRunner implements vscode.Pseudoterminal {
         if (this.cancellationTokenSource && !this.cancellationTokenSource.token.isCancellationRequested) {
             this.isManuallyTerminated = true;
             this.cancellationTokenSource.cancel();
-
-            // Ensure messages are shown even if no exception is thrown
-            setTimeout(() => {
-                if (this.isManuallyTerminated) {
-                    this.handleTaskOutput(this.terminalTask.terminationMessage!);
-                    // Fire exit code immediately to show red trash bin, but terminal stays open for reuse
-                    this.closeEmitter.fire(130);
-                }
-            }, 100); // Small delay to ensure cancellation is processed
         }
     }
 
     private handleTaskOutput(message: string) {
-        this.outputBuffer.push(message.trimEnd());
+        if (this.terminalTask.retainOutput !== false) {
+            this.outputBuffer.push(message.trimEnd());
+        }
         this.writeEmitter.fire(message);
     }
 

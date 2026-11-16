@@ -93,20 +93,20 @@ export class ProcessManagerImpl implements ProcessManager {
                         onOutput(output);
                     }
                 });
+                let killTimer: ReturnType<typeof setTimeout> | undefined;
+                const cancellation = cancellationToken?.onCancellationRequested(() => {
+                    // Send Ctrl+C first, then force termination if the process has not exited.
+                    ptyProcess.write('\x03');
+                    killTimer = setTimeout(() => ptyProcess.kill(), 500);
+                });
                 ptyProcess.onExit(({ exitCode }) => {
+                    clearTimeout(killTimer);
+                    cancellation?.dispose();
                     if (exitCode === 0) {
                         resolve({ code: 0 });
                     } else {
                         reject({ code: exitCode });
                     }
-                });
-                cancellationToken?.onCancellationRequested(() => {
-                    // Send Ctrl+C to pty process
-                    ptyProcess.write('\x03');
-                    // Give it 500ms to exit gracefully
-                    setTimeout(() => {
-                        ptyProcess.kill();
-                    }, 500);
                 });
 
             } else {
@@ -155,7 +155,7 @@ We do care about output,  therefore 'close' is used here.
                     if (code === 0) {
                         resolve({ code: 0 });
                     } else {
-                        reject({ code });
+                        reject({ code: code ?? (cancellationToken?.isCancellationRequested ? 130 : -1) });
                     }
                 });
 

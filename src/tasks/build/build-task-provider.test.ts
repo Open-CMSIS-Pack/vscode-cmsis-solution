@@ -50,6 +50,16 @@ describe('BuildTaskProviderImpl', () => {
         return ['cbuild', ...formatLabelArgs(labelArgs)].join(' ');
     };
 
+    it('gives identical managed builds distinct task identities', () => {
+        const provider = new BuildTaskProviderImpl(mockRunner, 'Build');
+        const definition = { type: 'build', solution: 'test.csolution.yml' };
+        const first = provider.createTask({ ...definition, operationId: 'first' });
+        const second = provider.createTask({ ...definition, operationId: 'second' });
+        expect(first.name).not.toBe(second.name);
+        expect(first.definition.operationId).toBe('first');
+        expect(second.definition.operationId).toBe('second');
+    });
+
     it('should create a task', () => {
         const provider = new BuildTaskProviderImpl(mockRunner, 'Build');
         const definition = {

@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
+import type { Event, TaskExecution, Uri } from 'vscode';
 import { CsolutionApiV2 } from './csolution-api-v2';
 
-/** API V3 retains the existing V2 operations. */
-export interface CsolutionApiV3 extends CsolutionApiV2 {
+/** API V3 retains V2 operations except for the managed build contract. */
+export interface CsolutionApiV3 extends Omit<CsolutionApiV2, 'build'> {
     dispose(): void;
+    /** Submit a build of the loaded solution's captured active target. Throws if no solution is loaded or this API is disposed. */
+    build(options?: Partial<CsolutionApiV3.BuildOptions>): CsolutionApiV3.BuildOperation;
     /** Convert the loaded solution's active target without emitting conversion/configuration events. updateRte defaults to false. Rejects if no solution is loaded or an unexpected error occurs. */
     convertSolution(options?: { updateRte?: boolean }): Promise<CsolutionApiV3.ConvertResult>;
     /** Activate a solution file or directory in the current workspace using the existing command. */
@@ -62,6 +65,37 @@ export interface CsolutionApiV3 extends CsolutionApiV2 {
 }
 
 export namespace CsolutionApiV3 {
+    export interface BuildOptions extends CsolutionApiV2.BuildOptions {
+        signal?: AbortSignal;
+    }
+
+    export interface BuildOperation {
+        readonly id: string;
+        /** Resolves once the execution and output collection finish. Infrastructure/logging failures reject. */
+        readonly result: Promise<BuildResult>;
+        /** Idempotent request; running cancellation is confirmed only when the runner finishes. */
+        cancel(): void;
+        /** Live original terminal output, without replay. Use result.logFile for complete output. */
+        readonly onOutput: Event<BuildOutput>;
+        readonly taskExecution?: TaskExecution;
+    }
+
+    export interface BuildOutput {
+        sequence: number;
+        timestamp: number;
+        text: string;
+        stream: 'combined';
+    }
+
+    export interface BuildResult {
+        /** Skipped when an identical request is already queued; no execution or exit code. */
+        status: 'success' | 'failed' | 'cancelled' | 'skipped';
+        /** Original cbuild exit code when available; never inferred from artifacts or task events. */
+        exitCode?: number;
+        /** Complete original output, retained in a temporary UTF-8 file until OS cleanup. */
+        logFile: Uri;
+    }
+
     export interface ConvertResult {
         success: boolean;
         severity: 'abort' | 'error' | 'warning' | 'info' | 'success';

@@ -189,6 +189,17 @@ describe('BuildRunner', () => {
     });
 
     describe('run', () => {
+        it('forwards queued duplicate notifications for managed builds', async () => {
+            const desktopBuildRunner = new BuildRunner(cmsisToolboxManager);
+            const definition = { type: 'some-task', solution: 'some-solution', operationId: 'managed' };
+            const token = cancellationTokenFactory().token;
+            const first = desktopBuildRunner.run(definition, jest.fn(), token);
+            const onSkipped = jest.fn();
+            await expect(desktopBuildRunner.run(definition, jest.fn(), token, undefined, onSkipped)).resolves.toBe(0);
+            expect(onSkipped).toHaveBeenCalledTimes(1);
+            await first;
+        });
+
         it('returns the cbuild exit code', async () => {
             jest.spyOn(cmsisToolboxManager, 'runCmsisTool').mockResolvedValue([7, 'cbuild']);
             const desktopBuildRunner = new BuildRunner(cmsisToolboxManager);

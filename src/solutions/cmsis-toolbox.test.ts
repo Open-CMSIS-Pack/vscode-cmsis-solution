@@ -94,6 +94,65 @@ describe('CmsisToolbox', () => {
             path.join('path', 'to', 'cbuild'), ['arg1', 'arg2'], expect.any(Object), expect.any(Function), undefined, undefined);
     });
 
+    it('discards duplicates of queued requests but not running requests', async () => {
+        let finish!: () => void;
+        const running = new Promise<void>(resolve => { finish = resolve; });
+        let notifyStarted!: () => void;
+        const started = new Promise<void>(resolve => { notifyStarted = resolve; });
+        mockProcessManager.spawn.mockImplementation(async () => {
+            notifyStarted();
+            await running;
+            return { code: 2 };
+        });
+        const first = toolbox.runCmsisTool('cpackget', ['same'], onOutput);
+        await started;
+        const queuedSkipped = jest.fn();
+        const queued = toolbox.runCmsisTool('cpackget', ['same'], onOutput, undefined, undefined, false, { onSkipped: queuedSkipped });
+        const onSkipped = jest.fn();
+        const duplicateOutput = jest.fn();
+        const duplicate = toolbox.runCmsisTool('cpackget', ['same'], duplicateOutput, undefined, undefined, false, { onSkipped });
+        await expect(duplicate).resolves.toEqual([0, undefined]);
+        expect(onSkipped).toHaveBeenCalledTimes(1);
+        expect(duplicateOutput).not.toHaveBeenCalled();
+        finish();
+        await expect(first).resolves.toEqual([2, expect.anything()]);
+        await expect(queued).resolves.toEqual([2, expect.anything()]);
+        expect(queuedSkipped).not.toHaveBeenCalled();
+        expect(mockProcessManager.spawn).toHaveBeenCalledTimes(2);
+    });
+
+    it('cancels a queued request without starting it or blocking later requests', async () => {
+        let finish!: () => void;
+        const running = new Promise<void>(resolve => { finish = resolve; });
+        let cancel!: () => void;
+        const token = {
+            isCancellationRequested: false,
+            onCancellationRequested: (listener: (event: unknown) => void) => { cancel = () => listener(undefined); return { dispose: jest.fn() }; },
+        };
+        mockProcessManager.spawn.mockImplementation(async (_tool, args) => {
+            if (args.includes('first')) await running;
+            return { code: 0 };
+        });
+        const first = toolbox.runCmsisTool('cbuild', ['first'], jest.fn());
+        const queued = toolbox.runCmsisTool('cbuild', ['cancelled'], jest.fn(), token);
+        const last = toolbox.runCmsisTool('cbuild', ['last'], jest.fn());
+        token.isCancellationRequested = true;
+        cancel();
+        await expect(queued).resolves.toEqual([130, undefined]);
+        expect(mockProcessManager.spawn.mock.calls.some(call => call[1].includes('cancelled'))).toBe(false);
+        finish();
+        await first;
+        await expect(last).resolves.toEqual([0, expect.anything()]);
+        expect(toolbox.isRunning()).toBe(false);
+    });
+
+    it('rejects managed infrastructure failures while retaining numeric compiler failures', async () => {
+        mockProcessManager.spawn.mockRejectedValueOnce(new Error('spawn failed'));
+        await expect(toolbox.runCmsisTool('cbuild', ['build'], jest.fn(), undefined, undefined, false, { rejectOnError: true }))
+            .rejects.toThrow('spawn failed');
+        expect(toolbox.isRunning()).toBe(false);
+    });
+
     it('check error from underlying process', async () => {
         const logSpy = jest.spyOn(console, 'log');
         mockProcessManager.mockOutputLinesAndReject([],'Error running tool');

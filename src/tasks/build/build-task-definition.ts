@@ -21,6 +21,8 @@ import { COutlineItem } from '../../views/solution-outline/tree-structure/soluti
 
 export type BuildTaskDefinition = {
     readonly type: string;
+    /** Distinguishes managed requests, including otherwise identical builds. */
+    operationId?: string;
     solution?: string;
     clean?: boolean;
     buildOutputVerbosity?: BuildOutputVerbosity;

@@ -197,6 +197,7 @@
                 { "label": "Solution Getters (Empty Window)", "value": "getters" },
                 { "label": "Solution Getters and Target Selection (Loaded Solution)", "value": "selection" },
                 { "label": "Convert Solution (Loaded Solution)", "value": "convert" },
+                { "label": "Managed Build (Loaded Solution)", "value": "build" },
                 { "label": "Installed Packs", "value": "installed" },
                 { "label": "All Packs (Index)", "value": "index" },
                 { "label": "Used Packs (Loaded Solution)", "value": "loaded" },

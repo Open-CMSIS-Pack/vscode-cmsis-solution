@@ -98,6 +98,20 @@ describe('TerminalTaskRunner - Build Process Cancellation', () => {
         terminalTaskRunner = new TerminalTaskRunner(terminalTask);
     });
 
+    it('does not report manual termination until the runner confirms completion', async () => {
+        let finish!: (code: number) => void;
+        mockRunner.run.mockReturnValue(new Promise<number>(resolve => { finish = resolve; }));
+        const closed = jest.fn();
+        terminalTaskRunner.onDidClose(closed);
+        const running = terminalTaskRunner.open(undefined);
+        terminalTaskRunner.terminateProcess();
+        expect(closed).not.toHaveBeenCalled();
+        finish(130);
+        await running;
+        expect(closed).toHaveBeenCalledTimes(1);
+        expect(closed).toHaveBeenCalledWith(130);
+    });
+
     it('should cancel build process when close() is called', async () => {
         let cancellationRequested = false;
         let cancellationCallback: (() => void) | undefined;

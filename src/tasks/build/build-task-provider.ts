@@ -24,7 +24,7 @@ import { COMMAND_GET_SOLUTION_FILE } from '../../solutions/active-solution-track
 import { cbuildArgsFromTaskDefinition } from './build-runner';
 
 export interface BuildTaskProvider {
-    createTask(definition: BuildTaskDefinition): vscode.Task,
+    createTask(definition: BuildTaskDefinition, wrapRunner?: (runner: Runner) => Runner): vscode.Task,
     terminateTask(taskName: string): boolean,
     getActiveTaskRunner(taskName: string): TerminalTaskRunner | undefined;
 }
@@ -133,8 +133,9 @@ export class BuildTaskProviderImpl implements BuildTaskProvider, vscode.TaskProv
         return this.activeTaskRunners.get(taskName);
     }
 
-    public createTask(definition: BuildTaskDefinition): vscode.Task {
-        const taskLabel = this.getTaskLabel(definition);
+    public createTask(definition: BuildTaskDefinition, wrapRunner?: (runner: Runner) => Runner): vscode.Task {
+        const label = this.getTaskLabel(definition);
+        const taskLabel = definition.operationId ? `${label} [${definition.operationId}]` : label;
         return new vscode.Task(
             definition,
             vscode.TaskScope.Workspace,
@@ -143,16 +144,23 @@ export class BuildTaskProviderImpl implements BuildTaskProvider, vscode.TaskProv
             new vscode.CustomExecution(async resolvedTaskDefinition => {
                 const runner = new TerminalTaskRunner({
                     definition: resolvedTaskDefinition,
-                    runner: this.runner,
+                    runner: wrapRunner ? wrapRunner(this.runner) : this.runner,
                     taskName: taskLabel,
                     runMessage: this.taskMessages.runMessage,
                     completeMessage: this.taskMessages.completeMessage,
                     terminationMessage: resolvedTaskDefinition.setup ? '\r\n🟥 Build requested by user, skip setup\r\n' :
                         this.taskMessages.terminationMessage,
                     dimensions: resolvedTaskDefinition.dimensions,
+                    retainOutput: !wrapRunner,
                 });
                 // Use the generated task name for tracking
                 this.activeTaskRunners.set(taskLabel, runner);
+                if (definition.operationId) {
+                    const subscription = runner.onDidClose(() => {
+                        this.activeTaskRunners.delete(taskLabel);
+                        subscription.dispose();
+                    });
+                }
                 return runner;
             }),
         );

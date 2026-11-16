@@ -31,9 +31,13 @@ import { COMMAND_ACTIVATE_SOLUTION, COMMAND_DEACTIVATE_SOLUTION, COMMAND_GET_SOL
 import { DebugHardwareCommands } from '../solutions/hardware/debug-hardware-commands';
 import { loadDebugAdaptersYml } from '../debug/debug-adapters-yaml-file';
 import type { SolutionConverter } from '../solutions/solution-converter';
+import { BuildOperation } from '../tasks/build/build-operation';
+import { BuildTaskProvider, BuildTaskProviderImpl } from '../tasks/build/build-task-provider';
 
 export class CsolutionApiV3Impl implements CsolutionApiV3 {
     private static readonly targetSelectionMutex = new Mutex();
+    private readonly builds = new Set<BuildOperation>();
+    private disposed = false;
 
     constructor(
         private readonly existingApi: CsolutionApiV2 & Disposable,
@@ -43,6 +47,7 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
         private readonly toolsEnvironment: Pick<ToolsEnvironment, 'getToolsEnvironment' | 'getToolchains'>,
         private readonly commandsProvider: Pick<CommandsProvider, 'executeCommand'>,
         private readonly solutionConverter: Pick<SolutionConverter, 'convertSolution'>,
+        private readonly buildTaskProvider: BuildTaskProvider,
     ) {}
 
     public async convertSolution(options?: { updateRte?: boolean }): Promise<CsolutionApiV3.ConvertResult> {
@@ -279,6 +284,9 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
     }
 
     public dispose() {
+        this.disposed = true;
+        this.builds.forEach(build => build.dispose());
+        this.builds.clear();
         this.existingApi.dispose();
     }
 
@@ -298,7 +306,25 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
         return this.existingApi.createNewSolution(...args);
     }
 
-    public build(...args: Parameters<CsolutionApiV2['build']>) {
-        return this.existingApi.build(...args);
+    public build(options?: Partial<CsolutionApiV3.BuildOptions>): CsolutionApiV3.BuildOperation {
+        if (this.disposed) {
+            throw new Error('Cannot build with a disposed API');
+        }
+        const solution = this.solutionManager.getCsolution();
+        if (!solution || !this.solutionManager.loadState.loaded) {
+            throw new Error('Building requires a loaded solution');
+        }
+        const operation = new BuildOperation({
+            type: BuildTaskProviderImpl.taskType,
+            solution: solution.solutionPath,
+            active: solution.getActiveTargetSetName(),
+            clean: !!options?.clean,
+            rebuild: !!options?.rebuild,
+            updateRte: !!options?.updateRte,
+            downloadPacks: !!options?.packs,
+        }, this.buildTaskProvider, options?.signal);
+        this.builds.add(operation);
+        void operation.result.then(() => this.builds.delete(operation), () => this.builds.delete(operation));
+        return operation;
     }
 }

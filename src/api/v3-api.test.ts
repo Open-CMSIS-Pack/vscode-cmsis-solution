@@ -25,6 +25,11 @@ import { dataManagerFactory, draftProjectDataFactory } from '../data-manager/dat
 import { SolutionManager } from '../solutions/solution-manager';
 import { CsolutionApiV3Impl } from './v3-api';
 import * as debugAdapters from '../debug/debug-adapters-yaml-file';
+import { BuildTaskProviderImpl } from '../tasks/build/build-task-provider';
+import { BuildOperation } from '../tasks/build/build-operation';
+
+jest.mock('../tasks/build/build-operation');
+const buildTaskProvider = new BuildTaskProviderImpl({ run: jest.fn() });
 
 describe('CsolutionApiV3Impl', () => {
     let existingApi: jest.Mocked<CsolutionApiV2 & Disposable>;
@@ -56,7 +61,7 @@ describe('CsolutionApiV3Impl', () => {
         commandsProvider.executeCommand.mockReset();
         solutionConverter.convertSolution.mockReset();
         jest.spyOn(window, 'showInformationMessage').mockClear();
-        api = new CsolutionApiV3Impl(existingApi, dataManagerFactory(), solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverter);
+        api = new CsolutionApiV3Impl(existingApi, dataManagerFactory(), solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverter, buildTaskProvider);
     });
 
     afterEach(() => jest.restoreAllMocks());
@@ -355,7 +360,7 @@ describe('CsolutionApiV3Impl', () => {
 
         it('serializes overlapping selections across API instances through refresh', async () => {
             const otherApi = new CsolutionApiV3Impl(existingApi, dataManagerFactory(), solutionManager,
-                csolutionService, toolsEnvironment, commandsProvider, solutionConverter);
+                csolutionService, toolsEnvironment, commandsProvider, solutionConverter, buildTaskProvider);
             commandsProvider.executeCommand.mockImplementation(async () => {
                 const refreshed = new CSolution();
                 refreshed.solutionPath = solution.solutionPath;
@@ -415,7 +420,7 @@ describe('CsolutionApiV3Impl', () => {
         const dataManager = dataManagerFactory();
         const packs = [{ id: 'ARM::CMSIS@6.0.0', version: '6.0.0', installed: true }];
         const query = jest.spyOn(dataManager, 'getPacks').mockResolvedValue({ packs });
-        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverter);
+        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverter, buildTaskProvider);
         await expect(catalogApi.getPacks()).resolves.toEqual({ packs });
         await expect(catalogApi.getPacks({ scope: 'installed' })).resolves.toEqual({ packs });
         expect(query).toHaveBeenNthCalledWith(1, undefined);
@@ -587,7 +592,7 @@ describe('CsolutionApiV3Impl', () => {
         ];
         const dataManager = dataManagerFactory();
         const query = jest.spyOn(dataManager, 'getPacks').mockResolvedValue({ packs });
-        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverter);
+        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverter, buildTaskProvider);
         for (const [text, expected] of [
             [undefined, packs], ['', packs], ['cMsIs', packs.slice(0, 2)],
             ['[uart]', [packs[1]]], ['.*', []], [' CMSIS ', []], ['no match', []],
@@ -788,13 +793,26 @@ describe('CsolutionApiV3Impl', () => {
         expect(existingApi.createNewSolution).toHaveBeenCalledWith(options);
     });
 
-    it('delegates builds', () => {
-        const options = { rebuild: true };
-        const result = Promise.resolve({ task: {} as import('vscode').Task, terminate: jest.fn() });
-        existingApi.build.mockReturnValue(result);
+    it('captures the loaded solution and active target for managed builds', () => {
+        const solution = new CSolution();
+        solution.solutionPath = 'C:\\workspace\\App.csolution.yml';
+        jest.spyOn(solution, 'getActiveTargetSetName').mockReturnValue('Board@Debug');
+        solutionManager.getCsolution.mockReturnValue(solution);
+        const result = new Promise<never>(() => {});
+        jest.mocked(BuildOperation).mockImplementation(() => ({ result, dispose: jest.fn() }) as unknown as BuildOperation);
 
-        expect(api.build(options)).toBe(result);
-        expect(existingApi.build).toHaveBeenCalledWith(options);
+        expect(api.build({ rebuild: true }).result).toBe(result);
+        expect(BuildOperation).toHaveBeenCalledWith({
+            type: BuildTaskProviderImpl.taskType, solution: solution.solutionPath, active: 'Board@Debug',
+            clean: false, rebuild: true, updateRte: false, downloadPacks: false,
+        }, buildTaskProvider, undefined);
+        expect(existingApi.build).not.toHaveBeenCalled();
+    });
+
+    it('rejects submission without a loaded solution or after disposal', () => {
+        expect(() => api.build()).toThrow('requires a loaded solution');
+        api.dispose();
+        expect(() => api.build()).toThrow('disposed API');
     });
 
     it('disposes the wrapped API', () => {

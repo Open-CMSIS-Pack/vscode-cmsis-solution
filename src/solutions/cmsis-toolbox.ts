@@ -38,6 +38,8 @@ export interface CmsisToolRunOptions {
     emitExecuteLine?: boolean;
     usePty?: boolean;
     filterOutput?: boolean;
+    rejectOnError?: boolean;
+    onSkipped?: () => void;
 }
 
 const MIN_TOOL_VERSIONS : Record<ToolboxTool, Optional<SemVer>> = {
@@ -158,16 +160,29 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
             // skip redundant call already enqueued
             msg = `Skip redundant: ${tool} ${args.join(' ')}`;
             console.debug(msg);
+            options.onSkipped?.();
             return [0, undefined];
         }
         // enqueue call
         msg = `Enqueue: ${tool} ${args.join(' ')}`;
         console.debug(msg);
-        this.toolboxQueue.push({ tool, args });
-        // wait for mutex
-        const release = await this.toolboxMutex.acquire();
-        // dequeue
-        this.toolboxQueue.shift();
+        const queuedCall = { tool, args };
+        this.toolboxQueue.push(queuedCall);
+        const acquisition = this.toolboxMutex.acquire();
+        let subscription: vscode.Disposable | undefined;
+        const cancelled = new Promise<undefined>(resolve => {
+            subscription = cancellationToken?.onCancellationRequested(() => resolve(undefined));
+            if (cancellationToken?.isCancellationRequested) {
+                resolve(undefined);
+            }
+        });
+        const release = await Promise.race([acquisition, cancelled]);
+        subscription?.dispose();
+        this.toolboxQueue.splice(this.toolboxQueue.indexOf(queuedCall), 1);
+        if (!release) {
+            void acquisition.then(unlock => unlock());
+            return [130, undefined];
+        }
         try {
             // Check tool version
             const toolCmd = (useEmbeddedToolbox ? this.embeddedTool(tool) : undefined)
@@ -178,7 +193,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
                     toolCmd,
                     ['--version'],
                     (line: string) => versionOutput += line + '\n',
-                    cancellationToken
+                    cancellationToken, undefined, undefined, undefined, options.rejectOnError,
                 );
                 const version = versionOutput.match(/(\d+\.\d+(\.\d+)?)/)?.[0];
                 if (versionReturnCode !== 0 || !version || version === '0.0.0') {
@@ -216,6 +231,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
                 dimensions,
                 options.usePty,
                 options.filterOutput,
+                options.rejectOnError,
             );
             // Print messages
             msg = `${returnCode === 0 ? '✅' : '🟥'} Completed: ${tool} ${cmdMsg}\r\n`;
@@ -235,6 +251,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
         dimensions?: vscode.TerminalDimensions,
         usePty?: boolean,
         filterOutput?: boolean,
+        rejectOnError?: boolean,
     ) : Promise<[string, number]> {
         const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? './';
         let returnCode;
@@ -256,6 +273,9 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
             msg += `succeed with exit code ${result.code}`;
             returnCode = result.code;
         } catch (result) {
+            if (rejectOnError && (!isProcessResult(result) || result.error)) {
+                throw isProcessResult(result) ? result.error : result;
+            }
             [msg, returnCode] = this.handleProcessFail(msg, result);
         }
         return [msg, returnCode];

@@ -108,6 +108,17 @@ describe('process-manager.ts', () => {
             expect(toolbox.isRunning()).toBe(false);
         });
 
+        it.each([false, true])('does not turn an unavailable exit code into success (cancelled: %s)', async cancelled => {
+            const child = new EventEmitter();
+            spawnMock.mockReturnValue(child);
+            const manager = new ProcessManagerImpl({ augmentEnv: () => ({ vars: {} }) } as never);
+            const token = { isCancellationRequested: false, onCancellationRequested: jest.fn() };
+            const result = manager.spawn('cbuild', [], {}, jest.fn(), token);
+            token.isCancellationRequested = cancelled;
+            child.emit('close', null);
+            await expect(result).rejects.toEqual({ code: cancelled ? 130 : -1 });
+        });
+
         it('forwards stdout and stderr line output and resolves on close code 0', async () => {
             const stdoutStream = {};
             const stderrStream = {};

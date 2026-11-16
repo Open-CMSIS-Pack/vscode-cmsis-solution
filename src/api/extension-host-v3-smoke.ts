@@ -486,6 +486,53 @@ async function runConvertSolution(): Promise<void> {
     }
 }
 
+async function runManagedBuild(): Promise<void> {
+    assert.equal(vscode.workspace.workspaceFolders?.length, 1, 'Open the disposable build fixture.');
+    const folder = vscode.workspace.workspaceFolders![0].uri;
+    const solution = vscode.Uri.joinPath(folder, 'Selection.csolution.yml');
+    const extension = vscode.extensions.getExtension<CsolutionExtension>('Arm.cmsis-csolution');
+    assert.ok(extension);
+    const exports = await extension.activate();
+    const api = exports.getApi(3);
+    let subscription: vscode.Disposable | undefined;
+    try {
+        await api.activateSolution(solution.fsPath);
+        const deadline = Date.now() + 60000;
+        while ((await api.getTargets()).length === 0) {
+            assert.ok(Date.now() < deadline, 'Build fixture must finish loading.');
+            await new Promise(resolve => setTimeout(resolve, 250));
+        }
+        const target = await api.getActiveTarget();
+        const operation = api.build();
+        assert.equal(typeof operation.id, 'string');
+        assert.ok(operation.id.length > 0);
+        assert.equal(typeof operation.cancel, 'function');
+        assert.ok(operation.result instanceof Promise, 'Build must immediately return an operation, not a promise.');
+        const completion = operation.result;
+        const output: CsolutionApiV3.BuildOutput[] = [];
+        subscription = operation.onOutput(event => output.push(event));
+        const result = await completion;
+        const log = await fs.readFile(result.logFile.fsPath, 'utf8');
+        assert.equal(result.status, 'success', `Fixture build must succeed. Check packs and AC6 toolchain.\n${log}`);
+        assert.equal(result.exitCode, 0);
+        assert.ok(operation.taskExecution, 'Build must expose its VS Code task execution.');
+        assert.ok(output.length > 0, 'Build must emit live output.');
+        assert.equal(log, output.map(event => event.text).join(''), 'Saved log must match the complete live output.');
+        assert.equal(operation.result, completion, 'The completion promise must remain stable.');
+        assert.equal(await operation.result, result, 'Late consumers must receive the same result.');
+        assert.equal(await api.getSolutionFile(), solution.fsPath);
+        assert.equal(await api.getActiveTarget(), target);
+        console.log('API V3 build: immediate operation, real successful build, task execution, live output, complete saved log, late result and unchanged selection passed.');
+    } finally {
+        subscription?.dispose();
+        try {
+            await api.deactivateSolution();
+        } finally {
+            api.dispose();
+        }
+    }
+}
+
 export async function run(): Promise<void> {
     const mode = process.env.CMSIS_V3_SMOKE_MODE;
     if (mode === 'getters') {
@@ -494,6 +541,8 @@ export async function run(): Promise<void> {
         await runTargetSelection();
     } else if (mode === 'convert') {
         await runConvertSolution();
+    } else if (mode === 'build') {
+        await runManagedBuild();
     } else if (mode === 'loaded' || mode === 'missing') {
         await runLoadedPacks(mode === 'missing');
     } else if (mode === 'index' || mode === 'installed') {

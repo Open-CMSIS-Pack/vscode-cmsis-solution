@@ -36,8 +36,55 @@ should also check returned statuses and the documented limitations of each metho
 ## API version 3 (in development)
 
 V3 is available through `getApi(3)`. It retains `getBoards`, `getDevices`,
-`getDraftProjects`, `createNewSolution`, and `build` with their V2 behavior.
-V2 is unchanged; the additional methods below are available only in V3.
+`getDraftProjects`, and `createNewSolution` with their V2 behavior.
+V2 is unchanged, including its task-based `build` method. V3 replaces `build`
+with a managed operation and adds the methods below.
+
+### Managed Builds
+
+```typescript
+const operation = api.build({ rebuild: true });
+const subscription = operation.onOutput(chunk => console.log(chunk.text));
+try {
+    const result = await operation.result;
+    const log = await vscode.workspace.fs.readFile(result.logFile);
+    console.log(result.status, result.exitCode, new TextDecoder().decode(log));
+} finally {
+    subscription.dispose();
+}
+```
+
+`build` returns immediately with a unique `id`, a persistent `result` promise,
+`onOutput`, and an idempotent `cancel()` method. The solution path and active
+target set are captured at submission. A loaded solution is required; submission
+without one, or after API disposal, throws. Options `clean`, `rebuild`, `packs`,
+and `updateRte` retain their V2 meanings. An optional `AbortSignal` cancels queued
+or running work, including when already aborted. Builds use the existing task,
+toolbox environment, and serialized toolbox queue. An identical request already
+queued causes the new request to be discarded; a request already executing does
+not count as queued.
+The optional `taskExecution` becomes available after VS Code accepts the task.
+
+The result resolves with `success` only for exit code zero, `failed` for nonzero
+or unknown exit status, or `cancelled` when cancellation prevents execution or
+execution confirms interruption (code 130). A discarded duplicate resolves with
+`skipped`, no exit code, and an empty log; it does not await or share the queued
+request's outcome. Requesting cancellation alone does
+not settle running work; a natural success or failure can win that race. A
+compiler or configuration failure resolves rather than rejects. Infrastructure
+and log-writing failures reject. Disposing the API requests cancellation and
+rejects interrupted operations; abrupt extension-host termination cannot settle
+in-memory promises.
+
+`logFile` contains UTF-8 output from the original execution, not a diagnostic
+rerun, and remains until OS temporary-file cleanup. There is no inline log,
+replay, or in-memory full-output buffer. Live events have monotonically increasing
+sequence numbers, millisecond timestamps, and `stream: 'combined'` because the
+runner does not preserve stream identity. Output is retained as delivered by the
+runner, including ANSI sequences and carriage returns (the non-PTY runner
+normalizes lines to CRLF); no extra truncation or ANSI stripping is applied.
+Structured diagnostics, per-context results, progress, and build history are not
+part of this initial contract.
 
 ### Solution and Hardware Getters
 
@@ -401,6 +448,23 @@ deactivation. It logs both results and an explicit success message, then
 deactivates the solution and disposes the API in `finally`. Conversion event
 suppression is covered by the focused converter unit tests, not observable through
 the public extension API.
+
+#### Managed Build Smoke Mode
+
+Choose **Managed Build (Loaded Solution)** from the **API V3 Smoke Tests** picker.
+The preparation task copies the selection fixture into a disposable workspace and
+replaces its project with a tiny C static-library build. Requires installed
+`ARM::CMSIS` and `ARM::Cortex_DFP` packs, working Toolbox, and a registered, licensed
+AC6 toolchain. Downloads, web services and conversion on file changes are disabled.
+No board or debugger is required.
+
+The scenario calls `api.build()` once and checks the immediate operation handle,
+successful completion with exit code zero, task execution, nonempty live output,
+byte-for-byte agreement with the saved UTF-8 log, stable completion promise and
+late result access, and unchanged solution/target selection. It prints an explicit
+success message, then disposes the subscription, deactivates the solution and
+disposes the API in `finally`. Cancellation and queued duplicates remain covered
+by focused unit tests.
 
 #### Pack Smoke Modes
 
