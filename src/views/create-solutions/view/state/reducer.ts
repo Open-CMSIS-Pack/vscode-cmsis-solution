@@ -325,15 +325,18 @@ const selectBoard = (state: CreateSolutionState, boardSelection: BoardHardwareOp
         selectedDraftProjectId: '',
         projects: [],
         datamanagerApps: [],
-        showWebAndUvExamples: { value: false, hadInteraction: false },
         solutionFolder: { hadInteraction: false, value: '' },
     };
 
-    if (boardSelection?.mountedDevices.length === 1) {
-        return selectDevice(newState, boardSelection.mountedDevices[0]);
-    }
-
-    return newState;
+    const selectedState = boardSelection?.mountedDevices.length === 1
+        ? selectDevice(newState, boardSelection.mountedDevices[0])
+        : newState;
+    const hardwareChanged = state.boardSelection.value?.key !== selectedState.boardSelection.value?.key
+        || state.deviceSelection.value?.key !== selectedState.deviceSelection.value?.key;
+    return {
+        ...selectedState,
+        showWebAndUvExamples: hardwareChanged ? { value: false, hadInteraction: false } : state.showWebAndUvExamples,
+    };
 };
 
 const convertToTargetTypeName = (name: string): string => {
