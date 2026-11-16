@@ -18,11 +18,11 @@ import '@open-cmsis-pack/cmsis-common/map';
 
 import { ExtensionContext } from 'vscode';
 import { CreateSolutionData } from './create-solution-data';
-import { dataManagerFactory, generateDraftProjectData } from '../../data-manager/data-manager.factories';
+import { dataManagerFactory, draftProjectDataFactory, generateDraftProjectData } from '../../data-manager/data-manager.factories';
 import path from 'path';
 
 import * as vscode from 'vscode';
-import { DraftProjectData } from '../../data-manager/draft-project-data';
+import { DraftProjectData, DraftProjectFormat, DraftProjectSource, DraftProjectType } from '../../data-manager/draft-project-data';
 import { DataSet } from '../../data-manager/dataset';
 import { PackId } from '../../data-manager/pack-data';
 
@@ -104,6 +104,32 @@ describe('CreateSolutionData', () => {
             expect(readFileMock).not.toHaveBeenCalled();
         });
 
+    });
+
+    it('orders examples before reference applications and templates within each source', async () => {
+        const [testee, { dataManagerMock }] = createTestee();
+        dataManagerMock.getAllBoards.mockResolvedValue(new DataSet([]));
+        dataManagerMock.getAllDevices.mockResolvedValue(new DataSet([]));
+        const drafts = [DraftProjectSource.Web, DraftProjectSource.Local].flatMap(draftSource => [
+            { name: 'Template', draftType: DraftProjectType.Template, format: DraftProjectFormat.Csolution },
+            { name: 'Reference application', draftType: DraftProjectType.RefApp, format: DraftProjectFormat.Csolution },
+            { name: 'Legacy example', draftType: DraftProjectType.Example, format: DraftProjectFormat.uVision },
+            { name: 'Example', draftType: DraftProjectType.Example, format: DraftProjectFormat.Csolution },
+        ].map(draft => draftProjectDataFactory({ ...draft, name: `${draftSource} ${draft.name}`, draftSource })));
+        dataManagerMock.getDraftProjects.mockResolvedValue(new DataSet(drafts));
+
+        const tree = await testee.getDraftProjects();
+
+        expect(tree.map(category => category.header)).toEqual(['Local', 'Web']);
+        for (const category of tree) {
+            expect(category.categories.map(child => child.header)).toEqual([
+                'Csolution Examples', 'Reference Applications', 'Templates', 'uVision Examples',
+            ]);
+            expect(category.categories.flatMap(child => child.items.map(item => item.label))).toEqual([
+                `${category.header} Example`, `${category.header} Reference application`,
+                `${category.header} Template`, `${category.header} Legacy example`,
+            ]);
+        }
     });
 
     describe('listedDraftProjects', () => {

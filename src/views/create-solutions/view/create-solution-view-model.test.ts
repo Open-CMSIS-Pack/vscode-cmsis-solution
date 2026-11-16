@@ -120,9 +120,9 @@ describe('CreateSolutionViewModel', () => {
 
         const templateNames = supportsTrustZone ? ['Blank solution', 'TrustZone solution'] : ['Blank solution'];
         const entries = viewModel.getSnapshot().exampleEntries;
-        expect(entries.map(category => category.header)).toEqual(['Templates', 'Local']);
-        expect(entries[0].items.map(item => item.label)).toEqual(templateNames);
-        expect(entries[1]).toEqual(packTemplates);
+        expect(entries.map(category => category.header)).toEqual(['Local', 'Templates']);
+        expect(entries[1].items.map(item => item.label)).toEqual(templateNames);
+        expect(entries[0]).toEqual(packTemplates);
 
         for (const name of templateNames) {
             viewModel.selectExample(`template::${name}`);
@@ -134,6 +134,27 @@ describe('CreateSolutionViewModel', () => {
                 name === 'TrustZone solution' ? ['secure', 'non-secure'] : ['off'],
             );
         }
+    });
+
+    it.each([
+        { sources: [] },
+        { sources: ['Web'] },
+        { sources: ['Local'] },
+        { sources: ['Local', 'Web'] },
+    ])('places built-in templates after local entries and before web entries ($sources)', ({ sources }) => {
+        const datamanagerApps = sources.map(header => ({
+            header, categories: [], items: [{ label: `${header} example`, value: `${header}-example` }],
+        }));
+        viewModel.dispose();
+        viewModel = new CreateSolutionViewModel(messageHandler, { ...initialState, datamanagerApps });
+
+        const entries = viewModel.getSnapshot().exampleEntries;
+        expect(entries.map(category => category.header)).toEqual([
+            ...sources.filter(source => source === 'Local'),
+            'Templates',
+            ...sources.filter(source => source !== 'Local'),
+        ]);
+        expect(entries.filter(category => category.header !== 'Templates')).toEqual(datamanagerApps);
     });
 
     it('updates existence state for correlated success and conflict responses', async () => {

@@ -101,7 +101,7 @@ export class CreateSolutionViewModel {
     private createSnapshot(): CreateSolutionViewModelSnapshot {
         const validationErrors = validate(this.state, this.state.solutionExists, false);
         const templateOptions = hardwareTemplateOptions(this.state.deviceSelection.value);
-        const exampleEntries: Array<TreeViewCategory<string>> = [];
+        const exampleEntries = this.state.datamanagerApps.filter(category => category.header === 'Local');
         if (templateOptions.length) {
             exampleEntries.push({
                 categories: [],
@@ -114,7 +114,7 @@ export class CreateSolutionViewModel {
                 })),
             });
         }
-        exampleEntries.push(...this.state.datamanagerApps);
+        exampleEntries.push(...this.state.datamanagerApps.filter(category => category.header !== 'Local'));
 
         const selectedTemplate = this.state.selectedTemplate.value;
         const selectedExampleText = selectedTemplate?.value.name ?? 'Select Project';

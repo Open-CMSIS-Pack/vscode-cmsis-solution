@@ -143,7 +143,7 @@ export const CreateSolution = ({ viewModel }: CreateSolutionProps) => {
                                     title="Select a template with boilerplate code, or a (reference) software example for your chosen hardware target"
                                     label={
                                         <>
-                                            <span style={{ width: '100%' }}>Templates, Reference Applications, and Examples</span>
+                                            <span style={{ width: '100%' }}>Examples, Reference Applications, and Templates</span>
                                             <span className="checkbox-field">
                                                 <Checkbox id={'create-solution-from-all-pack-versions'} checked={state.fromAllPackVersions} onChange={() => dispatch({ type: 'TOGGLE_ALL_PACK_VERSIONS' })} disabled={disabled} />
                                                 <label htmlFor="create-solution-from-all-pack-versions">All pack versions</label>
