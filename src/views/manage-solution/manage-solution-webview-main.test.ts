@@ -288,9 +288,11 @@ describe('ContextSelectionWebviewMain', () => {
 
     it('records trace subsection edits in snapshots and restores them through undo and redo', async () => {
         const onEdit = jest.fn();
-        const main = manageSolutionWebviewMainFactory({ webviewManager, onEdit });
+        const configurationProvider = configurationProviderFactory({ [manifest.CONFIG_EXPERIMENTAL_FEATURES]: true });
+        const main = manageSolutionWebviewMainFactory({ webviewManager, onEdit, configurationProvider });
         await main.activate(context as unknown as vscode.ExtensionContext);
         main.controller.enableDebugger(true, 'Test Adapter');
+        main.controller.experimentalFeatures = true;
         const before = main.getSolutionSnapshot();
 
         await fireAndWait('ADD_DEBUG_ADAPTER_SUBSECTION', { section: 'trace', subsection: ['serialwire'] });
