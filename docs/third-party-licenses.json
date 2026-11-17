@@ -50,7 +50,7 @@
     },
     {
         "name": "graphql-tag",
-        "version": "2.12.6",
+        "version": "2.12.7",
         "spdx": "MIT",
         "url": "https://github.com/apollographql/graphql-tag",
         "license": "https://github.com/apollographql/graphql-tag/blob/main/LICENSE"

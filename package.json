@@ -129,7 +129,7 @@
     "@faker-js/faker": "^10.6.0",
     "@graphql-codegen/cli": "^6.1.2",
     "@graphql-codegen/typescript-graphql-request": "^7.1.0",
-    "@graphql-codegen/typescript-operations": "^6.1.6",
+    "@graphql-codegen/typescript-operations": "^7.0.1",
     "@open-cmsis-pack/vsce-helper": "^0.4.1",
     "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^6.9.1",
