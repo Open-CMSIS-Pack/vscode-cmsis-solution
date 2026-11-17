@@ -3,18 +3,18 @@
 ## 1.74.0
 
 - Updates: 
-  - Cortex-M42 architecture documentation is now accessible from the **CMSIS-View**.
+  - Cortex-M42 architecture documentation is now accessible from the **CMSIS** view.
   - Improved the Create Solution example selector to prioritize local Csolution examples and reference applications over templates and uVision examples.
   - Added a Web and uVision Examples checkbox. These examples are hidden by default when local Csolution examples or reference applications are available, and shown otherwise. Manual choices are preserved until the selected hardware changes.
   - The new `build-commands` option in `cmsis-csolution.buildOutputVerbosity` displays commands executed during a build.
   - Introduced API V3 for extension integrations to manage solutions and targets, convert solutions, install and query packs, and discover tools, debuggers and toolchains, including support for filtering available, installed, used and missing packs through `getPacks`.
-  - Document management in the **CMSIS-View** now supports adding, removing, downloading and importing documents, with overwrite confirmations and indicators for document locations and errors.
+  - Document management in the **CMSIS** view now supports adding, removing, downloading and importing documents, with overwrite confirmations and indicators for document locations and errors.
   - Arm architecture, core, debug and NPU manuals are now available for the selected target, with shared downloads to avoid duplicate PDF files.
   - A new **Trace** section in **Manage Solution** provides configuration options for Serial Wire and Trace Buffer capture, including input clock settings and protocol compatibility checks.
-  - The new `cmsis-csolution.autoRefreshOnFileChange` setting controls automatic build information refresh, with indicators in the **CMSIS-View** when manual refresh is needed.
+  - The new `cmsis-csolution.autoRefreshOnFileChange` setting controls automatic build information refresh, with indicators in the **CMSIS** view when manual refresh is needed.
   - CMSIS Load & Run pyOCD tasks can now be stopped gracefully using Stop or Ctrl+C, ensuring proper debugger cleanup and preventing Run from starting when Load is cancelled.
   - Solution descriptions are now displayed in the workspace solution picker to make solutions easier to identify.
-  - The **What's New** option in the **CMSIS-View** menu provides access to release notes.
+  - The **What's New** option in the **CMSIS** view menu provides access to release notes.
   - Source pack information is now available for examples retrieved from web services.
   - Improved portability of clangd settings when moving or sharing a workspace by using workspace-relative compilation database paths.
 
@@ -30,8 +30,8 @@
   - **Configuration Wizard** selections now stay synchronized with the source editor without interrupting keyboard focus.
   - **Run Generator** actions now use the context of the selected component or diagnostic.
   - **Manage Solution** now shows the available processor cores when the device is supplied by the build-run configuration.
-  - **Merge View** now opens correctly even when required RTE update files are initially missing.
-  - Generator input files no longer appear as project source files in the **CMSIS-View**.
+  - **Merge** view now opens correctly even when required RTE update files are initially missing.
+  - Generator input files no longer appear as project source files in the **CMSIS** view.
 
 ## 1.72.0
 
