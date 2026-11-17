@@ -164,7 +164,7 @@ function main(jsonFile: string, workspace: string = '') {
         console.warn('Use npm run tpip:update locally and add missing license information');
     }
 
-    writeFileSync(`${jsonFile}`, JSON.stringify(tpipJson, undefined, 4));
+    writeFileSync(`${jsonFile}`, JSON.stringify(tpipJson, undefined, 4) + '\n');
 
     return result;
 }

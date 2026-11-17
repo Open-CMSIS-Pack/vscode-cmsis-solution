@@ -19,6 +19,7 @@ import { waitTimeout } from '../../../__test__/test-waits';
 import { serialisePackId } from '../../../packs/pack-id';
 import { serialiseBoardIdWithoutVendor, serialiseDeviceWithoutVendor } from '../../../solutions/solution-serialisers';
 import { MockMessageHandler } from '../../__test__/mock-message-handler';
+import { TreeViewCategory } from '../../common/components/tree-view';
 import { DeviceHardwareOption } from '../cmsis-solution-types';
 import { boardHardwareOptionFactory, deviceHardwareOptionFactory } from '../cmsis-solution-types.factories';
 import { TargetType } from '../create-solution-dto';
@@ -99,6 +100,187 @@ describe('CreateSolutionViewModel', () => {
             type: 'DATA_GET_DRAFTPROJECT_INFO',
             id: 'draft-id',
         }));
+    });
+
+    it.each([false, true])('keeps compatible built-in templates selectable alongside pack templates (TrustZone: %s)', (supportsTrustZone) => {
+        const device = deviceHardwareOptionFactory({
+            processors: [{ name: '', core: 'Cortex-M33', supportsTrustZone }],
+        });
+        viewModel.dispatch({ type: 'SET_DEVICE_SELECTION', deviceSelection: device });
+        const draftsRequest = getLastRequest('DATA_GET_DATAMANAGER_APPS');
+        const packTemplates = {
+            header: 'Local',
+            categories: [{ header: 'Templates', categories: [], items: [{ label: 'Pack template', value: 'pack-template' }] }],
+            items: [],
+        };
+        messageHandler.postWindowMessage({
+            type: 'DATAMANAGER_APPS_DATA',
+            requestId: draftsRequest.requestId,
+            data: [packTemplates],
+        });
+
+        const templateNames = supportsTrustZone ? ['Blank solution', 'TrustZone solution'] : ['Blank solution'];
+        const entries = viewModel.getSnapshot().exampleEntries;
+        expect(entries.map(category => category.header)).toEqual(['Local', 'Templates']);
+        expect(entries[1].items.map(item => item.label)).toEqual(templateNames);
+        expect(entries[0]).toEqual(packTemplates);
+
+        for (const name of templateNames) {
+            viewModel.selectExample(`template::${name}`);
+            const snapshot = viewModel.getSnapshot();
+            expect(snapshot.state.selectedTemplate.value).toEqual({
+                type: 'template', value: expect.objectContaining({ name }),
+            });
+            expect(snapshot.projectRows.map(row => row.project.value.trustzone)).toEqual(
+                name === 'TrustZone solution' ? ['secure', 'non-secure'] : ['off'],
+            );
+        }
+    });
+
+    it.each([
+        { sources: [] },
+        { sources: ['Web'] },
+        { sources: ['Local'] },
+        { sources: ['Local', 'Web'] },
+    ])('places built-in templates after local entries and before web entries ($sources)', ({ sources }) => {
+        const datamanagerApps = sources.map(header => ({
+            header, categories: [], items: [{ label: `${header} example`, value: `${header}-example` }],
+        }));
+        viewModel.dispose();
+        viewModel = new CreateSolutionViewModel(messageHandler, {
+            ...initialState, datamanagerApps, showWebAndUvExamples: { value: true, hadInteraction: true },
+        });
+
+        const entries = viewModel.getSnapshot().exampleEntries;
+        expect(entries.map(category => category.header)).toEqual([
+            ...sources.filter(source => source === 'Local'),
+            'Templates',
+            ...sources.filter(source => source !== 'Local'),
+        ]);
+        expect(entries.filter(category => category.header !== 'Templates')).toEqual(datamanagerApps);
+    });
+
+    describe('Web and uVision example visibility', () => {
+        const group = (header: string, value: string): TreeViewCategory<string> => ({
+            header, categories: [], items: [{ label: value, value }],
+        });
+        const web = group('Web', 'web-example');
+        const uv = group('uVision Examples', 'uv-example');
+        const template = group('Templates', 'pack-template');
+        const local = (...categories: Array<TreeViewCategory<string>>): TreeViewCategory<string> => ({
+            header: 'Local', categories, items: [],
+        });
+        const loadDrafts = (data: Array<TreeViewCategory<string>>) => {
+            messageHandler.postWindowMessage({
+                type: 'DATAMANAGER_APPS_DATA',
+                requestId: getLastRequest('DATA_GET_DATAMANAGER_APPS').requestId,
+                data,
+            });
+        };
+
+        beforeEach(() => viewModel.dispatch({ type: 'SET_DEVICE_SELECTION', deviceSelection: deviceHardwareOptionFactory() }));
+
+        it.each(['Csolution Examples', 'Reference Applications'])(
+            'hides optional examples when local %s exist, independently of search', header => {
+                const normal = group(header, 'normal-example');
+                const drafts = [local(normal, template, uv), web];
+                viewModel.dispatch({ type: 'SET_EXAMPLES_TREE_VIEW_SEARCH', search: 'web-example' });
+                loadDrafts(drafts);
+
+                expect(viewModel.getSnapshot().state.showWebAndUvExamples.value).toBe(false);
+                expect(viewModel.getSnapshot().exampleEntries).toEqual([
+                    local(normal, template), expect.objectContaining({ header: 'Templates' }),
+                ]);
+                expect(viewModel.getSnapshot().state.datamanagerApps).toEqual(drafts);
+                viewModel.dispatch({ type: 'TOGGLE_WEB_AND_UV_EXAMPLES' });
+                expect(viewModel.getSnapshot().exampleEntries).toEqual([
+                    drafts[0], expect.objectContaining({ header: 'Templates' }), web,
+                ]);
+            },
+        );
+
+        it.each([{ categories: [] }, { categories: [template] }])('automatically shows optional examples when only templates or no local entries exist ($categories)', ({ categories }) => {
+            loadDrafts([local(...categories, uv), web]);
+            expect(viewModel.getSnapshot().state.showWebAndUvExamples.value).toBe(true);
+            expect(viewModel.getSnapshot().exampleEntries.at(-1)).toEqual(web);
+            viewModel.dispatch({ type: 'TOGGLE_WEB_AND_UV_EXAMPLES' });
+            expect(viewModel.getSnapshot().exampleEntries.map(category => category.header)).toEqual(
+                categories.length ? ['Local', 'Templates'] : ['Templates'],
+            );
+        });
+
+        it('preserves manual visibility across reloads, but recalculates for new hardware', () => {
+            loadDrafts([local(uv), web]);
+            viewModel.dispatch({ type: 'TOGGLE_WEB_AND_UV_EXAMPLES' });
+            viewModel.dispatch({ type: 'TOGGLE_ALL_PACK_VERSIONS' });
+            loadDrafts([local(uv), web]);
+            expect(viewModel.getSnapshot().state.showWebAndUvExamples.value).toBe(false);
+
+            viewModel.dispatch({ type: 'SET_DEVICE_SELECTION', deviceSelection: deviceHardwareOptionFactory() });
+            expect(viewModel.getSnapshot().state.datamanagerApps).toEqual([]);
+            loadDrafts([web]);
+            expect(viewModel.getSnapshot().state.showWebAndUvExamples.value).toBe(true);
+
+            viewModel.dispatch({ type: 'TOGGLE_WEB_AND_UV_EXAMPLES' });
+            viewModel.dispatch({ type: 'SET_BOARD_SELECTION', boardSelection: boardHardwareOptionFactory({ mountedDevices: [] }) });
+            loadDrafts([local(uv)]);
+            expect(viewModel.getSnapshot().state.showWebAndUvExamples.value).toBe(true);
+        });
+
+        it('keeps an explicit checked override when a reload adds local examples', () => {
+            const normal = group('Csolution Examples', 'normal-example');
+            loadDrafts([local(normal), web]);
+            viewModel.dispatch({ type: 'TOGGLE_WEB_AND_UV_EXAMPLES' });
+            viewModel.dispatch({ type: 'TOGGLE_ALL_PACK_VERSIONS' });
+            loadDrafts([local(normal, uv), web]);
+            expect(viewModel.getSnapshot().state.showWebAndUvExamples.value).toBe(true);
+            expect(viewModel.getSnapshot().exampleEntries.at(-1)).toEqual(web);
+        });
+
+        it.each(['web-example', 'uv-example'])('clears a hidden selection and ignores late details (%s)', id => {
+            loadDrafts([local(uv), web]);
+            viewModel.selectExample(id);
+            const request = getLastRequest('DATA_GET_DRAFTPROJECT_INFO');
+            const details = { id, name: id, description: '', draftType: 'Example' as const };
+            messageHandler.postWindowMessage({ type: 'DRAFTPROJECT_INFO', requestId: request.requestId, data: details });
+            expect(viewModel.getSnapshot().state.selectedTemplate.value?.value.name).toBe(id);
+
+            viewModel.dispatch({ type: 'TOGGLE_WEB_AND_UV_EXAMPLES' });
+            expect(viewModel.getSnapshot().state.selectedTemplate.value).toBeUndefined();
+            expect(viewModel.getSnapshot().state.selectedDraftProjectId).toBe('');
+            expect(viewModel.getSnapshot().canCreate).toBe(false);
+            messageHandler.postWindowMessage({ type: 'DRAFTPROJECT_INFO', requestId: request.requestId, data: details });
+            expect(viewModel.getSnapshot().state.selectedTemplate.value).toBeUndefined();
+        });
+
+        it('retains local and built-in template selections when optional examples are hidden', () => {
+            loadDrafts([local(template, uv), web]);
+            viewModel.selectExample('pack-template');
+            messageHandler.postWindowMessage({
+                type: 'DRAFTPROJECT_INFO', requestId: getLastRequest('DATA_GET_DRAFTPROJECT_INFO').requestId,
+                data: { id: 'pack-template', name: 'Pack template', description: '', draftType: 'Template' },
+            });
+            viewModel.dispatch({ type: 'TOGGLE_WEB_AND_UV_EXAMPLES' });
+            expect(viewModel.getSnapshot().state.selectedTemplate.value?.value.name).toBe('Pack template');
+
+            viewModel.dispatch({ type: 'TOGGLE_WEB_AND_UV_EXAMPLES' });
+            viewModel.selectExample('template::Blank solution');
+            viewModel.dispatch({ type: 'TOGGLE_WEB_AND_UV_EXAMPLES' });
+            expect(viewModel.getSnapshot().state.selectedTemplate.value?.value.name).toBe('Blank solution');
+        });
+
+        it('does not restore an example hidden while its details are loading', () => {
+            loadDrafts([web]);
+            viewModel.selectExample('web-example');
+            const request = getLastRequest('DATA_GET_DRAFTPROJECT_INFO');
+            viewModel.dispatch({ type: 'TOGGLE_WEB_AND_UV_EXAMPLES' });
+            messageHandler.postWindowMessage({
+                type: 'DRAFTPROJECT_INFO', requestId: request.requestId,
+                data: { id: 'web-example', name: 'Web example', description: '', draftType: 'Example' },
+            });
+            expect(viewModel.getSnapshot().state.selectedTemplate.value).toBeUndefined();
+            expect(viewModel.getSnapshot().state.selectedDraftProjectId).toBe('');
+        });
     });
 
     it('updates existence state for correlated success and conflict responses', async () => {

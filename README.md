@@ -102,6 +102,10 @@ To start a new *csolution project*, select a [board](https://www.keil.arm.com/bo
 - CMSIS solution examples: These examples are created for a specific hardware or evaluation board and interface with board and device peripherals.
 - µVision examples: Example projects created for the µVision IDE. Arm CMSIS Solution automatically converts µVision projects to the csolution project format.
 
+Use **Show Web and uVision examples** to include or hide Web examples and local µVision examples.
+This option is enabled automatically when the selected hardware has no local CMSIS solution examples or reference applications; templates do not affect this default.
+Your choice is retained within the wizard until you select different hardware.
+
 Then create the *csolution project* on the selected folder on your Host computer.
 
 ## Configure Solution view
