@@ -4,7 +4,7 @@ Generated for release: 1.72.0
 
 | *Package* | *Version* | *Repository* | *License* |
 |---|---|---|---|
-|@ant-design/icons|5.6.1|https://github.com/ant-design/ant-design-icons|https://github.com/ant-design/ant-design-icons/blob/master/LICENSE|
+|@ant-design/icons|6.3.4|https://github.com/ant-design/ant-design-icons|https://github.com/ant-design/ant-design-icons/blob/master/LICENSE|
 |@arm-software/vscode-environment-manager|1.26.0|https://github.com/ARM-software/vscode-environment-manager/|https://github.com/ARM-software/vscode-environment-manager/blob/main/LICENSE|
 |@eclipse-cdt-cloud/clangd-contexts|0.9.0-next.c7c35a6.0|https://github.com/eclipse-cdt-cloud|https://github.com/eclipse-cdt-cloud/clangd-contexts/blob/main/LICENSE|
 |@fortawesome/fontawesome-free|7.2.0|https://github.com/FortAwesome/Font-Awesome|https://github.com/FortAwesome/Font-Awesome/blob/6.x/LICENSE.txt|
@@ -18,7 +18,7 @@ Generated for release: 1.72.0
 |formdata-polyfill|4.0.10|https://github.com/jimmywarting/FormData|https://github.com/jimmywarting/FormData/blob/master/LICENSE|
 |glob|14.0.2|https://github.com/isaacs/node-glob|https://github.com/isaacs/node-glob/blob/main/LICENSE.md|
 |graphql-request|7.4.0|https://github.com/jasonkuhrt/graphql-request|https://github.com/jasonkuhrt/graphql-request/blob/main/LICENSE|
-|graphql-tag|2.12.6|https://github.com/apollographql/graphql-tag|https://github.com/apollographql/graphql-tag/blob/main/LICENSE|
+|graphql-tag|2.12.7|https://github.com/apollographql/graphql-tag|https://github.com/apollographql/graphql-tag/blob/main/LICENSE|
 |jsonc-parser|3.3.1|https://github.com/microsoft/node-jsonc-parser|https://github.com/microsoft/node-jsonc-parser/blob/main/LICENSE.md|
 |lodash|4.18.1|https://github.com/lodash/lodash|https://github.com/lodash/lodash/blob/master/LICENSE|
 |lodash.debounce|4.0.8|https://github.com/lodash/lodash|https://github.com/lodash/lodash/blob/master/LICENSE|
