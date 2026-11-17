@@ -4,6 +4,8 @@
 
 - Updates: 
   - Cortex-M42 architecture documentation is now accessible from the **CMSIS-View**.
+  - Improved the Create Solution example selector to prioritize local Csolution examples and reference applications over templates and uVision examples.
+  - Added a Web and uVision Examples checkbox. These examples are hidden by default when local Csolution examples or reference applications are available, and shown otherwise. Manual choices are preserved until the selected hardware changes.
   - The new `build-commands` option in `cmsis-csolution.buildOutputVerbosity` displays commands executed during a build.
   - Introduced API V3 for extension integrations to manage solutions and targets, convert solutions, install and query packs, and discover tools, debuggers and toolchains, including support for filtering available, installed, used and missing packs through `getPacks`.
   - Document management in the **CMSIS-View** now supports adding, removing, downloading and importing documents, with overwrite confirmations and indicators for document locations and errors.
@@ -18,7 +20,10 @@
 
 - Solved issues: 
   - Build, rebuild and clean commands now refresh outdated build information before running when automatic refresh is disabled.
+  - Built-in templates remain available alongside compatible templates supplied by CMSIS-Packs
   - Build failures are now correctly reported in the task terminal.
+  - Improved example ordering and visibility in the Create Solution view.
+  - Reselecting the same board and mounted device no longer resets the manual Web and uVision Examples choice.
   - Cancelling `cbuild setup` no longer blocks subsequent solution operations.
   - Managed pyOCD tasks now respect configured commands and task templates, with improved executable discovery on Windows.
   - **Create Solution** now opens the correct solution when an example or template contains a solution file in a subfolder.
