@@ -226,6 +226,62 @@ describe('createSolutionReducer', () => {
     });
 
     describe('SET_BOARD_SELECTION', () => {
+        it.each([
+            [0, false],
+            [0, true],
+            [1, false],
+            [1, true],
+        ])('preserves manual visibility when reselecting unchanged hardware (%i mounted devices, visible: %s)', (mountedDeviceCount, visible) => {
+            const mountedDevice = deviceHardwareOptionFactory();
+            const boardSelection = boardHardwareOptionFactory({ mountedDevices: mountedDeviceCount ? [mountedDevice] : [] });
+            const input: CreateSolutionState = {
+                ...initialState,
+                boardSelection: hadInteraction(boardSelection),
+                deviceSelection: hadInteraction(mountedDeviceCount ? mountedDevice : undefined),
+                showWebAndUvExamples: hadInteraction(visible),
+            };
+
+            const output = createSolutionReducer(input, { type: 'SET_BOARD_SELECTION', boardSelection: { ...boardSelection } });
+            const reloaded = createSolutionReducer(output, {
+                type: 'INCOMING_MESSAGE',
+                message: { type: 'DATAMANAGER_APPS_DATA', requestId: 'reload', data: [] },
+            });
+
+            expect(output.showWebAndUvExamples).toEqual(hadInteraction(visible));
+            expect(reloaded.showWebAndUvExamples).toEqual(hadInteraction(visible));
+        });
+
+        it.each([
+            [true, false],
+            [false, true],
+            [true, true],
+        ])('resets manual visibility when final hardware changes (board: %s, device: %s)', (boardChanged, deviceChanged) => {
+            const mountedDevice = deviceHardwareOptionFactory();
+            const boardSelection = boardHardwareOptionFactory({ mountedDevices: [mountedDevice] });
+            const input: CreateSolutionState = {
+                ...initialState,
+                boardSelection: hadInteraction(boardSelection),
+                deviceSelection: hadInteraction(mountedDevice),
+                showWebAndUvExamples: hadInteraction(false),
+            };
+
+            const output = createSolutionReducer(input, {
+                type: 'SET_BOARD_SELECTION',
+                boardSelection: {
+                    ...boardSelection,
+                    key: boardChanged ? 'different-board' : boardSelection.key,
+                    mountedDevices: [{ ...mountedDevice, key: deviceChanged ? 'different-device' : mountedDevice.key }],
+                },
+            });
+            const reloaded = createSolutionReducer(output, {
+                type: 'INCOMING_MESSAGE',
+                message: { type: 'DATAMANAGER_APPS_DATA', requestId: 'reload', data: [] },
+            });
+
+            expect(output.showWebAndUvExamples).toEqual({ value: false, hadInteraction: false });
+            expect(reloaded.showWebAndUvExamples).toEqual({ value: true, hadInteraction: false });
+        });
+
         it('updates board selection value and tracks the user interaction for multi device boards', () => {
             const input: CreateSolutionState = {
                 ...initialState,

@@ -168,63 +168,63 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
         const release = await this.toolboxMutex.acquire();
         // dequeue
         this.toolboxQueue.shift();
-        // Check tool version
-        const toolCmd = (useEmbeddedToolbox ? this.embeddedTool(tool) : undefined)
-            ?? (await which(tool, { nothrow: true })) ?? tool;
-        if (MIN_TOOL_VERSIONS[tool]) {
-            let versionOutput = '';
-            const [versionMsg, versionReturnCode] = await this.runCmd(
-                toolCmd,
-                ['--version'],
-                (line: string) => versionOutput += line + '\n',
-                cancellationToken
-            );
-            const version = versionOutput.match(/(\d+\.\d+(\.\d+)?)/)?.[0];
-            if (versionReturnCode !== 0 || !version || version === '0.0.0') {
-                console.warn(`Could not determine version of ${toolCmd}`);
-                console.warn(versionMsg);
-            } else if (MIN_TOOL_VERSIONS[tool].compare(version) === 1) {
-                msg = `Version of ${tool} is ${version}\r\n(${toolCmd})\r\nArm CMSIS Solution Extension requires version ${MIN_TOOL_VERSIONS[tool].format()} or higher.`;
-                console.error(msg);
+        try {
+            // Check tool version
+            const toolCmd = (useEmbeddedToolbox ? this.embeddedTool(tool) : undefined)
+                ?? (await which(tool, { nothrow: true })) ?? tool;
+            if (MIN_TOOL_VERSIONS[tool]) {
+                let versionOutput = '';
+                const [versionMsg, versionReturnCode] = await this.runCmd(
+                    toolCmd,
+                    ['--version'],
+                    (line: string) => versionOutput += line + '\n',
+                    cancellationToken
+                );
+                const version = versionOutput.match(/(\d+\.\d+(\.\d+)?)/)?.[0];
+                if (versionReturnCode !== 0 || !version || version === '0.0.0') {
+                    console.warn(`Could not determine version of ${toolCmd}`);
+                    console.warn(versionMsg);
+                } else if (MIN_TOOL_VERSIONS[tool].compare(version) === 1) {
+                    msg = `Version of ${tool} is ${version}\r\n(${toolCmd})\r\nArm CMSIS Solution Extension requires version ${MIN_TOOL_VERSIONS[tool].format()} or higher.`;
+                    console.error(msg);
+                    onOutput(msg);
+                    return [-1, toolCmd];
+                }
+            }
+            // execute call
+            if (options.emitExecuteLine !== false) {
+                msg = `${tool} ${args.join(' ')}\r\n`;
+                console.log(msg);
                 onOutput(msg);
-                // release mutex
-                release();
-                return [-1, toolCmd];
             }
-        }
-        // execute call
-        if (options.emitExecuteLine !== false) {
-            msg = `${tool} ${args.join(' ')}\r\n`;
+
+            if (tool === 'cbuild') {
+                if (args.includes('setup')) {
+                    // notify cbuild setup is started but do not notify other cbuild calls (e.g. during build)
+                    this.runCmsisToolEmitter.fire([true, false, true]);
+                }
+            } else {
+                // set 'packs' event flag when installing packs via 'cpackget add' command
+                this.runCmsisToolEmitter.fire([true, tool === 'cpackget' && args.includes('add'), false]);
+            }
+
+            const [cmdMsg, returnCode] = await this.runCmd(
+                toolCmd,
+                args,
+                onOutput,
+                cancellationToken,
+                dimensions,
+                options.usePty,
+                options.filterOutput,
+            );
+            // Print messages
+            msg = `${returnCode === 0 ? '✅' : '🟥'} Completed: ${tool} ${cmdMsg}\r\n`;
             console.log(msg);
-            onOutput(msg);
+            return [returnCode, toolCmd];
+        } finally {
+            release();
+            this.runCmsisToolEmitter.fire([false]);
         }
-
-        if (tool === 'cbuild') {
-            if (args.includes('setup')) {
-                // notify cbuild setup is started but do not notify other cbuild calls (e.g. during build)
-                this.runCmsisToolEmitter.fire([true, false, true]);
-            }
-        } else {
-            // set 'packs' event flag when installing packs via 'cpackget add' command
-            this.runCmsisToolEmitter.fire([true, tool === 'cpackget' && args.includes('add'), false]);
-        }
-
-        const [cmdMsg, returnCode] = await this.runCmd(
-            toolCmd,
-            args,
-            onOutput,
-            cancellationToken,
-            dimensions,
-            options.usePty,
-            options.filterOutput,
-        );
-        // Print messages
-        msg = `${returnCode === 0 ? '✅' : '🟥'} Completed: ${tool} ${cmdMsg}\r\n`;
-        console.log(msg);
-        // release mutex
-        release();
-        this.runCmsisToolEmitter.fire([false]);
-        return [returnCode, toolCmd];
     }
 
     private async runCmd(

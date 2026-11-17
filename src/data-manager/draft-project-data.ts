@@ -81,6 +81,7 @@ export enum DraftProjectSource {
 export interface DraftProjectData {
     get id(): DraftProjectId;
     get name(): string;
+    /** Path to the csolution file relative to the root copied by copyTo(). */
     get solutionFileName(): string | undefined;
     get description(): string;
     get format(): DraftProjectFormat;
@@ -203,7 +204,7 @@ export class CsolutionExampleData extends BaseDraftProjectData {
 
     public get solutionFileName() {
         return this.format === DraftProjectFormat.Csolution && this.selectedEnvironment?.file
-            ? path.basename(this.selectedEnvironment.file)
+            ? path.relative(this.selectedEnvironment.folder, this.selectedEnvironment.file)
             : undefined;
     }
 
@@ -260,7 +261,7 @@ export class CsolutionTemplateData extends BaseDraftProjectData {
     }
 
     public get solutionFileName() {
-        return path.basename(this.data.file);
+        return path.relative(this.data.folder, this.data.file);
     }
 
     public get description() {

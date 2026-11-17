@@ -57,36 +57,39 @@ describe('Solar draft project data', () => {
 });
 
 describe('Csolution draft project data', () => {
-    it('uses only the selected csolution environment filename', () => {
-        const csolutionFile = path.resolve('packs', 'examples', 'Test-Ethos-U55.csolution.yml');
+    it.each(['', 'VSCode'])('preserves the selected csolution path in subfolder "%s"', solutionSubfolder => {
+        const folder = path.resolve('packs', 'examples');
+        const solutionFileName = path.join(solutionSubfolder, 'Test-Ethos-U55.csolution.yml');
         const example: ExampleProject = {
             name: 'Ethos-U reference application',
             description: 'Reference application with multiple solutions',
             doc: '',
             pack: 'ARM::CMSIS-Ethos-U@1.0.0',
             environments: [
-                { name: 'uv', file: path.resolve('packs', 'examples', 'Test-Ethos-U55.uvprojx'), folder: '' },
-                { name: 'csolution', file: csolutionFile, folder: '' },
+                { name: 'uv', file: path.join(folder, 'Test-Ethos-U55.uvprojx'), folder },
+                { name: 'csolution', file: path.join(folder, solutionFileName), folder },
             ],
         };
 
         const draft = new CsolutionExampleData(example);
 
-        expect(draft.solutionFileName).toBe('Test-Ethos-U55.csolution.yml');
+        expect(draft.solutionFileName).toBe(solutionFileName);
     });
 
-    it('uses only the template filename', () => {
+    it.each(['', 'VSCode'])('preserves the template path in subfolder "%s"', solutionSubfolder => {
+        const folder = path.resolve('packs', 'templates');
+        const solutionFileName = path.join(solutionSubfolder, 'Reference.csolution.yml');
         const template: SolutionTemplate = {
             name: 'Reference template',
             description: '',
-            file: path.resolve('packs', 'templates', 'Reference.csolution.yml'),
-            folder: '',
+            file: path.join(folder, solutionFileName),
+            folder,
             pack: 'Vendor::Pack@1.0.0',
         };
 
         const draft = new CsolutionTemplateData(template);
 
-        expect(draft.solutionFileName).toBe('Reference.csolution.yml');
+        expect(draft.solutionFileName).toBe(solutionFileName);
     });
 
     it('does not expose a uVision project as a solution filename', () => {

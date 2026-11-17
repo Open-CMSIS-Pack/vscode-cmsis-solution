@@ -352,12 +352,15 @@ describe('MergeCommand', () => {
 
         it('shows error if VS Code executable is not found before starting merge', async () => {
             jest.spyOn(os, 'platform').mockReturnValue('linux');
+            jest.spyOn(fsUtils, 'fileExists').mockReturnValue(false);
             mockedExecFileSync.mockImplementation(() => {
                 throw new Error('not found');
             });
 
             await command['runVSCodeMerge'](fileNode);
             expect(messageProvider.showErrorMessage).toHaveBeenCalledWith('Visual Studio Code executable not found. Please ensure it is installed and available in your PATH.');
+            expect(mockedExec).not.toHaveBeenCalled();
+            expect(mergeSessionCoordinator.startSession).not.toHaveBeenCalled();
         });
     });
 

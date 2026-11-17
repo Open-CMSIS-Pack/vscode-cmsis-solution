@@ -434,7 +434,7 @@ async function runConvertSolution(): Promise<void> {
     const configuration = vscode.workspace.getConfiguration('cmsis-csolution', folder);
     assert.equal(configuration.get('downloadPacks'), false);
     assert.equal(configuration.get('useWebServices'), false);
-    assert.equal(configuration.get('autoConvertOnFileChange'), false);
+    assert.equal(configuration.get('autoRefreshOnFileChange'), false);
     const extension = vscode.extensions.getExtension<CsolutionExtension>('Arm.cmsis-csolution');
     assert.ok(extension);
     const exports = await extension.activate();

@@ -21,6 +21,7 @@ import { BuildTaskDefinition } from './build-task-definition';
 import { BuildTaskProvider, BuildTaskProviderImpl, waitForActiveBuildTasksCompletion } from './build-task-provider';
 import { BuildTaskDefinitionBuilder } from './build-task-definition-builder';
 import { COutlineItem } from '../../views/solution-outline/tree-structure/solution-outline-item';
+import { isAutoRefreshOnFileChangeEnabled, SolutionManager } from '../../solutions/solution-manager';
 
 type UriOrSolutionNode = vscode.Uri | COutlineItem;
 type SaveBeforeRun = 'always' | 'never' | 'prompt';
@@ -39,6 +40,7 @@ export class BuildCommand {
         private readonly buildTaskProvider: BuildTaskProvider,
         private readonly commandsProvider: CommandsProvider,
         private readonly buildTaskDefinitionBuilder: BuildTaskDefinitionBuilder,
+        private readonly solutionManager: Pick<SolutionManager, 'loadState' | 'refresh'>,
         private readonly saveParticipant?: BuildCommandSaveParticipant,
     ) {}
 
@@ -67,6 +69,11 @@ export class BuildCommand {
         await waitForActiveBuildTasksCompletion();
         if (!await this.saveChangesBeforeBuild()) {
             return undefined;
+        }
+        // A webview save can already have started conversion while dirty is still true.
+        if (!isAutoRefreshOnFileChangeEnabled() && this.solutionManager.loadState.dirty
+            && this.solutionManager.loadState.converted !== false) {
+            await this.solutionManager.refresh();
         }
         const definition = await this.buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode(action, uriOrSolutionNode);
         return this.executeTaskDefinition(definition);

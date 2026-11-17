@@ -127,6 +127,28 @@ export class ImageWrap extends CTreeItemWrap {
     get projectName() { return stripSuffix(this.projectContext, '.'); }
 }
 
+/** Wraps one debugger trace transport and its sibling options in the trace sequence. */
+export class DebuggerTraceWrap extends CTreeItemWrap {
+    /** Reports whether this transport captures trace; an omitted mode defaults to off. */
+    get enabled(): boolean {
+        const mode = this.getValue('mode');
+        return mode === 'server' || mode === 'file';
+    }
+
+    /** Switches capture off or enables file output, retaining an already active output mode. */
+    set enabled(enabled: boolean) {
+        if (enabled !== this.enabled) {
+            this.setValue('mode', enabled ? 'file' : 'off');
+        }
+    }
+
+    /** Reads the trace input clock frequency in Hz. */
+    get inputClock(): number | undefined {
+        const value = this.getValue('input-clock');
+        return value === undefined ? undefined : Number(value);
+    }
+}
+
 export class DebuggerWrap extends CTreeItemWrap {
 
     override get nameKey(): string {
@@ -141,6 +163,58 @@ export class DebuggerWrap extends CTreeItemWrap {
     set clock(clock: string | undefined) { this.setValue('clock', clock); }
     get startPname() { return this.getValue('start-pname'); }
     set startPname(pname: string | undefined) { this.setValue('start-pname', pname); }
+
+    /** Resolves nested maps and trace-style sequence entries, optionally creating missing containers. */
+    getSection(path: string[], create = false): CTreeItemWrap | undefined {
+        let node = create ? this.ensureItem() : this.item;
+        for (const key of path) {
+            if (!node) {
+                return undefined;
+            }
+            if (node.isSequence()) {
+                let entry = node.getChildren().find(child => child.getChild(key));
+                if (!entry && create) {
+                    entry = node.createChild('-');
+                    entry.setKind(ETreeItemKind.Map);
+                    entry.createChild(key).fromObject(null);
+                }
+                node = entry;
+            } else {
+                node = node.getChild(key) ?? (create ? node.createChild(key, true).setKind(ETreeItemKind.Map) : undefined);
+            }
+        }
+        return node ? new CTreeItemWrap(node) : undefined;
+    }
+
+    /** Writes a typed scalar into a nested section without replacing its other options. */
+    setSectionParameter(path: string[], param: string, value: string | number, pname?: string): void {
+        const section = this.getSection(path, true)?.item;
+        if (!section) {
+            return;
+        }
+        if (!section.isSequence()) {
+            section.createChild(param, true).fromObject(value);
+            return;
+        }
+
+        const entries = section.getChildren().filter(entry => !pname || entry.getValue('pname') === pname);
+        if (entries.length === 0) {
+            const entry = section.createChild('-');
+            entry.setKind(ETreeItemKind.Map);
+            if (pname) {
+                entry.setValue('pname', pname);
+            }
+            entries.push(entry);
+        }
+        entries.forEach(entry => entry.createChild(param, true).fromObject(value));
+    }
+
+    /** Finds a configured trace transport by its marker, including a marker with no value. */
+    getTraceSource(transport: string): DebuggerTraceWrap | undefined {
+        const trace = this.item?.getChild('trace');
+        const source = trace?.isSequence() ? trace.getChildren().find(entry => entry.getChild(transport)) : undefined;
+        return source ? new DebuggerTraceWrap(source) : undefined;
+    }
 
     get sectionNames(): string[] {
         return this.item?.getChildren()

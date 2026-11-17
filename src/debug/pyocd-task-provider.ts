@@ -17,13 +17,14 @@
 import * as vscode from 'vscode';
 import { ChildProcess, spawn } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import { StringDecoder } from 'string_decoder';
 import { pyocdWindowsHost } from './pyocd-windows';
-import { OutputChannelProvider } from '../vscode-api/output-channel-provider';
 
 export const PYOCD_TASK_TYPE = 'cmsis-csolution.pyocd';
 
 export interface PyocdTaskDefinition extends vscode.TaskDefinition {
+    command?: string;
     args: string[];
     options?: { cwd?: string; env?: NodeJS.ProcessEnv };
 }
@@ -55,18 +56,23 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
             this.finish(130);
             return;
         }
+        this.launch(this.definition.command || 'pyocd');
+    }
+
+    private launch(command: string): void {
         try {
             const windows = this.platform === 'win32';
             const executable = windows
                 ? path.win32.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
-                : 'pyocd';
+                : command;
             this.child = spawn(executable, windows ? [
                 '-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand',
                 Buffer.from(pyocdWindowsHost, 'utf16le').toString('base64'),
             ] : this.definition.args, {
                 cwd: this.definition.options?.cwd,
                 env: { ...this.env, ...this.definition.options?.env,
-                    ...(windows ? { CMSIS_PYOCD_ARGUMENTS: JSON.stringify(this.definition.args) } : {}) },
+                    ...(windows ? { CMSIS_PYOCD_ARGUMENTS: JSON.stringify(this.definition.args),
+                        CMSIS_PYOCD_COMMAND: this.definition.command || '' } : {}) },
                 windowsHide: true,
                 stdio: ['pipe', 'pipe', 'pipe'],
             });
@@ -75,19 +81,49 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
                 stream?.on('data', (data: Buffer) => this.writeEmitter.fire(decoder.write(data).replace(/\r?\n/g, '\r\n')));
                 stream?.on('end', () => this.writeEmitter.fire(decoder.end()));
             }
-            this.child.on('error', error => {
-                this.writeEmitter.fire(`pyOCD: ${error.message}\r\n`);
+            const child = this.child;
+            this.child.on('error', (error: NodeJS.ErrnoException) => {
+                if (this.canFallBack(command, error)) {
+                    this.launch('pyocd');
+                    return;
+                }
+                const configured = this.definition.command ? ` (configured command '${this.definition.command}')` : '';
+                this.writeEmitter.fire(`pyOCD: executable '${command}'${configured}: ${error.message}\r\n`);
                 if (!this.cancelled || !this.child?.pid) {
                     this.finish(1);
                 }
             });
-            this.child.on('close', code => this.finish(code ?? 1));
+            this.child.on('spawn', () => {
+                if (!windows && command === 'pyocd' && this.definition.command && this.definition.command !== command) {
+                    this.writeEmitter.fire(`Warning: configured executable '${this.definition.command}' was not found; using '${command}'.\r\n`);
+                }
+            });
+            this.child.on('close', code => { if (this.child === child) this.finish(code ?? 1); });
             // A failed control pipe must never become an unhandled EPIPE exception.
             this.child.stdin?.on('error', () => {});
         } catch (error) {
             this.writeEmitter.fire(`pyOCD: ${error}\r\n`);
             this.finish(1);
         }
+    }
+
+    private canFallBack(command: string, error: NodeJS.ErrnoException): boolean {
+        if (this.platform === 'win32' || error.code !== 'ENOENT') {
+            return false;
+        }
+        if (command === 'pyocd' || this.cancelled) {
+            return false;
+        }
+        // ENOENT can also mean a missing cwd or interpreter. Only retry a
+        // missing executable, never an existing program that failed to launch.
+        const cwd = this.definition.options?.cwd ?? process.cwd();
+        if (!fs.existsSync(cwd)) {
+            return false;
+        }
+        const searchPath = this.definition.options?.env?.PATH ?? this.env.PATH ?? process.env.PATH ?? '';
+        const candidates = command.includes('/') ? [path.resolve(cwd, command)]
+            : searchPath.split(':').map(directory => path.resolve(cwd, directory, command));
+        return !candidates.some(candidate => fs.existsSync(candidate));
     }
 
     public handleInput(data: string): void {
@@ -104,7 +140,6 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
         if (!this.child) {
             return; // VS Code may cancel between CustomExecution creation and open.
         }
-        this.writeEmitter.fire('\r\npyOCD: requesting graceful shutdown.\r\n');
         this.shutdownTimer = setTimeout(() => {
             if (this.child?.exitCode != null || this.child?.signalCode != null) {
                 this.finish(130);
@@ -112,7 +147,12 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
             }
             this.writeEmitter.fire('\r\npyOCD shutdown timed out; forcing termination.\r\n');
             if (this.platform === 'win32' && this.child?.pid) {
-                const killer = spawn('taskkill.exe', ['/PID', String(this.child.pid), '/T', '/F'], { windowsHide: true });
+                // Use the host environment, never task overrides or executable search.
+                // System32 also works under WOW64: redirection selects the system's 32-bit utility.
+                const windowsRoot = [process.env.SystemRoot, process.env.windir]
+                    .find(root => root !== undefined && /^[a-z]:[\\/]/i.test(root)) ?? 'C:\\Windows';
+                const executable = path.win32.join(windowsRoot, 'System32', 'taskkill.exe');
+                const killer = spawn(executable, ['/PID', String(this.child.pid), '/T', '/F'], { windowsHide: true });
                 killer.on('error', error => this.writeEmitter.fire(`pyOCD termination failed: ${error.message}\r\n`));
             } else {
                 this.child?.kill('SIGKILL');
@@ -134,7 +174,6 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
         // pyOCD may catch KeyboardInterrupt and return zero. A cancelled Load must
         // still fail its sequential dependency so that Run cannot start.
         const exitCode = this.cancelled ? 130 : code;
-        this.writeEmitter.fire(`\r\npyOCD task finished (exit code ${exitCode}).\r\n`);
         this.complete(exitCode);
         this.closeEmitter.fire(exitCode);
         this.writeEmitter.dispose();
@@ -149,7 +188,6 @@ export class PyocdTaskProvider implements vscode.TaskProvider, vscode.Disposable
 
     constructor(
         private readonly environment: () => NodeJS.ProcessEnv,
-        private readonly outputChannelProvider?: OutputChannelProvider,
     ) {}
 
     public activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>): void {
@@ -166,16 +204,10 @@ export class PyocdTaskProvider implements vscode.TaskProvider, vscode.Disposable
         }
         const resolved = new vscode.Task(task.definition, task.scope ?? vscode.TaskScope.Workspace,
             task.name, task.source, new vscode.CustomExecution(async definition => {
-                const output = this.outputChannelProvider?.getOrCreate('CMSIS pyOCD');
-                output?.appendLine(`[${task.name}] Starting managed pyOCD task.`);
                 const terminal = new PyocdTerminal(definition as PyocdTaskDefinition, this.environment(), exitCode => {
-                    output?.appendLine(`[${task.name}] pyOCD task finished (exit code ${exitCode}).`);
                     this.terminals.delete(terminal);
                     this.endEmitter.fire({ task: resolved, exitCode });
                 });
-                // Task termination can disconnect VS Code's terminal before the
-                // child exits. Retain shutdown output independently until finish.
-                terminal.onDidWrite(data => output?.append(data));
                 this.terminals.set(terminal, resolved);
                 return terminal;
             }), task.problemMatchers);

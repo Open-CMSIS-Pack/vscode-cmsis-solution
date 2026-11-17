@@ -23,7 +23,7 @@ import { NewProject, Trustzone, validTrustZone } from '../cmsis-solution-types';
 import { PackRequirement, TargetType } from '../create-solution-dto';
 import { addRequestId, IncomingMessage, OutgoingMessage, RequestMessage, RequestMessagePayload, SolutionDirectoryConflict } from '../messages';
 import { FieldAndInteraction } from './state/field-and-interaction';
-import { CreateSolutionAction, CreateSolutionState, createSolutionReducer, initialState } from './state/reducer';
+import { CreateSolutionAction, CreateSolutionState, createSolutionReducer, initialState, visibleDraftProjects } from './state/reducer';
 import { hardwareTemplateOptions } from './state/templates';
 import { ValidationErrors, hasErrors, validate } from './state/validation';
 
@@ -100,8 +100,9 @@ export class CreateSolutionViewModel {
 
     private createSnapshot(): CreateSolutionViewModelSnapshot {
         const validationErrors = validate(this.state, this.state.solutionExists, false);
-        const templateOptions = hardwareTemplateOptions(this.state.deviceSelection.value, this.state.datamanagerApps);
-        const exampleEntries: Array<TreeViewCategory<string>> = [];
+        const templateOptions = hardwareTemplateOptions(this.state.deviceSelection.value);
+        const draftProjects = visibleDraftProjects(this.state);
+        const exampleEntries = draftProjects.filter(category => category.header === 'Local');
         if (templateOptions.length) {
             exampleEntries.push({
                 categories: [],
@@ -114,7 +115,7 @@ export class CreateSolutionViewModel {
                 })),
             });
         }
-        exampleEntries.push(...this.state.datamanagerApps);
+        exampleEntries.push(...draftProjects.filter(category => category.header !== 'Local'));
 
         const selectedTemplate = this.state.selectedTemplate.value;
         const selectedExampleText = selectedTemplate?.value.name ?? 'Select Project';
@@ -177,6 +178,9 @@ export class CreateSolutionViewModel {
         const previousState = this.state;
         const nextState = createSolutionReducer(this.state, action);
         if (nextState !== this.state) {
+            if (previousState.selectedDraftProjectId && !nextState.selectedDraftProjectId) {
+                this.latestRequestByChannel.delete('draftProject');
+            }
             this.state = nextState;
             this.snapshot = this.createSnapshot();
             this.listeners.forEach(listener => listener());
@@ -217,7 +221,7 @@ export class CreateSolutionViewModel {
     public selectExample(value: string): void {
         if (value.startsWith(TEMPLATE_PREFIX)) {
             const templateName = value.slice(TEMPLATE_PREFIX.length);
-            const template = hardwareTemplateOptions(this.state.deviceSelection.value, this.state.datamanagerApps)
+            const template = hardwareTemplateOptions(this.state.deviceSelection.value)
                 .find(candidate => candidate.name === templateName);
             if (template) {
                 this.dispatch({ type: 'SET_SELECTED_TEMPLATE', template: { type: 'template', value: template } });
