@@ -212,7 +212,7 @@ export class CreateSolutionData {
                 case DraftProjectType.Example:
                     switch (draft.format) {
                         case DraftProjectFormat.Csolution:
-                            return ['Csolution Examples', 2];
+                            return ['Csolution Examples', 0];
                         case DraftProjectFormat.uVision:
                             return ['uVision Examples', 3];
                     }
@@ -220,7 +220,7 @@ export class CreateSolutionData {
                 case DraftProjectType.RefApp:
                     return ['Reference Applications', 1];
                 case DraftProjectType.Template:
-                    return ['Templates', 0];
+                    return ['Templates', 2];
             }
         };
 

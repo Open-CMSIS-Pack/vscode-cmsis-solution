@@ -194,7 +194,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     );
 
     const buildTaskProvider = new BuildTaskProviderImpl(buildRunner);
-    const pyocdTaskProvider = new PyocdTaskProvider(() => envManager.getEnvironmentVariables(), outputChannelProvider);
+    const pyocdTaskProvider = new PyocdTaskProvider(() => envManager.getEnvironmentVariables());
     pyocdTaskProvider.activate(context);
     const buildTaskDefinitionBuilder = new BuildTaskDefinitionBuilderImpl(solutionManager, configurationProvider);
     const compileCommandsGenerator = new CompileCommandsGenerator(buildTaskProvider, buildTaskDefinitionBuilder, eventHub, outputChannelProvider, commandsProvider);
@@ -262,7 +262,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const treeViewFileDecorationProvider = new TreeViewFileDecorationProvider(fileDecorationProviderManager, themeProvider);
     const mergeSessionCoordinator = new MergeSessionCoordinatorImpl(commandsProvider);
     const mergeCommand = new MergeCommand(commandsProvider, mergeSessionCoordinator, messageProvider);
-    const buildCommand = new BuildCommand(buildTaskProvider, commandsProvider, buildTaskDefinitionBuilder, componentsManager);
+    const buildCommand = new BuildCommand(buildTaskProvider, commandsProvider, buildTaskDefinitionBuilder, solutionManager, componentsManager);
     const runGeneratorCommand = new GeneratorCommand(commandsProvider, solutionManager, outputChannelProvider, cmsisToolboxManager, eventHub);
     const armclangDefineGetter = new ArmclangDefineGetter(processManager, workspaceFsProvider);
     const manageSolutionCustomEditorProvider = new ManageSolutionCustomEditorProvider(
@@ -287,7 +287,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const clangdManager = new ClangdManager(solutionManager, configurationProvider, armclangDefineGetter, compileCommandsParser, workspaceFsProvider, commandsProvider);
     const targetPackCommand = new TargetPackCommandImpl(commandsProvider, solutionManager);
     const debugHardwareCommands = new DebugHardwareCommands(commandsProvider, solutionManager);
-    const csolutionExtension = new CsolutionExtensionImpl(solutionCreator, buildTaskProvider, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider);
+    const csolutionExtension = new CsolutionExtensionImpl(solutionCreator, buildTaskProvider, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverterImpl);
     const solutionOutline = new SolutionOutlineView(solutionManager, treeViewProviderImpl, globalStateProvider, treeViewFileDecorationProvider, configurationProvider);
     const cmsisCommands = new CmsisCommands(configurationProvider, commandsProvider, solutionManager, debugProvider, serialMonitorExtension, pyocdTaskProvider);
     const buildStopCommand = new BuildStopCommand(commandsProvider, buildTaskProvider);

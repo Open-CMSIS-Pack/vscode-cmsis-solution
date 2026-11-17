@@ -19,6 +19,8 @@ import { CsolutionApiV2 } from './csolution-api-v2';
 /** API V3 retains the existing V2 operations. */
 export interface CsolutionApiV3 extends CsolutionApiV2 {
     dispose(): void;
+    /** Convert the loaded solution's active target without emitting conversion/configuration events. updateRte defaults to false. Rejects if no solution is loaded or an unexpected error occurs. */
+    convertSolution(options?: { updateRte?: boolean }): Promise<CsolutionApiV3.ConvertResult>;
     /** Activate a solution file or directory in the current workspace using the existing command. */
     activateSolution(solutionPath: string): Promise<void>;
     /** Clear the active solution using the existing command. */
@@ -60,6 +62,20 @@ export interface CsolutionApiV3 extends CsolutionApiV2 {
 }
 
 export namespace CsolutionApiV3 {
+    export interface ConvertResult {
+        success: boolean;
+        severity: 'abort' | 'error' | 'warning' | 'info' | 'success';
+        /** Compiler selection or layer configuration is required. */
+        detection: boolean;
+        logMessages: {
+            success: boolean;
+            errors?: string[];
+            warnings?: string[];
+            info?: string[];
+        };
+        toolsOutputMessages?: string[];
+    }
+
     export interface Toolchain {
         /** Compiler name from the registration variable. */
         name: string;

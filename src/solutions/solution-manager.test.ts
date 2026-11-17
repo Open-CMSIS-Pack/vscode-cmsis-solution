@@ -76,7 +76,7 @@ describe('SolutionManager', () => {
     let saveSpy: jest.SpyInstance;
     let toolsEnvironment: ToolsEnvironment;
     let docManager: DocManager;
-    let autoConvertOnFileChange: boolean | undefined;
+    let autoRefreshOnFileChange: boolean | undefined;
 
     const testDataHandler = new TestDataHandler();
 
@@ -95,9 +95,9 @@ describe('SolutionManager', () => {
     });
 
     beforeEach(async () => {
-        autoConvertOnFileChange = undefined;
+        autoRefreshOnFileChange = undefined;
         jest.mocked(vscode.workspace.getConfiguration).mockReturnValue({
-            get: jest.fn((_key: string, defaultValue: unknown) => autoConvertOnFileChange ?? defaultValue),
+            get: jest.fn((_key: string, defaultValue: unknown) => autoRefreshOnFileChange ?? defaultValue),
         } as unknown as vscode.WorkspaceConfiguration);
         changeConfigurationEmitter = new EventEmitter();
         (
@@ -281,7 +281,7 @@ describe('SolutionManager', () => {
     });
 
     it('marks the solution dirty when a file in the active solution is modified', async () => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         // Initialize solution state first
         mockActiveSolutionTracker.activeSolution = testSolutionPath;
         changeActiveSolutionEmitter.fire();
@@ -311,7 +311,7 @@ describe('SolutionManager', () => {
     });
 
     it('marks a watched solution file dirty without converting or setting up again', async () => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await activateTestSolution();
         convertMock.mockClear();
         cbuildSetupRequestedListener.mockClear();
@@ -362,7 +362,7 @@ describe('SolutionManager', () => {
         ['automatic', undefined, false],
         ['dirty-only', false, true],
     ] as const)('handles a pack reload in %s mode without converting or setting up', async (_mode, autoConvert, expectedDirty) => {
-        autoConvertOnFileChange = autoConvert;
+        autoRefreshOnFileChange = autoConvert;
         await activateTestSolution();
         convertMock.mockClear();
         cbuildSetupRequestedListener.mockClear();
@@ -379,8 +379,14 @@ describe('SolutionManager', () => {
         const changedPath = getLoadedSolutionFile('.cproject.yml');
         convertMock.mockClear();
         changeSolutionFilesEmitter.fire(changedPath);
+        const completed = new Promise<void>(resolve => {
+            const subscription = solutionManager.onDidSetupCompleted(() => {
+                subscription.dispose();
+                resolve();
+            });
+        });
         await solutionManager.refresh();
-        await waitTimeout(50);
+        await completed;
         expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
 
         changeSolutionFilesEmitter.fire(changedPath);
@@ -406,7 +412,7 @@ describe('SolutionManager', () => {
         ['success', 'success', true],
         ['error', 'error', false],
     ] as const)('clears dirty after %s conversion completes with a newer change', async (_result, severity, success) => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await activateTestSolution();
         convertMock.mockClear();
         convertMock.mockImplementationOnce(() => undefined);
@@ -465,7 +471,7 @@ describe('SolutionManager', () => {
         ['clayer', '.clayer.yml'],
         ['cgen', '.cgen.yml'],
     ])('marks the solution dirty when a changed %s file belongs to the active solution', async (_fileType, suffix) => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await activateTestSolution();
         const changedPath = getLoadedSolutionFile(suffix);
         convertMock.mockClear();
@@ -480,7 +486,7 @@ describe('SolutionManager', () => {
     });
 
     it('marks the solution dirty when an outside workspace file is listed by the active solution model', async () => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await activateTestSolution();
         const outsideProjectPath = path.join(tmpSolutionsDir, 'external', 'External.cproject.yml');
         jest.spyOn(solutionManager.getCsolution()!, 'getSolutionYmlFiles').mockReturnValue([
@@ -497,7 +503,7 @@ describe('SolutionManager', () => {
     });
 
     it('marks the solution dirty when a changed dbgconf file is used by the active solution', async () => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await activateTestSolution();
         const dbgconfPath = path.join(path.dirname(testSolutionPath), '.cmsis', 'Used.Debug+B-U585I-IOT02A.dbgconf');
         jest.spyOn(solutionManager.getCsolution()!, 'getUsedDbgconfFiles').mockReturnValue([dbgconfPath]);
@@ -552,7 +558,7 @@ describe('SolutionManager', () => {
     });
 
     it('keeps dirty state when multiple active solution file changes arrive', async () => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await activateTestSolution();
         const cprojectPath = getLoadedSolutionFile('.cproject.yml');
         const clayerPath = getLoadedSolutionFile('.clayer.yml');
@@ -583,7 +589,7 @@ describe('SolutionManager', () => {
         convertMock.mockClear();
 
         changeSolutionFilesEmitter.fire(getLoadedSolutionFile('.cproject.yml'));
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await waitTimeout(200);
 
         expect(convertMock).not.toHaveBeenCalled();
@@ -591,7 +597,7 @@ describe('SolutionManager', () => {
     });
 
     it('allows manual refresh when automatic mode is disabled', async () => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await activateTestSolution();
         convertMock.mockClear();
 
@@ -606,7 +612,7 @@ describe('SolutionManager', () => {
     });
 
     it('clears the dirty indicator when the active solution closes or switches', async () => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await activateTestSolution();
         solutionManager.markDirty();
 

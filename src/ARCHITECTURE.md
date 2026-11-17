@@ -152,14 +152,10 @@ Load first and starts Run only after Load succeeds.
 #### Task generation and execution
 
 [`DebugLaunchProvider`](debug/debug-launch-provider.ts) renders the registry
-adapter templates and converts only the pyOCD **CMSIS Load** and **CMSIS Run**
-tasks from `"type": "shell"` to
-`"type": "cmsis-csolution.pyocd"` before saving `.vscode/tasks.json`. Arguments,
-working directory, and compound dependencies are retained. The registry
-templates do not need to change: the conversion belongs to this extension.
-The conversion requires both `"command": "pyocd"` and a task label of
-`CMSIS Load` or `CMSIS Run`. Running the `pyocd` command alone does not qualify
-a task for conversion.
+adapter templates and saves their task definitions to `.vscode/tasks.json`
+without overriding task types. The CMSIS-DAP and ST-Link pyOCD templates provide
+`"type": "cmsis-csolution.pyocd"` for **CMSIS Load** and **CMSIS Run**. Arguments,
+working directory, and compound dependencies are retained.
 
 **CMSIS Erase** and **CMSIS TargetInfo** retain `"type": "shell"` and do not use
 managed pyOCD execution. Other pyOCD tasks also remain shell tasks, keeping the
@@ -167,7 +163,7 @@ change scoped to the Load+Run shutdown workflow. Regenerating
 tasks also restores Erase and TargetInfo to shell execution if they were
 previously generated with the managed type.
 
-The conversion happens during task generation, before Load+Run executes.
+Task generation happens before Load+Run executes.
 Successful, non-detection solution conversion invokes the update command through
 [`SolutionManager`](solutions/solution-manager.ts). Existing generated files can
 also be refreshed with **Update Debug Tasks and Launch Configurations**
@@ -217,9 +213,9 @@ provider instead of immediately calling VS Code's task termination API for an
 active managed task or its compound parent. The task terminal stays connected
 until the child exits, receives the final output and result, and remains visible
 because its presentation option `close` is set to `false`. Terminal Ctrl+C also
-requests graceful shutdown. Explicit task termination or closing the terminal
-can disconnect its UI early; the **CMSIS pyOCD** Output channel independently
-retains the process output.
+requests graceful shutdown. Standard pyOCD output and actionable helper errors
+are reported in the task terminal. Explicit task termination or closing the
+terminal can disconnect its UI early.
 
 Cancellation reports exit code **130**, even if pyOCD handles the interrupt and
 returns zero. A cancelled Load therefore fails its sequential dependency and
@@ -235,7 +231,7 @@ in the output so it can be distinguished from graceful shutdown.
 
 ```mermaid
 flowchart TD
-    Template["Registry template: shell task"] --> Generate["Generate tasks.json<br/>Convert pyOCD Load and Run to cmsis-csolution.pyocd<br/>Keep Erase and TargetInfo as shell tasks"]
+    Template["Registry template: cmsis-csolution.pyocd Load and Run"] --> Generate["Generate tasks.json<br/>Preserve template task definitions"]
     Generate --> Compound["CMSIS Load+Run<br/>Sequential Load, then Run"]
     Compound --> Provider["TaskProvider → CustomExecution → Pseudoterminal"]
     Provider --> Platform{"Platform"}

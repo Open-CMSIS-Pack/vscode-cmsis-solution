@@ -36,13 +36,14 @@ describe('CsolutionExtension', () => {
             { getPacksInfo: jest.fn() },
             { getToolsEnvironment: jest.fn(), getToolchains: jest.fn() },
             { executeCommand: jest.fn() },
+            { convertSolution: jest.fn() },
         );
 
         await extension.activate(context as unknown as ExtensionContext);
     });
 
     const commandGetters = [
-        'getSolutionFile', 'getActiveTarget', 'getDeviceName', 'getBoardName',
+        'convertSolution', 'getSolutionFile', 'getActiveTarget', 'getDeviceName', 'getBoardName',
         'getDfpName', 'getBspName', 'getDfpPath', 'getBspPath', 'getPackRootPath', 'getCbuildRunFile',
     ];
 

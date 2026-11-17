@@ -207,6 +207,17 @@ describe('CreateSolution', () => {
         }));
     });
 
+    it('toggles the combined Web and uVision control and disables it during creation', async () => {
+        await renderCreateSolution();
+        const checkbox = container.querySelector('#create-solution-show-web-and-uv-examples') as HTMLInputElement;
+        expect(checkbox.checked).toBe(false);
+        await act(async () => checkbox.click());
+        expect(checkbox.checked).toBe(true);
+        expect(viewModel.getSnapshot().state.showWebAndUvExamples).toEqual({ value: true, hadInteraction: true });
+        await act(async () => viewModel.dispatch({ type: 'CREATION_START' }));
+        expect(checkbox.disabled).toBe(true);
+    });
+
     describe('when the form is filled in and the create button is clicked', () => {
         it('submits the solution', async () => {
             await renderCreateSolution();

@@ -49,6 +49,7 @@ for (const [mode, solution] of [
     ['loaded', 'Components.csolution.yml'],
     ['missing', 'Missing.csolution.yml'],
     ['selection', 'Selection.csolution.yml'],
+    ['convert', 'Selection.csolution.yml'],
 ] as const) {
     const folder = path.join(runDirectory, mode);
     await fs.mkdir(folder);

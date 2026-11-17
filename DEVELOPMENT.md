@@ -335,10 +335,6 @@ To debug the `csolution` server (C++ code) running on the backend:
 
 5. **Attach the native debugger** (Visual Studio Debugger or gdb/lldb) to the running `csolution` process by PID. The process will be active while the extension is communicating with it.
 
-## Security
-
-For security considerations see [SECURITY.md](./SECURITY.md)
-
 ## Test or develop in Dev Containers
 
 The `.devcontainer` folder provides a set of pre-configured environments that can be used for testing and development.
