@@ -154,6 +154,7 @@ export class ManageSolutionWebviewMain {
         const controller = new ManageSolutionController();
         controller.customDebugAdapterDefaults = this.configurationProvider.getConfigVariableOrDefault('debug-adapters', {});
         controller.csolutionService = this.csolutionService;
+        controller.experimentalFeatures = this.configurationProvider.getConfigVariableOrDefault(manifest.CONFIG_EXPERIMENTAL_FEATURES, false);
         return controller;
     }
 

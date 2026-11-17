@@ -318,8 +318,9 @@ describe('manage-solution-controller', () => {
 
     describe('dynamic trace settings', () => {
         /** Loads a real solution and its static adapter definitions for trace editing. */
-        async function createTraceController(): Promise<ManageSolutionController> {
+        async function createTraceController(experimentalFeatures = true): Promise<ManageSolutionController> {
             const controller = new ManageSolutionController();
+            controller.experimentalFeatures = experimentalFeatures;
             controller.csolutionService = csolutionServiceFactory();
             expect(await controller.loadSolution(path.join(tmpSolutionDir, 'simple/test.csolution.yml'))).toBe(ETextFileResult.Success);
             controller.enableDebugger(true, 'CMSIS-DAP@pyOCD');
@@ -332,6 +333,34 @@ describe('manage-solution-controller', () => {
             return adapters.find(adapter => adapter.name === 'CMSIS-DAP@pyOCD')?.['user-interface']
                 ?.find(section => section['yml-node'] === 'trace');
         }
+
+        it('hides trace when experimental features are disabled while retaining the static adapter settings', async () => {
+            const controller = await createTraceController(false);
+
+            expect(await getTraceSection(controller)).toBeUndefined();
+            const adapters = await controller.debugAdapters;
+            expect(adapters.every(adapter => adapter['user-interface']?.every(section => section['yml-node'] !== 'trace'))).toBe(true);
+            expect(adapters.find(adapter => adapter.name === 'CMSIS-DAP@pyOCD')?.['user-interface']
+                ?.find(section => section.section === 'Debug Interface')?.options.map(option => option.name))
+                .toEqual(['Clock (kHz)', 'Protocol']);
+            expect(controller.activeDebugger?.item?.getChild('trace')).toBeUndefined();
+        });
+
+        it('hides and restores trace settings when experimental features change without altering configuration', async () => {
+            const controller = await createTraceController();
+            controller.addDebugAdapterSubsection('trace', ['serialwire']);
+            controller.setDebuggerParameter('trace', 'input-clock', 48000000, ['serialwire']);
+            const configured = controller.activeDebugger?.object;
+            const traceSection = await getTraceSection(controller);
+
+            controller.experimentalFeatures = false;
+            expect(await getTraceSection(controller)).toBeUndefined();
+            expect(controller.activeDebugger?.object).toEqual(configured);
+
+            controller.experimentalFeatures = true;
+            expect(await getTraceSection(controller)).toEqual(traceSection);
+            expect(controller.activeDebugger?.object).toEqual(configured);
+        });
 
         it('extends static adapter settings without creating configuration or duplicating sections', async () => {
             const controller = await createTraceController();
@@ -466,6 +495,7 @@ describe('manage-solution-controller', () => {
             const savedPath = path.join(tmpSolutionDir, 'simple/trace.csolution.yml');
             expect(await controller.csolutionYml.save(savedPath)).toBe(ETextFileResult.Success);
             const reloaded = new ManageSolutionController();
+            reloaded.experimentalFeatures = true;
             reloaded.csolutionService = csolutionServiceFactory();
             expect(await reloaded.loadSolution(savedPath)).toBe(ETextFileResult.Success);
             expect(await getTraceSection(reloaded)).toEqual(disabled);
@@ -514,6 +544,7 @@ describe('manage-solution-controller', () => {
 `;
             expect(await solutionFile.save()).toBe(ETextFileResult.Success);
             const controller = new ManageSolutionController();
+            controller.experimentalFeatures = true;
             controller.csolutionService = csolutionServiceFactory();
             expect(await controller.loadSolution(solutionFile.fileName)).toBe(ETextFileResult.Success);
             expect((await getTraceSection(controller))?.subsections?.map(source => source.select)).toEqual([true, false]);
@@ -524,6 +555,7 @@ describe('manage-solution-controller', () => {
             expect(solutionFile.text).toContain('# Preserve this clock comment');
 
             const reloaded = new ManageSolutionController();
+            reloaded.experimentalFeatures = true;
             reloaded.csolutionService = csolutionServiceFactory();
             expect(await reloaded.loadSolution(solutionFile.fileName)).toBe(ETextFileResult.Success);
             expect(reloaded.activeDebugger?.item?.getChild('trace')?.toObject()).toEqual([
