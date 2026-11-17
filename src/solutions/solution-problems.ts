@@ -414,7 +414,7 @@ export class SolutionProblemsImpl implements SolutionProblems {
         const normalizedFilename = filename ? getFileNameFromPath(filename) : undefined;
         const fromMap = (filename && files.get(filename)) || (normalizedFilename && files.get(normalizedFilename));
         const absoluteFromLog = filename && this.isAbsoluteDiagnosticPath(filename) ? filename : undefined;
-        const file = fromMap || absoluteFromLog || this.solutionManager.getCsolution()?.solutionPath;
+        const file = absoluteFromLog || fromMap || this.solutionManager.getCsolution()?.solutionPath;
         if (!file) {
             return false;
         }
@@ -490,6 +490,9 @@ export class SolutionProblemsImpl implements SolutionProblems {
             this.addFile(strippedSolution + '.cbuild-pack.yml');
             this.addFile(strippedSolution + '.cbuild-set.yml');
             // Conversion may fail before build metadata contains the referenced layers.
+            for (const projectRef of csolution.csolutionYml.projectRefs) {
+                this.addFile(projectRef.projectPath);
+            }
             for (const file of [csolution.csolutionYml, ...csolution.projects.values()]) {
                 this.addFile(file.fileName);
                 for (const layer of file.topItem?.getGrandChildren('layers') ?? []) {

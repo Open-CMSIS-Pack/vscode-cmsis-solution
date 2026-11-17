@@ -247,6 +247,66 @@ describe('SolutionProblems', () => {
         expect(setSpy).toHaveBeenCalledWith(uri, [expect.objectContaining({ message: warning })]);
     });
 
+    it('maps diagnostics to referenced project files when project loading fails', async () => {
+        const csolution = new CSolution();
+        csolution.solutionPath = path.resolve('/work/MyProject.csolution.yml');
+        csolution.solutionDir = path.dirname(csolution.solutionPath);
+        csolution.csolutionYml.fileName = csolution.solutionPath;
+        csolution.csolutionYml.appendProjectRef('projects/Broken.cproject.yml');
+        solutionManager.getCsolution.mockReturnValue(csolution);
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+        await eventHub.fireConvertCompleted({
+            success: false,
+            severity: 'error',
+            detection: false,
+            logMessages: {
+                success: false,
+                errors: ['Broken.cproject.yml:4:2 - project failed to load'],
+                warnings: [],
+                info: [],
+            },
+        });
+        await waitTimeout();
+
+        expect(setSpy).toHaveBeenCalledWith(
+            vscode.Uri.file(path.join(csolution.solutionDir, 'projects', 'Broken.cproject.yml')),
+            [expect.objectContaining({ message: 'project failed to load' })],
+        );
+    });
+
+    it('prefers an absolute diagnostic path when referenced layers share a basename', async () => {
+        const csolution = new CSolution();
+        csolution.solutionPath = path.resolve('/work/MyProject.csolution.yml');
+        csolution.solutionDir = path.dirname(csolution.solutionPath);
+        csolution.csolutionYml.fileName = csolution.solutionPath;
+        const firstLayer = path.join(csolution.solutionDir, 'First', 'Shared.clayer.yml');
+        appendSequenceMapEntry(csolution.csolutionYml.ensureTopItem(), 'layers', 'layer', './First/Shared.clayer.yml');
+        appendSequenceMapEntry(csolution.csolutionYml.ensureTopItem(), 'layers', 'layer', './Second/Shared.clayer.yml');
+        solutionManager.getCsolution.mockReturnValue(csolution);
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+        await eventHub.fireConvertCompleted({
+            success: false,
+            severity: 'error',
+            detection: false,
+            logMessages: {
+                success: false,
+                errors: [`${firstLayer}:4:2 - invalid layer`],
+                warnings: [],
+                info: [],
+            },
+        });
+        await waitTimeout();
+
+        expect(setSpy).toHaveBeenCalledWith(
+            vscode.Uri.file(firstLayer),
+            [expect.objectContaining({ message: 'invalid layer' })],
+        );
+    });
+
     it('does not open problems view when all messages are excluded', async () => {
         await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
         const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
