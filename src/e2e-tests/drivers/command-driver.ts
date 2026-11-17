@@ -55,6 +55,7 @@ export class CommandDriver {
 
             await this.page.keyboard.type(command);
             await this.page.keyboard.press('Enter');
+            await quickInputBox.waitFor({ state: 'hidden', timeout: SHORT_TIMEOUT_MS });
             return;
         }
     }
