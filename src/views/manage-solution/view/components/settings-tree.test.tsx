@@ -16,7 +16,7 @@
 
 import '@testing-library/jest-dom';
 import * as React from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { AdapterSnapshot, SettingsField as Field, SettingsSection as Section } from '../../settings-contract';
 import { MockMessageHandler } from '../../../__test__/mock-message-handler';
 import type { IncomingMessage, OutgoingMessage } from '../../messages';
@@ -142,7 +142,7 @@ describe('isolated settings tree', () => {
         expect(onSelect).toHaveBeenCalledTimes(1);
     });
 
-    it('keeps an empty container non-collapsible while retaining its actions and warning', () => {
+    it('keeps an empty container non-collapsible with warning details in a tooltip before Remove', async () => {
         renderTree([section('Root', { childCount: 1, children: [section('Empty', {
             selected: true, toggleAction: 'toggle', removeAction: 'remove', warning: 'Check configuration',
             addActions: [{ label: 'Candidate', action: 'add' }],
@@ -151,8 +151,15 @@ describe('isolated settings tree', () => {
         expect(screen.getByRole('checkbox', { name: 'Enable Empty' })).toBeChecked();
         expect(screen.getByRole('button', { name: 'Add to Empty' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Remove Empty' })).toBeInTheDocument();
-        expect(screen.getByRole('status', { name: 'Check configuration' })).toBeInTheDocument();
+        const warning = within(screen.getByRole('tabpanel')).getByRole('status', { name: 'Check configuration' });
+        const remove = screen.getByRole('button', { name: 'Remove Empty' });
+        expect(warning.textContent).toBe('');
+        expect(warning.nextElementSibling).toBe(remove);
+        expect(warning.parentElement).toBe(warning.closest('.settings-section-header')?.lastElementChild);
         expect(screen.queryByText('Enabled')).not.toBeInTheDocument();
+        expect(screen.queryByText('Check configuration')).not.toBeInTheDocument();
+        fireEvent.mouseEnter(warning);
+        expect(await screen.findByRole('tooltip')).toHaveTextContent('Check configuration');
     });
 
     it.each([true, false])('retains and disables Add when options are exhausted (navigation: %s)', async navigation => {
@@ -174,6 +181,75 @@ describe('isolated settings tree', () => {
         fireEvent.click(add);
         fireEvent.click(await screen.findByText('Buffer'));
         expect(onAction).toHaveBeenCalledWith('add-buffer');
+    });
+
+    it.each(['content', 'navigation'] as const)('shows descendant warnings before Add in inactive %s navigation entries', layout => {
+        renderTree([
+            section('Clean'),
+            section('Trace', {
+                childrenLayout: layout,
+                addActions: [{ label: 'Buffer', action: 'add' }],
+                children: [
+                    section('Serial Wire', { warning: 'SWD is required.', disabled: true }),
+                    section('Buffers', { children: [section('Nested Buffer', {
+                        warning: 'Buffer is unavailable.',
+                        fields: [{ id: 'field', label: 'Choice', type: 'string', value: '', disabled: true, warning: 'Unknown value.' }],
+                    })] }),
+                ],
+            }),
+        ]);
+        const tab = screen.getByRole('tab', { name: 'Trace' });
+        expect(tab).toHaveAttribute('aria-selected', 'false');
+        const warning = within(tab).getByRole('status', { name: 'SWD is required.' });
+        const add = within(tab).getByRole('button', { name: 'Add to Trace' });
+        expect(warning.textContent).toBe('');
+        expect(warning.parentElement).toBe(add.parentElement);
+        expect(warning.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(within(screen.getByRole('tab', { name: 'Clean' })).queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('shows a single warning icon at the right of a navigation entry without Add', () => {
+        renderTree([section('Root', { warning: 'Check configuration', children: [section('Child', { warning: 'Check configuration' })] })]);
+        const tab = screen.getByRole('tab', { name: 'Root' });
+        expect(within(tab).getAllByRole('status')).toHaveLength(1);
+        const warning = within(tab).getByRole('status', { name: 'Check configuration' });
+        expect(warning.textContent).toBe('');
+        expect(warning.parentElement).toBe(tab.querySelector('.settings-section-header')?.lastElementChild);
+        expect(within(tab).queryByRole('button')).not.toBeInTheDocument();
+    });
+
+    it('propagates only the first descendant warning through every navigation and content level', async () => {
+        renderTree([section('Root', { childrenLayout: 'navigation', children: [section('Middle', {
+            children: [section('Group', { children: [
+                section('Clean'),
+                section('First branch', { children: [
+                    section('First leaf', { warning: 'First warning' }),
+                    section('Second leaf', { warning: 'Second warning' }),
+                ] }),
+                section('Later branch', { warning: 'Later warning' }),
+            ] })],
+        })] })]);
+
+        for (const label of ['Root', 'Middle']) {
+            expect(within(screen.getByRole('tab', { name: label })).getByRole('status', { name: 'First warning' })).toBeInTheDocument();
+        }
+
+        fireEvent.click(screen.getByRole('tab', { name: 'Middle' }));
+        const groupHeader = screen.getByText('Group').closest('.settings-section-header')! as HTMLElement;
+        const groupWarning = within(groupHeader).getByRole('status', { name: 'First warning' });
+        expect(groupWarning.textContent).toBe('');
+        fireEvent.mouseEnter(groupWarning);
+        expect(await screen.findByRole('tooltip')).toHaveTextContent(/^First warning$/);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Expand Group' }));
+        const branchHeader = screen.getByText('First branch').closest('.settings-section-header')! as HTMLElement;
+        expect(within(branchHeader).getByRole('status', { name: 'First warning' })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Expand First branch' }));
+
+        const panel = within(screen.getByRole('tabpanel'));
+        expect(panel.getAllByRole('status', { name: 'First warning' })).toHaveLength(3);
+        expect(panel.getByRole('status', { name: 'Second warning' })).toBeInTheDocument();
+        expect(panel.getByRole('status', { name: 'Later warning' })).toBeInTheDocument();
     });
 });
 

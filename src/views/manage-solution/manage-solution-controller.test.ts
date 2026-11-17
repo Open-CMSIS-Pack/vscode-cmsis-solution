@@ -343,13 +343,24 @@ describe('manage-solution-controller', () => {
             return section && { ...section, subsections: section.subsections?.filter(child => child.usage === 'used') };
         }
 
+        /** Resolves an implicitly identified trace source through its current registry descriptor. */
+        async function traceSourcePath(controller: ManageSolutionController, label: string): Promise<string[]> {
+            const context = await controller.adapterSettingsContext(true);
+            const trace = context.sections.find(section => sectionYamlNodeName(section) === 'trace');
+            const source = trace?.subsections?.find(section => section.section === label);
+            if (!source) {
+                throw new Error(`Missing trace source ${label}`);
+            }
+            return [sectionIdentity(source)];
+        }
+
         it('reads registry candidates without creating configuration and never synthesizes missing descriptions', async () => {
             const controller = await createTraceController();
             const before = controller.activeDebugger?.object;
             const context = await controller.adapterSettingsContext(true);
             const trace = context.sections.find(section => sectionYamlNodeName(section) === 'trace');
-            expect(trace?.subsections?.map(child => [child.id, child.usage])).toEqual([
-                ['serialwire', 'available'], ['tracebuffer', 'available'],
+            expect(trace?.subsections?.map(child => [sectionYamlNodeName(child), child.usage])).toEqual([
+                ['swo-uart', 'available'], ['trace-buffer', 'available'],
             ]);
             expect(controller.activeDebugger?.object).toEqual(before);
             controller.setSelectedDebugger('Without sections');
@@ -360,7 +371,7 @@ describe('manage-solution-controller', () => {
             const controller = await createTraceController();
             const trace = (await controller.adapterSettingsContext(true)).sections.find(section => sectionYamlNodeName(section) === 'trace')!;
             const serialwire = trace.subsections!.find(section => sectionYamlNodeName(section) === 'swo-uart')!;
-            controller.addDebugAdapterSubsection('trace', [sectionIdentity(serialwire)]);
+            controller.applySettingsAction({ kind: 'add', root: 'trace', path: [sectionIdentity(serialwire)] });
             expect(controller.activeDebugger?.item?.getChild('trace')).toBeDefined();
             const configured = controller.activeDebugger?.object;
             const registry = controller['debugAdaptersYmlFile']!;
@@ -379,37 +390,126 @@ describe('manage-solution-controller', () => {
             expect(controller.activeDebugger?.object).toEqual(configured);
         });
 
-        it('offers both sources independently of protocol and separates usage, switching and removal', async () => {
+        it('guards serial wire by protocol while separating usage, switching and removal', async () => {
             const controller = await createTraceController();
+            controller.applySettingsAction({ kind: 'add', root: 'trace', path: ['swo-uart'] });
+            controller.applySettingsAction({ kind: 'add', root: 'trace', path: await traceSourcePath(controller, 'Trace Buffer') });
+            editSetting(controller, 'trace', 'input-clock', 64000000, ['swo-uart']);
+            controller.applySettingsAction({ kind: 'toggle', root: 'trace', path: ['swo-uart'], value: false });
             editSetting(controller, 'debug interface', 'protocol', 'jtag');
-            controller.applySettingsAction({ kind: 'add', root: 'trace', path: ['serialwire'] });
-            controller.applySettingsAction({ kind: 'add', root: 'trace', path: ['tracebuffer'] });
-            editSetting(controller, 'trace', 'input-clock', 64000000, ['serialwire']);
-            controller.applySettingsAction({ kind: 'toggle', root: 'trace', path: ['serialwire'], value: false });
             expect((await getTraceSection(controller))?.subsections).toMatchObject([
-                { id: 'serialwire', usage: 'used', select: false }, { id: 'tracebuffer', usage: 'used', select: true },
+                { section: 'Serial Wire', usage: 'used', select: false }, { section: 'Trace Buffer', usage: 'used', select: true },
             ]);
-            expect((await getTraceSection(controller))?.subsections?.every(child => child.warning === undefined)).toBe(true);
+            expect((await getTraceSection(controller))?.subsections?.[0].warning).toBe('Serial Wire trace requires device support and SWD.');
             const before = controller.activeDebugger?.object;
             editSetting(controller, 'debug interface', 'protocol', 'swd');
             expect(controller.activeDebugger?.item?.getChild('trace')?.toObject()).toEqual((before as { trace: object }).trace);
             controller.applySettingsAction({ kind: 'toggle', root: 'trace', path: [], value: true });
             expect((await getTraceSection(controller))?.select).toBeUndefined();
-            controller.applySettingsAction({ kind: 'remove', root: 'trace', path: ['serialwire'] });
+            controller.applySettingsAction({ kind: 'remove', root: 'trace', path: ['swo-uart'] });
             const candidates = (await controller.adapterSettingsContext(true)).sections.find(section => sectionYamlNodeName(section) === 'trace')?.subsections;
-            expect(candidates?.find(child => child.id === 'serialwire')?.usage).toBe('available');
-            controller.applySettingsAction({ kind: 'add', root: 'trace', path: ['serialwire'] });
+            expect(candidates?.find(child => sectionYamlNodeName(child) === 'swo-uart')?.usage).toBe('available');
+            controller.applySettingsAction({ kind: 'add', root: 'trace', path: ['swo-uart'] });
             expect(controller.activeDebugger?.getTraceSource('swo-uart')?.enabled).toBe(true);
             expect(controller.activeDebugger?.getTraceSource('swo-uart')?.inputClock).toBe(0);
         });
 
+        it('uses the complete device response, live config and custom defaults without changing stored YAML', async () => {
+            const controller = await createTraceController();
+            controller.activeTargetTypeWrap!.device = 'Vendor::Device';
+            controller.activeDebugger!.setValue('protocol', undefined);
+            controller.customDebugAdapterDefaults = { 'CMSIS-DAP@pyOCD': { protocol: 'jtag' } };
+            const service = csolutionServiceFactory({ getDeviceInfo: jest.fn().mockResolvedValue({
+                success: true, device: { id: 'Vendor::Device', family: 'Family', processors: [{ name: 'Core', core: 'Cortex-M4' }],
+                    trace: { serialwire: true, tracebuffer: [{ name: 'MTB', start: 4096, size: 128 }, { name: 'ETF' }] } },
+            }) });
+            controller.csolutionService = service;
+            const before = controller.activeDebugger?.object;
+            await controller.getAvailableCoreNames();
+            const context = await controller.adapterSettingsContext(true);
+            expect(service.getDeviceInfo).toHaveBeenCalledWith({ id: 'Vendor::Device' });
+            expect(context.processors).toEqual(['Core']);
+            expect(context.sections.find(section => section.section === 'Trace')?.subsections?.map(child => child.section)).toEqual([
+                'MTB', 'ETF',
+            ]);
+            expect(controller.activeDebugger?.object).toEqual(before);
+            controller.activeDebugger!.protocol = 'swd';
+            expect((await controller.adapterSettingsContext(true)).sections.find(section => section.section === 'Trace')?.subsections?.[0].section).toBe('Serial Wire');
+            expect(service.getDeviceInfo).toHaveBeenCalledTimes(1);
+        });
+
+        it('ignores a device response completed after a newer query', async () => {
+            const controller = await createTraceController();
+            controller.activeTargetTypeWrap!.device = 'First';
+            let completeFirst!: (value: { success: boolean; device: { id: string; trace: { serialwire: boolean } } }) => void;
+            const firstResponse = new Promise<{ success: boolean; device: { id: string; trace: { serialwire: boolean } } }>(resolve => {
+                completeFirst = resolve;
+            });
+            controller.csolutionService = csolutionServiceFactory({ getDeviceInfo: jest.fn()
+                .mockReturnValueOnce(firstResponse)
+                .mockResolvedValue({ success: true, device: { id: 'Second', trace: { tracebuffer: [{ name: 'Current' }] } } }),
+            });
+            const pending = controller.getAvailableCoreNames();
+            controller.activeTargetTypeWrap!.device = 'Second';
+            await controller.getAvailableCoreNames();
+            completeFirst({ success: true, device: { id: 'First', trace: { serialwire: true } } });
+            await pending;
+            controller.applySettingsAction({ kind: 'add', root: 'trace', path: ['swo-uart'] });
+            controller.applySettingsAction({ kind: 'add', root: 'trace', path: await traceSourcePath(controller, 'Current') });
+            expect(controller.activeDebugger?.item?.getChild('trace')?.toObject()).toEqual([{ 'trace-buffer': 'Current', mode: 'file' }]);
+        });
+
+        it('round-trips multiple named buffers without changing sibling fields or comments', async () => {
+            const fileName = path.join(tmpSolutionDir, 'simple/named-trace.csolution.yml');
+            const file = new TextFile(fileName);
+            file.text = `solution:
+  target-types:
+    - type: Test
+      device: Vendor::TraceDevice
+      target-set:
+        - set:
+          debugger:
+            name: CMSIS-DAP@pyOCD
+            trace:
+              - trace-buffer: MTB # Keep this buffer comment
+                mode: file
+                custom: retained
+              - trace-buffer: ETF
+                mode: server
+                server-port: 5556
+`;
+            expect(await file.save()).toBe(ETextFileResult.Success);
+            const controller = new ManageSolutionController();
+            controller.csolutionService = csolutionServiceFactory({ getDeviceInfo: jest.fn().mockResolvedValue({
+                device: { id: 'Vendor::TraceDevice', trace: { tracebuffer: [{ name: 'ETF' }, { name: 'MTB' }] } },
+            }) });
+            expect(await controller.loadSolution(fileName)).toBe(ETextFileResult.Success);
+            await installRegistry(controller);
+            await controller.getAvailableCoreNames();
+            expect((await getTraceSection(controller))?.subsections?.map(child => child.section)).toEqual(['ETF', 'MTB']);
+            controller.applySettingsAction({ kind: 'toggle', root: 'trace', path: await traceSourcePath(controller, 'MTB'), value: false });
+            expect(await controller.csolutionYml.save()).toBe(ETextFileResult.Success);
+            expect(await file.load()).toBe(ETextFileResult.Success);
+            expect(file.text).toContain('# Keep this buffer comment');
+            const reloaded = new ManageSolutionController();
+            reloaded.csolutionService = controller.csolutionService;
+            expect(await reloaded.loadSolution(fileName)).toBe(ETextFileResult.Success);
+            await installRegistry(reloaded);
+            await reloaded.getAvailableCoreNames();
+            expect((await getTraceSection(reloaded))?.subsections?.map(child => child.select)).toEqual([true, false]);
+            reloaded.applySettingsAction({ kind: 'remove', root: 'trace', path: await traceSourcePath(reloaded, 'ETF') });
+            expect(reloaded.activeDebugger?.item?.getChild('trace')?.toObject()).toEqual([
+                { 'trace-buffer': 'MTB', mode: 'off', custom: 'retained' },
+            ]);
+        });
+
         it('saves and reloads disabled entries without rewriting read aliases', async () => {
             const controller = await createTraceController();
-            controller.applySettingsAction({ kind: 'add', root: 'trace', path: ['serialwire'] });
+            controller.applySettingsAction({ kind: 'add', root: 'trace', path: ['swo-uart'] });
             controller.activeDebugger?.getTraceSource('swo-uart')?.setValue('mode', 'server');
             expect((await getTraceSection(controller))?.subsections?.[0].select).toBe(true);
             expect(controller.activeDebugger?.getTraceSource('swo-uart')?.getValue('mode')).toBe('server');
-            controller.applySettingsAction({ kind: 'toggle', root: 'trace', path: ['serialwire'], value: false });
+            controller.applySettingsAction({ kind: 'toggle', root: 'trace', path: ['swo-uart'], value: false });
             const file = path.join(tmpSolutionDir, 'simple/declarative-trace.csolution.yml');
             expect(await controller.csolutionYml.save(file)).toBe(ETextFileResult.Success);
             const reloaded = new ManageSolutionController();
@@ -417,7 +517,7 @@ describe('manage-solution-controller', () => {
             expect(await reloaded.loadSolution(file)).toBe(ETextFileResult.Success);
             await installRegistry(reloaded);
             expect((await getTraceSection(reloaded))?.subsections).toMatchObject([{ usage: 'used', select: false }]);
-            reloaded.applySettingsAction({ kind: 'toggle', root: 'trace', path: ['serialwire'], value: true });
+            reloaded.applySettingsAction({ kind: 'toggle', root: 'trace', path: ['swo-uart'], value: true });
             expect(reloaded.activeDebugger?.getTraceSource('swo-uart')?.getValue('mode')).toBe('file');
         });
 
@@ -448,7 +548,7 @@ describe('manage-solution-controller', () => {
             await installRegistry(controller);
             expect((await getTraceSection(controller))?.subsections?.map(source => source.select)).toEqual([true, false]);
 
-            editSetting(controller, 'trace', 'input-clock', 64000000, ['serialwire']);
+            editSetting(controller, 'trace', 'input-clock', 64000000, ['swo-uart']);
             expect(await controller.csolutionYml.save()).toBe(ETextFileResult.Success);
             expect(await solutionFile.load()).toBe(ETextFileResult.Success);
             expect(solutionFile.text).toContain('# Preserve this clock comment');
@@ -462,7 +562,7 @@ describe('manage-solution-controller', () => {
                 { 'swo-uart': null, mode: 'file', 'input-clock': 64000000, 'output-clock': 2000000, file: './trace.raw' },
                 { 'other-transport': null, 'custom-option': 'preserved' },
             ]);
-            reloaded.applySettingsAction({ kind: 'remove', root: 'trace', path: ['serialwire'] });
+            reloaded.applySettingsAction({ kind: 'remove', root: 'trace', path: ['swo-uart'] });
             expect(reloaded.activeDebugger?.item?.getChild('trace')?.toObject()).toEqual([
                 { 'trace-buffer': null, 'server-port': 5556 },
                 { 'other-transport': null, 'custom-option': 'preserved' },
@@ -880,6 +980,7 @@ describe('manage-solution-controller', () => {
         const registry = new DebugAdaptersYamlFile();
         expect(await registry.load(path.join(__dirname, '../../../test-data/debug-adapters/declarative.yml'))).toBe(ETextFileResult.Success);
         controller['debugAdaptersYmlFile'] = registry;
+        await controller.getAvailableCoreNames();
         await controller.adapterSettingsContext(true);
         editSetting(controller, 'stdio', 'mode', 'off', [], 'M55_HE');
 

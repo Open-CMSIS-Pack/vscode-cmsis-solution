@@ -63,6 +63,8 @@ export type UISection = {
     section: string;                    // Label text for the section in the tab group.
     description?: string;               // Hover over text.
     warning?: string;                   // Constraint tooltip, including when disabled; active sections also show a warning icon.
+    condition?: boolean | string;       // Host expression controlling availability, resolved before presentation.
+    'condition-message'?: string;       // Warning shown for configured sections whose condition is false.
     'yml-node'?: UISectionYamlNode;                // Map key or marker identifying this section in a YAML sequence.
     select?: boolean;                   // If present, the section can be enabled. Applies to all options.
     usage?: 'available' | 'used';

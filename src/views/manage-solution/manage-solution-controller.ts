@@ -30,6 +30,7 @@ import { extractSuffix, stripTwoExtensions } from '@open-cmsis-pack/cmsis-common
 import { CmsisSettingsJsonFile } from './../../global/cmsis-settings-json-file';
 import { GenericPropertyList, getSelectedTargetSet, ImageSelection, ProjectSelection, SolutionData, TargetSet, TargetType } from './view/state/manage-solution-state';
 import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
+import type { DeviceWithTrace } from '../../debug/debug-adapter-templates';
 import { DebugAdapterSections, sectionYamlPath } from '../../debug/debug-adapter-sections';
 import type { AdapterSettingsAction, AdapterSettingsContext } from './adapter-settings-presenter';
 
@@ -54,6 +55,8 @@ export class ManageSolutionController {
     private readonly _cmsisJsonFile = new CmsisSettingsJsonFile();
     private debugAdaptersYmlFile?: DebugAdaptersYamlFile = undefined;
     private availableCoreNamesCache: string[] = [];
+    /** Full metadata for the last applicable device query, including future RPC properties. */
+    private deviceInfo?: DeviceWithTrace;
     private defaults?: TargetConfiguration;
     public customDebugAdapterDefaults: CustomDebugAdapterDefaults = {};
     private _csolutionService?: CsolutionService;
@@ -433,12 +436,13 @@ export class ManageSolutionController {
             (this.defaults?.targetType === this.activeTargetTypeName ? this.defaults?.device : undefined);
     }
 
-    /** Refreshes stored processor names for an explicit context update, ignoring an obsolete device response. */
+    /** Refreshes stored device metadata for an explicit context update, ignoring an obsolete device response. */
     public async getAvailableCoreNames(): Promise<string[]> {
         const device = this.activeDeviceId;
         const info = device ? await this.csolutionService.getDeviceInfo({ id: device }) : undefined;
         if (device === this.activeDeviceId) {
-            this.availableCoreNamesCache = info?.device?.processors?.flatMap(processor => processor.name ? [processor.name] : []) ?? [];
+            this.deviceInfo = info?.device as DeviceWithTrace | undefined;
+            this.availableCoreNamesCache = this.deviceInfo?.processors?.flatMap(processor => processor.name ? [processor.name] : []) ?? [];
         }
         return this.availableCoreNamesCache;
     }
@@ -512,6 +516,7 @@ export class ManageSolutionController {
             definition?.['user-interface'] ?? [],
             () => this.activeDebugger,
             () => this.activeTargetSetWrap.ensureDebugger(),
+            this.deviceInfo,
         );
     }
 

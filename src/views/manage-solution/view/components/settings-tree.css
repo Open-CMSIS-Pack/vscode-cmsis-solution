@@ -48,6 +48,8 @@
 .settings-file-actions .ant-btn { width: 22px; min-width: 22px; height: 20px; padding: 0; border: 0; box-shadow: none; font-size: 14px; }
 .settings-processor { min-width: 70px; }
 .settings-warning { color: var(--vscode-editorWarning-foreground); }
+.settings-section-header .settings-warning { display: inline-flex; align-items: center; font-size: 16px; }
+.settings-warning-tooltip { white-space: pre-line; }
 .settings-adapter-choice { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
 .settings-adapter-header .settings-adapter-choice .compact-dropdown { width: 252px; }
 .manage-solution-frame .settings-adapter-header > .compact-dropdown { width: auto; }

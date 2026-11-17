@@ -71,8 +71,7 @@ debug-adapters:
           kind: sequence
         options: []
         subsections:
-          - id: serialwire
-            section: Serial Wire
+          - section: Serial Wire
             yml-node:
               name: swo-uart
               select:
@@ -92,10 +91,12 @@ debug-adapters:
                 range:
                   - 0
                   - 9007199254740.99
-          - id: tracebuffer
-            section: Trace Buffer
+            condition: ${{ device.trace.serialwire && config.protocol === "swd" }}
+            condition-message: Serial Wire trace requires device support and SWD.
+          - section: '${{ device.trace.tracebuffer.name || "Trace Buffer" }}'
             yml-node:
               name: trace-buffer
+              value: ${{ device.trace.tracebuffer.name }}
               select:
                 node: mode
                 selected:

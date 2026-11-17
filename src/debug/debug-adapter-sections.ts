@@ -16,10 +16,11 @@
 
 import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { CTreeItemWrap } from '@open-cmsis-pack/cmsis-common/tree-item-wrapper';
-import { DebuggerWrap } from '../solutions/files/csolution-wrap';
+import { DebuggerWrap, type SectionPathSegment } from '../solutions/files/csolution-wrap';
 import { UISection } from './debug-adapters-yaml-file';
 import { storedOptionDefault } from './debug-adapter-options';
-import { resolveSectionYamlBinding, sectionYamlNodeName } from './section-yaml-binding';
+import { resolveSectionYamlBinding, sectionYamlNodeName, sectionStoragePath } from './section-yaml-binding';
+import { expandAdapterSections, templateDevice, type DeviceWithTrace } from './debug-adapter-templates';
 
 /** Internal compilation of declarative section storage. */
 type DebugAdapterSectionDefinition = {
@@ -50,32 +51,56 @@ export function sectionYamlPath(branch: UISection[]): string[] {
 
 /** Builds section UI and applies edits through the existing debugger tree without replacing YAML subtrees. */
 export class DebugAdapterSections {
-    private readonly definitions: DebugAdapterSectionDefinition[];
-
     /** Compiles registry descriptions; debugger access follows the owning target set. */
     constructor(
-        sections: UISection[],
+        private readonly declarations: UISection[],
         private readonly getDebugger: () => DebuggerWrap | undefined,
         private readonly ensureDebugger: () => DebuggerWrap,
+        private readonly device?: DeviceWithTrace,
     ) {
+        this.validateDeclarationBindings(declarations);
+        this.compileDefinitions();
+    }
+
+    /** Retains eager validation of registry storage and switch instructions before editing. */
+    private validateDeclarationBindings(sections: UISection[]): void {
+        for (const section of sections) {
+            if (section['yml-node'] !== undefined) {
+                resolveSectionYamlBinding(section['yml-node']);
+            }
+            this.validateDeclarationBindings(section.subsections ?? []);
+        }
+    }
+
+    /** Rebuilds conditions and projections from the latest in-memory debugger tree. */
+    private compileDefinitions(): DebugAdapterSectionDefinition[] {
+        const debuggerWrap = this.getDebugger();
+        const sections = expandAdapterSections(this.declarations, {
+            config: (debuggerWrap?.object ?? {}) as Record<string, unknown>,
+            device: templateDevice(this.device),
+        }, debuggerWrap);
+        /** Checks concrete identities after capability expansion. */
         const validate = (siblings: UISection[], root: boolean): void => {
             const identities = new Set<string>();
             for (const section of siblings) {
                 const identity = sectionIdentity(section, root);
-                if (identities.has(identity)) throw new Error(`Duplicate section identity: ${identity}`);
+                if (identities.has(identity)) {
+                    throw new Error(`Duplicate section identity: ${identity}`);
+                }
                 identities.add(identity);
                 const fields = new Set<string>();
                 for (const option of section.options) {
                     const field = JSON.stringify([option['yml-node'], option.pname ?? '']);
-                    if (fields.has(field)) throw new Error(`Duplicate field identity in section: ${identity}`);
+                    if (fields.has(field)) {
+                        throw new Error(`Duplicate field identity in section: ${identity}`);
+                    }
                     fields.add(field);
                 }
                 validate(section.subsections ?? [], false);
             }
         };
         validate(sections, true);
-        this.definitions = sections.map(ui => this.fromUI(ui));
-
+        return sections.map(ui => this.fromUI(ui));
     }
 
     /** Compiles declarative instructions into generic tree operations, independently of section names. */
@@ -104,12 +129,14 @@ export class DebugAdapterSections {
 
     /** Reads current switches, configured children, and add choices without mutating the debugger tree. */
     public get sections(): UISection[] {
-        return this.definitions.map(definition => this.toUI([definition]));
+        return this.compileDefinitions()
+            .filter(definition => definition.ui.condition !== false || this.node([definition]))
+            .map(definition => this.toUI([definition]));
     }
 
     /** Resolves a configured section at any depth; unconfigured dynamic templates cannot be edited. */
     private findBranch(root: string, path: string[]): DebugAdapterSectionDefinition[] | undefined {
-        let definition = this.definitions.find(candidate => sectionIdentity(candidate.ui, true) === root);
+        let definition = this.compileDefinitions().find(candidate => sectionIdentity(candidate.ui, true) === root);
         if (!definition) {
             return undefined;
         }
@@ -131,8 +158,15 @@ export class DebugAdapterSections {
         }
         const parent = this.findBranch(root, path.slice(0, -1));
         const dynamic = parent?.at(-1)?.dynamic;
-        const definition = dynamic?.types.find(candidate => sectionIdentity(candidate.ui) === path.at(-1) && candidate.ui.usage === 'available');
-        if (!parent || !dynamic || !definition || this.node([...parent, definition])) {
+        if (!parent || !dynamic) {
+            return;
+        }
+        if (parent.some(part => part.ui.condition === false)) {
+            return;
+        }
+
+        const definition = dynamic.types.find(candidate => sectionIdentity(candidate.ui) === path.at(-1) && candidate.ui.usage === 'available' && candidate.ui.condition !== false);
+        if (!definition || this.node([...parent, definition])) {
             return;
         }
 
@@ -174,7 +208,13 @@ export class DebugAdapterSections {
     public setEnabled(root: string, path: string[], enabled: boolean): void {
         const branch = this.findBranch(root, path);
         const definition = branch?.at(-1);
-        if (!branch || !definition || definition.ui.select === undefined || !(definition.ui['yml-node'] ?? definition.ui.id)) {
+        if (!branch || !definition) {
+            return;
+        }
+        if (enabled && branch.some(part => part.ui.condition === false)) {
+            return;
+        }
+        if (definition.ui.select === undefined || !(definition.ui['yml-node'] ?? definition.ui.id)) {
             return;
         }
         const existing = this.node(branch);
@@ -227,7 +267,7 @@ export class DebugAdapterSections {
         const dynamic = definition.dynamic;
         const validContainer = dynamic?.kind === 'sequence' ? container?.isSequence() : container?.isMap();
         const instances = validContainer ? dynamic?.types.filter(candidate => !!this.node([...branch, candidate])) ?? [] : [];
-        return [...children, ...instances];
+        return [...children.filter(child => child.ui.condition !== false || this.node([...branch, child])), ...instances];
     }
 
     /** Projects backend definitions into plain UI data, keeping callbacks and templates out of webview messages. */
@@ -244,7 +284,7 @@ export class DebugAdapterSections {
         }
         if (ui.subsections !== undefined || definition.subsections !== undefined || definition.dynamic) {
             const declaredCandidates = definition.dynamic?.types.filter(child => child.ui.usage !== undefined
-                && child.ui.usage === 'available' && !children.includes(child)) ?? [];
+                && child.ui.usage === 'available' && child.ui.condition !== false && !children.includes(child)) ?? [];
             ui.subsections = [...children, ...declaredCandidates].map(child => this.toUI([...branch, child]));
         }
         return ui;
@@ -256,8 +296,8 @@ export class DebugAdapterSections {
     }
 
     /** Computes the storage path independently of display labels and dynamic type identities. */
-    private yamlPath(branch: DebugAdapterSectionDefinition[]): string[] {
-        return sectionYamlPath(branch.map(definition => definition.ui));
+    private yamlPath(branch: DebugAdapterSectionDefinition[]): SectionPathSegment[] {
+        return sectionStoragePath(branch.map(definition => definition.ui));
     }
 
     /** Creates containers in the required shape, migrating shared maps when multiple processors are used. */

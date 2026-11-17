@@ -24,6 +24,9 @@ import { getVirtualProjectDescriptor } from './virtual-project';
 // Allowed load modes for an Image entry
 export type LoadImageType = 'image+symbols' | 'symbols' | 'image' | 'none';
 
+/** Addresses a map key or a sequence marker with an exact scalar value. */
+export type SectionPathSegment = string | { name: string; value: string | number | boolean | null };
+
 export class TypedWrap extends CTreeItemWrap {
     get type(): string { return this.getValue(this.nameKey) ?? ''; }
     override get nameKey(): string {
@@ -165,18 +168,23 @@ export class DebuggerWrap extends CTreeItemWrap {
     set startPname(pname: string | undefined) { this.setValue('start-pname', pname); }
 
     /** Resolves nested maps and trace-style sequence entries, optionally creating missing containers. */
-    getSection(path: string[], create = false): CTreeItemWrap | undefined {
+    getSection(path: SectionPathSegment[], create = false): CTreeItemWrap | undefined {
         let node = create ? this.ensureItem() : this.item;
-        for (const key of path) {
+        for (const segment of path) {
+            const key = typeof segment === 'string' ? segment : segment.name;
             if (!node) {
                 return undefined;
             }
             if (node.isSequence()) {
-                let entry = node.getChildren().find(child => child.getChild(key));
+                let entry = node.getChildren().find(child => {
+                    const marker = child.getChild(key);
+                    const value = marker?.getText() === '' ? '' : marker?.toObject();
+                    return marker !== undefined && (typeof segment === 'string' || value === segment.value);
+                });
                 if (!entry && create) {
                     entry = node.createChild('-');
                     entry.setKind(ETreeItemKind.Map);
-                    entry.createChild(key).fromObject(null);
+                    entry.createChild(key).fromObject(typeof segment === 'string' ? null : segment.value);
                 }
                 node = entry;
             } else {
@@ -187,7 +195,7 @@ export class DebuggerWrap extends CTreeItemWrap {
     }
 
     /** Writes a typed scalar into a nested section without replacing its other options. */
-    setSectionParameter(path: string[], param: string, value: string | number, pname?: string): void {
+    setSectionParameter(path: SectionPathSegment[], param: string, value: string | number, pname?: string): void {
         const section = this.getSection(path, true)?.item;
         if (!section) {
             return;
