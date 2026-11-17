@@ -39,6 +39,64 @@ V3 is available through `getApi(3)`. It retains `getBoards`, `getDevices`,
 `getDraftProjects`, `createNewSolution`, and `build` with their V2 behavior.
 V2 is unchanged; the additional methods below are available only in V3.
 
+### Await a build result
+
+`build()` returns the same VS Code `TaskExecution` as V2. Use `getBuildResult()` to
+await completion and read the captured output of that execution:
+
+```typescript
+const api = extension.getApi(3);
+const execution = await api.build({ rebuild: true });
+// execution.terminate() uses the existing VS Code task cancellation mechanism.
+const { exitCode, output } = await api.getBuildResult(execution);
+console.log(execution.task.name, exitCode, output);
+if (exitCode !== 0) {
+    // Failed, skipped, cancelled, or unavailable: do not assume success.
+}
+```
+
+Capture starts automatically for all tasks executed through the CMSIS Solution build
+provider, including UI commands, V2/V3 API calls, setup tasks, and resolved CMSIS build tasks
+from `tasks.json`. A handle obtained from VS Code task events can also be passed to
+`getBuildResult()`, including after the build finishes and through another V3 API instance.
+This does not cover arbitrary shell tasks or external `cbuild` processes.
+
+The result captures combined output exactly as emitted to the terminal, including warnings
+on successful builds and terminal formatting. Output verbosity follows the existing build
+settings. It uses the existing task runner and toolbox queue; no diagnostic command is run.
+The runner binds an implicit solution and target before entering that queue, so subsequent
+selection changes do not change which context is built or receives the cached result.
+On cancellation, the result waits for the runner to finish and includes its final output,
+even if VS Code has already closed the task terminal.
+
+`exitCode` is the runner's code (including negative toolbox error codes), or `undefined` when
+the task is skipped or ends without an available code. Cancellation never reports a zero
+code as success. A failure to start VS Code task execution rejects `build()`; a runner startup
+exception produces an undefined code and the error emitted to the terminal.
+
+`getBuildResult(execution)` returns the same promise on repeated calls. It rejects executions with
+no capture, including builds from before result capture was active. Capture is associated
+with the actual execution handle, rather than a task name or the latest build. The shared
+provider stores results in a WeakMap: output stays in memory while the execution handle
+remains reachable, and garbage collection timing is not guaranteed. Holding the returned
+promise also retains its result.
+
+Without an argument, `getBuildResult()` returns the latest completed build for the active
+loaded solution and target, or `undefined` if none was observed. It does not wait for a
+running build. Clean and setup tasks are excluded from this lookup; explicit handle lookup
+still works for them.
+
+```typescript
+const latest = await api.getBuildResult();
+const lastBuildSucceeded = latest?.exitCode === 0;
+```
+
+Latest means most recently completed, including failures, cancellation, and unavailable
+exit codes. A newer failure replaces an older success. This is historical information:
+changes to sources, configuration, dependencies, or artifacts can make a successful build
+out of date. The provider retains one latest result per observed solution/target until it
+is replaced or the provider is disposed; these cached results outlive their execution handles.
+
 ### Solution and Hardware Getters
 
 ```typescript

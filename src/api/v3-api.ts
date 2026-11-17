@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Disposable } from 'vscode';
+import { Disposable, TaskExecution } from 'vscode';
 import { Mutex } from 'async-mutex';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { CmsisSettingsJsonFile } from '../global/cmsis-settings-json-file';
@@ -31,6 +31,7 @@ import { COMMAND_ACTIVATE_SOLUTION, COMMAND_DEACTIVATE_SOLUTION, COMMAND_GET_SOL
 import { DebugHardwareCommands } from '../solutions/hardware/debug-hardware-commands';
 import { loadDebugAdaptersYml } from '../debug/debug-adapters-yaml-file';
 import type { SolutionConverter } from '../solutions/solution-converter';
+import type { BuildTaskProvider } from '../tasks/build/build-task-provider';
 
 export class CsolutionApiV3Impl implements CsolutionApiV3 {
     private static readonly targetSelectionMutex = new Mutex();
@@ -43,6 +44,7 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
         private readonly toolsEnvironment: Pick<ToolsEnvironment, 'getToolsEnvironment' | 'getToolchains'>,
         private readonly commandsProvider: Pick<CommandsProvider, 'executeCommand'>,
         private readonly solutionConverter: Pick<SolutionConverter, 'convertSolution'>,
+        private readonly buildTaskProvider: Pick<BuildTaskProvider, 'getBuildResult'>,
     ) {}
 
     public async convertSolution(options?: { updateRte?: boolean }): Promise<CsolutionApiV3.ConvertResult> {
@@ -300,5 +302,11 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
 
     public build(...args: Parameters<CsolutionApiV2['build']>) {
         return this.existingApi.build(...args);
+    }
+
+    public getBuildResult(execution: TaskExecution): Promise<CsolutionApiV3.BuildResult>;
+    public getBuildResult(): Promise<CsolutionApiV3.BuildResult | undefined>;
+    public getBuildResult(execution?: TaskExecution): Promise<CsolutionApiV3.BuildResult | undefined> {
+        return execution ? this.buildTaskProvider.getBuildResult(execution) : this.buildTaskProvider.getBuildResult();
     }
 }

@@ -83,12 +83,14 @@ describe('CmsisToolbox', () => {
 
     it('skip enqueuing redundant calls', async () => {
         mockProcessManager.mockOutputLines(['Finished successfully']);
+        const onSkipped = jest.fn();
         // call runCmsisTool concurrently
         const result1 = toolbox.runCmsisTool('cbuild', ['arg1', 'arg2'], onOutput);
-        const result2 = toolbox.runCmsisTool('cbuild', ['arg1', 'arg2'], onOutput);
+        const result2 = toolbox.runCmsisTool('cbuild', ['arg1', 'arg2'], onOutput, undefined, undefined, false, { onSkipped });
         // wait promises completion before checking expected values
         expect(await result1).toEqual([0, expect.anything()]);
         expect(await result2).toEqual([0, undefined]);
+        expect(onSkipped).toHaveBeenCalledTimes(1);
         expect(mockProcessManager.spawn).toHaveBeenCalledTimes(2);
         expect(mockProcessManager.spawn).toHaveBeenCalledWith(
             path.join('path', 'to', 'cbuild'), ['arg1', 'arg2'], expect.any(Object), expect.any(Function), undefined, undefined);

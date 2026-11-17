@@ -289,6 +289,18 @@ describe('BuildRunner', () => {
             expect(listener).toHaveBeenCalledWith(expectedLine);
         });
 
+        it('reports a redundant queued build without changing its existing return code', async () => {
+            const runner = new BuildRunner(cmsisToolboxManager);
+            const definition = { type: 'some-task', solution: 'some-solution' };
+            const onSkipped = jest.fn();
+            const first = runner.run(definition, jest.fn(), cancellationTokenFactory().token);
+            const second = runner.run(definition, jest.fn(), cancellationTokenFactory().token, undefined, onSkipped);
+
+            await expect(second).resolves.toBe(0);
+            expect(onSkipped).toHaveBeenCalledTimes(1);
+            await first;
+        });
+
         it('cancels the process when the cancellation token is cancelled', async () => {
             const desktopBuildRunner = new BuildRunner(cmsisToolboxManager);
             const buildTaskDefinition: BuildTaskDefinition = {
