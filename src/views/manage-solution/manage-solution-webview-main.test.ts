@@ -34,6 +34,7 @@ import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { configurationProviderFactory } from '../../vscode-api/configuration-provider.factories';
 import { csolutionFactory } from '../../solutions/csolution.factory';
 import { csolutionServiceFactory } from '../../json-rpc/csolution-rpc-client.factory';
+import { loadDebugAdaptersYml } from '../../debug/debug-adapters-yaml-file';
 
 // Helper for firing a message and waiting (now inside describe, uses local webviewManager)
 describe('ContextSelectionWebviewMain', () => {
@@ -288,7 +289,8 @@ describe('ContextSelectionWebviewMain', () => {
 
     it('records trace subsection edits in snapshots and restores them through undo and redo', async () => {
         const onEdit = jest.fn();
-        const main = manageSolutionWebviewMainFactory({ webviewManager, onEdit });
+        const configurationProvider = configurationProviderFactory({ [manifest.CONFIG_EXPERIMENTAL_FEATURES]: true });
+        const main = manageSolutionWebviewMainFactory({ webviewManager, onEdit, configurationProvider });
         await main.activate(context as unknown as vscode.ExtensionContext);
         main.controller.enableDebugger(true, 'Test Adapter');
         const before = main.getSolutionSnapshot();
@@ -536,6 +538,40 @@ describe('ContextSelectionWebviewMain', () => {
         await configurationProvider.setConfigVariable(manifest.CONFIG_AUTO_DEBUG_LAUNCH, false);
 
         expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'AUTO_UPDATE', data: false });
+    });
+
+    it.each([undefined, false, true])('initializes experimental features from configuration (%s)', experimentalFeatures => {
+        const configurationProvider = configurationProviderFactory({ [manifest.CONFIG_EXPERIMENTAL_FEATURES]: experimentalFeatures });
+        const main = manageSolutionWebviewMainFactory({ webviewManager, configurationProvider });
+
+        expect(main.controller.experimentalFeatures).toBe(experimentalFeatures ?? false);
+    });
+
+    it('refreshes the adapter UI when experimental features change', async () => {
+        const settings = { [manifest.CONFIG_EXPERIMENTAL_FEATURES]: false };
+        const configurationProvider = configurationProviderFactory(settings);
+        const main = manageSolutionWebviewMainFactory({ webviewManager, configurationProvider });
+        await main.activate(context as unknown as vscode.ExtensionContext);
+        const controller = main.controller;
+        controller['debugAdaptersYmlFile'] = await loadDebugAdaptersYml();
+        const callback = configurationProvider.onChangeConfiguration.mock.calls
+            .find(([, setting]) => setting === manifest.CONFIG_EXPERIMENTAL_FEATURES)![0];
+
+        for (const enabled of [true, false]) {
+            settings[manifest.CONFIG_EXPERIMENTAL_FEATURES] = enabled;
+            await callback();
+
+            const message = webviewManager.sendMessage.mock.calls
+                .map(([message]) => message as Messages.IncomingMessage)
+                .find(message => message.type === 'DEBUG_ADAPTERS');
+            expect(message?.type).toBe('DEBUG_ADAPTERS');
+            if (message?.type === 'DEBUG_ADAPTERS') {
+                expect(message.data.length).toBeGreaterThan(0);
+                expect(message.data.every(adapter => adapter['user-interface']
+                    ?.some(section => section['yml-node'] === 'trace') === enabled)).toBe(true);
+            }
+            webviewManager.sendMessage.mockClear();
+        }
     });
 
     it('does not show warning message on dispose when not dirty', async () => {
