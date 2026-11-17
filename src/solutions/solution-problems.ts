@@ -39,8 +39,8 @@ interface EnvironmentMessage {
 }
 
 export const toolsPrefixPatterns = {
-    error: /^.*error (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
-    warning: /^.*warning (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
+    error: /error (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
+    warning: /warning (?:cbuild|cbuild2cmake|csolution|cpackget):\s*/,
 };
 
 const ESC = String.fromCharCode(27);
@@ -414,7 +414,7 @@ export class SolutionProblemsImpl implements SolutionProblems {
         const normalizedFilename = filename ? getFileNameFromPath(filename) : undefined;
         const fromMap = (filename && files.get(filename)) || (normalizedFilename && files.get(normalizedFilename));
         const absoluteFromLog = filename && this.isAbsoluteDiagnosticPath(filename) ? filename : undefined;
-        const file = fromMap || absoluteFromLog || this.solutionManager.getCsolution()?.solutionPath;
+        const file = absoluteFromLog || fromMap || this.solutionManager.getCsolution()?.solutionPath;
         if (!file) {
             return false;
         }
@@ -489,6 +489,19 @@ export class SolutionProblemsImpl implements SolutionProblems {
             const strippedSolution = stripTwoExtensions(activeSolution);
             this.addFile(strippedSolution + '.cbuild-pack.yml');
             this.addFile(strippedSolution + '.cbuild-set.yml');
+            // Conversion may fail before build metadata contains the referenced layers.
+            for (const projectRef of csolution.csolutionYml.projectRefs) {
+                this.addFile(projectRef.projectPath);
+            }
+            for (const file of [csolution.csolutionYml, ...csolution.projects.values()]) {
+                this.addFile(file.fileName);
+                for (const layer of file.topItem?.getGrandChildren('layers') ?? []) {
+                    const reference = layer.getValue('layer');
+                    if (reference) {
+                        this.addFile(file.resolvePath(csolution.expandPath(reference)));
+                    }
+                }
+            }
             // get cproject.yml and clayer.yml files from all contexts
             const contexts = csolution.cbuildIdxFile.activeContexts;
             for (const context of contexts ?? []) {
