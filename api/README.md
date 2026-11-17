@@ -460,6 +460,29 @@ deactivates the solution and disposes the API in `finally`. Conversion event
 suppression is covered by the focused converter unit tests, not observable through
 the public extension API.
 
+#### Build and Build Result Smoke Mode
+
+Choose **Build and Build Results (Loaded Solution)** from the **API V3 Smoke Tests**
+picker. Preparation creates a fresh copy of the selection fixture with a small
+library project and [a controlled compiler warning](../test-data/api-v3-packs/build.c).
+Requires installed `ARM::CMSIS` and `ARM::Cortex_DFP` packs, a working registered
+AC6 compiler with its license, and the usual CMake/Ninja build tools. Downloads,
+web services, and automatic refresh on file changes are disabled. No board or
+debug probe is used.
+
+The scenario calls V3 `build()` and immediately awaits `getBuildResult(execution)`.
+It checks the returned task handle, exit code `0`, retained warning text, repeated
+promise lookup, JSON serialization, cross-instance lookup, and the latest result.
+It then replaces the disposable C source with a deliberate compiler error and
+builds again, checking a nonzero exit code, captured diagnostics, separate execution
+handles, output isolation, an unchanged first result, and the newer failure as
+the latest result. Initial setup must not populate latest results, unknown handles
+must reject, and V2 must not expose the new method.
+
+Each result wait has a two-minute deadline. Cleanup restores the C source,
+deactivates the solution, and disposes both API instances. Check the Debug Console
+for the explicit `API V3 build:` success message and any extension-host errors.
+
 #### Pack Smoke Modes
 
 Choose a scenario from the **API V3 Smoke Tests** picker when launching with **F5**.

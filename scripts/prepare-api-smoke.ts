@@ -17,7 +17,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ETextFileResult, JsonFile } from '@open-cmsis-pack/cmsis-common';
+import { ETextFileResult, JsonFile, YamlFile } from '@open-cmsis-pack/cmsis-common';
 
 const repository = fileURLToPath(new URL('../', import.meta.url));
 const fixtureDirectory = path.join(repository, '.vscode-test', 'api-v3-smoke');
@@ -50,6 +50,7 @@ for (const [mode, solution] of [
     ['missing', 'Missing.csolution.yml'],
     ['selection', 'Selection.csolution.yml'],
     ['convert', 'Selection.csolution.yml'],
+    ['build', 'Selection.csolution.yml'],
 ] as const) {
     const folder = path.join(runDirectory, mode);
     await fs.mkdir(folder);
@@ -58,6 +59,20 @@ for (const [mode, solution] of [
         fs.copyFile(path.join(packFixture, 'Components.cproject.yml'), path.join(folder, 'Components.cproject.yml')),
         fs.cp(path.join(packFixture, '.vscode'), path.join(folder, '.vscode'), { recursive: true }),
     ]);
+    if (mode === 'build') {
+        const project = new YamlFile(path.join(folder, 'Components.cproject.yml'));
+        if (await project.load() === ETextFileResult.Error || project.errors.length) {
+            throw new Error(`Cannot load ${project.fileName}`);
+        }
+        const content = project.content as { project: Record<string, unknown> };
+        content.project.output = { type: 'lib' };
+        content.project.groups = [{ group: 'Smoke', files: [{ file: 'build.c' }] }];
+        project.content = content;
+        if (await project.save() === ETextFileResult.Error || project.errors.length) {
+            throw new Error(`Cannot prepare ${project.fileName}`);
+        }
+        await fs.copyFile(path.join(packFixture, 'build.c'), path.join(folder, 'build.c'));
+    }
     const packWorkspace = new JsonFile(path.join(fixtureDirectory, `${mode}.code-workspace`));
     packWorkspace.content = { folders: [{ path: folder }], settings: fixtureSettings.content };
     if (await packWorkspace.save() === ETextFileResult.Error) {
