@@ -16,8 +16,8 @@
 
 import { UISection, UISectionChildren } from '../../debug/debug-adapters-yaml-file';
 import { normalizeNumberOption, readNumberOption } from '../../debug/debug-adapter-options';
-import { sectionYamlNodeName } from '../../debug/section-yaml-binding';
-import { sectionIdentity, sectionYamlPath } from '../../debug/debug-adapter-sections';
+import { sectionYamlNodeName, sectionStoragePath } from '../../debug/section-yaml-binding';
+import { sectionIdentity } from '../../debug/debug-adapter-sections';
 import { DebuggerWrap } from '../../solutions/files/csolution-wrap';
 import {
     AdapterHeader, AdapterSnapshot, SettingsActionRequest, SettingsField, SettingsFieldBase, SettingsSection, settingsIdentity,
@@ -41,6 +41,7 @@ export type AdapterSettingsAction = {
     path: string[];
     option?: UISectionChildren;
     value?: string | number | boolean;
+    canEnable?: boolean;
 };
 
 /** Registers a host-only address and returns the opaque action identity exposed to the webview. */
@@ -111,7 +112,7 @@ export class AdapterSettingsPresenter {
             case 'enableDebugger':
             case 'toggle':
             case 'autoUpdate':
-                if (typeof value !== 'boolean') {
+                if (typeof value !== 'boolean' || (address.kind === 'toggle' && value && address.canEnable === false)) {
                     return undefined;
                 }
                 break;
@@ -178,12 +179,12 @@ export class AdapterSettingsPresenter {
         const path = identity.slice(1);
         const disabled = inheritedDisabled || section.select === false;
         const children = section.subsections ?? [];
-        const sectionNode = context.debugger?.getSection(sectionYamlPath(branch))?.item;
+        const sectionNode = context.debugger?.getSection(sectionStoragePath(branch))?.item;
 
         /** Registers a section action using its complete path or a candidate child's path. */
         const sectionAction = (kind: AdapterSettingsAction['kind'], child?: UISection) => {
             const childPath = child ? [...path, sectionIdentity(child)] : path;
-            return action({ kind, root, path: childPath }, [root, ...childPath]);
+            return action({ kind, root, path: childPath, ...(kind === 'toggle' ? { canEnable: section.condition !== false } : {}) }, [root, ...childPath]);
         };
         const fields = section.options.map(option => {
             const fieldIdentity = [...identity, option['yml-node'], option.pname ?? ''];
@@ -214,6 +215,7 @@ export class AdapterSettingsPresenter {
             disabled,
             selected: section.select,
             toggleAction: section.select !== undefined && !inheritedDisabled
+                && (section.condition !== false || section.select)
                 && (sectionYamlNodeName(section) || (branch.length > 1 && section.id)) ? sectionAction('toggle') : undefined,
             removeAction: section.usage === 'used' ? sectionAction('remove') : undefined,
             addActions: disabled ? [] : children.filter(child => child.usage === 'available').map(child => ({

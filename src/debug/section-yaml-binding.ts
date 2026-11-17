@@ -14,9 +14,15 @@
  * limitations under the License.
  */
 
+import type { SectionPathSegment } from '../solutions/files/csolution-wrap';
+
+/** Scalar values identifying individual sequence entries. */
+export type SectionSelector = string | number | boolean | null;
+
 /** Shares storage addressing and switch structure between registry and normalized bindings. */
 type SectionYamlNode<SwitchValues> = {
     name: string;
+    value?: SectionSelector | SectionSelector[];
     kind?: 'map' | 'sequence';
     select?: {
         node: string;
@@ -40,8 +46,9 @@ export function resolveSectionYamlBinding(binding: UISectionYamlNode): SectionYa
         || (value.kind !== undefined && value.kind !== 'map' && value.kind !== 'sequence')) {
         throw new Error('Invalid section YAML binding');
     }
+    const selector = 'value' in value ? { value: value.value } : {};
     if (value.select === undefined) {
-        return { name: value.name, kind: value.kind ?? 'map' };
+        return { name: value.name, kind: value.kind ?? 'map', ...selector };
     }
     const select = value.select;
 
@@ -62,11 +69,29 @@ export function resolveSectionYamlBinding(binding: UISectionYamlNode): SectionYa
     if (selected.some(entry => unselected.includes(entry))) {
         throw new Error('Section switch states must not overlap');
     }
-    return { name: value.name, kind: value.kind ?? 'map', select: { node: select.node, selected, unselected } };
+    return { name: value.name, kind: value.kind ?? 'map', ...selector, select: { node: select.node, selected, unselected } };
 }
 
 /** Resolves both registry spellings without leaking object bindings into storage paths. */
 export function sectionYamlNodeName(section: { 'yml-node'?: UISectionYamlNode }): string | undefined {
     const binding = section['yml-node'];
     return typeof binding === 'string' ? binding : binding?.name;
+}
+
+/** Builds concrete storage addresses while retaining exact sequence marker values. */
+export function sectionStoragePath(branch: { id?: string; 'yml-node'?: UISectionYamlNode }[]): SectionPathSegment[] {
+    return branch.flatMap((section, depth): SectionPathSegment[] => {
+        const binding = section['yml-node'];
+        const name = sectionYamlNodeName(section) ?? (depth > 0 ? section.id : undefined);
+        if (!name) {
+            return [];
+        }
+        if (typeof binding === 'object' && 'value' in binding) {
+            if (Array.isArray(binding.value) || binding.value === undefined) {
+                throw new Error('Section storage requires a scalar selector');
+            }
+            return [{ name, value: binding.value }];
+        }
+        return [name];
+    });
 }

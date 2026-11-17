@@ -223,6 +223,34 @@ describe('registry-driven settings actions', () => {
         expect(messages().filter(message => message.type === 'SETTINGS_ACTION_RESULT').every(message => message.result.status === 'applied')).toBe(true);
     });
 
+    it('rejects stale Add and enable actions when protocol changes and restores conditions with undo/redo', async () => {
+        const { main, latest, perform, messages } = await setup();
+        const trace = () => latest().sections.find(section => section.label === 'Trace')!;
+        const source = () => trace().children.find(section => section.label === 'Serial Wire')!;
+        const initial = latest();
+        const add = trace().addActions.find(action => action.label === 'Serial Wire')!.action;
+        await perform(add);
+        const swd = main.getSolutionSnapshot();
+        const protocol = latest().sections.flatMap(section => section.fields).find(field => field.label === 'Protocol')!;
+        await perform(protocol.editAction!, 'jtag');
+        expect(source().warning).toBe('Serial Wire trace requires device support and SWD.');
+        await perform(add, undefined, initial);
+        expect(messages().filter(message => message.type === 'SETTINGS_ACTION_RESULT').at(-1)).toMatchObject({ result: { status: 'rejected' } });
+        const snapshot = latest();
+        const toggle = source().toggleAction!;
+        await perform(toggle, true, snapshot);
+        expect(messages().filter(message => message.type === 'SETTINGS_ACTION_RESULT').at(-1)).toMatchObject({ result: { status: 'rejected' } });
+        await perform(toggle, false);
+        expect(source()).toMatchObject({ selected: false, toggleAction: undefined });
+        const jtag = main.getSolutionSnapshot();
+        await main.applySnapshot(swd);
+        expect(source()).toMatchObject({ selected: true, warning: undefined });
+        await main.applySnapshot(jtag);
+        expect(source()).toMatchObject({ selected: false, warning: 'Serial Wire trace requires device support and SWD.' });
+        await perform(source().removeAction!);
+        expect(trace().addActions.map(action => action.label)).not.toContain('Serial Wire');
+    });
+
     it('rejects stale context and unknown actions and keeps debugger state out of browser table snapshots', async () => {
         const { main, latest, perform, send, onEdit, messages } = await setup();
         const snapshot = latest();

@@ -17,7 +17,7 @@
 import * as React from 'react';
 import { Button, Checkbox, Tooltip, type CheckboxChangeEvent } from 'antd';
 import { WarningOutlined } from '@ant-design/icons';
-import type { SettingsSection } from '../../settings-contract';
+import { settingsSections, type SettingsSection } from '../../settings-contract';
 import { CmsisCodicon } from '../../../common/components/cmsis-codicon';
 import { SettingsAddMenu } from './settings-add-menu';
 
@@ -30,6 +30,17 @@ export type SettingsSectionHeaderProps = {
     navigation?: boolean;
 };
 
+/** Returns the first section or field warning in display order throughout a section's subtree. */
+function sectionWarning(section: SettingsSection): string | undefined {
+    for (const descendant of settingsSections([section])) {
+        const warning = descendant.warning || descendant.fields.find(field => field.warning)?.warning;
+        if (warning) {
+            return warning;
+        }
+    }
+    return undefined;
+}
+
 /** Renders section state and actions, keeping activation separate from expansion and navigation. */
 export const SettingsSectionHeader = ({ section, onAction, collapsible, expanded, onExpand, navigation }: SettingsSectionHeaderProps) => {
     const label = section.childCount === undefined ? section.label : `${section.label} (${section.childCount})`;
@@ -39,6 +50,18 @@ export const SettingsSectionHeader = ({ section, onAction, collapsible, expanded
     const expandLabel = `${expanded ? 'Collapse' : 'Expand'} ${section.label}`;
     const expandIcon = expanded ? 'chevron-down' : 'chevron-right';
     const removeLabel = `Remove ${section.label}`;
+    const warningMessage = sectionWarning(section);
+    const warning = warningMessage && (
+        <Tooltip title={<span className='settings-warning-tooltip'>{warningMessage}</span>}>
+            <span
+                role='status'
+                aria-label={warningMessage}
+                className='settings-warning'
+            >
+                <WarningOutlined />
+            </span>
+        </Tooltip>
+    );
 
     /** Keeps header controls from selecting a surrounding navigation row. */
     function stopHeaderEvent(event: React.SyntheticEvent): void {
@@ -107,24 +130,12 @@ export const SettingsSectionHeader = ({ section, onAction, collapsible, expanded
                 </>
             )}
 
-            {section.warning && (
-                <Tooltip title={section.warning}>
-                    <span
-                        role='status'
-                        aria-label={section.warning}
-                        className='settings-warning'
-                    >
-                        <WarningOutlined />
-                        {section.warning}
-                    </span>
-                </Tooltip>
-            )}
-
             <span
                 className='settings-actions'
                 onClick={stopHeaderEvent}
                 onKeyDown={stopHeaderEvent}
             >
+                {navigation && warning}
                 {showAdd && (
                     <SettingsAddMenu
                         label={section.label}
@@ -132,6 +143,7 @@ export const SettingsSectionHeader = ({ section, onAction, collapsible, expanded
                         onAction={onAction}
                     />
                 )}
+                {!navigation && warning}
                 {section.removeAction && (
                     <Button
                         type='text'
