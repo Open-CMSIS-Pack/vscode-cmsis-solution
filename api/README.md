@@ -134,6 +134,32 @@ conversion itself can finish after this method resolves. If refresh fails, the
 selection remains persisted. Settings-file failures may also be reported by the
 extension's standard file-error reporter.
 
+### Convert the Loaded Solution
+
+```typescript
+const result = await api.convertSolution({ updateRte: false });
+if (!result.success) {
+    console.error(result.logMessages.errors, result.toolsOutputMessages);
+}
+```
+
+`convertSolution(options?: { updateRte?: boolean }): Promise<CsolutionApiV3.ConvertResult>`
+converts the loaded solution's active target set and waits for completion.
+`updateRte` defaults to `false`. The method returns the existing conversion
+completion payload: `success`, `severity`, `detection`, `logMessages` (with
+`success`, `errors`, `warnings`, and `info`), and `toolsOutputMessages`.
+`detection` indicates that compiler selection or layer configuration is needed.
+Normal conversion failures resolve with `success: false`; a missing loaded
+solution or an unexpected RPC/tool exception rejects the promise.
+
+API conversions share the converter's mutex with event-driven conversions, but
+neither emit conversion-completed/configuration-ready events nor open the
+Configure Solution dialog. They do not refresh the loaded solution model or its
+Problems view. Existing event-driven conversions retain their event behavior.
+The existing conversion pipeline still writes to the output channel and downloads
+missing packs when enabled in extension settings; tool setup can show its usual
+notifications.
+
 ### Install Packs
 
 ```typescript
@@ -355,6 +381,26 @@ API in `finally` and use disposable workspaces prepared by the launch task.
 These are extension-host integration checks, not mocked unit tests or hardware
 flash/debug tests. Target selection waits for refresh, not background conversion
 completion; the initial hardware assertions explicitly wait for conversion data.
+
+#### Convert Solution Smoke Mode
+
+Choose **Convert Solution (Loaded Solution)** from the **API V3 Smoke Tests**
+picker. This runs real Toolbox conversions against a fresh disposable copy of
+[the selection fixture](../test-data/api-v3-packs/Selection.csolution.yml).
+Requires installed `ARM::CMSIS` and `ARM::Cortex_DFP` packs and working Toolbox
+conversion; downloads, web services and conversion on file changes are disabled.
+For an isolated command-line extension-host run, pass `--disable-extensions` to
+VS Code; the extension under development still loads, while unrelated installed
+extensions cannot interfere with fixture activation.
+
+The scenario checks V3 exposure and V2 isolation, rejection without a loaded
+solution, conversion with omitted options and with `updateRte: true`, the complete
+returned payload and JSON serialization, generated cbuild-index/context files,
+unchanged solution/project inputs and active selection, and rejection after
+deactivation. It logs both results and an explicit success message, then
+deactivates the solution and disposes the API in `finally`. Conversion event
+suppression is covered by the focused converter unit tests, not observable through
+the public extension API.
 
 #### Pack Smoke Modes
 

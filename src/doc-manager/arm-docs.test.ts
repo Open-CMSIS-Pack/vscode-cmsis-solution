@@ -26,6 +26,7 @@ describe('ArmDocs', () => {
 
     it.each<[string, string[]]>([
         ['Cortex-M4', ['ddi0403', 'ihi0014', 'ddi0440', 'ddi0439', 'dui0553']],
+        ['Cortex-M42', ['ddi0553', 'ihi0064']],
         ['Cortex-M7', ['ddi0403', 'ihi0064', 'ddi0494', 'ddi0489', 'dui0646']],
         ['Cortex-Undefined', []],
     ])('returns unique core and architecture document IDs for %s', (core, expected) => {

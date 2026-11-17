@@ -30,6 +30,7 @@ scripts/**
 .hadolint.yaml
 eslint.config.js
 jest.e2e.config.js
+jest.config.js
 jestSetupFile.js
 **/target.txt
 **/version.txt

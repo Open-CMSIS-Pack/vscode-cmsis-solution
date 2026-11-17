@@ -37,6 +37,7 @@ describe('CsolutionApiV3Impl', () => {
         getActiveTargetSetWrap: () => ({ projectContexts: contexts.map(name => ({ name: name.replace(/\+Board$/, '') })) }),
     });
     const commandsProvider = { executeCommand: jest.fn() };
+    const solutionConverter = { convertSolution: jest.fn() };
 
     beforeEach(() => {
         existingApi = {
@@ -53,11 +54,45 @@ describe('CsolutionApiV3Impl', () => {
         toolsEnvironment.getToolsEnvironment.mockReset();
         toolsEnvironment.getToolchains.mockReset();
         commandsProvider.executeCommand.mockReset();
+        solutionConverter.convertSolution.mockReset();
         jest.spyOn(window, 'showInformationMessage').mockClear();
-        api = new CsolutionApiV3Impl(existingApi, dataManagerFactory(), solutionManager, csolutionService, toolsEnvironment, commandsProvider);
+        api = new CsolutionApiV3Impl(existingApi, dataManagerFactory(), solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverter);
     });
 
     afterEach(() => jest.restoreAllMocks());
+
+    describe('convertSolution', () => {
+        it.each([undefined, {}, { updateRte: true }, { updateRte: false }])('converts the loaded active target with options %j', async options => {
+            const solution = new CSolution();
+            solution.solutionPath = 'C:\\workspace\\App.csolution.yml';
+            jest.spyOn(solution, 'getActiveTargetSetName').mockReturnValue('Board@Debug');
+            solutionManager.getCsolution.mockReturnValue(solution);
+            const result = {
+                success: false, severity: 'error', detection: false,
+                logMessages: { success: false, errors: ['conversion failed'] }, toolsOutputMessages: [],
+            };
+            solutionConverter.convertSolution.mockResolvedValue(result);
+
+            await expect(api.convertSolution(options)).resolves.toBe(result);
+            expect(solutionConverter.convertSolution).toHaveBeenCalledWith({
+                solutionPath: solution.solutionPath, targetSet: 'Board@Debug', updateRte: options?.updateRte ?? false,
+            });
+            expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
+        });
+
+        it.each([true, false])('rejects when no solution is loaded (model present: %s)', async present => {
+            solutionManager.loadState = {};
+            solutionManager.getCsolution.mockReturnValue(present ? new CSolution() : undefined);
+            await expect(api.convertSolution()).rejects.toThrow('requires a loaded solution');
+            expect(solutionConverter.convertSolution).not.toHaveBeenCalled();
+        });
+
+        it('propagates unexpected conversion failures', async () => {
+            solutionManager.getCsolution.mockReturnValue(new CSolution());
+            solutionConverter.convertSolution.mockRejectedValue(new Error('RPC failed'));
+            await expect(api.convertSolution()).rejects.toThrow('RPC failed');
+        });
+    });
 
     it('lists toolchains without a solution and propagates provider failures', async () => {
         solutionManager.loadState = {};
@@ -320,7 +355,7 @@ describe('CsolutionApiV3Impl', () => {
 
         it('serializes overlapping selections across API instances through refresh', async () => {
             const otherApi = new CsolutionApiV3Impl(existingApi, dataManagerFactory(), solutionManager,
-                csolutionService, toolsEnvironment, commandsProvider);
+                csolutionService, toolsEnvironment, commandsProvider, solutionConverter);
             commandsProvider.executeCommand.mockImplementation(async () => {
                 const refreshed = new CSolution();
                 refreshed.solutionPath = solution.solutionPath;
@@ -380,7 +415,7 @@ describe('CsolutionApiV3Impl', () => {
         const dataManager = dataManagerFactory();
         const packs = [{ id: 'ARM::CMSIS@6.0.0', version: '6.0.0', installed: true }];
         const query = jest.spyOn(dataManager, 'getPacks').mockResolvedValue({ packs });
-        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider);
+        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverter);
         await expect(catalogApi.getPacks()).resolves.toEqual({ packs });
         await expect(catalogApi.getPacks({ scope: 'installed' })).resolves.toEqual({ packs });
         expect(query).toHaveBeenNthCalledWith(1, undefined);
@@ -552,7 +587,7 @@ describe('CsolutionApiV3Impl', () => {
         ];
         const dataManager = dataManagerFactory();
         const query = jest.spyOn(dataManager, 'getPacks').mockResolvedValue({ packs });
-        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider);
+        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverter);
         for (const [text, expected] of [
             [undefined, packs], ['', packs], ['cMsIs', packs.slice(0, 2)],
             ['[uart]', [packs[1]]], ['.*', []], [' CMSIS ', []], ['no match', []],

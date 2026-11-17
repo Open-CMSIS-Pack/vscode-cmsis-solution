@@ -16,14 +16,16 @@
 
 // Windows PowerShell is part of Windows. Keep the native console boundary here,
 // rather than requiring a Python installation or a platform-specific Node addon.
-// stdin is a private control pipe; stdout/stderr contain only pyOCD output.
+// stdin is a private control pipe; stderr also carries launch failures.
 export const pyocdWindowsHost = String.raw`
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+$standardError = [Console]::OpenStandardError()
+$operation = 'C# helper compilation (Add-Type)'
+try {
 Add-Type -TypeDefinition @'
 using System;
 using System.Diagnostics;
-using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 public static class PyocdConsoleHost {
@@ -73,14 +75,21 @@ public static class PyocdConsoleHost {
         info.RedirectStandardOutput = true;
         info.RedirectStandardError = true;
         info.RedirectStandardInput = true;
-        using (var child = Process.Start(info)) {
+        var process = Process.Start(info);
+        using (var child = process) {
             try {
                 var stdout = child.StandardOutput.BaseStream.CopyToAsync(output);
                 var stderr = child.StandardError.BaseStream.CopyToAsync(error);
-                var control = Task.Run(() => input.ReadLine());
+                var control = Task.Run(() => {
+                    string command;
+                    while ((command = input.ReadLine()) != null) {
+                        if (command == "stop") return true;
+                    }
+                    return false; // EOF is not a shutdown request.
+                });
                 bool interrupted = false;
                 while (!child.WaitForExit(50)) {
-                    if (!interrupted && control.IsCompleted) {
+                    if (!interrupted && control.IsCompleted && control.Result) {
                         interrupted = true;
                         if (!GenerateConsoleCtrlEvent(0, 0)) throw new System.ComponentModel.Win32Exception();
                         if (!child.WaitForExit(5000)) {
@@ -100,7 +109,32 @@ public static class PyocdConsoleHost {
     }
 }
 '@
+$operation = 'pyOCD arguments decoding (ConvertFrom-Json)'
 $arguments = [string[]](ConvertFrom-Json $env:CMSIS_PYOCD_ARGUMENTS)
-$executable = (Get-Command pyocd.exe -CommandType Application -ErrorAction Stop).Source
+$operation = 'pyOCD executable resolution (Get-Command pyocd.exe)'
+$command = $env:CMSIS_PYOCD_COMMAND
+if ([string]::IsNullOrEmpty($command) -or $command -eq 'pyocd') { $command = 'pyocd.exe' }
+$operation = "pyOCD executable resolution (Get-Command $command)"
+try {
+    $executable = (Get-Command $command -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+} catch [System.Management.Automation.CommandNotFoundException] {
+    if ($command -eq 'pyocd.exe') { throw }
+    $executable = (Get-Command pyocd.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+    [Console]::Error.WriteLine("Warning: configured executable '$command' was not found; using '$executable'.")
+}
+if ([string]::IsNullOrWhiteSpace($executable) -or !(Test-Path -LiteralPath $executable -PathType Leaf)) {
+    throw "Resolved pyOCD executable does not exist or is not a file: '$executable'"
+}
+$operation = 'PyocdConsoleHost.Run'
 exit [PyocdConsoleHost]::Run($executable, $arguments)
+} catch {
+    $failure = $_.Exception.GetBaseException()
+    try {
+        $message = 'pyOCD: ' + $operation + ': ' + $failure.Message + [Environment]::NewLine
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($message)
+        $standardError.Write($bytes, 0, $bytes.Length)
+        $standardError.Flush()
+    } catch { }
+    exit 1
+}
 `;

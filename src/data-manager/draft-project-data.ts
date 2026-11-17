@@ -15,6 +15,7 @@
  */
 
 import path from 'path';
+import { valid as validSemver } from 'semver';
 import { ExampleProject } from '../solar-search/solar-search-client';
 import { PackId, splitPackId } from './pack-data';
 import { tmpdir } from 'os';
@@ -80,6 +81,7 @@ export enum DraftProjectSource {
 export interface DraftProjectData {
     get id(): DraftProjectId;
     get name(): string;
+    /** Path to the csolution file relative to the root copied by copyTo(). */
     get solutionFileName(): string | undefined;
     get description(): string;
     get format(): DraftProjectFormat;
@@ -156,7 +158,17 @@ export class SolarExampleData extends BaseDraftProjectData {
     }
 
     public get pack() {
-        return undefined;
+        const origin = this.data.origin;
+        if (origin?.type !== 'cmsis_pack' || !origin.url) {
+            return undefined;
+        }
+        try {
+            const filename = new URL(origin.url).pathname.split('/').pop();
+            const match = filename && decodeURIComponent(filename).match(/^([^./]+)\.([^./]+)\.(\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?)\.pack$/);
+            return match && validSemver(match[3]) ? new PackId(match[1], match[2], match[3]) : undefined;
+        } catch {
+            return undefined;
+        }
     }
 
     public copyTo(dest: string) {
@@ -192,7 +204,7 @@ export class CsolutionExampleData extends BaseDraftProjectData {
 
     public get solutionFileName() {
         return this.format === DraftProjectFormat.Csolution && this.selectedEnvironment?.file
-            ? path.basename(this.selectedEnvironment.file)
+            ? path.relative(this.selectedEnvironment.folder, this.selectedEnvironment.file)
             : undefined;
     }
 
@@ -249,7 +261,7 @@ export class CsolutionTemplateData extends BaseDraftProjectData {
     }
 
     public get solutionFileName() {
-        return path.basename(this.data.file);
+        return path.relative(this.data.folder, this.data.file);
     }
 
     public get description() {

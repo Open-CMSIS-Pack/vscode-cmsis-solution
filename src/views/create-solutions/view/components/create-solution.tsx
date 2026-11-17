@@ -143,11 +143,17 @@ export const CreateSolution = ({ viewModel }: CreateSolutionProps) => {
                                     title="Select a template with boilerplate code, or a (reference) software example for your chosen hardware target"
                                     label={
                                         <>
-                                            <span style={{ width: '100%' }}>Templates, Reference Applications, and Examples</span>
-                                            <span className="checkbox-field">
-                                                <Checkbox id={'create-solution-from-all-pack-versions'} checked={state.fromAllPackVersions} onChange={() => dispatch({ type: 'TOGGLE_ALL_PACK_VERSIONS' })} disabled={disabled} />
-                                                <label htmlFor="create-solution-from-all-pack-versions">All pack versions</label>
-                                                <TooltipQuestion title={'Show projects from all versions instead of latest pack version only'} />
+                                            <span style={{ width: '100%' }}>Examples, Reference Applications, and Templates</span>
+                                            <span style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span className="checkbox-field">
+                                                    <Checkbox id={'create-solution-from-all-pack-versions'} checked={state.fromAllPackVersions} onChange={() => dispatch({ type: 'TOGGLE_ALL_PACK_VERSIONS' })} disabled={disabled} />
+                                                    <label htmlFor="create-solution-from-all-pack-versions">All pack versions</label>
+                                                    <TooltipQuestion title={'Show projects from all versions instead of latest pack version only'} />
+                                                </span>
+                                                <span className="checkbox-field">
+                                                    <Checkbox id={'create-solution-show-web-and-uv-examples'} checked={state.showWebAndUvExamples.value} onChange={() => dispatch({ type: 'TOGGLE_WEB_AND_UV_EXAMPLES' })} disabled={disabled} />
+                                                    <label htmlFor="create-solution-show-web-and-uv-examples">Web and uVision Examples</label>
+                                                </span>
                                             </span>
                                         </>
                                     }

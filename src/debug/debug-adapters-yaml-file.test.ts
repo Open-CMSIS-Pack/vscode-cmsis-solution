@@ -17,6 +17,7 @@
 import fs from 'node:fs';
 
 import { DebugAdaptersYamlFile, UISectionChildren } from './debug-adapters-yaml-file';
+import { findUIOptionByYmlNode } from './debug-adapters-yaml-file.factory';
 
 describe('DebugAdaptersYamlFile', () => {
     const fsMock = {
@@ -95,6 +96,38 @@ describe('DebugAdaptersYamlFile', () => {
         await yamlFile.load('debug-adapters.yml');
         const adapter = yamlFile.getAdapterByName();
         expect(adapter).toBeUndefined();
+    });
+
+    it('normalizes enum options recursively through nested section definitions', async () => {
+        fsMock.readFileSync.mockReturnValue(`debug-adapters:
+  - name: Nested
+    template: nested.adapter.json
+    user-interface:
+      - section: Root
+        yml-node: root
+        options: []
+        subsections:
+          - section: Transport
+            id: transport
+            options: []
+            subsections:
+              - section: Settings
+                yml-node: settings
+                options:
+                  - name: Protocol
+                    yml-node: protocol
+                    type: enum
+                    values: [swd, jtag]
+`);
+        const yamlFile = new DebugAdaptersYamlFile();
+        await yamlFile.load('debug-adapters.yml');
+
+        const option = yamlFile.getAdapterByName('Nested')?.['user-interface']?.[0].subsections?.[0].subsections?.[0].options[0];
+        expect(option).toEqual({
+            name: 'Protocol', 'yml-node': 'protocol', type: 'enum',
+            values: [{ name: 'swd', value: 'swd' }, { name: 'jtag', value: 'jtag' }],
+        });
+        expect(findUIOptionByYmlNode(yamlFile.getAdapterByName('Nested')!['user-interface']!, 'root.transport.settings.protocol')).toEqual(option);
     });
 
     it('returns undefined for unknown adapter name', async () => {

@@ -55,15 +55,20 @@ export type UISectionChildren =
         default?: string;
     }>;
 
+/** Describes a settings section at any depth, including optional switches and dynamic children. */
 export type UISection = {
+    id?: string;                       // Stable identity within the parent, falling back to the YAML node or label.
     section: string;                    // Label text for the section in the tab group.
     description?: string;               // Hover over text.
-    'yml-node'?: string;                // If present, options are under this group node in the debugger: section.
+    warning?: string;                   // Constraint tooltip, including when disabled; active sections also show a warning icon.
+    'yml-node'?: string;                // Map key or marker identifying this section in a YAML sequence.
     select?: boolean;                   // If present, the section can be enabled. Applies to all options.
+    removable?: boolean;                // If true, the subsection can be removed independently of addOptions.
     options: UISectionChildren[];       // List of available options.
     'pname-options'?: boolean;          // Indicates if the option is pname based. Then the same property will be created for each pname instance.
+    subsections?: UISection[];         // Nested settings sections supplied by the backend.
+    addOptions?: { id: string; name: string }[]; // Currently addable subsection types, filtered by the backend.
 }
-
 
 export interface DebugAdapter {
     name: string,
@@ -112,17 +117,22 @@ class DebugAdaptersYamlFileImpl extends CTreeItemYamlFile implements DebugAdapte
      */
     protected static normalizeUserInterface(ui: Optional<UISection[]>): UISection[] {
         ui = (ui ?? []) as UISection[];
-        ui.forEach(section => section.options.forEach(option => {
-            if (option.type === 'enum' && Array.isArray(option.values)) {
-                option.values = option.values.map(v => {
-                    if (typeof v === 'string') {
-                        return { name: v, value: v };
-                    } else {
-                        return { name: v.name ?? v.value, value: v.value ?? v.name, description: v.description };
-                    }
-                });
+        ui.forEach(section => {
+            section.options.forEach(option => {
+                if (option.type === 'enum' && Array.isArray(option.values)) {
+                    option.values = option.values.map(v => {
+                        if (typeof v === 'string') {
+                            return { name: v, value: v };
+                        } else {
+                            return { name: v.name ?? v.value, value: v.value ?? v.name, description: v.description };
+                        }
+                    });
+                }
+            });
+            if (section.subsections) {
+                section.subsections = this.normalizeUserInterface(section.subsections);
             }
-        }));
+        });
 
         return ui;
     }
