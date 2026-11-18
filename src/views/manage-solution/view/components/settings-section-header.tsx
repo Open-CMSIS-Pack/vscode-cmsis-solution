@@ -43,13 +43,15 @@ function sectionWarning(section: SettingsSection): string | undefined {
 
 /** Renders section state and actions, keeping activation separate from expansion and navigation. */
 export const SettingsSectionHeader = ({ section, onAction, collapsible, expanded, onExpand, navigation }: SettingsSectionHeaderProps) => {
-    const label = section.childCount === undefined ? section.label : `${section.label} (${section.childCount})`;
+    const label = section.label && section.childCount !== undefined ? `${section.label} (${section.childCount})` : section.label;
+    const actionLabel = section.label || section.description || 'section';
     const showToggle = section.selected !== undefined && !!section.toggleAction;
-    const showExpand = !navigation && collapsible;
+    const showExpand = !navigation && !!section.label && collapsible;
     const showAdd = section.childCount !== undefined || section.addActions.length > 0;
+    const showControls = showToggle || showAdd || !!section.removeAction;
     const expandLabel = `${expanded ? 'Collapse' : 'Expand'} ${section.label}`;
     const expandIcon = expanded ? 'chevron-down' : 'chevron-right';
-    const removeLabel = `Remove ${section.label}`;
+    const removeLabel = `Remove ${actionLabel}`;
     const warningMessage = sectionWarning(section);
     const warning = warningMessage && (
         <Tooltip title={<span className='settings-warning-tooltip'>{warningMessage}</span>}>
@@ -62,6 +64,10 @@ export const SettingsSectionHeader = ({ section, onAction, collapsible, expanded
             </span>
         </Tooltip>
     );
+
+    if (!section.label && !showControls && !warningMessage) {
+        return null;
+    }
 
     /** Keeps header controls from selecting a surrounding navigation row. */
     function stopHeaderEvent(event: React.SyntheticEvent): void {
@@ -98,7 +104,7 @@ export const SettingsSectionHeader = ({ section, onAction, collapsible, expanded
                 >
                     {showToggle && (
                         <Checkbox
-                            aria-label={`Enable ${section.label}`}
+                            aria-label={`Enable ${actionLabel}`}
                             checked={section.selected}
                             onChange={handleToggle}
                         />
@@ -120,13 +126,17 @@ export const SettingsSectionHeader = ({ section, onAction, collapsible, expanded
                 </button>
             ) : (
                 <>
-                    {!navigation && <span className='settings-chevron-slot' />}
-                    <span
-                        className='settings-label'
-                        title={section.description}
-                    >
-                        {label}
-                    </span>
+                    {!navigation && section.collapsible !== false && section.label && (
+                        <span className='settings-chevron-slot' />
+                    )}
+                    {section.label && (
+                        <span
+                            className='settings-label'
+                            title={section.description}
+                        >
+                            {label}
+                        </span>
+                    )}
                 </>
             )}
 
@@ -138,7 +148,7 @@ export const SettingsSectionHeader = ({ section, onAction, collapsible, expanded
                 {navigation && warning}
                 {showAdd && (
                     <SettingsAddMenu
-                        label={section.label}
+                        label={actionLabel}
                         actions={section.addActions}
                         onAction={onAction}
                     />

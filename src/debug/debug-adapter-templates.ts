@@ -20,7 +20,7 @@ import type { Device } from '../json-rpc/csolution-rpc-client';
 import type { UISection } from './debug-adapters-yaml-file';
 import { storedOptionDefault } from './debug-adapter-options';
 import { resolveSectionYamlBinding, sectionStoragePath, sectionYamlNodeName, type SectionSelector } from './section-yaml-binding';
-import type { DebuggerWrap } from '../solutions/files/csolution-wrap';
+import { matchesSectionSelector, type DebuggerWrap } from '../solutions/files/csolution-wrap';
 
 /** Device trace capabilities anticipated from GetDeviceInfo. */
 export type DeviceTrace = {
@@ -48,7 +48,24 @@ export function templateDevice(device?: DeviceWithTrace): TemplateDevice {
 }
 
 /** Complete, detached sources available to registry expressions. */
-export type AdapterTemplateContext = { config: Record<string, unknown>; device: TemplateDevice };
+export type AdapterTemplateContext = {
+    config: Record<string, unknown>;
+    device: TemplateDevice;
+    processors?: Partial<NonNullable<Device['processors']>[number]>[];
+};
+
+/** Supplies selected processor records, including one unnamed record when processor names are unavailable. */
+export function templateProcessors(device?: DeviceWithTrace, names?: readonly string[]): NonNullable<AdapterTemplateContext['processors']> {
+    const records = device?.processors ?? [];
+    if (names?.length) {
+        return cloneDeep(names.map(name => records.find(record => record.name === name) ?? { name }));
+    }
+    if (names === undefined && records.length) {
+        return cloneDeep(records);
+    }
+    const unnamed = records.filter(record => !record.name);
+    return cloneDeep(unnamed.length ? unnamed : [{}]);
+}
 
 /** Associates projected leaves with their originating array records. */
 type Projection = { value: unknown; scope: Map<object, unknown>; available: boolean };
@@ -130,12 +147,28 @@ function project(value: unknown, path: string[], scope: Map<object, unknown>): P
 }
 
 /** Rejects complex values before they can become YAML selectors or section identities. */
-function selector(value: unknown): SectionSelector {
+function selector(value: unknown, optional = false): SectionSelector {
+    if (optional && (value === undefined || value === null || value === '')) {
+        return null;
+    }
     if (value === null || typeof value === 'string' || typeof value === 'boolean'
         || (typeof value === 'number' && Number.isFinite(value))) {
         return value;
     }
     throw new Error('Section value must expand to finite scalar selectors');
+}
+
+/** Accepts selectors awaiting expansion or matches a concrete binding against a stored marker. */
+function matchesBindingSelector(binding: UISection['yml-node'], marker: unknown): boolean {
+    if (typeof binding !== 'object') {
+        return true;
+    }
+
+    const value = binding.value;
+    const isTemplate = typeof value === 'string' && value.includes('${{');
+    const acceptsAnyMarker = value === undefined || Array.isArray(value) || isTemplate;
+
+    return acceptsAnyMarker || matchesSectionSelector(marker, value, binding.optional === true);
 }
 
 /** Reads existing object containers without materializing optional sections or candidate entries. */
@@ -147,11 +180,26 @@ function containers(parents: unknown[], section: UISection, depth: number): unkn
     }
     return parents.flatMap(parent => {
         if (Array.isArray(parent)) {
-            return parent.filter(entry => entry && typeof entry === 'object' && Object.prototype.hasOwnProperty.call(entry, name)
-                && (typeof binding !== 'object' || binding.value === undefined || Array.isArray(binding.value)
-                    || (typeof binding.value === 'string' && binding.value.includes('${{')) || entry[name] === binding.value));
+            return parent.filter(entry => {
+                if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+                    return false;
+                }
+                const optional = typeof binding === 'object' && binding.optional === true;
+                if (!Object.prototype.hasOwnProperty.call(entry, name) && !optional) {
+                    return false;
+                }
+                return matchesBindingSelector(binding, entry[name]);
+            });
         }
         if (parent && typeof parent === 'object') {
+            if (typeof binding === 'object' && binding.optional && 'value' in binding) {
+                const marker = Reflect.get(parent, name);
+                if (marker === undefined || (typeof binding.value === 'string' && binding.value.includes('${{'))
+                    || matchesSectionSelector(marker, binding.value, true)) {
+                    return [parent];
+                }
+                return [];
+            }
             const child = Reflect.get(parent, name);
             return child !== null && typeof child === 'object' ? [child] : [];
         }
@@ -218,7 +266,7 @@ function expandSections(
         const addresses = new Map<string, number>();
         for (const result of results) {
             const binding = result['yml-node'];
-            const identity = result.id ?? sectionYamlNodeName(result) ?? result.section;
+            const identity = result.id ?? sectionYamlNodeName(result) ?? result.section ?? '';
             identities.set(identity, (identities.get(identity) ?? 0) + 1);
             if (typeof binding === 'object' && 'value' in binding) {
                 const address = JSON.stringify([binding.name, binding.value]);
@@ -243,7 +291,7 @@ function expandSections(
         const raw = definition['yml-node'];
         const hasValue = typeof raw === 'object' && 'value' in raw;
         const path = hasValue && typeof raw.value === 'string'
-            ? /^\$\{\{\s*((?:config|device)(?:\.[A-Za-z_$][\w$]*)+)\s*\}\}$/.exec(raw.value)?.[1].split('.') : undefined;
+            ? /^\$\{\{\s*((?:config|device|processors)(?:\.[A-Za-z_$][\w$]*)+)\s*\}\}$/.exec(raw.value)?.[1].split('.') : undefined;
         let projections: Projection[] = [{ value: null, scope, available: true }];
         if (hasValue) {
             if (path) {
@@ -256,9 +304,16 @@ function expandSections(
             const stored = debuggerWrap?.getSection(sectionStoragePath(parents))?.item;
             if (typeof marker === 'string' && stored?.isSequence()) {
                 for (const entry of stored.getChildren()) {
+                    if (!entry.isMap()) {
+                        continue;
+                    }
                     const node = entry.getChild(marker);
-                    const value = node?.getText() === '' ? '' : node?.toObject();
-                    if (!node || projections.some(projection => projection.value === value)) {
+                    if (!node && !raw.optional) {
+                        continue;
+                    }
+                    const storedValue = node?.getText() === '' ? '' : node?.toObject();
+                    const value = selector(storedValue ?? null, raw.optional);
+                    if (projections.some(projection => selector(projection.value, raw.optional) === value)) {
                         continue;
                     }
                     // Only projected templates own entries not explicitly enumerated by a scalar binding.
@@ -285,7 +340,7 @@ function expandSections(
             const itemScope = projection.scope;
             const binding = typeof raw === 'object' ? { ...raw, name: render(raw.name, context, itemScope) as string } : raw;
             if (hasValue && typeof binding === 'object') {
-                binding.value = selector(projection.value);
+                binding.value = selector(projection.value, binding.optional);
             }
             const resolvedBinding = typeof binding === 'string' ? render(binding, context, itemScope) as string : binding;
             if (raw !== undefined && resolvedBinding === undefined) {
@@ -306,14 +361,17 @@ function expandSections(
             }
             const ui: UISection = {
                 ...definition,
-                section: render(definition.section, context, itemScope) as string,
+                section: (render(definition.section, context, itemScope) ?? '') as string,
                 id: render(definition.id, context, itemScope) as string | undefined,
                 description: render(definition.description, context, itemScope) as string | undefined,
                 warning: render(definition.warning, context, itemScope) as string | undefined,
                 'yml-node': resolvedBinding,
             };
-            if (typeof ui.section !== 'string' || !ui.section.length) {
-                throw new Error('Section labels must resolve to non-empty strings');
+            if (typeof ui.section !== 'string') {
+                throw new Error('Section labels must resolve to strings or null');
+            }
+            if (ui.collapsible !== undefined && typeof ui.collapsible !== 'boolean') {
+                throw new Error('Section collapsible must be a boolean');
             }
             for (const text of [ui.id, ui.description, ui.warning]) {
                 if (text !== undefined && typeof text !== 'string') {
@@ -321,7 +379,7 @@ function expandSections(
                 }
             }
             if (hasValue && !ui.id) {
-                ui.id = JSON.stringify([sectionYamlNodeName(ui), selector(projection.value)]);
+                ui.id = JSON.stringify([sectionYamlNodeName(ui), selector(projection.value, typeof raw === 'object' && raw.optional)]);
             }
             const allowed = inherited && projection.available && render(definition.condition ?? true, context, itemScope) === true;
             if (definition.condition !== undefined || !allowed) {

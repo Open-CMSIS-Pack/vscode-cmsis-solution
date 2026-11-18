@@ -22,7 +22,7 @@ export type NavigationEntry = { section: SettingsSection; depth: number; parent?
 /** Once a branch enters content, its descendants never re-enter navigation. */
 export function settingsNavigation(sections: SettingsSection[]): NavigationEntry[] {
     /** Visits only children whose ancestors keep them in the navigation pane. */
-    const visit = (nodes: SettingsSection[], depth: number, parent?: string): NavigationEntry[] => nodes.flatMap(section => [
+    const visit = (nodes: SettingsSection[], depth: number, parent?: string): NavigationEntry[] => nodes.filter(section => section.label).flatMap(section => [
         { section, depth, parent },
         ...(section.childrenLayout === 'navigation' ? visit(section.children, depth + 1, section.id) : []),
     ]);

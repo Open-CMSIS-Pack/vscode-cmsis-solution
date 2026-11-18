@@ -32,6 +32,24 @@ function context(sections: UISection[], data: object = {}): AdapterSettingsConte
 }
 
 describe('AdapterSettingsPresenter', () => {
+    it('normalizes null labels and supplies default or explicit collapsibility without changing section identity', () => {
+        const presenter = new AdapterSettingsPresenter();
+        const input = context([{
+            section: 'Telnet', 'yml-node': { name: 'telnet', kind: 'sequence' }, options: [], subsections: [{
+                section: null, collapsible: false, 'yml-node': { name: 'pname', value: null, optional: true },
+                options: [{ name: 'Mode', 'yml-node': 'mode', type: 'string', default: 'monitor' }],
+            }],
+        }], { telnet: [{ mode: 'console' }, { pname: 'Core0', mode: 'file' }] });
+        const snapshot = presenter.prepare(input);
+        expect(snapshot.sections[0].collapsible).toBe(true);
+        const child = snapshot.sections[0].children[0];
+        expect(child).toMatchObject({ label: '', collapsible: false, fields: [{ value: 'console' }] });
+        input.sections[0].subsections![0].section = '';
+        const refreshed = presenter.prepare(input).sections[0].children[0];
+        expect(refreshed.id).toBe(child.id);
+        expect(refreshed.fields[0].editAction).toBe(child.fields[0].editAction);
+    });
+
     it('prepares scaled/default/processor values and unknown enums without exposing bindings', () => {
         const presenter = new AdapterSettingsPresenter();
         const snapshot = presenter.prepare(context([{

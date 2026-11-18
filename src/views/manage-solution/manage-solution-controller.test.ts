@@ -982,7 +982,7 @@ describe('manage-solution-controller', () => {
         controller['debugAdaptersYmlFile'] = registry;
         await controller.getAvailableCoreNames();
         await controller.adapterSettingsContext(true);
-        editSetting(controller, 'telnet', 'mode', 'off', [], 'M55_HE');
+        editSetting(controller, 'telnet', 'mode', 'off', [JSON.stringify(['pname', 'M55_HE'])]);
 
         expect(telnet?.getChildren()).toHaveLength(2);
         expect(telnet?.getChildByValue('pname', 'M55_HP')?.getValue('mode')).toBe('console');

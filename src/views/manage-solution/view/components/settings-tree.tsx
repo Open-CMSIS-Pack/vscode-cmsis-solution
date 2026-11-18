@@ -19,6 +19,7 @@ import type { SettingsSection as Section } from '../../settings-contract';
 import type { SettingsDraft } from '../state/settings-reducer';
 import type { SettingsCallbacks } from './settings-callbacks';
 import { settingsNavigation } from '../state/settings-reducer';
+import { useSettingsColumnLayout } from '../state/use-settings-column-layout';
 import { SettingsNavigation } from './settings-navigation';
 import { SettingsSection } from './settings-section';
 import './settings-tree.css';
@@ -37,6 +38,8 @@ export const SettingsTree = ({ sections, activeId, expanded, drafts, onSelect, o
     const panelId = `settings-${React.useId().replace(/:/g, '')}`;
     const selected = settingsNavigation(sections).find(entry => entry.section.id === activeId)?.section;
     const labelledBy = selected ? `${panelId}-tab-${selected.id}` : undefined;
+    const contentRef = React.useRef<HTMLDivElement>(null);
+    useSettingsColumnLayout(contentRef, sections, activeId, expanded);
 
     return (
         <div className='settings-tree'>
@@ -57,10 +60,22 @@ export const SettingsTree = ({ sections, activeId, expanded, drafts, onSelect, o
 
             <div
                 className='settings-content'
+                ref={contentRef}
                 role='tabpanel'
                 id={panelId}
                 aria-labelledby={labelledBy}
             >
+                {sections.filter(section => !section.label).map(section => (
+                    <SettingsSection
+                        key={section.id}
+                        section={section}
+                        drafts={drafts}
+                        expanded={expanded}
+                        onExpand={onExpand}
+                        embedded
+                        {...callbacks}
+                    />
+                ))}
                 {selected && (
                     <SettingsSection
                         section={selected}

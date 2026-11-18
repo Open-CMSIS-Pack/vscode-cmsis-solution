@@ -65,7 +65,7 @@ function handleNavigationKey(event: React.KeyboardEvent<HTMLDivElement>): void {
 export const SettingsNavigation = ({ sections, activeId, onSelect, onAction, depth = 0, panelId }: SettingsNavigationProps) => {
     return (
         <>
-            {sections.map(section => {
+            {sections.filter(section => section.label).map(section => {
                 const active = activeId === section.id;
                 const tabId = `${panelId}-tab-${section.id}`;
                 const className = `settings-navigation-row${active ? ' active' : ''}`;

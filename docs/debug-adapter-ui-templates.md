@@ -83,6 +83,13 @@ binding, and condition use the same originating record. References to
 buffer. The complete source array remains available, including `.length` and
 indexed access. Nested property projections preserve source order.
 
+`processors` contains the effective processor records selected by the active
+projects and images, falling back to all device processors when none are
+explicitly selected. It retains the records' device metadata and supplies one
+unnamed record when processor names are unavailable. Use `processors.name` for
+per-processor settings; `device.processors` continues to expose the complete
+device list. Both support correlated property-path expansion.
+
 Only the binding value multiplies sections; other fields do not create independent
 combinations. Without an explicit `id`, a valued binding receives a stable identity
 from its marker and scalar value. Existing bindings without `value` retain their
@@ -98,6 +105,69 @@ warning uses `condition-message`, or a generic unsupported-configuration message
 It can be edited, disabled, or removed, but cannot be enabled while unsupported.
 Projected buffer definitions also retain configured names no longer reported by
 the device, displaying them with the same unsupported warning.
+
+## Optional markers and compact subsections
+
+`yml-node.optional` defaults to `false`. With the default, markers remain present
+and match their exact scalar value, including null and empty values. Set it to
+`true` on a valued binding to omit its marker when the resolved value is null or
+empty. The sequence entry and its options still exist. Optional empty selectors
+match only entries whose marker is absent, null, or empty; they never match named
+entries. Existing empty markers are retained when editing other fields. Null and
+empty optional selectors share one stable section identity.
+
+For example, Telnet can use ordinary processor subsections:
+
+```yaml
+- section: Telnet
+  yml-node:
+    name: telnet
+    kind: sequence
+  select: false
+  options: []
+  subsections:
+    - section: '${{ processors.name }}'
+      collapsible: false
+      yml-node:
+        name: pname
+        value: '${{ processors.name }}'
+        optional: true
+      options:
+        - name: Telnet Mode
+          yml-node: mode
+          type: enum
+          default: monitor
+          values: [monitor, console, server, file, off]
+```
+
+Enabling this parent initializes its static processor subsections and their
+defaults. Existing single-core map settings remain readable and migrate to
+sequence entries when edited, retaining unknown fields and supported comments.
+Optional selector markers do not add a component to custom-default option paths,
+so the Telnet mode override remains `telnet.mode`. Legacy `pname-options`
+definitions remain supported.
+
+`collapsible` defaults to `true` and applies independently to each content
+section. Setting it to `false` renders a static header followed by visible
+options and child sections. Parent collapse and enablement still apply; child
+sections retain their own collapse policy. Sections without content have no
+collapse control.
+
+Labeled non-collapsible subsections share a content-sized header column within
+the displayed pane. The widest header, including its actions, determines the
+column width. Headers and controls appear side by side when there is enough
+space for their natural sizes; narrower rows stack the header above the controls.
+Long labels wrap inside their header box in stacked mode. Measurements follow
+pane resizing, label changes, font loading, and theme changes without remounting
+the controls or losing active edits.
+
+Null, missing, and empty section labels render no heading or collapse control,
+regardless of `collapsible`. Their content stays visible without an extra border,
+header gap, or indentation. Storage bindings and explicit IDs remain independent
+of labels; provide an `id` for an unlabeled section without a binding. Existing
+actions and warnings remain accessible in a compact control row. Unlabeled
+navigation children render inline under their named parent; unlabeled roots
+render directly in the content pane without creating blank navigation tabs.
 
 ## Registry delivery
 

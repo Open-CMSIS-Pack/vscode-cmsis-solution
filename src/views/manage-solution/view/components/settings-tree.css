@@ -38,6 +38,27 @@
 .settings-section-body > .settings-container:first-of-type { margin-top: 15px; }
 .settings-section-body > .settings-container:first-child { margin-top: 0; }
 .settings-container .settings-section-body > .settings-container:last-child { margin-bottom: 10px; }
+.settings-inline-section { margin-bottom: 8px; }
+.settings-inline-section > .settings-section-header { padding: 0; min-height: 32px; }
+.settings-inline-section > .settings-section-header > .settings-label { font-weight: 600; }
+.settings-inline-section > .settings-section-body { padding: 0; }
+.settings-inline-row { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 16px; align-items: start; min-width: 0; }
+.settings-inline-row[data-inline-layout='columns'] { grid-template-columns: var(--settings-header-width) minmax(0, 1fr); }
+.settings-inline-row > .settings-section-header { min-width: 0; max-width: 100%; flex-wrap: wrap; }
+.settings-inline-row > .settings-section-header > .settings-label { min-width: 0; }
+.settings-inline-row > .settings-section-body { min-width: 0; }
+.settings-inline-row > .settings-section-body > .settings-field:first-child { margin-top: 0; }
+.settings-inline-row .settings-actions:empty { display: none; }
+.settings-inline-row > .settings-section-body > .settings-field > .compact-dropdown { flex: 1; min-width: 0; }
+.settings-layout-probe { position: fixed; left: -100000px; top: 0; visibility: hidden; pointer-events: none; width: max-content; max-width: none; contain: layout style; }
+.settings-layout-probe .settings-layout-sample { display: block; width: max-content; max-width: none; }
+.settings-layout-probe .settings-section-header { width: max-content; max-width: none; flex-wrap: nowrap; }
+.settings-layout-probe .settings-label { flex: none; white-space: nowrap; overflow-wrap: normal; }
+.settings-layout-probe .settings-section-body { width: max-content; }
+.settings-layout-probe .settings-field { width: max-content; flex-wrap: nowrap; }
+.settings-layout-probe .settings-field > * { flex: none; width: max-content; max-width: none; }
+.settings-layout-probe .settings-field > .settings-warning { display: none; }
+.settings-unlabeled-section > .settings-section-body > .settings-field:first-child { margin-top: 0; }
 .settings-field { display: flex; align-items: center; gap: 8px; margin: 14px 0; flex-wrap: wrap; }
 .settings-content-section > .settings-section-body > .settings-field:first-child { margin-top: 0; }
 .settings-field > .ant-input-number-group-wrapper, .settings-field > .ant-input-group-wrapper { flex: 1; min-width: 0; }

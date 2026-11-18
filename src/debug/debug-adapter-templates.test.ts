@@ -40,6 +40,28 @@ const definitions: UISection[] = [{
     }],
 }];
 
+/** Exercises optional processor selectors using ordinary recursive section declarations. */
+const processorDefinitions: UISection[] = [{
+    section: 'Telnet', 'yml-node': { name: 'telnet', kind: 'sequence' }, select: false, options: [],
+    subsections: [{
+        section: '${{ processors.name }}', collapsible: false,
+        'yml-node': { name: 'pname', value: '${{ processors.name }}', optional: true },
+        options: [{ name: 'Mode', 'yml-node': 'mode', type: 'string', default: 'monitor' }],
+    }],
+}];
+
+/** Creates processor settings whose device metadata is independent of the effective processor selection. */
+function processorModel(data: object = {}, names: string[] = [], declarations = processorDefinitions) {
+    const item = new CTreeItem('debugger');
+    item.fromObject(data);
+    const debuggerWrap = new DebuggerWrap(item);
+    const device: DeviceWithTrace = { id: 'D', processors: [
+        { name: 'Core0', core: 'Cortex-M4' }, { name: 'Core1', core: 'Cortex-M0' },
+    ] };
+    const settings = new DebugAdapterSections(declarations, () => debuggerWrap, () => debuggerWrap, device, names);
+    return { item, debuggerWrap, settings };
+}
+
 /** Constructs real storage and a model whose evaluations follow subsequent in-memory edits. */
 function model(data: object = {}, device?: DeviceWithTrace) {
     const item = new CTreeItem('debugger');
@@ -302,7 +324,7 @@ describe('device-aware registry templates', () => {
         const bad: UISection[] = [
             { section: 'Bad', options: [], condition: '${{ broken( }}' },
             { section: 'Unclosed ${{ device.id', options: [] },
-            { section: '${{ device.missing }}', options: [] },
+            { section: '${{ 123 }}', options: [] },
             { section: 'Bad binding', 'yml-node': { name: '${{ 123 }}' }, options: [] },
         ];
         expect(expandAdapterSections(bad, { config: {}, device: templateDevice() })).toEqual([]);
@@ -323,5 +345,78 @@ describe('device-aware registry templates', () => {
         const choices = expanded[0].subsections!;
         expect(wrap.getSection(sectionStoragePath([expanded[0], choices[0]]))?.object).toEqual({ buffer: null });
         expect(choices).toHaveLength(4);
+    });
+
+    it('enables unnamed processor defaults without writing a marker and restores edits after reopening', () => {
+        const { settings, item } = processorModel();
+        expect(settings.sections[0].subsections).toMatchObject([{ section: '', collapsible: false }]);
+        expect(item.toObject()).toEqual({});
+
+        settings.setEnabled('telnet', [], true);
+        expect(item.toObject()).toEqual({ telnet: [{ mode: 'monitor' }] });
+        const id = settings.sections[0].subsections![0].id!;
+        settings.setParameter('telnet', [id], 'mode', 'console');
+        const reopened = processorModel(item.toObject() as object);
+        expect(reopened.settings.sections[0].subsections![0].id).toBe(id);
+        reopened.settings.setParameter('telnet', [id], 'mode', 'file');
+        expect(reopened.item.toObject()).toEqual({ telnet: [{ mode: 'file' }] });
+    });
+
+    it.each([{}, { pname: null }, { pname: '' }])('edits only the unnamed entry for saved marker %j', marker => {
+        const { settings, item } = processorModel({ telnet: [
+            { ...marker, mode: 'console', custom: 'retained' }, { pname: 'Core0', mode: 'file' },
+        ] });
+        const children = settings.sections[0].subsections!;
+        const storedMarker = 'pname' in marker ? { pname: marker.pname || null } : {};
+        expect(children).toHaveLength(2);
+        settings.setParameter('telnet', [children[0].id!], 'mode', 'off');
+        expect(item.toObject()).toEqual({ telnet: [
+            { ...storedMarker, mode: 'off', custom: 'retained' }, { pname: 'Core0', mode: 'file' },
+        ] });
+        expect(effectiveDebugConfiguration(processorDefinitions, { telnet: [{ ...marker }] }))
+            .toEqual({ telnet: [{ ...marker, mode: 'monitor' }] });
+    });
+
+    it('initializes each selected processor and edits named entries independently', () => {
+        const { settings, item } = processorModel({}, ['Core0', 'Core1']);
+        settings.setEnabled('telnet', [], true);
+        expect(item.toObject()).toEqual({ telnet: [
+            { pname: 'Core0', mode: 'monitor' }, { pname: 'Core1', mode: 'monitor' },
+        ] });
+        settings.setParameter('telnet', [settings.sections[0].subsections![1].id!], 'mode', 'file');
+        expect(item.toObject()).toEqual({ telnet: [
+            { pname: 'Core0', mode: 'monitor' }, { pname: 'Core1', mode: 'file' },
+        ] });
+        expect(processorModel({}, ['Core1']).settings.sections[0].subsections?.map(child => child.section)).toEqual(['Core1']);
+    });
+
+    it('preserves unknown non-map entries when selecting an unnamed processor', () => {
+        const { settings, item } = processorModel({ telnet: ['unknown', ['custom'], { mode: 'console' }] });
+        settings.setParameter('telnet', [settings.sections[0].subsections![0].id!], 'mode', 'off');
+        expect(item.toObject()).toEqual({ telnet: ['unknown', ['custom'], { mode: 'off' }] });
+    });
+
+    it('migrates legacy shared maps on editing while retaining fields and comments', () => {
+        const { settings, item } = processorModel({ telnet: { mode: 'console', custom: 23 } }, ['Core0', 'Core1']);
+        item.getChild('telnet')!.getChild('custom')!.setProperty('comments', { comment: ' Keep' });
+        const id = settings.sections[0].subsections![1].id!;
+        settings.setParameter('telnet', [id], 'mode', 'file');
+        expect(item.toObject()).toEqual({ telnet: [
+            { pname: 'Core0', mode: 'console', custom: 23 }, { pname: 'Core1', mode: 'file', custom: 23 },
+        ] });
+        for (const entry of item.getChild('telnet')!.getChildren()) {
+            expect(entry.getChild('custom')!.getProperty('comments')).toEqual({ comment: ' Keep' });
+        }
+    });
+
+    it('normalizes optional null and empty selectors to the same identity and rejects conflicting entries', () => {
+        const context = { config: {}, device: templateDevice() };
+        const child: UISection = { section: null, 'yml-node': { name: 'pname', value: null, optional: true }, options: [] };
+        const empty: UISection = { ...child, 'yml-node': { name: 'pname', value: '', optional: true } };
+        expect(expandAdapterSections([child], context)[0].id).toBe(expandAdapterSections([empty], context)[0].id);
+        const diagnostic = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        expect(expandAdapterSections([child, empty], context)).toEqual([]);
+        expect(diagnostic).toHaveBeenCalled();
+        diagnostic.mockRestore();
     });
 });

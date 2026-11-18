@@ -209,7 +209,7 @@ export class AdapterSettingsPresenter {
 
         return {
             id: this.identity('section', [contextId, ...identity]),
-            label: section.section,
+            label: section.section ?? '',
             description: section.description,
             warning: section.warning,
             disabled,
@@ -219,11 +219,12 @@ export class AdapterSettingsPresenter {
                 && (sectionYamlNodeName(section) || (branch.length > 1 && section.id)) ? sectionAction('toggle') : undefined,
             removeAction: section.usage === 'used' ? sectionAction('remove') : undefined,
             addActions: disabled ? [] : children.filter(child => child.usage === 'available').map(child => ({
-                label: child.section, action: sectionAction('add', child),
+                label: child.section || 'Unnamed section', action: sectionAction('add', child),
             })),
             childCount: children.some(child => child.usage !== undefined)
                 ? children.filter(child => child.usage === 'used').length : undefined,
             childrenLayout: section['subsections-layout'] ?? 'content',
+            collapsible: section.collapsible ?? true,
             fields,
             children: children.filter(child => child.usage !== 'available')
                 .map(child => this.prepareSection(context, contextId, [...branch, child], disabled, action)),

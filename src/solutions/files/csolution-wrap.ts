@@ -24,8 +24,16 @@ import { getVirtualProjectDescriptor } from './virtual-project';
 // Allowed load modes for an Image entry
 export type LoadImageType = 'image+symbols' | 'symbols' | 'image' | 'none';
 
-/** Addresses a map key or a sequence marker with an exact scalar value. */
-export type SectionPathSegment = string | { name: string; value: string | number | boolean | null };
+/** Addresses a map key or sequence marker, allowing optional empty markers to be absent. */
+export type SectionPathSegment = string | { name: string; value: string | number | boolean | null; optional?: boolean };
+
+/** Matches optional empty selectors to missing, null, or empty markers without matching named entries. */
+export function matchesSectionSelector(actual: unknown, expected: unknown, optional = false): boolean {
+    if (optional && (expected === null || expected === '')) {
+        return actual === undefined || actual === null || actual === '';
+    }
+    return actual === expected;
+}
 
 export class TypedWrap extends CTreeItemWrap {
     get type(): string { return this.getValue(this.nameKey) ?? ''; }
@@ -177,16 +185,30 @@ export class DebuggerWrap extends CTreeItemWrap {
             }
             if (node.isSequence()) {
                 let entry = node.getChildren().find(child => {
+                    if (!child.isMap()) {
+                        return false;
+                    }
                     const marker = child.getChild(key);
+                    if (typeof segment === 'string') {
+                        return marker !== undefined;
+                    }
                     const value = marker?.getText() === '' ? '' : marker?.toObject();
-                    return marker !== undefined && (typeof segment === 'string' || value === segment.value);
+                    return matchesSectionSelector(value, segment.value, segment.optional);
                 });
                 if (!entry && create) {
                     entry = node.createChild('-');
                     entry.setKind(ETreeItemKind.Map);
-                    entry.createChild(key).fromObject(typeof segment === 'string' ? null : segment.value);
+                    if (typeof segment === 'string' || !segment.optional || (segment.value !== null && segment.value !== '')) {
+                        entry.createChild(key).fromObject(typeof segment === 'string' ? null : segment.value);
+                    }
                 }
                 node = entry;
+            } else if (typeof segment !== 'string' && segment.optional && node.isMap()) {
+                // Older registries stored shared single-core settings directly as a map.
+                const marker = node.getChild(key);
+                if (marker && !matchesSectionSelector(marker.toObject(), segment.value, true)) {
+                    return undefined;
+                }
             } else {
                 node = node.getChild(key) ?? (create ? node.createChild(key, true).setKind(ETreeItemKind.Map) : undefined);
             }

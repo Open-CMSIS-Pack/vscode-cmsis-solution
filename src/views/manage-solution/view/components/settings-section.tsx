@@ -31,10 +31,20 @@ export type SettingsSectionProps = SettingsCallbacks & {
 
 /** Displays a section's fields and nested content containers, using the supplied expansion state. */
 export const SettingsSection = ({ section, drafts, expanded, embedded = false, onExpand, ...callbacks }: SettingsSectionProps) => {
-    const children = embedded || section.childrenLayout === 'content' ? section.children : [];
-    const collapsible = section.fields.length > 0 || children.length > 0;
-    const open = !embedded || !!expanded[section.id];
-    const className = embedded ? 'settings-container' : 'settings-content-section';
+    const children = embedded || section.childrenLayout === 'content'
+        ? section.children : section.children.filter(child => !child.label);
+    const inline = section.collapsible === false || !section.label;
+    const collapsible = !inline && (section.fields.length > 0 || children.length > 0);
+    const open = !embedded || inline || !!expanded[section.id];
+    let className = 'settings-content-section';
+    if (embedded) {
+        className = inline ? 'settings-inline-section' : 'settings-container';
+        if (!section.label) {
+            className += ' settings-unlabeled-section';
+        } else if (section.collapsible === false) {
+            className += ' settings-inline-row';
+        }
+    }
 
     /** Toggles only this content container's expansion state. */
     function handleExpand(): void {
