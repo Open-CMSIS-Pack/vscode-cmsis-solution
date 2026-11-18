@@ -488,7 +488,7 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.refresh",
-        "title": "Refresh Build Information",
+        "title": "Refresh Build and RTE Information",
         "icon": {
           "light": "./media/refresh-normal.svg",
           "dark": "./media/refresh-normal-dark.svg"
@@ -496,8 +496,13 @@
       },
       {
         "category": "CMSIS",
+        "command": "cmsis-csolution.refreshSolution",
+        "title": "Refresh (Reload Packs, Update RTE)"
+      },
+      {
+        "category": "CMSIS",
         "command": "cmsis-csolution.refreshDirty",
-        "title": "Refresh Build Information (Refresh Required)",
+        "title": "Refresh Build and RTE Information  (Refresh Required)",
         "icon": {
           "light": "./media/refresh-dirty.svg",
           "dark": "./media/refresh-dirty-dark.svg"
@@ -942,6 +947,10 @@
           "command": "cmsis-csolution.refresh"
         },
         {
+          "command": "cmsis-csolution.refreshSolution",
+          "when": "false"
+        },
+        {
           "command": "cmsis-csolution.refreshDirty",
           "when": "false"
         },
@@ -1235,6 +1244,11 @@
           "group": "Build@2"
         },
         {
+          "command": "cmsis-csolution.refreshSolution",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "group": "Build@3"
+        },
+        {
           "command": "cmsis-csolution.reloadPacks",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState != active",
           "group": "Build@3"
@@ -1517,7 +1531,7 @@
         "cmsis-csolution.autoRefreshOnFileChange": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically refresh build information when files used by the active solution change. When disabled, these file changes mark the solution as needing refresh. Use Refresh Build Information to refresh manually. Successful webview saves can also refresh build information."
+          "description": "Automatically refresh build and RTE information when files used by the active solution change. When disabled, these file changes mark the solution as needing refresh. Use Refresh Build and RTE Information to refresh manually. Successful webview saves also perform refresh."
         },
         "cmsis-csolution.generateClangSetup": {
           "type": "boolean",

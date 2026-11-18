@@ -127,6 +127,7 @@ export class SolutionManagerImpl implements SolutionManager {
             this.eventHub.onDidCbuildCompleted(this.handleCbuildCompleted, this),
             this.eventHub.onDidReloadPacks(() => this.markDirty()),
             this.commandsProvider.registerCommand(manifest.REFRESH_COMMAND_ID, this.refresh, this),
+            this.commandsProvider.registerCommand(manifest.REFRESH_SOLUTION_COMMAND_ID, this.refresh, this),
             this.commandsProvider.registerCommand(refreshDirtyCommandId, this.refresh, this),
             this.environmentManagerApiProvider.onActivate(environmentManagerApi => {
                 environmentManagerApi.onDidActivate(results => {
