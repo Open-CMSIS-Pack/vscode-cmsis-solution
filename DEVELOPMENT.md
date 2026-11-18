@@ -224,8 +224,7 @@ Use the following commands:
 1. Ensure the version in `package.json` is up to date.
 2. Update the `CHANGELOG` with the latest changes.
 3. Open a pull request with these updates and merge it into `main`.
-4. Before creating the GitHub Release, ensure the required Black Duck checks have completed successfully and any findings have been reviewed and cleared. See the [Arm distribution release instructions](https://github.com/Arm-Debug/vscode-cmsis-solution-dist#release).
-5. Create a new release at [Open-CMSIS-Pack/vscode-cmsis-solution releases](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/releases).
+4. Create a new release at [Open-CMSIS-Pack/vscode-cmsis-solution releases](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/releases).
    - This will trigger the `CI.yml` workflow.
    - Once the workflow completes successfully, the release artifacts will be generated automatically.
 
