@@ -207,11 +207,16 @@ describe('SolutionManager', () => {
     });
 
     it('register the command on activation', async () => {
-        expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(2);
+        expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(3);
         expect(commandsProvider.registerCommand).toHaveBeenCalledWith(
             manifest.REFRESH_COMMAND_ID,
             expect.any(Function),
             expect.anything(),
+        );
+        expect(commandsProvider.registerCommand).toHaveBeenCalledWith(
+            manifest.REFRESH_SOLUTION_COMMAND_ID,
+            solutionManager.refresh,
+            solutionManager,
         );
         expect(commandsProvider.registerCommand).toHaveBeenCalledWith(
             'cmsis-csolution.refreshDirty',
@@ -221,7 +226,10 @@ describe('SolutionManager', () => {
         expect(commandsProvider.executeCommand).toHaveBeenCalledWith('setContext', 'cmsis-csolution.solutionDirty', false);
     });
 
-    it('reloads the active solution when the refresh command is executed', async () => {
+    it.each([
+        manifest.REFRESH_COMMAND_ID,
+        manifest.REFRESH_SOLUTION_COMMAND_ID,
+    ])('reloads the active solution when %s is executed', async commandId => {
         // Initialize solution state first
         mockActiveSolutionTracker.activeSolution = testSolutionPath;
         changeActiveSolutionEmitter.fire();
@@ -231,7 +239,7 @@ describe('SolutionManager', () => {
         testDataHandler.rmFile(cmsisJsonFile);
 
         await commandsProvider.mockRunRegistered(
-            manifest.REFRESH_COMMAND_ID,
+            commandId,
         );
 
         await waitTimeout(200);
@@ -242,6 +250,10 @@ describe('SolutionManager', () => {
 
         expect(solutionManager.loadState).toEqual(expectedLoadState);
         expect(solutionManager.getCsolution()!.cmsisJsonFile.exists()).toBe(true);
+        expect(convertMock).toHaveBeenLastCalledWith(expect.objectContaining({
+            solutionPath: testSolutionPath,
+            updateRte: true,
+        }));
         const csolution = solutionManager.getCsolution()!;
         const settings = csolution.cmsisJsonFile.getSettings();
         expect(path.resolve(
