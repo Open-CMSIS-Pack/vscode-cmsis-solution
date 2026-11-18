@@ -5,7 +5,7 @@ Generated for release: 1.72.0
 | *Package* | *Version* | *Repository* | *License* |
 |---|---|---|---|
 |@ant-design/icons|6.3.4|https://github.com/ant-design/ant-design-icons|https://github.com/ant-design/ant-design-icons/blob/master/LICENSE|
-|@arm-software/vscode-environment-manager|1.24.4|https://github.com/ARM-software/vscode-environment-manager/|https://github.com/ARM-software/vscode-environment-manager/blob/main/LICENSE|
+|@arm-software/vscode-environment-manager|1.26.0|https://github.com/ARM-software/vscode-environment-manager/|https://github.com/ARM-software/vscode-environment-manager/blob/main/LICENSE|
 |@eclipse-cdt-cloud/clangd-contexts|0.9.0-next.c7c35a6.0|https://github.com/eclipse-cdt-cloud|https://github.com/eclipse-cdt-cloud/clangd-contexts/blob/main/LICENSE|
 |@fortawesome/fontawesome-free|7.2.0|https://github.com/FortAwesome/Font-Awesome|https://github.com/FortAwesome/Font-Awesome/blob/6.x/LICENSE.txt|
 |@lydell/node-pty|1.1.0|https://github.com/lydell/node-pty|https://github.com/lydell/node-pty/blob/split-package/LICENSE|
