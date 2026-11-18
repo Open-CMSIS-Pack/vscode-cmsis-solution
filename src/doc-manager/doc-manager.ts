@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { mkdirSync, rmSync, statSync } from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
@@ -22,7 +21,7 @@ import { ETextFileResult, TextFileErrorReporter } from '@open-cmsis-pack/cmsis-c
 import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { Event, EventEmitter } from 'vscode';
 import { expandRootVars, pathIsAncestor, pathsEqual } from '../utils/path-utils';
-import { copyFile, fileExists } from '../utils/fs-utils';
+import * as fsUtils from '../utils/fs-utils';
 import { DocsYamlFile, getDocParentId, getWebLocationType, IDocRef } from './docs-yaml-file';
 import { ArmDocs, armDocName, cbuildCore } from './arm-docs';
 import { DocDownload } from './doc-download';
@@ -40,6 +39,8 @@ export interface DocManager {
     addUserBook(parentId: string, parentTag: string, name: string, title: string, category?: string, confirmOverwrite?: DocumentConfirmation): Promise<IDocRef | undefined | null>;
     downloadDocument(parentId: string, parentTag: string, name: string, confirmOverwrite?: DocumentConfirmation): Promise<void>;
     importDocument(parentId: string, parentTag: string, name: string, localPath: string, confirmOverwrite?: DocumentConfirmation): Promise<boolean | null>;
+    hasLocalCopy(doc: IDocRef): boolean;
+    removeLocalCopy(parentId: string, parentTag: string, name: string): Promise<boolean>;
     removeDocument(parentId: string, parentTag: string, name: string): Promise<boolean>;
 }
 
@@ -49,6 +50,7 @@ class DocManagerImpl implements DocManager {
     private readonly changeEmitter = new EventEmitter<void>();
     public readonly onDidChange = this.changeEmitter.event;
     private pendingUpdate: Promise<unknown> = Promise.resolve();
+    private readonly pendingDocumentOperations = new Map<string, Promise<unknown>>();
 
     private readonly armDocs: ArmDocs;
 
@@ -80,7 +82,7 @@ class DocManagerImpl implements DocManager {
                 if (doc.path === undefined) {
                     continue;
                 }
-                if (!fileExists(doc.path)) {
+                if (!fsUtils.fileExists(doc.path)) {
                     doc.error = 'File not exists';
                 } else if (doc.error === 'File not exists') {
                     doc.error = undefined;
@@ -124,9 +126,9 @@ class DocManagerImpl implements DocManager {
             doc.version = entry.version;
             doc.format = entry.format;
             doc.metadataUrl = `https://documentation-service.arm.com/documentation/${entry.docId}/${entry.version}`;
-            if (!fileExists(doc.path)) {
+            if (!fsUtils.fileExists(doc.path)) {
                 const destination = doc.getDestinationPath();
-                if (fileExists(destination)) {
+                if (fsUtils.fileExists(destination)) {
                     doc.path = destination;
                 }
             }
@@ -208,7 +210,25 @@ class DocManagerImpl implements DocManager {
         });
     }
 
-    async downloadDocument(parentId: string, parentTag: string, name: string, confirmOverwrite?: DocumentConfirmation): Promise<void> {
+    private async runDocumentOperation<T>(parentId: string, parentTag: string, name: string, operation: () => Promise<T>): Promise<T> {
+        const key = JSON.stringify([parentId, parentTag, name]);
+        const previous = this.pendingDocumentOperations.get(key) ?? Promise.resolve();
+        const result = previous.catch(() => {}).then(operation);
+        this.pendingDocumentOperations.set(key, result);
+        try {
+            return await result;
+        } finally {
+            if (this.pendingDocumentOperations.get(key) === result) {
+                this.pendingDocumentOperations.delete(key);
+            }
+        }
+    }
+
+    downloadDocument(parentId: string, parentTag: string, name: string, confirmOverwrite?: DocumentConfirmation): Promise<void> {
+        return this.runDocumentOperation(parentId, parentTag, name, () => this.download(parentId, parentTag, name, confirmOverwrite));
+    }
+
+    private async download(parentId: string, parentTag: string, name: string, confirmOverwrite?: DocumentConfirmation): Promise<void> {
         let downloadError: string | undefined;
         try {
             await this.file.load();
@@ -217,7 +237,7 @@ class DocManagerImpl implements DocManager {
                 return;
             }
             const destination = doc.getDestinationPath();
-            if (confirmOverwrite && fileExists(destination) && !await confirmOverwrite([destination])) {
+            if (confirmOverwrite && fsUtils.fileExists(destination) && !await confirmOverwrite([destination])) {
                 return;
             }
             doc.path = destination;
@@ -244,9 +264,9 @@ class DocManagerImpl implements DocManager {
             return false;
         }
 
-        const result = await this.update(async () => {
+        const result = await this.runDocumentOperation(parentId, parentTag, name, () => this.update(async () => {
             const doc = this.file.getDoc(name, parentId, parentTag);
-            if (!doc || doc.mode === 'user' || doc.locationType == 'P') {
+            if (!doc || doc.mode === 'user' || doc.locationType !== 'W') {
                 return false;
             }
             const destination = await this.copyDocument(doc, localPath, confirmOverwrite);
@@ -255,30 +275,30 @@ class DocManagerImpl implements DocManager {
             }
             doc.path = destination;
             return true;
-        });
+        }));
         return result === undefined ? false : result;
     }
 
     private async copyDocument(doc: IDocRef, localPath: string, confirmOverwrite?: DocumentConfirmation): Promise<string | undefined | null> {
         try {
             const source = path.resolve(expandRootVars(localPath.startsWith('file://') ? fileURLToPath(localPath) : localPath));
-            if (!statSync(source).isFile()) {
+            if (!fsUtils.getFileStats(source).isFile()) {
                 throw new Error('The selected document must be a file.');
             }
             const destination = doc.getDestinationPath(source);
             if (pathsEqual(source, destination)) {
                 return destination;
             }
-            if (fileExists(destination)) {
-                if (!statSync(destination).isFile()) {
+            if (fsUtils.fileExists(destination)) {
+                if (!fsUtils.getFileStats(destination).isFile()) {
                     throw new Error('The document destination must be a file.');
                 }
                 if (!confirmOverwrite || !await confirmOverwrite([destination])) {
                     return null;
                 }
             }
-            mkdirSync(path.dirname(destination), { recursive: true });
-            copyFile(source, destination);
+            fsUtils.createDirectory(path.dirname(destination));
+            fsUtils.copyFile(source, destination);
             return destination;
         } catch (error) {
             DocManagerImpl.errorReporter(`Import failed: ${localPath}: ${String(error)}`);
@@ -288,6 +308,38 @@ class DocManagerImpl implements DocManager {
 
     private get managedRoot(): string {
         return path.resolve(path.dirname(this.file.fileName), 'docs');
+    }
+
+    hasLocalCopy(doc: IDocRef): boolean {
+        const localPath = doc.path;
+        if (doc.mode === 'user' || doc.locationType !== 'W' || !localPath) {
+            return false;
+        }
+        try {
+            return pathIsAncestor(this.managedRoot, localPath)
+                && pathsEqual(localPath, doc.getDestinationPath())
+                && fsUtils.getFileStats(localPath).isFile();
+        } catch {
+            return false;
+        }
+    }
+
+    async removeLocalCopy(parentId: string, parentTag: string, name: string): Promise<boolean> {
+        return await this.runDocumentOperation(parentId, parentTag, name, () => this.update(async () => {
+            const doc = this.file.getDoc(name, parentId, parentTag);
+            if (!doc || !this.hasLocalCopy(doc)) {
+                return false;
+            }
+            try {
+                fsUtils.deleteFileIfExists(doc.path);
+            } catch (error) {
+                DocManagerImpl.errorReporter(`Remove local copy failed: ${name}: ${String(error)}`);
+                return false;
+            }
+            doc.path = undefined;
+            doc.error = undefined;
+            return true;
+        })) ?? false;
     }
 
     async removeDocument(parentId: string, parentTag: string, name: string): Promise<boolean> {
@@ -300,7 +352,7 @@ class DocManagerImpl implements DocManager {
                 if (doc.path && pathIsAncestor(this.managedRoot, doc.path)) {
                     const destination = doc.getDestinationPath();
                     if (pathsEqual(doc.path, destination)) {
-                        rmSync(path.dirname(destination), { recursive: true, force: true });
+                        fsUtils.deleteDirectory(path.dirname(destination));
                     }
                 }
             } catch (error) {

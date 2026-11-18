@@ -128,6 +128,9 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         if (doc.mode === 'user') {
             bookItem.addFeature('userDoc');
         }
+        if (this.docManager?.hasLocalCopy(doc)) {
+            bookItem.addFeature('localCopy');
+        }
 
         const useCommand = isWebAddress(filePath) || !filePath.toLowerCase().endsWith('.md');
         if (useCommand) {
