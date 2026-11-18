@@ -24,6 +24,7 @@ type SectionYamlNode<SwitchValues> = {
     name: string;
     value?: SectionSelector | SectionSelector[];
     kind?: 'map' | 'sequence';
+    optional?: boolean; // Omit empty selector markers; absent means false.
     select?: {
         node: string;
         selected: SwitchValues;
@@ -39,16 +40,29 @@ export type SectionYamlBinding = SectionYamlNode<readonly string[]> & {
     kind: 'map' | 'sequence';
 };
 
+/** Checks a binding's name, container kind, and optional selector requirements. */
+function isBindingStorageValid(value: SectionYamlNode<unknown>): boolean {
+    if (!value || typeof value.name !== 'string' || !value.name.length) {
+        return false;
+    }
+
+    const hasValidKind = value.kind === undefined || value.kind === 'map' || value.kind === 'sequence';
+    const hasValidOptional = value.optional === undefined || typeof value.optional === 'boolean';
+    const hasRequiredSelector = value.optional !== true || 'value' in value;
+
+    return hasValidKind && hasValidOptional && hasRequiredSelector;
+}
+
 /** Validates registry data before it can be used to read or edit the solution tree. */
 export function resolveSectionYamlBinding(binding: UISectionYamlNode): SectionYamlBinding {
     const value = typeof binding === 'string' ? { name: binding } : binding;
-    if (!value || typeof value.name !== 'string' || !value.name.length
-        || (value.kind !== undefined && value.kind !== 'map' && value.kind !== 'sequence')) {
+    if (!isBindingStorageValid(value)) {
         throw new Error('Invalid section YAML binding');
     }
     const selector = 'value' in value ? { value: value.value } : {};
+    const optional = value.optional === undefined ? {} : { optional: value.optional };
     if (value.select === undefined) {
-        return { name: value.name, kind: value.kind ?? 'map', ...selector };
+        return { name: value.name, kind: value.kind ?? 'map', ...selector, ...optional };
     }
     const select = value.select;
 
@@ -69,7 +83,7 @@ export function resolveSectionYamlBinding(binding: UISectionYamlNode): SectionYa
     if (selected.some(entry => unselected.includes(entry))) {
         throw new Error('Section switch states must not overlap');
     }
-    return { name: value.name, kind: value.kind ?? 'map', ...selector, select: { node: select.node, selected, unselected } };
+    return { name: value.name, kind: value.kind ?? 'map', ...selector, ...optional, select: { node: select.node, selected, unselected } };
 }
 
 /** Resolves both registry spellings without leaking object bindings into storage paths. */
@@ -90,7 +104,7 @@ export function sectionStoragePath(branch: { id?: string; 'yml-node'?: UISection
             if (Array.isArray(binding.value) || binding.value === undefined) {
                 throw new Error('Section storage requires a scalar selector');
             }
-            return [{ name, value: binding.value }];
+            return [{ name, value: binding.value, ...(binding.optional ? { optional: true } : {}) }];
         }
         return [name];
     });

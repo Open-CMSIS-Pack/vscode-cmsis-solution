@@ -39,32 +39,41 @@ debug-adapters:
             default: swd
       - section: Telnet
         description: Serial input/output via semihosting or RTT channel 0
-        yml-node: telnet
-        select: on
-        pname-options:
-        options:
-          - name: Telnet Mode
-            description: Configure Serial I/O redirect
-            yml-node: mode
-            type: enum
-            default: monitor
-            values:
-              - name: Telnet Server
-                value: server
-                description: Serial I/O to Telnet server port
-              - name: Debug Console
-                value: console
-                description: Serial output to console (Debug console in VS Code)
-              - name: Serial Monitor
-                value: monitor
-                description: Serial I/O via TCP/IP port to VS Code Serial Monitor
-              - name: Text File
-                value: file
-                description: Serial output to file (default
-                  ./out/<solution-name>+<target-type>.<pname>.out)
-              - name: Disabled
-                value: off
-                description: Serial I/O disabled
+        yml-node:
+          name: telnet
+          kind: sequence
+        select: false
+        options: []
+        subsections:
+          - section: ${{ processors.name }}
+            collapsible: false
+            yml-node:
+              name: pname
+              value: ${{ processors.name }}
+              optional: true
+            options:
+              - name: Telnet Mode
+                description: Configure Serial I/O redirect
+                yml-node: mode
+                type: enum
+                default: monitor
+                values:
+                  - name: Telnet Server
+                    value: server
+                    description: Serial I/O to Telnet server port
+                  - name: Debug Console
+                    value: console
+                    description: Serial output to console (Debug console in VS Code)
+                  - name: Serial Monitor
+                    value: monitor
+                    description: Serial I/O via TCP/IP port to VS Code Serial Monitor
+                  - name: Text File
+                    value: file
+                    description: Serial output to file (default
+                      ./out/<solution-name>+<target-type>.<pname>.out)
+                  - name: Disabled
+                    value: off
+                    description: Serial I/O disabled
       - section: Trace
         yml-node:
           name: trace

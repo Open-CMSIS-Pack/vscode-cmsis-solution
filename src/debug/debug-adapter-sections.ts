@@ -20,7 +20,7 @@ import { DebuggerWrap, type SectionPathSegment } from '../solutions/files/csolut
 import { UISection } from './debug-adapters-yaml-file';
 import { storedOptionDefault } from './debug-adapter-options';
 import { resolveSectionYamlBinding, sectionYamlNodeName, sectionStoragePath } from './section-yaml-binding';
-import { expandAdapterSections, templateDevice, type DeviceWithTrace } from './debug-adapter-templates';
+import { expandAdapterSections, templateDevice, templateProcessors, type DeviceWithTrace } from './debug-adapter-templates';
 
 /** Internal compilation of declarative section storage. */
 type DebugAdapterSectionDefinition = {
@@ -38,12 +38,17 @@ type DebugAdapterSectionDefinition = {
 
 /** Resolves the identity used in section messages, retaining legacy root label normalization. */
 export function sectionIdentity(section: UISection, root = false): string {
-    return section.id ?? sectionYamlNodeName(section) ?? (root ? section.section.toLocaleLowerCase() : section.section);
+    const label = section.section ?? '';
+    return section.id ?? sectionYamlNodeName(section) ?? (root ? label.toLocaleLowerCase() : label);
 }
 
-/** Converts a descriptor branch into map keys or markers identifying sequence entries. */
+/** Builds option override paths, omitting optional selectors that identify an entry rather than a subtree. */
 export function sectionYamlPath(branch: UISection[]): string[] {
     return branch.flatMap((section, depth) => {
+        const binding = section['yml-node'];
+        if (typeof binding === 'object' && binding.optional && 'value' in binding) {
+            return [];
+        }
         const key = sectionYamlNodeName(section) ?? (depth > 0 ? section.id : undefined);
         return key ? [key] : [];
     });
@@ -57,6 +62,7 @@ export class DebugAdapterSections {
         private readonly getDebugger: () => DebuggerWrap | undefined,
         private readonly ensureDebugger: () => DebuggerWrap,
         private readonly device?: DeviceWithTrace,
+        private readonly processorNames?: readonly string[],
     ) {
         this.validateDeclarationBindings(declarations);
         this.compileDefinitions();
@@ -78,6 +84,7 @@ export class DebugAdapterSections {
         const sections = expandAdapterSections(this.declarations, {
             config: (debuggerWrap?.object ?? {}) as Record<string, unknown>,
             device: templateDevice(this.device),
+            processors: templateProcessors(this.device, this.processorNames),
         }, debuggerWrap);
         /** Checks concrete identities after capability expansion. */
         const validate = (siblings: UISection[], root: boolean): void => {
@@ -327,19 +334,80 @@ export class DebugAdapterSections {
                     fields.forEach(field => entry.addChild(field.clone(entry)));
                     entry.setValue('pname', pname);
                 }
+            } else if (node?.item?.isMap() && definition.ui['yml-node'] !== undefined
+                && resolveSectionYamlBinding(definition.ui['yml-node']).kind === 'sequence') {
+                const item = node.item;
+                const fields = item.getChildren();
+                const selectors = (definition.subsections ?? []).flatMap(child => {
+                    const binding = child.ui['yml-node'];
+                    return typeof binding === 'object' && binding.optional && 'value' in binding ? [binding] : [];
+                });
+                if (selectors.length) {
+                    item.removeChildrenNotInTags([]);
+                    item.setKind(ETreeItemKind.Sequence).setText(undefined);
+                    for (const binding of selectors) {
+                        const entry = item.createChild('-').setKind(ETreeItemKind.Map);
+                        fields.forEach(field => entry.addChild(field.clone(entry)));
+                        entry.removeChild(entry.getChild(binding.name));
+                        if (binding.value !== null && binding.value !== '') {
+                            entry.createChild(binding.name, true).fromObject(binding.value);
+                        }
+                    }
+                }
             }
         }
         return node;
     }
 
-    /** Initializes only a newly created section's fields, converting display defaults to storage units. */
+    /** Identifies static branches with initial values, without materializing empty or optional children. */
+    private hasInitialValues(definition: DebugAdapterSectionDefinition): boolean {
+        return definition.ui.condition !== false && definition.ui.select !== false
+            && (definition.ui.select === true
+                || definition.ui.options.some(option => storedOptionDefault(option) !== undefined)
+                || (definition.subsections ?? []).some(child => this.hasInitialValues(child)));
+    }
+
+    /** Fills missing fields and initializes static children, retaining values in shared layout containers. */
     private applyDefaults(branch: DebugAdapterSectionDefinition[]): void {
         const debuggerWrap = this.ensureDebugger();
-        branch.at(-1)!.ui.options.forEach(option => {
+        const path = this.yamlPath(branch);
+        const container = debuggerWrap.getSection(path)?.item;
+        if (!container) {
+            return;
+        }
+
+        for (const option of branch.at(-1)!.ui.options) {
             const value = storedOptionDefault(option);
-            if (value !== undefined) {
-                debuggerWrap.setSectionParameter(this.yamlPath(branch), option['yml-node'], value, option.pname);
+            if (value === undefined) {
+                continue;
             }
-        });
+            const entries = container.isSequence()
+                ? container.getChildren().filter(entry => !option.pname || entry.getValue('pname') === option.pname)
+                : [container];
+            if (entries.length === 0) {
+                debuggerWrap.setSectionParameter(path, option['yml-node'], value, option.pname);
+                continue;
+            }
+            for (const entry of entries) {
+                if (!entry.getChild(option['yml-node'])) {
+                    entry.createChild(option['yml-node']).fromObject(value);
+                }
+            }
+        }
+
+        for (const child of branch.at(-1)!.subsections ?? []) {
+            if (!this.hasInitialValues(child)) {
+                continue;
+            }
+            const childBranch = [...branch, child];
+            const sharesParentStorage = this.yamlPath(childBranch).length === path.length;
+            if (sharesParentStorage || !this.node(childBranch)) {
+                const node = this.ensureBranch(childBranch);
+                this.applyDefaults(childBranch);
+                if (node && child.ui.select === true) {
+                    child.switch?.write(node, true);
+                }
+            }
+        }
     }
 }

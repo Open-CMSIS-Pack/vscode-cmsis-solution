@@ -982,7 +982,7 @@ describe('manage-solution-controller', () => {
         controller['debugAdaptersYmlFile'] = registry;
         await controller.getAvailableCoreNames();
         await controller.adapterSettingsContext(true);
-        editSetting(controller, 'stdio', 'mode', 'off', [], 'M55_HE');
+        editSetting(controller, 'stdio', 'mode', 'off', [JSON.stringify(['pname', 'M55_HE'])]);
 
         expect(stdio?.getChildren()).toHaveLength(2);
         expect(stdio?.getChildByValue('pname', 'M55_HP')?.getValue('mode')).toBe('console');

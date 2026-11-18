@@ -35,8 +35,16 @@ describe('resolveSectionYamlBinding', () => {
         }).select).toEqual({ node: 'state', selected: ['ready'], unselected: ['paused', 'idle'] });
     });
 
+    it('retains the optional marker flag only when explicitly supplied', () => {
+        expect(resolveSectionYamlBinding({ name: 'pname', value: null, optional: true }))
+            .toEqual({ name: 'pname', value: null, kind: 'map', optional: true });
+        expect(resolveSectionYamlBinding({ name: 'trace-buffer', value: null }).optional).toBeUndefined();
+        expect(resolveSectionYamlBinding({ name: 'trace-buffer', value: null, optional: false }).optional).toBe(false);
+    });
+
     it.each([
         null, 42, '', {}, { name: 1 }, { name: 'x', kind: 'list' },
+        { name: 'x', value: null, optional: 'true' }, { name: 'x', optional: true },
         { name: 'x', select: null }, { name: 'x', select: {} },
         { name: 'x', select: { node: '', selected: 'yes', unselected: 'no' } },
         { name: 'x', select: { node: 'state', selected: [], unselected: 'no' } },

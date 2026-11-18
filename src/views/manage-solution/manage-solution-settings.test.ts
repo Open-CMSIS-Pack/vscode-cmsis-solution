@@ -198,6 +198,32 @@ describe('registry-driven settings actions', () => {
             .toEqual(['rejected', 'applied']);
     });
 
+    it('enables compact unnamed Telnet settings with custom defaults and restores edits through undo/redo', async () => {
+        const { main, latest, perform, send } = await setup();
+        main.controller.customDebugAdapterDefaults = { 'CMSIS-DAP@pyOCD': { 'telnet.mode': 'console' } };
+        await send({ type: 'GET_ADAPTER_SETTINGS' });
+        const telnet = () => latest().sections.find(section => section.label === 'Telnet')!;
+        const initialChildId = telnet().children[0].id;
+        expect(telnet()).toMatchObject({ selected: false, children: [{ label: '', collapsible: false, disabled: true }] });
+        expect(main.controller.activeDebugger?.object).not.toHaveProperty('telnet');
+
+        await perform(telnet().toggleAction!, true);
+        expect(telnet().children[0]).toMatchObject({ id: initialChildId, fields: [{ value: 'console', disabled: false }] });
+        expect(main.controller.activeDebugger?.object).toMatchObject({ telnet: [{ mode: 'console' }] });
+        const enabled = main.getSolutionSnapshot();
+        await perform(telnet().children[0].fields[0].editAction!, 'file');
+        const edited = main.getSolutionSnapshot();
+        expect(main.controller.activeDebugger?.object).toMatchObject({ telnet: [{ mode: 'file' }] });
+
+        await main.applySnapshot(enabled);
+        expect(telnet().children[0]).toMatchObject({ id: initialChildId, fields: [{ value: 'console' }] });
+        await main.applySnapshot(edited);
+        expect(telnet().children[0].fields[0].value).toBe('file');
+        await perform(telnet().toggleAction!, false);
+        expect(main.controller.activeDebugger?.object).not.toHaveProperty('telnet');
+        expect(telnet().children[0]).toMatchObject({ id: initialChildId, disabled: true });
+    });
+
     it('adds, edits, disables and removes trace through opaque actions and restores undo/redo snapshots', async () => {
         const { main, latest, perform, onEdit, messages } = await setup();
         const trace = () => latest().sections.find(section => section.label === 'Trace')!;

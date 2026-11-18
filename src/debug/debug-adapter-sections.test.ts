@@ -159,6 +159,76 @@ describe('DebugAdapterSections', () => {
         expect(item.toObject()).toEqual({ input: { rate: 3000, value: 'second' } });
     });
 
+    it('initializes nested layout groups without replacing earlier values or existing child containers', () => {
+        const { item } = createSettings();
+        const debuggerWrap = new DebuggerWrap(item);
+        const settings = new DebugAdapterSections([{
+            section: 'Settings', 'yml-node': 'settings', select: false,
+            options: [{ name: 'Rate', 'yml-node': 'rate', type: 'number', default: 0 }],
+            subsections: [{
+                id: 'existing', section: 'Existing',
+                options: [{ name: 'Port', 'yml-node': 'port', type: 'number', default: 4444 }],
+            }, {
+                section: 'Layout',
+                options: [{ name: 'Rate', 'yml-node': 'rate', type: 'number', default: 2, scale: 1000 }],
+                subsections: [{
+                    section: 'Nested layout',
+                    options: [{ name: 'Mode', 'yml-node': 'mode', type: 'string', default: 'monitor' }],
+                    subsections: [{
+                        id: 'existing', section: 'Existing',
+                        options: [{ name: 'Port', 'yml-node': 'port', type: 'number', default: 3333 }],
+                        subsections: [{ id: 'untouched', section: 'Untouched', select: true, options: [] }],
+                    }, {
+                        id: 'selected', section: 'Selected', select: true,
+                        options: [{ name: 'Count', 'yml-node': 'count', type: 'number', default: 3 }],
+                    }, {
+                        id: 'optional', section: 'Optional', select: false,
+                        options: [{ name: 'Count', 'yml-node': 'count', type: 'number', default: 4 }],
+                    }, {
+                        id: 'unsupported', section: 'Unsupported', condition: false, select: true,
+                        options: [{ name: 'Count', 'yml-node': 'count', type: 'number', default: 5 }],
+                    }],
+                }],
+            }],
+        }], () => debuggerWrap, () => debuggerWrap);
+
+        settings.setEnabled('settings', [], true);
+
+        expect(item.toObject()).toEqual({
+            settings: { rate: 0, existing: { port: 4444 }, mode: 'monitor', selected: { count: 3 } },
+        });
+    });
+
+    it.each([
+        { cores: [] },
+        { cores: ['Core0'] },
+        { cores: ['Core0', 'Core1'] },
+    ])('fills only missing layout-group defaults for cores $cores', ({ cores }) => {
+        const { item } = createSettings();
+        const debuggerWrap = new DebuggerWrap(item);
+        const processorNames = cores.length > 0 ? cores : [''];
+        const settings = new DebugAdapterSections([{
+            section: 'Settings', 'yml-node': 'settings', select: false, 'pname-options': true,
+            options: processorNames.map(pname => ({
+                name: 'Port', 'yml-node': 'port', type: 'number', pname, default: 0,
+            })),
+            subsections: [{
+                section: 'Layout', 'pname-options': true,
+                options: processorNames.flatMap(pname => [
+                    { name: 'Port', 'yml-node': 'port', type: 'number', pname, default: 3333 },
+                    { name: 'Rate', 'yml-node': 'rate', type: 'number', pname, default: 2, scale: 10 },
+                ]),
+            }],
+        }], () => debuggerWrap, () => debuggerWrap);
+
+        settings.setEnabled('settings', [], true);
+
+        const expected = cores.length > 1
+            ? cores.map(pname => ({ pname, port: 0, rate: 20 }))
+            : { port: 0, rate: 20 };
+        expect(item.toObject()).toEqual({ settings: expected });
+    });
+
     it('creates nested map and sequence children once and restores choices after removal', () => {
         const { settings, item } = createSettings({ unrelated: { keep: true } });
         expect(settings.sections[0].subsections?.[0].usage).toBe('available');

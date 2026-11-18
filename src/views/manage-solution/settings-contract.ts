@@ -47,6 +47,7 @@ export type SettingsSection = {
     addActions: { label: string; action: SettingsActionId }[];
     childCount?: number;
     childrenLayout: 'navigation' | 'content';
+    collapsible?: boolean;
     fields: SettingsField[];
     children: SettingsSection[];
 };

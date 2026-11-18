@@ -517,6 +517,7 @@ export class ManageSolutionController {
             () => this.activeDebugger,
             () => this.activeTargetSetWrap.ensureDebugger(),
             this.deviceInfo,
+            this.usedCoreNames,
         );
     }
 

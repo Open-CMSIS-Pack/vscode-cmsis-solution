@@ -60,13 +60,14 @@ export type UISectionChildren =
 /** Describes a settings section at any depth, including optional switches and dynamic children. */
 export type UISection = {
     id?: string;                       // Stable identity within the parent, falling back to the YAML node or label.
-    section: string;                    // Label text for the section in the tab group.
+    section: string | null;             // Empty or null labels leave the section's content visible without a heading.
     description?: string;               // Hover over text.
     warning?: string;                   // Constraint tooltip, including when disabled; active sections also show a warning icon.
     condition?: boolean | string;       // Host expression controlling availability, resolved before presentation.
     'condition-message'?: string;       // Warning shown for configured sections whose condition is false.
     'yml-node'?: UISectionYamlNode;                // Map key or marker identifying this section in a YAML sequence.
     select?: boolean;                   // If present, the section can be enabled. Applies to all options.
+    collapsible?: boolean;              // Content sections can be collapsed unless explicitly false or unlabeled.
     usage?: 'available' | 'used';
     'subsections-layout'?: 'navigation' | 'content';
     options: UISectionChildren[];       // List of available options.

@@ -64,6 +64,57 @@ function renderEditableField(field: Field) {
 }
 
 describe('isolated settings tree', () => {
+    it('renders a static subsection header and fields without a collapse control', () => {
+        const { container } = renderTree([section('Telnet', { children: [section('Core0', {
+            collapsible: false,
+            fields: [{ id: 'mode', label: 'Telnet Mode', type: 'string', value: 'monitor', disabled: false }],
+            children: [section('Nested', {
+                fields: [{ id: 'nested', label: 'Nested value', type: 'string', value: 'saved', disabled: false }],
+            })],
+        })] })]);
+        expect(screen.getByText('Core0')).toBeInTheDocument();
+        expect(screen.getByRole('textbox', { name: 'Telnet Mode' })).toHaveValue('monitor');
+        expect(screen.queryByRole('button', { name: /(?:Expand|Collapse) Core0/ })).not.toBeInTheDocument();
+        expect(container.querySelector('.settings-inline-section > .settings-section-header .settings-chevron-slot')).not.toBeInTheDocument();
+        expect(screen.queryByRole('textbox', { name: 'Nested value' })).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Expand Nested' }));
+        expect(screen.getByRole('textbox', { name: 'Nested value' })).toHaveValue('saved');
+    });
+
+    it.each([undefined, true, false])('keeps unnamed subsection content visible without header chrome (collapsible: %s)', collapsible => {
+        const { container } = renderTree([section('Telnet', { children: [section('unnamed', {
+            label: '', collapsible,
+            fields: [{ id: 'mode', label: 'Telnet Mode', type: 'string', value: 'monitor', disabled: false }],
+        })] })]);
+        expect(screen.getByRole('textbox', { name: 'Telnet Mode' })).toHaveValue('monitor');
+        expect(container.querySelector('.settings-unlabeled-section > .settings-section-header')).not.toBeInTheDocument();
+        expect(container.querySelector('.settings-unlabeled-section')).not.toHaveClass('settings-container');
+        expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    });
+
+    it('retains actions and warnings on unnamed sections with accessible control names', () => {
+        const { onAction } = renderTree([section('Telnet', { children: [section('unnamed', {
+            label: '', selected: false, toggleAction: 'enable', removeAction: 'remove',
+            warning: 'Check settings',
+            fields: [{ id: 'mode', label: 'Telnet Mode', type: 'string', value: 'monitor', disabled: true }],
+        })] })]);
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Enable section' }));
+        expect(onAction).toHaveBeenCalledWith('enable', true);
+        expect(screen.getByRole('textbox', { name: 'Telnet Mode' })).toBeDisabled();
+        expect(within(screen.getByRole('tabpanel')).getByRole('status', { name: 'Check settings' })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Remove section' }));
+        expect(onAction).toHaveBeenCalledWith('remove');
+    });
+
+    it('renders unnamed navigation groups inline under the named parent without blank tabs', () => {
+        renderTree([section('Telnet', { childrenLayout: 'navigation', children: [section('unnamed', {
+            label: '',
+            fields: [{ id: 'mode', label: 'Telnet Mode', type: 'string', value: 'monitor', disabled: false }],
+        })] })]);
+        expect(screen.getAllByRole('tab').map(tab => tab.getAttribute('aria-label'))).toEqual(['Telnet']);
+        expect(screen.getByRole('textbox', { name: 'Telnet Mode' })).toHaveValue('monitor');
+    });
+
     it('gives simultaneous trees distinct tab and panel associations', () => {
         renderTree([section('Same')]);
         renderTree([section('Same')]);
