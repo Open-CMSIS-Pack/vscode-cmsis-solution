@@ -225,7 +225,7 @@ describe('build result capture', () => {
     let active: vscode.TaskExecution[];
     let solution: CSolution;
     let activeTarget: string;
-    const solutionManager = { getCsolution: jest.fn<CSolution | undefined, []>(), loadState: { loaded: true } };
+    const solutionManager = { getCsolution: jest.fn<CSolution | undefined, []>() };
     const definition = { type: BuildTaskProviderImpl.taskType, solution: 'test.csolution.yml' };
     const openTask = async (task: vscode.Task) => {
         const custom = task.execution as unknown as { callback: ConstructorParameters<typeof vscode.CustomExecution>[0] };
@@ -246,7 +246,6 @@ describe('build result capture', () => {
         activeTarget = 'Target';
         jest.spyOn(solution, 'getActiveTargetSetName').mockImplementation(() => activeTarget);
         solutionManager.getCsolution.mockReturnValue(solution);
-        solutionManager.loadState.loaded = true;
         provider = new BuildTaskProviderImpl({ run }, undefined, undefined, solutionManager);
         startEmitter = new vscode.EventEmitter<vscode.TaskStartEvent>();
         endEmitter = new vscode.EventEmitter<vscode.TaskEndEvent>();
@@ -464,14 +463,11 @@ describe('build result capture', () => {
         }
     });
 
-    it('returns undefined without an observed build or a loaded active solution', async () => {
+    it('returns undefined without an observed build or an active solution', async () => {
         await expect(provider.getBuildResult()).resolves.toBeUndefined();
         const { runner } = await startTask(provider.createTask(definition));
         run.mockResolvedValue(0);
         await runner.open(undefined);
-        solutionManager.loadState.loaded = false;
-        await expect(provider.getBuildResult()).resolves.toBeUndefined();
-        solutionManager.loadState.loaded = true;
         solutionManager.getCsolution.mockReturnValue(undefined);
         await expect(provider.getBuildResult()).resolves.toBeUndefined();
     });

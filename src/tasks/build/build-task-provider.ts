@@ -108,7 +108,7 @@ export class BuildTaskProviderImpl implements BuildTaskProvider, vscode.TaskProv
             completeMessage: '',
             terminationMessage: '\r\n🟥 Build cancelled by user\r\n'
         },
-        private readonly solutionManager?: Pick<SolutionManager, 'getCsolution' | 'loadState'>,
+        private readonly solutionManager?: Pick<SolutionManager, 'getCsolution'>,
     ) {}
 
     public async activate(context: vscode.ExtensionContext): Promise<void> {
@@ -179,7 +179,7 @@ export class BuildTaskProviderImpl implements BuildTaskProvider, vscode.TaskProv
     public getBuildResult(): Promise<CsolutionApiV3.BuildResult | undefined>;
     public getBuildResult(execution?: vscode.TaskExecution): Promise<CsolutionApiV3.BuildResult | undefined> {
         if (!execution) {
-            const key = this.solutionManager?.loadState.loaded ? this.getLatestBuildKey() : undefined;
+            const key = this.getLatestBuildKey();
             return Promise.resolve(key ? this.latestBuildResults.get(key) : undefined);
         }
         const known = this.buildResults.get(execution);
