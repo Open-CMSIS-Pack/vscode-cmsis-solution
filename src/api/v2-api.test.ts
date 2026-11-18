@@ -41,6 +41,7 @@ describe('CsolutionApiV2Impl', () => {
         mockDataManager = dataManagerFactory();
         mockSolutionCreator = { createSolution: jest.fn() };
         mockBuildTaskProvider = {
+            getBuildResult: jest.fn(),
             createTask: jest.fn(),
             terminateTask: jest.fn().mockReturnValue(false),
             getActiveTaskRunner: jest.fn().mockReturnValue(undefined)

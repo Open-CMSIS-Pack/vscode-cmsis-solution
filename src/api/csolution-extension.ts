@@ -57,7 +57,7 @@ export class CsolutionExtensionImpl implements CsolutionExtension {
         if (version === 2) {
             api = new CsolutionApiV2Impl(this.dataManager, this.solutionCreator, this.buildTaskProvider);
         } else if (version === 3) {
-            api = new CsolutionApiV3Impl(new CsolutionApiV2Impl(this.dataManager, this.solutionCreator, this.buildTaskProvider), this.dataManager, this.solutionManager, this.csolutionService, this.toolsEnvironment, this.commandsProvider, this.solutionConverter);
+            api = new CsolutionApiV3Impl(new CsolutionApiV2Impl(this.dataManager, this.solutionCreator, this.buildTaskProvider), this.dataManager, this.solutionManager, this.csolutionService, this.toolsEnvironment, this.commandsProvider, this.solutionConverter, this.buildTaskProvider);
         }
         if (api) {
             this.apis.push(api);

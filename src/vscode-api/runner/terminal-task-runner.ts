@@ -17,6 +17,12 @@
 import * as vscode from 'vscode';
 import { Runner } from './runner';
 
+export interface TaskOutputCapture {
+    onStart?(): void;
+    onOutput(message: string): void;
+    onComplete(exitCode?: number): void;
+}
+
 export interface TerminalTask {
     definition: vscode.TaskDefinition,
     runner: Runner,
@@ -25,6 +31,7 @@ export interface TerminalTask {
     completeMessage: string,
     terminationMessage: string,
     dimensions: vscode.TerminalDimensions | undefined;
+    capture?: TaskOutputCapture;
 }
 
 export class TerminalTaskRunner implements vscode.Pseudoterminal {
@@ -32,6 +39,8 @@ export class TerminalTaskRunner implements vscode.Pseudoterminal {
     private readonly closeEmitter = new vscode.EventEmitter<number>();
     private cancellationTokenSource?: vscode.CancellationTokenSource;
     private isManuallyTerminated = false;
+    private processExitCode?: number;
+    private termination?: Promise<void>;
     private outputBuffer: string[] = [];
 
     public readonly onDidWrite: vscode.Event<string> = this.writeEmitter.event;
@@ -43,7 +52,11 @@ export class TerminalTaskRunner implements vscode.Pseudoterminal {
         this.cancellationTokenSource = new vscode.CancellationTokenSource();
         this.terminalTask.dimensions = initialDimensions;
         this.isManuallyTerminated = false;
+        this.processExitCode = undefined;
+        this.termination = undefined;
         this.outputBuffer = [];
+        let skipped = false;
+        this.terminalTask.capture?.onStart?.();
 
         try {
             const exitCode = await this.terminalTask.runner.run(
@@ -51,11 +64,15 @@ export class TerminalTaskRunner implements vscode.Pseudoterminal {
                 this.handleTaskOutput.bind(this),
                 this.cancellationTokenSource.token,
                 this.terminalTask.dimensions,
+                ...(this.terminalTask.capture ? [() => { skipped = true; }] : []),
             );
+            this.processExitCode = exitCode;
             if (!this.isManuallyTerminated) {
                 if (exitCode === 0) {
                     this.handleTaskOutput(this.terminalTask.completeMessage);
                 }
+                this.completeCapture(skipped ||
+                    (exitCode === 0 && this.cancellationTokenSource.token.isCancellationRequested) ? undefined : exitCode);
                 this.closeEmitter.fire(exitCode >= 0 ? exitCode : 1);
             }
         } catch (error) {
@@ -64,9 +81,14 @@ export class TerminalTaskRunner implements vscode.Pseudoterminal {
                 // The exit code will be fired immediately there
             } else {
                 this.handleTaskOutput((error as Error).message);
+                this.completeCapture();
                 this.closeEmitter.fire(1);
             }
         } finally {
+            if (this.isManuallyTerminated) {
+                await this.termination;
+                this.completeCapture(skipped || this.processExitCode === 0 ? undefined : this.processExitCode);
+            }
             this.cancellationTokenSource?.dispose();
             this.cancellationTokenSource = undefined;
         }
@@ -88,22 +110,31 @@ export class TerminalTaskRunner implements vscode.Pseudoterminal {
     public terminateProcess(): void {
         if (this.cancellationTokenSource && !this.cancellationTokenSource.token.isCancellationRequested) {
             this.isManuallyTerminated = true;
-            this.cancellationTokenSource.cancel();
-
             // Ensure messages are shown even if no exception is thrown
-            setTimeout(() => {
-                if (this.isManuallyTerminated) {
-                    this.handleTaskOutput(this.terminalTask.terminationMessage!);
-                    // Fire exit code immediately to show red trash bin, but terminal stays open for reuse
-                    this.closeEmitter.fire(130);
-                }
-            }, 100); // Small delay to ensure cancellation is processed
+            this.termination = new Promise(resolve => {
+                setTimeout(() => {
+                    if (this.isManuallyTerminated) {
+                        this.handleTaskOutput(this.terminalTask.terminationMessage!);
+                        // Preserve the existing terminal UI; result capture waits for the runner.
+                        this.closeEmitter.fire(130);
+                    }
+                    resolve();
+                }, 100);
+            });
+            this.cancellationTokenSource.cancel();
         }
     }
 
     private handleTaskOutput(message: string) {
         this.outputBuffer.push(message.trimEnd());
+        this.terminalTask.capture?.onOutput(message);
         this.writeEmitter.fire(message);
+    }
+
+    private completeCapture(exitCode?: number): void {
+        const capture = this.terminalTask.capture;
+        this.terminalTask.capture = undefined;
+        capture?.onComplete(exitCode);
     }
 
     public getOutputBuffer(): string[] {
