@@ -486,6 +486,97 @@ async function runConvertSolution(): Promise<void> {
     }
 }
 
+async function runBuildResults(): Promise<void> {
+    assert.equal(vscode.workspace.workspaceFolders?.length, 1, 'Open the disposable build fixture.');
+    const folder = vscode.workspace.workspaceFolders![0].uri;
+    const solution = vscode.Uri.joinPath(folder, 'Selection.csolution.yml');
+    const source = vscode.Uri.joinPath(folder, 'build.c');
+    const originalSource = await vscode.workspace.fs.readFile(source);
+    const configuration = vscode.workspace.getConfiguration('cmsis-csolution', folder);
+    assert.equal(configuration.get('downloadPacks'), false);
+    assert.equal(configuration.get('useWebServices'), false);
+    assert.equal(configuration.get('autoRefreshOnFileChange'), false);
+    const extension = vscode.extensions.getExtension<CsolutionExtension>('Arm.cmsis-csolution');
+    assert.ok(extension);
+    const exports = await extension.activate();
+    const api = exports.getApi(3);
+    const otherApi = exports.getApi(3);
+    let execution: vscode.TaskExecution | undefined;
+
+    const build = async (rebuild: boolean) => {
+        const current = execution = await api.build({ rebuild, packs: false, updateRte: false });
+        assert.equal(current.task.definition.type, 'cmsis-csolution.build');
+        assert.equal(typeof current.terminate, 'function');
+        const result = api.getBuildResult(current);
+        assert.equal(api.getBuildResult(current), result, 'Repeated lookup must return the same completion promise.');
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+            const completed = await Promise.race([
+                result,
+                new Promise<never>((_resolve, reject) => {
+                    timer = setTimeout(() => {
+                        if (vscode.tasks.taskExecutions.includes(current)) current.terminate();
+                        reject(new Error('API V3 build result did not settle within 120 seconds.'));
+                    }, 120000);
+                }),
+            ]);
+            execution = undefined;
+            return { execution: current, result: completed };
+        } finally {
+            clearTimeout(timer);
+        }
+    };
+
+    try {
+        assert.equal(typeof api.getBuildResult, 'function');
+        assert.ok(!('getBuildResult' in exports.getApi(2)));
+        await api.deactivateSolution();
+        assert.equal(await api.getBuildResult(), undefined);
+        await api.activateSolution(solution.fsPath);
+        const deadline = Date.now() + 60000;
+        while (!(await api.getTargets()).includes('CM3')) {
+            assert.ok(Date.now() < deadline, 'Build fixture must finish loading. Check installed packs and Toolbox.');
+            await new Promise(resolve => setTimeout(resolve, 250));
+        }
+        assert.equal(await api.getActiveTarget(), 'CM3');
+        assert.equal(await api.getBuildResult(), undefined, 'Initial setup must not become the latest build.');
+
+        const success = await build(true);
+        assert.equal(success.result.exitCode, 0, `Fixture library build must succeed:\n${success.result.output}`);
+        assert.match(success.result.output, /API_V3_BUILD_WARNING/, 'Successful builds must retain compiler warnings.');
+        assert.deepEqual(await api.getBuildResult(), success.result);
+        assert.deepEqual(await otherApi.getBuildResult(success.execution), success.result);
+        assert.deepEqual(JSON.parse(JSON.stringify(success.result)), success.result);
+
+        await vscode.workspace.fs.writeFile(source, Buffer.from('#error API_V3_BUILD_ERROR\n'));
+        const failure = await build(false);
+        assert.notEqual(failure.execution, success.execution, 'Sequential builds must return distinct execution handles.');
+        assert.equal(typeof failure.result.exitCode, 'number');
+        assert.notEqual(failure.result.exitCode, 0, 'The deliberate compiler error must fail the build.');
+        assert.match(failure.result.output, /API_V3_BUILD_ERROR/);
+        assert.doesNotMatch(failure.result.output, /API_V3_BUILD_WARNING/, 'Output must not leak from the previous build.');
+        assert.deepEqual(await api.getBuildResult(), failure.result, 'Latest must report the newer failure, not an older success.');
+        assert.deepEqual(await otherApi.getBuildResult(), failure.result);
+        assert.deepEqual(await api.getBuildResult(success.execution), success.result, 'Completed execution results must remain stable.');
+        await assert.rejects(api.getBuildResult({ task: success.execution.task, terminate() {} }), /No captured build result/);
+        assert.equal(await api.getSolutionFile(), solution.fsPath);
+        assert.equal(await api.getActiveTarget(), 'CM3');
+        console.log('API V3 build: real library build, successful warning capture, deliberate compiler failure, exact/latest results, sequential isolation, cross-instance lookup, unknown-handle rejection and V2 compatibility passed.');
+    } finally {
+        try {
+            if (execution && vscode.tasks.taskExecutions.includes(execution)) execution.terminate();
+            await vscode.workspace.fs.writeFile(source, originalSource);
+        } finally {
+            try {
+                await api.deactivateSolution();
+            } finally {
+                otherApi.dispose();
+                api.dispose();
+            }
+        }
+    }
+}
+
 export async function run(): Promise<void> {
     const mode = process.env.CMSIS_V3_SMOKE_MODE;
     if (mode === 'getters') {
@@ -494,6 +585,8 @@ export async function run(): Promise<void> {
         await runTargetSelection();
     } else if (mode === 'convert') {
         await runConvertSolution();
+    } else if (mode === 'build') {
+        await runBuildResults();
     } else if (mode === 'loaded' || mode === 'missing') {
         await runLoadedPacks(mode === 'missing');
     } else if (mode === 'index' || mode === 'installed') {
