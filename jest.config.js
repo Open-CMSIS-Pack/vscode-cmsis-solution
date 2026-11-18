@@ -30,7 +30,7 @@ module.exports = {
             },
         ],
     },
-    transformIgnorePatterns: ['/node_modules/(?!(@faker-js/faker|@microsoft|yaml)/)'],
+    transformIgnorePatterns: ['/node_modules/(?!(@faker-js/faker|@microsoft|@ant-design|yaml)/)'],
     testPathIgnorePatterns: [
         '/node_modules/',
         '/packages/cmsis-common/',
