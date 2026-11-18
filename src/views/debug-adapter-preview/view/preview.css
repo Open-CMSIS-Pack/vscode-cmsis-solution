@@ -1,0 +1,28 @@
+/**
+ * Copyright 2026 Arm Limited
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+.debug-adapter-preview > p, .preview-toolbar, .preview-processors, .debug-adapter-preview > details { width: 50rem; max-width: 100%; }
+.preview-toolbar { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
+.preview-toolbar label { display: flex; flex: 1 1 240px; flex-direction: column; gap: 6px; min-width: 0; }
+.preview-toolbar .ant-select { width: 100%; }
+.preview-processors { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.preview-controls { border: 0; padding: 0; min-width: 0; margin: 0; }
+.preview-controls:disabled { opacity: .6; }
+.preview-controls:disabled .settings-tree { pointer-events: none; }
+.debug-adapter-preview [role='alert'] { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--vscode-errorForeground); }
+.debug-adapter-preview details { margin: 16px 0; }
+.debug-adapter-preview summary { cursor: pointer; }
+.debug-adapter-preview pre { padding: 12px; overflow: auto; background: var(--vscode-textCodeBlock-background); }

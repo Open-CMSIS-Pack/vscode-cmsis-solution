@@ -486,6 +486,12 @@
     ],
     "commands": [
       {
+        "command": "cmsis-csolution.previewDebugAdapterUi",
+        "title": "Preview Debug Adapter UI",
+        "category": "CMSIS",
+        "icon": "$(open-preview)"
+      },
+      {
         "category": "CMSIS",
         "command": "cmsis-csolution.refresh",
         "title": "Refresh Build and RTE Information",
@@ -1467,6 +1473,11 @@
         }
       ],
       "editor/title": [
+        {
+          "command": "cmsis-csolution.previewDebugAdapterUi",
+          "group": "navigation",
+          "when": "resourceFilename == debug-adapters.yml"
+        },
         {
           "command": "cmsis-csolution.showConfigWizardPreview",
           "group": "navigation",
