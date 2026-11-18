@@ -26,6 +26,7 @@ export class DocumentCommand {
     public static readonly addCommandId = `${PACKAGE_NAME}.addDocument`;
     public static readonly downloadCommandId = `${PACKAGE_NAME}.downloadDocument`;
     public static readonly importCommandId = `${PACKAGE_NAME}.importDocument`;
+    public static readonly removeLocalCopyCommandId = `${PACKAGE_NAME}.removeLocalCopy`;
     public static readonly removeCommandId = `${PACKAGE_NAME}.removeDocument`;
 
     constructor(
@@ -39,6 +40,7 @@ export class DocumentCommand {
             this.commandsProvider.registerCommand(DocumentCommand.addCommandId, this.addDocument, this),
             this.commandsProvider.registerCommand(DocumentCommand.downloadCommandId, this.downloadDocument, this),
             this.commandsProvider.registerCommand(DocumentCommand.importCommandId, this.importDocument, this),
+            this.commandsProvider.registerCommand(DocumentCommand.removeLocalCopyCommandId, this.removeLocalCopy, this),
             this.commandsProvider.registerCommand(DocumentCommand.removeCommandId, this.removeDocument, this),
         );
     }
@@ -86,7 +88,7 @@ export class DocumentCommand {
     private async downloadDocument(node?: COutlineItem): Promise<void> {
         const target = this.canTransfer(node) ? this.getTarget(node) : undefined;
         const name = node?.getAttribute('docName');
-        if (!target || !name || node?.getAttribute('docLocationType') !== 'W') {
+        if (!target || !name) {
             return;
         }
         const manager = this.solutionManager.getDocManager();
@@ -97,7 +99,7 @@ export class DocumentCommand {
 
     private canTransfer(node?: COutlineItem): boolean {
         const features = node?.getFeatures().split(';') ?? [];
-        return (features.includes('webDoc') || features.includes('webLink')) && !features.includes('userDoc');
+        return features.includes('webDoc') && !features.includes('userDoc') && node?.getAttribute('docLocationType') === 'W';
     }
 
     private async importDocument(node?: COutlineItem): Promise<void> {
@@ -111,9 +113,10 @@ export class DocumentCommand {
             return;
         }
         const doc = manager.file.getDoc(name, target.parentId, target.parentTag);
-        const extensions = doc?.locationType === 'W'
-            ? [(doc.format || path.extname(doc.getDestinationPath()).slice(1)).toLowerCase()]
-            : undefined;
+        if (!doc || doc.locationType !== 'W' || doc.mode === 'user') {
+            return;
+        }
+        const extensions = [(doc.format || path.extname(doc.getDestinationPath()).slice(1)).toLowerCase()];
         const localPath = await this.pickDocument('Import', extensions);
         if (!localPath) {
             return;
@@ -123,6 +126,18 @@ export class DocumentCommand {
         ));
         if (result === false) {
             await this.window.showErrorMessage('Failed to import the document.');
+        }
+    }
+
+    private async removeLocalCopy(node?: COutlineItem): Promise<void> {
+        const target = this.canTransfer(node) && node?.getFeatures().split(';').includes('localCopy') ? this.getTarget(node) : undefined;
+        const name = node?.getAttribute('docName');
+        if (!target || !name) {
+            return;
+        }
+        const manager = this.solutionManager.getDocManager();
+        if (!await manager.removeLocalCopy(target.parentId, target.parentTag, name)) {
+            await this.window.showErrorMessage('Failed to remove the local copy.');
         }
     }
 

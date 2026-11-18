@@ -31,7 +31,7 @@ solution
       docParentTag=device
       docLocationType=H
       docHasPath=0
-      tooltip=http://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html
+      tooltip=`http://infocenter.arm.com/help/topic/com.arm.doc.dui0497a/index.html`
         features=docFile;webLink
       command=cmsis-csolution.openDocFile
   project

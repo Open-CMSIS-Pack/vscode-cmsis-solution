@@ -96,7 +96,7 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         }
 
         const locationType = doc.locationType;
-        const tooltip = [filePath];
+        const tooltip = [`\`${filePath}\``];
         if (locationType === 'P' && doc.mode !== 'user') {
             const packId = this.docManager?.file.getDocParent(doc.parentId, doc.parentTag)?.packId;
             if (packId) {
@@ -127,6 +127,9 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         }
         if (doc.mode === 'user') {
             bookItem.addFeature('userDoc');
+        }
+        if (this.docManager?.hasLocalCopy(doc)) {
+            bookItem.addFeature('localCopy');
         }
 
         const useCommand = isWebAddress(filePath) || !filePath.toLowerCase().endsWith('.md');

@@ -753,6 +753,12 @@
       },
       {
         "category": "CMSIS",
+        "command": "cmsis-csolution.removeLocalCopy",
+        "title": "Remove Local Copy",
+        "icon": "$(trash)"
+      },
+      {
+        "category": "CMSIS",
         "command": "cmsis-csolution.removeDocument",
         "title": "Remove Document",
         "icon": "$(trash)"
@@ -1058,6 +1064,10 @@
           "when": "false"
         },
         {
+          "command": "cmsis-csolution.removeLocalCopy",
+          "when": "false"
+        },
+        {
           "command": "cmsis-csolution.removeDocument",
           "when": "false"
         },
@@ -1327,7 +1337,12 @@
         },
         {
           "command": "cmsis-csolution.importDocument",
-          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)(webDoc|webLink)(;|$)/ && !(viewItem =~ /(^|;)userDoc(;|$)/)",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)webDoc(;|$)/ && !(viewItem =~ /(^|;)userDoc(;|$)/)",
+          "group": "contextMenu"
+        },
+        {
+          "command": "cmsis-csolution.removeLocalCopy",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)webDoc(;|$)/ && viewItem =~ /(^|;)localCopy(;|$)/ && !(viewItem =~ /(^|;)userDoc(;|$)/)",
           "group": "contextMenu"
         },
         {

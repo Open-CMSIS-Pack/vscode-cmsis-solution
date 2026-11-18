@@ -69,11 +69,7 @@ beside the inventory file, normally `~/.cmsis/docs`.
   `<root>/<Vendor>/<Name>/<basename>/<FileName.ext>`, excluding hardware revision
   or processor suffixes and URL query parameters and fragments. Local user files
   use the same structure, deriving the basename and filename from the selected file.
-- HTML-link imports use the URL basename for the index directory (`index` for a
-  root URL) and the selected local filename. Common HTML-link imports retain the
-  `<id>-<version>` layout with the selected file's extension. `getDestinationPath(localPath)`
-  accepts the selected path, or reuses the stored path after import, without
-  changing the reference's URL, format, or `H` classification.
+- HTML links (`H`) cannot be imported or downloaded.
 - Missing or unsafe path components are rejected rather than rewritten.
 
 For common PDF documents, the reference's `downloadUrl` constructs a metadata URL
@@ -101,10 +97,10 @@ a direct file URL rather than a hosting service's HTML viewer URL. Local files a
 HTML-only references cannot be downloaded.
 
 The outline's Download Document command delegates to `DocManager.downloadDocument`.
-Import is available for non-user `W` and `H` web references; Download is available
-only for non-user `W` references. The outline uses `webDoc` for `W` and `webLink`
-for `H`; Import accepts either feature and Download accepts only `webDoc`,
-excluding user documents and local or pack files.
+Import and Download are available only for non-user `W` references. The outline
+uses `webDoc` for `W` and `webLink` for `H`; both commands require `webDoc` and
+the `W` location type, excluding user documents and local or pack files. The
+manager also checks the current inventory record before transferring files.
 
 Add Document and Import share synchronous copying in `DocManager`, using
 `fs-utils` where available. They validate the source and managed destination,
@@ -116,9 +112,20 @@ Import changes only the selected reference and retains its identity and metadata
 re-adding a same-filename user document reuses its entry within its hardware parent.
 Inventory updates use `DocsYamlFile` and notify the outline after a successful save.
 
+Remove Local Copy is available only for non-user `W` references with an existing
+regular file at their managed destination. `DocManager.hasLocalCopy` checks the
+expected path and containment inside the inventory's `docs` directory. The outline
+exposes eligible references through its `localCopy` feature, and the manager
+rechecks eligibility when removing the copy.
+Removal deletes the selected file, clears `path` and `error`, saves the inventory,
+and notifies the outline. The reference's URL and metadata, source files, and
+companion files are retained. Deletion failures retain the inventory state and are
+reported. Imports, downloads, and local-copy removals for the same reference run
+in order, so removing a copy during a download waits for that download to finish.
+
 Remove Document deletes a selected user document's entire managed `indexDir`
-before removing its inventory entry. The manager validates containment and rejects
-symbolic-link directories. External legacy paths are retained.
+before removing its inventory entry. The manager validates containment and the
+expected destination. External legacy paths are retained.
 A missing directory permits entry removal; deletion errors retain the entry and
 are reported through the manager's error reporter.
 
