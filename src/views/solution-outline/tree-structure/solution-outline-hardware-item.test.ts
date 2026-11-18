@@ -157,8 +157,8 @@ describe('HardwareItemBuilder', () => {
         expect(books.map(book => book.getAttribute('docLocationType'))).toEqual(['W', 'H', 'L', 'L']);
         expect(books.map(book => book.getAttribute('docHasPath'))).toEqual(['1', '0', '0', '0']);
         expect(books[0].getAttribute('docError')).toBe('Document unavailable');
-        expect(books[0].getAttribute('tooltip')).toBe(`${path.resolve('selected.md')}\n\nError: Document unavailable`);
-        expect(books[1].getAttribute('tooltip')).toBe(names[1]);
+        expect(books[0].getAttribute('tooltip')).toBe(`\`${path.resolve('selected.md')}\`\n\nError: Document unavailable`);
+        expect(books[1].getAttribute('tooltip')).toBe(`\`${names[1]}\``);
         expect(books.map(book => book.getAttribute('command'))).toEqual([
             undefined,
             'cmsis-csolution.openDocFile',
@@ -217,11 +217,11 @@ describe('HardwareItemBuilder', () => {
         expect(book.getAttribute('resourcePath')).toBe(doc.path);
         expect(book.getAttribute('iconPath')).toBeUndefined();
         expect(book.getAttribute('docLocationType')).toBe('P');
-        expect(book.getAttribute('tooltip')).toBe(mode === 'user' ? doc.path : `${doc.path}\n\nFrom pack: \`${packId}\``);
+        expect(book.getAttribute('tooltip')).toBe(mode === 'user' ? `\`${doc.path}\`` : `\`${doc.path}\`\n\nFrom pack: \`${packId}\``);
 
         docManager.file.getDocParent(parentId, 'device')!.item!.setValue('pack', undefined);
         const bookWithoutPack = builder.createHardwareNodes(csolution).get(parentId)!.getChildren()[0];
-        expect(bookWithoutPack.getAttribute('tooltip')).toBe(doc.path);
+        expect(bookWithoutPack.getAttribute('tooltip')).toBe(`\`${doc.path}\``);
     });
 
     it.each(['Vendor::Device', 'Device'])('shows %s inventory without a supplied build tree', async parentId => {
