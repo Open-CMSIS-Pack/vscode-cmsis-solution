@@ -180,12 +180,19 @@ when running in development mode.
 
 Before running a release, check the following:
 
-1. Tools and schemas integrated into the extension packages according to `package.json`
-   - schema version referenced in `csolution` section
+1. Verify the tools and dependencies integrated into the extension packages according to `package.json`:
+   - Check the versions referenced in the `csolution` section:
 
-     `"schemaVersion": "<version>"`
+     ```json
+     "csolution": {
+       "uv2csolutionVersion": "<version>",
+       "toolboxVersion": "<version or nightly>",
+       "rpcVersion": "<version>"
+     }
+     ```
 
-     `<version>` must match a [project manager schemas tag](https://github.com/Open-CMSIS-Pack/devtools/releases)
+   - Ensure the configured versions are appropriate for the release.
+     Update them only if required.
 
 2. User guide is up-to-date at [MDK-Packs/vscode-cmsis-solution-docs@main](https://github.com/MDK-Packs/vscode-cmsis-solution-docs/tree/main/docs).
 

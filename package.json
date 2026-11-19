@@ -2,7 +2,7 @@
   "name": "cmsis-csolution",
   "displayName": "Arm CMSIS Solution",
   "description": "Create embedded and Edge AI projects for Arm Cortex-M based devices using the Common Microcontroller Software Interface Standard (CMSIS) and csolution format",
-  "version": "1.72.0",
+  "version": "1.74.0",
   "preview": false,
   "publisher": "Arm",
   "author": "Jonatan Antoni <jonatan.antoni@arm.com>",
@@ -378,7 +378,9 @@
     "taskDefinitions": [
       {
         "type": "cmsis-csolution.pyocd",
-        "required": ["args"],
+        "required": [
+          "args"
+        ],
         "properties": {
           "command": {
             "type": "string",
@@ -386,14 +388,20 @@
           },
           "args": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "Arguments passed directly to the managed pyOCD process"
           },
           "options": {
             "type": "object",
             "properties": {
-              "cwd": { "type": "string" },
-              "env": { "type": "object" }
+              "cwd": {
+                "type": "string"
+              },
+              "env": {
+                "type": "object"
+              }
             }
           }
         }
