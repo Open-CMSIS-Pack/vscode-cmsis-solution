@@ -696,6 +696,34 @@ describe('ContextSelectionWebviewMain', () => {
             expect(controller.activeDebugger?.item?.getChild('stdio')?.toObject()).toEqual([expectedEntry]);
         });
 
+        it.each([undefined, null, ''])('reuses an existing STDIO entry with pname=%s for the only named processor', async legacyPname => {
+            const main = manageSolutionWebviewMainFactory({ webviewManager });
+            await main.activate(context as unknown as vscode.ExtensionContext);
+
+            const controller = main.controller;
+            controller.enableDebugger(true, 'Test Adapter');
+            controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
+            controller.activeDebugger?.item?.createChild('stdio', true).fromObject([
+                { mode: 'monitor', port: 4444, ...(legacyPname === undefined ? {} : { pname: legacyPname }) },
+            ]);
+            controller.csolutionService = csolutionServiceFactory({
+                getDeviceInfo: jest.fn().mockResolvedValue({
+                    device: { processors: [{ name: 'Cortex-M0p', core: 'Cortex-M0+' }] },
+                }),
+            });
+
+            await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', {
+                service: 'stdio',
+                key: 'mode',
+                value: 'file',
+                pname: 'Cortex-M0p',
+            });
+
+            expect(controller.activeDebugger?.item?.getChild('stdio')?.toObject()).toEqual([
+                { mode: 'file', port: 4444, ...(legacyPname === undefined ? {} : { pname: null }) },
+            ]);
+        });
+
         it('creates missing sections for field edits without invoking the switch action', async () => {
             const main = manageSolutionWebviewMainFactory({ webviewManager });
             await main.activate(context as unknown as vscode.ExtensionContext);

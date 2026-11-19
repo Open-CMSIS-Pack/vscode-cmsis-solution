@@ -671,14 +671,15 @@ export class ManageSolutionController {
     }
 
     /**
-     * Sets a debugger parameter for a specific processor core (`pname`).
+     * Sets a processor-specific debugger parameter, reusing an unambiguous unnamed entry.
      * @param section Optional debugger section.
      * @param pname Processor/core name.
      * @param param Parameter key.
      * @param value Parameter value.
      */
     public async setDebuggerParameterWithPname(section: string | undefined, pname: string, param: string, value: string | number) {
-        if ((await this.getAvailableCoreNames()).length === 0) {
+        const availableCoreNames = await this.getAvailableCoreNames();
+        if (availableCoreNames.length === 0) {
             const sequence = this.activeTargetSetWrap.ensureDebugger().item
                 ?.createChild(section, true)
                 ?.setKind(ETreeItemKind.Sequence);
@@ -691,11 +692,24 @@ export class ManageSolutionController {
             const sectionNode = this.activeTargetSetWrap.ensureDebugger().item
                 ?.createChild(section, true)
                 ?.setKind(ETreeItemKind.Sequence);
+            const entries = sectionNode?.getChildren() ?? [];
+
+            const canReuseUnnamedProcessorEntry = () => {
+                if (availableCoreNames.length !== 1 || availableCoreNames[0] !== pname) {
+                    return false;
+                }
+                return entries.length === 1 && !entries[0].getValue('pname');
+            };
+
             let processorNode = sectionNode?.getChildByValue('pname', pname);
             if (!processorNode) {
-                processorNode = sectionNode?.createChild('-');
-                processorNode?.setKind(ETreeItemKind.Map).setText(undefined);
-                processorNode?.setValue('pname', pname);
+                if (canReuseUnnamedProcessorEntry()) {
+                    processorNode = entries[0];
+                } else {
+                    processorNode = sectionNode?.createChild('-');
+                    processorNode?.setKind(ETreeItemKind.Map).setText(undefined);
+                    processorNode?.setValue('pname', pname);
+                }
             }
             processorNode?.setValue(param, value as string);
         }
