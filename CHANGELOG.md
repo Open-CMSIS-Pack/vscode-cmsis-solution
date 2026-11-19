@@ -7,7 +7,7 @@
     - Documents can now be added, removed, downloaded, and imported, with overwrite confirmations and indicators for document locations and download errors. 
     - Web-hosted PDF documents can be downloaded and cached on the host machine (`~/.cmsis/docs`) for sharing across projects and with the CMSIS Developer Assistant.
     - Processor-specific Arm architecture, core, debug and NPU manuals are automatically added to the list of device-specific books.
-  - Improved the **Create Solution** dialog:
+  - Improved the [**Create Solution**](https://mdk-packs.github.io/vscode-cmsis-solution-docs/create_app.html) dialog:
     - Available projects are shown in a refined order, starting with local Csolution examples and reference applications followed by templates and µVision examples.
     - A checkbox allows examples from the web to be included.
     - Built-in `Blank solution` templates are displayed even when target specific templates are available from packs.
