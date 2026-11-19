@@ -93,6 +93,7 @@ module.exports = (_env, argv) => [
             manageComponentsPacks: './src/views/manage-components-packs/components-packs-webview-view.ts',
             createSolution: './src/views/create-solutions/create-solution-webview-view.ts',
             manageSolution: './src/views/manage-solution/manage-solution-webview-view.ts',
+            debugAdapterPreview: './src/views/debug-adapter-preview/preview-webview.ts',
             configWizard: './src/views/config-wizard/confwiz-webview-view.ts',
             configureSolution: './src/views/manage-layers/manage-layers-webview-view.ts'
         },
