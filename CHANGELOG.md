@@ -11,7 +11,7 @@
     - Available projects are shown in a refined order, starting with local Csolution examples and reference applications followed by templates and µVision examples.
     - A checkbox allows examples from the web to be included.
     - Built-in `Blank solution` templates are displayed even when target specific templates are available from packs.
-  - Added a new Refresh Build and RTE Information button to the CMSIS view. This makes the command Refresh (Reload Packs and Update RTE) more accessible, especially when the Auto Refresh On File Change extension setting is disabled.
+  - Added a new [Refresh Build and RTE Information](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#refresh-build-and-rte-information) button to the CMSIS view. This makes the command Refresh (Reload Packs and Update RTE) more accessible, especially when the Auto Refresh On File Change extension setting is disabled.
   - Updated **Extension Settings**:
     - The `Auto Refresh On File Change` setting can be disabled to avoid frequent `cbuild setup` calls caused by changes to watched files. The refresh button in the **CMSIS** view displays an exclamation mark when a manual refresh is required.
     - The `Build Output Verbosity` setting now includes the level `build-commands` which provides verbose output from the `cmake build` command without verbose `cbuild` output.
