@@ -58,7 +58,7 @@
                             "trace-clock": "125.2MHz",
                             "trace-port": "SWO-UART"
                         },
-                        "telnet": [
+                        "stdio": [
                             {
                                 "mode": "semihosting",
                                 "pname": "cm0plus",
@@ -162,7 +162,7 @@
                         "trace-clock": "125.2MHz",
                         "trace-port": "SWO-UART"
                     },
-                    "telnet": [
+                    "stdio": [
                         {
                             "mode": "semihosting",
                             "pname": "cm0plus",

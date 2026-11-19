@@ -954,10 +954,10 @@ describe('manage-solution-controller', () => {
         const targetSet = controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
         controller.activeTargetTypeName = 'test-target';
         controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
-        const telnet = targetSet.ensureDebugger('Test Debugger').item
-            ?.createChild('telnet', true)
+        const stdio = targetSet.ensureDebugger('Test Debugger').item
+            ?.createChild('stdio', true)
             ?.setKind(ETreeItemKind.Sequence);
-        const hpEntry = telnet?.createChild('-');
+        const hpEntry = stdio?.createChild('-');
         hpEntry?.setKind(ETreeItemKind.Map).setText(undefined);
         hpEntry?.setValue('pname', 'M55_HP');
         hpEntry?.setValue('mode', 'console');
@@ -975,11 +975,11 @@ describe('manage-solution-controller', () => {
             }),
         });
 
-        await controller.setDebuggerParameterWithPname('telnet', 'M55_HE', 'mode', 'off');
+        await controller.setDebuggerParameterWithPname('stdio', 'M55_HE', 'mode', 'off');
 
-        expect(telnet?.getChildren()).toHaveLength(2);
-        expect(telnet?.getChildByValue('pname', 'M55_HP')?.getValue('mode')).toBe('console');
-        expect(telnet?.getChildByValue('pname', 'M55_HE')?.getValue('mode')).toBe('off');
+        expect(stdio?.getChildren()).toHaveLength(2);
+        expect(stdio?.getChildByValue('pname', 'M55_HP')?.getValue('mode')).toBe('console');
+        expect(stdio?.getChildByValue('pname', 'M55_HE')?.getValue('mode')).toBe('off');
     });
 
     it('should get solution data', async () => {
