@@ -193,7 +193,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         cmsisToolboxManager,
     );
 
-    const buildTaskProvider = new BuildTaskProviderImpl(buildRunner);
+    const buildTaskProvider = new BuildTaskProviderImpl(buildRunner, undefined, undefined, solutionManager);
     const pyocdTaskProvider = new PyocdTaskProvider(() => envManager.getEnvironmentVariables());
     pyocdTaskProvider.activate(context);
     const buildTaskDefinitionBuilder = new BuildTaskDefinitionBuilderImpl(solutionManager, configurationProvider);

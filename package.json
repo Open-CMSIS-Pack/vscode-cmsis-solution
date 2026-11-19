@@ -2,7 +2,7 @@
   "name": "cmsis-csolution",
   "displayName": "Arm CMSIS Solution",
   "description": "Create embedded and Edge AI projects for Arm Cortex-M based devices using the Common Microcontroller Software Interface Standard (CMSIS) and csolution format",
-  "version": "1.72.0",
+  "version": "1.74.0",
   "preview": false,
   "publisher": "Arm",
   "author": "Jonatan Antoni <jonatan.antoni@arm.com>",
@@ -87,8 +87,8 @@
     "check:links": "tsx scripts/check-links.ts -i ./node_modules/** -i ./.github/** -c ./.github/markdown-link-check.jsonc"
   },
   "dependencies": {
-    "@ant-design/icons": "^5.6.1",
-    "@arm-software/vscode-environment-manager": "^1.24.4",
+    "@ant-design/icons": "^6.3.4",
+    "@arm-software/vscode-environment-manager": "^1.26.0",
     "@eclipse-cdt-cloud/clangd-contexts": "~0.9.0-next.c7c35a6.0",
     "@fortawesome/fontawesome-free": "^7.2.0",
     "@lydell/node-pty": "^1.1.0",
@@ -129,7 +129,7 @@
     "@faker-js/faker": "^10.6.0",
     "@graphql-codegen/cli": "^6.1.2",
     "@graphql-codegen/typescript-graphql-request": "^7.1.0",
-    "@graphql-codegen/typescript-operations": "^6.1.6",
+    "@graphql-codegen/typescript-operations": "^7.0.1",
     "@open-cmsis-pack/vsce-helper": "^0.4.1",
     "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^6.9.1",
@@ -184,7 +184,7 @@
     "simple-git": "^4.0.2",
     "style-loader": "^4.0.0",
     "targz": "^1.0.1",
-    "ts-jest": "^29.4.12",
+    "ts-jest": "^29.4.15",
     "ts-loader": "^9.5.4",
     "tsx": "^4.22.4",
     "typescript": "^5.9.3",
@@ -378,7 +378,9 @@
     "taskDefinitions": [
       {
         "type": "cmsis-csolution.pyocd",
-        "required": ["args"],
+        "required": [
+          "args"
+        ],
         "properties": {
           "command": {
             "type": "string",
@@ -386,14 +388,20 @@
           },
           "args": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "Arguments passed directly to the managed pyOCD process"
           },
           "options": {
             "type": "object",
             "properties": {
-              "cwd": { "type": "string" },
-              "env": { "type": "object" }
+              "cwd": {
+                "type": "string"
+              },
+              "env": {
+                "type": "object"
+              }
             }
           }
         }
@@ -488,7 +496,7 @@
       {
         "category": "CMSIS",
         "command": "cmsis-csolution.refresh",
-        "title": "Refresh Build Information",
+        "title": "Refresh Build and RTE Information",
         "icon": {
           "light": "./media/refresh-normal.svg",
           "dark": "./media/refresh-normal-dark.svg"
@@ -496,8 +504,13 @@
       },
       {
         "category": "CMSIS",
+        "command": "cmsis-csolution.refreshSolution",
+        "title": "Refresh (Reload Packs, Update RTE)"
+      },
+      {
+        "category": "CMSIS",
         "command": "cmsis-csolution.refreshDirty",
-        "title": "Refresh Build Information (Refresh Required)",
+        "title": "Refresh Build and RTE Information  (Refresh Required)",
         "icon": {
           "light": "./media/refresh-dirty.svg",
           "dark": "./media/refresh-dirty-dark.svg"
@@ -748,6 +761,12 @@
       },
       {
         "category": "CMSIS",
+        "command": "cmsis-csolution.removeLocalCopy",
+        "title": "Remove Local Copy",
+        "icon": "$(trash)"
+      },
+      {
+        "category": "CMSIS",
         "command": "cmsis-csolution.removeDocument",
         "title": "Remove Document",
         "icon": "$(trash)"
@@ -942,6 +961,10 @@
           "command": "cmsis-csolution.refresh"
         },
         {
+          "command": "cmsis-csolution.refreshSolution",
+          "when": "false"
+        },
+        {
           "command": "cmsis-csolution.refreshDirty",
           "when": "false"
         },
@@ -1046,6 +1069,10 @@
         },
         {
           "command": "cmsis-csolution.importDocument",
+          "when": "false"
+        },
+        {
+          "command": "cmsis-csolution.removeLocalCopy",
           "when": "false"
         },
         {
@@ -1235,6 +1262,11 @@
           "group": "Build@2"
         },
         {
+          "command": "cmsis-csolution.refreshSolution",
+          "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState == active",
+          "group": "Build@3"
+        },
+        {
           "command": "cmsis-csolution.reloadPacks",
           "when": "view == cmsis-csolution.outline && cmsis-csolution.activeSolutionState != active",
           "group": "Build@3"
@@ -1313,7 +1345,12 @@
         },
         {
           "command": "cmsis-csolution.importDocument",
-          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)(webDoc|webLink)(;|$)/ && !(viewItem =~ /(^|;)userDoc(;|$)/)",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)webDoc(;|$)/ && !(viewItem =~ /(^|;)userDoc(;|$)/)",
+          "group": "contextMenu"
+        },
+        {
+          "command": "cmsis-csolution.removeLocalCopy",
+          "when": "view == cmsis-csolution.outline && viewItem =~ /(^|;)webDoc(;|$)/ && viewItem =~ /(^|;)localCopy(;|$)/ && !(viewItem =~ /(^|;)userDoc(;|$)/)",
           "group": "contextMenu"
         },
         {
@@ -1517,7 +1554,7 @@
         "cmsis-csolution.autoRefreshOnFileChange": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically refresh build information when files used by the active solution change. When disabled, these file changes mark the solution as needing refresh. Use Refresh Build Information to refresh manually. Successful webview saves can also refresh build information."
+          "description": "Automatically refresh build and RTE information when files used by the active solution change. When disabled, these file changes mark the solution as needing refresh. Use Refresh Build and RTE Information to refresh manually. Successful webview saves also perform refresh."
         },
         "cmsis-csolution.generateClangSetup": {
           "type": "boolean",

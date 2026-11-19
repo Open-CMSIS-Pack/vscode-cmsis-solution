@@ -35,6 +35,8 @@ type ToolboxTool = 'csolution' | 'cbuild' | 'cpackget';
 type ToolboxCall = { tool: ToolboxTool | RpcMethod; args: string[]; }
 
 export interface CmsisToolRunOptions {
+    /** Report a redundant queued call without changing its existing return code. */
+    onSkipped?: () => void;
     emitExecuteLine?: boolean;
     usePty?: boolean;
     filterOutput?: boolean;
@@ -158,6 +160,7 @@ export class CmsisToolboxManagerImpl implements CmsisToolboxManager {
             // skip redundant call already enqueued
             msg = `Skip redundant: ${tool} ${args.join(' ')}`;
             console.debug(msg);
+            options.onSkipped?.();
             return [0, undefined];
         }
         // enqueue call

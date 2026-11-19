@@ -61,6 +61,9 @@ export class ManageSolutionController {
     private cmsisJsonFileStamp?: FileStamp | null;
     private cmsisJsonLoadResult?: ETextFileResult;
 
+    /** Controls whether experimental debugger sections are contributed to the adapter UI. */
+    public experimentalFeatures = false;
+
     /**
      * Gets the initialized csolution service instance.
      * @throws Error when the service has not been assigned yet.
@@ -575,8 +578,8 @@ export class ManageSolutionController {
         const definition = adapter ?? this.debugAdaptersCache.find(candidate => candidate.name === this.activeDebuggerName)
             ?? this.debugAdaptersYmlFile?.getAdapterByName(this.activeDebuggerName);
         return new DebugAdapterSections(
-            definition?.['user-interface'] ?? [],
-            [createTraceSectionDefinition(this.activeDebugger)],
+            definition?.['user-interface']?.filter(section => sectionIdentity(section, true) !== 'trace') ?? [],
+            this.experimentalFeatures ? [createTraceSectionDefinition(this.activeDebugger)] : [],
             () => this.activeDebugger,
             () => this.activeTargetSetWrap.ensureDebugger(),
         );

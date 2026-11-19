@@ -15,7 +15,6 @@
  */
 
 import * as path from 'node:path';
-import * as fs from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL, URL } from 'node:url';
 import { JsonFile } from '@open-cmsis-pack/cmsis-common/json-file';
@@ -26,7 +25,6 @@ import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { TestDataHandler } from '../__test__/test-data';
 import { ArmDoc, armDocName } from './arm-docs';
 import { DocDownload } from './doc-download';
-import { fileExists, writeTextFile } from '../utils/fs-utils';
 import * as fsUtils from '../utils/fs-utils';
 
 describe('DocManager catalog registration', () => {
@@ -78,7 +76,7 @@ describe('DocManager catalog registration', () => {
         doc.path = storedPath === undefined ? undefined : path.join(testData.tmpDir, storedPath);
         doc.error = 'Download failed';
         expect(await manager.file.save()).toBe(ETextFileResult.Success);
-        writeTextFile(destination, '%PDF-1.7');
+        fsUtils.writeTextFile(destination, '%PDF-1.7');
 
         expect(await manager.initialize(testData.tmpDir)).toBe(ETextFileResult.Success);
 
@@ -92,8 +90,8 @@ describe('DocManager catalog registration', () => {
     it('preserves a valid custom Arm path and unrelated error even when the default download exists', async () => {
         const doc = manager.file.getDocs('arm-docs', 'common')[0];
         const customPath = path.join(testData.tmpDir, 'selected.pdf');
-        writeTextFile(customPath, '%PDF-1.7');
-        writeTextFile(doc.getDestinationPath(), '%PDF-1.7');
+        fsUtils.writeTextFile(customPath, '%PDF-1.7');
+        fsUtils.writeTextFile(doc.getDestinationPath(), '%PDF-1.7');
         doc.path = customPath;
         doc.error = 'Previous download failed';
         expect(await manager.file.save()).toBe(ETextFileResult.Success);
@@ -112,7 +110,7 @@ describe('DocManager catalog registration', () => {
         const name = 'https://example.com/manual.pdf';
         const missingPath = path.join(testData.tmpDir, 'missing.pdf');
         const existingPath = path.join(testData.tmpDir, 'existing.pdf');
-        writeTextFile(existingPath, '%PDF-1.7');
+        fsUtils.writeTextFile(existingPath, '%PDF-1.7');
         const missing = manager.file.ensureDoc(name, parentId, parentTag);
         missing.path = missingPath;
         missing.mode = 'user';
@@ -142,7 +140,7 @@ describe('DocManager catalog registration', () => {
             path: undefined, error: 'HTTP 404',
         }));
 
-        writeTextFile(missingPath, '%PDF-1.7');
+        fsUtils.writeTextFile(missingPath, '%PDF-1.7');
         expect(await manager.initialize(testData.tmpDir)).toBe(ETextFileResult.Success);
 
         expect(await reloaded.load()).toBe(ETextFileResult.Success);
@@ -282,7 +280,7 @@ describe('DocManager', () => {
 
     it.each(['relative path', 'file URL'])('copies a user book from a %s and persists its managed path', async inputType => {
         const source = path.join(testData.tmpDir, 'books', 'user.pdf');
-        writeTextFile(source, 'User document');
+        fsUtils.writeTextFile(source, 'User document');
         const input = inputType === 'file URL' ? pathToFileURL(source).href : path.relative(process.cwd(), source);
 
         const doc = await manager.addUserBook(`${deviceId}:CPU0`, 'device', input, 'User manual', 'reference');
@@ -299,8 +297,8 @@ describe('DocManager', () => {
     it.each([false, true])('reuses a same-filename user entry and confirms overwriting its managed file, approved: %s', async approved => {
         const source = path.join(testData.tmpDir, 'old', 'manual.pdf');
         const replacement = path.join(testData.tmpDir, 'new', 'manual.pdf');
-        writeTextFile(source, 'Original document');
-        writeTextFile(replacement, 'Replacement document');
+        fsUtils.writeTextFile(source, 'Original document');
+        fsUtils.writeTextFile(replacement, 'Replacement document');
         const original = await manager.addUserBook(boardId, 'board', source, 'Original title', 'reference');
         const other = await manager.addUserBook(deviceId, 'device', source, 'Device manual');
         const destination = original!.path!;
@@ -328,8 +326,7 @@ describe('DocManager', () => {
 
     it.each([
         { name: webName, format: 'pdf', locationType: 'W' },
-        { name: 'https://example.com/manual.html', format: 'html', locationType: 'H' },
-        { name: 'https://example.com/manual', format: undefined, locationType: 'H' },
+        { name: 'https://example.com/manual', format: 'pdf', locationType: 'W' },
     ])('imports only the selected $locationType reference while retaining its identity and metadata', async ({ name, format, locationType }) => {
         await manager.addBooks(createBuild({
             board: boardId, device: deviceId,
@@ -344,7 +341,7 @@ describe('DocManager', () => {
         doc.error = 'Download failed';
         await manager.file.save();
         const source = path.join(testData.tmpDir, 'replacement.pdf');
-        writeTextFile(source, 'Imported document');
+        fsUtils.writeTextFile(source, 'Imported document');
         const changed = jest.fn();
         manager.onDidChange(changed);
 
@@ -367,7 +364,7 @@ describe('DocManager', () => {
         const doc = manager.file.ensureDoc(webName, boardId, 'board');
         await manager.file.save();
         const destination = doc.getDestinationPath();
-        writeTextFile(destination, 'Existing document');
+        fsUtils.writeTextFile(destination, 'Existing document');
         const confirm = jest.fn();
         const copy = jest.spyOn(fsUtils, 'copyFile');
 
@@ -402,8 +399,8 @@ describe('DocManager', () => {
         await manager.file.save();
         const destination = doc.getDestinationPath();
         const source = path.join(testData.tmpDir, 'source.pdf');
-        writeTextFile(source, 'Replacement document');
-        writeTextFile(destination, 'Original document');
+        fsUtils.writeTextFile(source, 'Replacement document');
+        fsUtils.writeTextFile(destination, 'Original document');
         const before = manager.file.stringify();
         const changed = jest.fn();
         manager.onDidChange(changed);
@@ -428,7 +425,7 @@ describe('DocManager', () => {
         await manager.initialize(testData.tmpDir);
         const doc = manager.file.ensureDoc(webName, boardId, 'board');
         const destination = path.join(testData.tmpDir, 'docs', 'Vendor', 'Board', 'manual', 'manual.pdf');
-        writeTextFile(destination, 'Original document');
+        fsUtils.writeTextFile(destination, 'Original document');
         doc!.path = path.join(testData.tmpDir, 'previous.pdf');
         doc!.error = 'Previous error';
         await manager.file.save();
@@ -642,6 +639,8 @@ describe('DocManager', () => {
     it.each([
         { name: 'missing', mode: undefined },
         { name: 'https://example.com/manual.html', mode: undefined },
+        { name: 'https://example.com/manual', mode: undefined },
+        { name: path.resolve('manual.pdf'), mode: undefined },
         { name: '${CMSIS_PACK_ROOT}/manual.pdf', mode: undefined },
         { name: webName, mode: 'user' as const },
     ])('rejects Import and Download for an ineligible document: $name ($mode)', async ({ name, mode }) => {
@@ -651,11 +650,13 @@ describe('DocManager', () => {
         }
         const before = manager.file.stringify();
         const download = jest.spyOn(DocDownload.prototype, 'downloadDoc');
+        const source = path.join(testData.tmpDir, 'source.pdf');
+        fsUtils.writeTextFile(source, 'Original');
         const changed = jest.fn();
         manager.onDidChange(changed);
 
         await expect(manager.downloadDocument(boardId, 'board', name)).resolves.toBeUndefined();
-        expect(await manager.importDocument(boardId, 'board', name, 'manual.pdf')).toBe(false);
+        expect(await manager.importDocument(boardId, 'board', name, source)).toBe(false);
         expect(download).not.toHaveBeenCalled();
         expect(manager.file.stringify()).toBe(before);
         expect(changed).not.toHaveBeenCalled();
@@ -681,20 +682,151 @@ describe('DocManager', () => {
         expect(changed).not.toHaveBeenCalled();
     });
 
+    it.each(['board', 'device', 'common'].flatMap(parentTag => ['import', 'download'].map(operation => ({ parentTag, operation }))))(
+        'removes a local $parentTag $operation copy and persists the remote reference', async ({ parentTag, operation }) => {
+            const parentId = parentTag === 'common' ? 'arm-docs' : parentTag === 'board' ? boardId : deviceId;
+            const doc = parentTag === 'common' ? manager.file.getDocs(parentId, parentTag)[0] : manager.file.ensureDoc(webName, parentId, parentTag);
+            doc.title = 'Selected manual';
+            doc.category = 'reference';
+            await manager.file.save();
+            const source = path.join(testData.tmpDir, 'source.pdf');
+            fsUtils.writeTextFile(source, 'Original');
+            if (operation === 'import') {
+                expect(await manager.importDocument(parentId, parentTag, doc.name, source)).toBe(true);
+            } else {
+                jest.spyOn(DocDownload.prototype, 'downloadDoc').mockImplementationOnce(async (_url, destination) => {
+                    fsUtils.writeTextFile(destination, 'Original');
+                });
+                await manager.downloadDocument(parentId, parentTag, doc.name);
+            }
+            const destination = doc.path!;
+            const companion = path.join(doc.indexDir!, 'companion.txt');
+            fsUtils.writeTextFile(companion, 'Companion');
+            const other = manager.file.ensureDoc('https://example.com/other.pdf', parentId, parentTag);
+            other.path = source;
+            doc.error = 'Previous error';
+            await manager.file.save();
+            const changed = jest.fn();
+            manager.onDidChange(changed);
+
+            expect(manager.hasLocalCopy(doc)).toBe(true);
+            expect(await manager.removeLocalCopy(parentId, parentTag, doc.name)).toBe(true);
+
+            expect(fsUtils.fileExists(destination)).toBe(false);
+            expect(readFileSync(source, 'utf8')).toBe('Original');
+            expect(readFileSync(companion, 'utf8')).toBe('Companion');
+            const stored = new DocsYamlFile(manager.file.fileName);
+            expect(await stored.load()).toBe(ETextFileResult.Success);
+            expect(stored.getDoc(doc.name, parentId, parentTag)).toEqual(expect.objectContaining({
+                name: doc.name, title: 'Selected manual', category: 'reference', locationType: 'W',
+                id: doc.id, version: doc.version, format: doc.format, metadataUrl: doc.metadataUrl,
+                path: undefined, error: undefined, mode: undefined,
+            }));
+            expect(stored.getDoc(other.name, parentId, parentTag)?.path).toBe(source);
+            expect(manager.hasLocalCopy(doc)).toBe(false);
+            expect(changed).toHaveBeenCalledTimes(1);
+            await manager.initialize(testData.tmpDir);
+            expect(manager.file.getDoc(doc.name, parentId, parentTag)?.path).toBeUndefined();
+        },
+    );
+
+    it.each(['H', 'L', 'P', 'user', 'remote', 'missing-file', 'external', 'other-destination', 'directory', 'missing-record'])(
+        'rejects local-copy removal for %s without changing files or inventory', async state => {
+            const name = state === 'H' ? 'https://example.com/manual.html' : state === 'L' ? path.join(testData.tmpDir, 'local.pdf')
+                : state === 'P' ? '${CMSIS_PACK_ROOT}/manual.pdf' : webName;
+            const doc = manager.file.ensureDoc(name, boardId, 'board');
+            const destination = path.join(testData.tmpDir, 'docs', 'Vendor', 'Board', 'manual', 'manual.pdf');
+            const external = path.join(testData.tmpDir, 'external.pdf');
+            fsUtils.writeTextFile(external, 'External');
+            if (state === 'directory') {
+                fsUtils.createDirectory(destination);
+            } else if (state !== 'missing-file') {
+                fsUtils.writeTextFile(destination, 'Original');
+            }
+            const otherDestination = path.join(path.dirname(destination), 'other.pdf');
+            fsUtils.writeTextFile(otherDestination, 'Other');
+            doc.path = state === 'remote' ? undefined : state === 'external' ? external : state === 'other-destination' ? otherDestination : destination;
+            doc.mode = state === 'user' ? 'user' : undefined;
+            doc.error = 'Previous error';
+            await manager.file.save();
+            const before = manager.file.stringify();
+            const changed = jest.fn();
+            manager.onDidChange(changed);
+
+            expect(manager.hasLocalCopy(doc)).toBe(state === 'missing-record');
+            expect(await manager.removeLocalCopy(boardId, 'board', state === 'missing-record' ? 'missing' : name)).toBe(false);
+
+            expect(manager.file.stringify()).toBe(before);
+            expect(readFileSync(external, 'utf8')).toBe('External');
+            expect(readFileSync(otherDestination, 'utf8')).toBe('Other');
+            expect(fsUtils.fileExists(destination)).toBe(state !== 'missing-file');
+            expect(changed).not.toHaveBeenCalled();
+        },
+    );
+
+    it('retains the local copy and inventory when deletion fails', async () => {
+        const doc = manager.file.ensureDoc(webName, boardId, 'board');
+        doc.path = doc.getDestinationPath();
+        fsUtils.writeTextFile(doc.path, 'Original');
+        doc.error = 'Previous error';
+        await manager.file.save();
+        const before = manager.file.stringify();
+        const changed = jest.fn();
+        manager.onDidChange(changed);
+        const reporter = jest.fn();
+        DocManager.setErrorReporter(reporter);
+        const remove = jest.spyOn(fsUtils, 'deleteFileIfExists').mockImplementationOnce(() => { throw new Error('Access denied'); });
+        try {
+            expect(await manager.removeLocalCopy(boardId, 'board', webName)).toBe(false);
+            expect(manager.file.stringify()).toBe(before);
+            expect(readFileSync(doc.path!, 'utf8')).toBe('Original');
+            expect(reporter).toHaveBeenCalledWith(expect.stringContaining('Access denied'));
+            expect(changed).not.toHaveBeenCalled();
+        } finally {
+            remove.mockRestore();
+            DocManager.setErrorReporter();
+        }
+    });
+
+    it('removes the final copy after an active download completes', async () => {
+        const doc = manager.file.ensureDoc(webName, boardId, 'board');
+        doc.path = doc.getDestinationPath();
+        fsUtils.writeTextFile(doc.path, 'Original');
+        await manager.file.save();
+        let finishDownload!: () => void;
+        const completed = new Promise<void>(resolve => { finishDownload = resolve; });
+        let downloadStarted!: () => void;
+        const started = new Promise<void>(resolve => { downloadStarted = resolve; });
+        jest.spyOn(DocDownload.prototype, 'downloadDoc').mockImplementationOnce(async (_url, destination) => {
+            downloadStarted();
+            await completed;
+            fsUtils.writeTextFile(destination, 'Downloaded');
+        });
+
+        const download = manager.downloadDocument(boardId, 'board', webName);
+        await started;
+        const removal = manager.removeLocalCopy(boardId, 'board', webName);
+        finishDownload();
+        await download;
+        expect(await removal).toBe(true);
+        expect(fsUtils.fileExists(doc.getDestinationPath())).toBe(false);
+        expect(manager.file.getDoc(webName, boardId, 'board')?.path).toBeUndefined();
+    });
+
     it('removes the selected managed directory and companions while retaining other documents and the source', async () => {
         const source = path.join(testData.tmpDir, 'source', 'manual.pdf');
-        writeTextFile(source, 'Original');
+        fsUtils.writeTextFile(source, 'Original');
         const selected = await manager.addUserBook(boardId, 'board', source, 'Board user manual');
         const other = await manager.addUserBook(deviceId, 'device', source, 'Device user manual');
         const siblingSource = path.join(testData.tmpDir, 'source', 'other.pdf');
-        writeTextFile(siblingSource, 'Other');
+        fsUtils.writeTextFile(siblingSource, 'Other');
         const sibling = await manager.addUserBook(boardId, 'board', siblingSource, 'Other manual');
-        writeTextFile(path.join(selected!.indexDir!, 'generated', 'index.txt'), 'Companion');
+        fsUtils.writeTextFile(path.join(selected!.indexDir!, 'generated', 'index.txt'), 'Companion');
 
         expect(await manager.removeDocument(boardId, 'board', selected!.name)).toBe(true);
 
-        expect(fileExists(selected!.indexDir)).toBe(false);
-        expect(fileExists(path.dirname(selected!.indexDir!))).toBe(true);
+        expect(fsUtils.fileExists(selected!.indexDir)).toBe(false);
+        expect(fsUtils.fileExists(path.dirname(selected!.indexDir!))).toBe(true);
         expect(readFileSync(other!.path!, 'utf8')).toBe('Original');
         expect(readFileSync(sibling!.path!, 'utf8')).toBe('Other');
         expect(readFileSync(source, 'utf8')).toBe('Original');
@@ -716,7 +848,7 @@ describe('DocManager', () => {
 
     it('removes a legacy external entry without deleting its file', async () => {
         const source = path.join(testData.tmpDir, 'external', 'manual.pdf');
-        writeTextFile(source, 'Original');
+        fsUtils.writeTextFile(source, 'Original');
         const doc = manager.file.ensureDoc(source, boardId, 'board');
         doc.mode = 'user';
         doc.path = source;
@@ -728,12 +860,12 @@ describe('DocManager', () => {
 
     it('retains the entry and reports a managed-directory deletion failure', async () => {
         const source = path.join(testData.tmpDir, 'source.pdf');
-        writeTextFile(source, 'Original');
+        fsUtils.writeTextFile(source, 'Original');
         const doc = await manager.addUserBook(boardId, 'board', source, 'Manual');
         const before = manager.file.stringify();
         const reporter = jest.fn();
         DocManager.setErrorReporter(reporter);
-        const remove = jest.spyOn(jest.requireActual<typeof fs>('node:fs'), 'rmSync').mockImplementationOnce(() => { throw new Error('Access denied'); });
+        const remove = jest.spyOn(fsUtils, 'deleteDirectory').mockImplementationOnce(() => { throw new Error('Access denied'); });
         try {
             expect(await manager.removeDocument(boardId, 'board', source)).toBe(false);
             expect(manager.file.stringify()).toBe(before);

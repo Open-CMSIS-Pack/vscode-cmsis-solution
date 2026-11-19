@@ -23,6 +23,7 @@ import { HardwareItemBuilder } from './solution-outline-hardware-item';
 import { TestDataHandler } from '../../../__test__/test-data';
 import path from 'node:path';
 import { DocManager } from '../../../doc-manager/doc-manager';
+import * as fsUtils from '../../../utils/fs-utils';
 
 describe('HardwareItemBuilder', () => {
     let cSolFile: string;
@@ -157,8 +158,8 @@ describe('HardwareItemBuilder', () => {
         expect(books.map(book => book.getAttribute('docLocationType'))).toEqual(['W', 'H', 'L', 'L']);
         expect(books.map(book => book.getAttribute('docHasPath'))).toEqual(['1', '0', '0', '0']);
         expect(books[0].getAttribute('docError')).toBe('Document unavailable');
-        expect(books[0].getAttribute('tooltip')).toBe(`${path.resolve('selected.md')}\n\nError: Document unavailable`);
-        expect(books[1].getAttribute('tooltip')).toBe(names[1]);
+        expect(books[0].getAttribute('tooltip')).toBe(`\`${path.resolve('selected.md')}\`\n\nError: Document unavailable`);
+        expect(books[1].getAttribute('tooltip')).toBe(`\`${names[1]}\``);
         expect(books.map(book => book.getAttribute('command'))).toEqual([
             undefined,
             'cmsis-csolution.openDocFile',
@@ -167,7 +168,7 @@ describe('HardwareItemBuilder', () => {
         ]);
     });
 
-    it.each([undefined, 'user'] as const)('shows Download for W and Import for W/H in the context menu (mode: %s)', async mode => {
+    it.each([undefined, 'user'] as const)('shows Download and Import only for W in the context menu (mode: %s)', async mode => {
         const manifest = new JsonFile(path.resolve('package.json'));
         expect(await manifest.load()).toBe(ETextFileResult.Success);
         const menus = (manifest.content as {
@@ -176,7 +177,9 @@ describe('HardwareItemBuilder', () => {
         const downloadMenu = menus.find(menu => menu.command === 'cmsis-csolution.downloadDocument');
         const importMenu = menus.find(menu => menu.command === 'cmsis-csolution.importDocument');
         expect(downloadMenu?.when).toBe('view == cmsis-csolution.outline && viewItem =~ /(^|;)webDoc(;|$)/ && !(viewItem =~ /(^|;)userDoc(;|$)/)');
-        expect(importMenu?.when).toBe('view == cmsis-csolution.outline && viewItem =~ /(^|;)(webDoc|webLink)(;|$)/ && !(viewItem =~ /(^|;)userDoc(;|$)/)');
+        expect(importMenu?.when).toBe('view == cmsis-csolution.outline && viewItem =~ /(^|;)webDoc(;|$)/ && !(viewItem =~ /(^|;)userDoc(;|$)/)');
+        const removeLocalCopyMenu = menus.find(menu => menu.command === 'cmsis-csolution.removeLocalCopy');
+        expect(removeLocalCopyMenu?.when).toBe('view == cmsis-csolution.outline && viewItem =~ /(^|;)webDoc(;|$)/ && viewItem =~ /(^|;)localCopy(;|$)/ && !(viewItem =~ /(^|;)userDoc(;|$)/)');
 
         const csolution = new CSolution();
         expect(await csolution.load(cSolFile)).toBe(ETextFileResult.Success);
@@ -195,10 +198,52 @@ describe('HardwareItemBuilder', () => {
         expect(books.map(book => (book.getAttribute('features') ?? '').split(';').includes('webLink'))).toEqual([false, true, false, false]);
         const downloadable = books.filter(book => /(^|;)webDoc(;|$)/.test(book.getAttribute('features') ?? '')
             && !/(^|;)userDoc(;|$)/.test(book.getAttribute('features') ?? ''));
-        const importable = books.filter(book => /(^|;)(webDoc|webLink)(;|$)/.test(book.getAttribute('features') ?? '')
+        const importable = books.filter(book => /(^|;)webDoc(;|$)/.test(book.getAttribute('features') ?? '')
             && !/(^|;)userDoc(;|$)/.test(book.getAttribute('features') ?? ''));
         expect(downloadable.map(book => book.getAttribute('docName'))).toEqual(mode === 'user' ? [] : [names[0]]);
-        expect(importable.map(book => book.getAttribute('docName'))).toEqual(mode === 'user' ? [] : names.slice(0, 2));
+        expect(importable.map(book => book.getAttribute('docName'))).toEqual(mode === 'user' ? [] : [names[0]]);
+    });
+
+    it.each(['board', 'device'] as const)('exposes Remove Local Copy only for an existing managed W file under a %s', async parentTag => {
+        const csolution = new CSolution();
+        await csolution.load(cSolFile);
+        const parentId = `Vendor::${parentTag}`;
+        csolution.getCbuildTop()!.setValue(parentTag, parentId);
+        const source = path.join(testDataHandler.tmpDir, 'source.pdf');
+        fsUtils.writeTextFile(source, 'Original');
+        const names = [
+            'https://example.com/local-copy.pdf', 'https://example.com/remote.pdf', 'https://example.com/missing.pdf',
+            'https://example.com/online.html', 'local.pdf', '${CMSIS_PACK_ROOT}/manual.pdf',
+            'https://example.com/user.pdf', 'https://example.com/external.pdf',
+        ];
+        for (const [index, name] of names.entries()) {
+            const doc = docManager.file.ensureDoc(name, parentId, parentTag);
+            if (index === 0 || index === 2 || index === 6) {
+                doc.path = doc.getDestinationPath();
+                if (index !== 2) {
+                    fsUtils.writeTextFile(doc.path, 'Local copy');
+                }
+            } else if (index > 2) {
+                doc.path = source;
+            }
+            if (index === 6) {
+                doc.mode = 'user';
+            }
+        }
+        expect(await docManager.file.save()).toBe(ETextFileResult.Success);
+        const builder = new HardwareItemBuilder(csolution, undefined, docManager);
+        const removableNames = () => builder.createHardwareNodes(csolution).get(parentId)!.getChildren()
+            .filter(book => (book.getAttribute('features') ?? '').split(';').includes('localCopy'))
+            .map(book => book.getAttribute('docName'));
+
+        expect(removableNames()).toEqual([names[0]]);
+
+        expect(await docManager.removeLocalCopy(parentId, parentTag, names[0])).toBe(true);
+
+        expect(removableNames()).toEqual([]);
+        const book = builder.createHardwareNodes(csolution).get(parentId)!.getChildren().find(book => book.getAttribute('docName') === names[0]);
+        expect(book?.getAttribute('docHasPath')).toBe('0');
+        expect(book?.getAttribute('docPath')).toBe(names[0]);
     });
 
     it.each([undefined, 'user'] as const)('shows the owning pack only for non-user pack documents (mode: %s)', async mode => {
@@ -217,11 +262,11 @@ describe('HardwareItemBuilder', () => {
         expect(book.getAttribute('resourcePath')).toBe(doc.path);
         expect(book.getAttribute('iconPath')).toBeUndefined();
         expect(book.getAttribute('docLocationType')).toBe('P');
-        expect(book.getAttribute('tooltip')).toBe(mode === 'user' ? doc.path : `${doc.path}\n\nFrom pack: \`${packId}\``);
+        expect(book.getAttribute('tooltip')).toBe(mode === 'user' ? `\`${doc.path}\`` : `\`${doc.path}\`\n\nFrom pack: \`${packId}\``);
 
         docManager.file.getDocParent(parentId, 'device')!.item!.setValue('pack', undefined);
         const bookWithoutPack = builder.createHardwareNodes(csolution).get(parentId)!.getChildren()[0];
-        expect(bookWithoutPack.getAttribute('tooltip')).toBe(doc.path);
+        expect(bookWithoutPack.getAttribute('tooltip')).toBe(`\`${doc.path}\``);
     });
 
     it.each(['Vendor::Device', 'Device'])('shows %s inventory without a supplied build tree', async parentId => {

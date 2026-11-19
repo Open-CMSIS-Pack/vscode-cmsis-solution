@@ -58,6 +58,7 @@ describe('BuildCommand', () => {
             onDidEndTask: (listener: (event: vscode.TaskEndEvent) => void) => vscode.Disposable;
         }).onDidEndTask = () => ({ dispose: jest.fn() } as unknown as vscode.Disposable);
         mockBuildTaskProvider = {
+            getBuildResult: jest.fn(),
             createTask: jest.fn((taskDefinition) => new vscode.Task(
                 taskDefinition, vscode.TaskScope.Workspace, 'cbuild some-solution-path', taskDefinition.type
             )),

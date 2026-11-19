@@ -29,7 +29,7 @@ import { commandsProviderFactory } from '../../../vscode-api/commands-provider.f
 import { extensionContextFactory } from '../../../vscode-api/extension-context.factories';
 import { textFileSystemFactory } from '../../../__test__/text-file-system';
 import { TestDataHandler } from '../../../__test__/test-data';
-import { writeTextFile } from '../../../utils/fs-utils';
+import * as fsUtils from '../../../utils/fs-utils';
 
 describe('DocumentCommand', () => {
     const testData = new TestDataHandler();
@@ -70,7 +70,7 @@ describe('DocumentCommand', () => {
         manager = new DocManager();
         await manager.initialize(testData.tmpDir);
         localPath = vscode.Uri.file(path.join(testData.tmpDir, 'source', 'manual.pdf')).fsPath;
-        writeTextFile(localPath, 'Selected document');
+        fsUtils.writeTextFile(localPath, 'Selected document');
         target = new TargetTypeWrap(new CTreeItem('target-type'));
         target.board = 'UnresolvedBoard';
         target.device = 'UnresolvedDevice';
@@ -102,11 +102,12 @@ describe('DocumentCommand', () => {
         jest.restoreAllMocks();
     });
 
-    it('registers the four document commands', () => {
+    it('registers the five document commands', () => {
         expect(commands.registerCommand.mock.calls.map(call => call[0])).toEqual([
-            DocumentCommand.addCommandId, DocumentCommand.downloadCommandId, DocumentCommand.importCommandId, DocumentCommand.removeCommandId,
+            DocumentCommand.addCommandId, DocumentCommand.downloadCommandId, DocumentCommand.importCommandId,
+            DocumentCommand.removeLocalCopyCommandId, DocumentCommand.removeCommandId,
         ]);
-        expect(context.subscriptions).toHaveLength(4);
+        expect(context.subscriptions).toHaveLength(5);
     });
 
     it.each(['board', 'device', 'common'] as const)('downloads a document using its %s inventory identity', async parentTag => {
@@ -123,19 +124,23 @@ describe('DocumentCommand', () => {
         expect(window.showErrorMessage).not.toHaveBeenCalled();
     });
 
-    it.each(['webDoc', 'webLink'])('does not download an H document with the %s feature', async feature => {
-        const node = nodeFor('board', 'book');
-        node.setAttribute('docLocationType', 'H');
-        node.setAttribute('features', `docFile;${feature}`);
-        const download = jest.spyOn(manager, 'downloadDocument').mockResolvedValue(undefined);
+    it.each([DocumentCommand.downloadCommandId, DocumentCommand.importCommandId].flatMap(command => ['webDoc', 'webLink'].map(feature => ({ command, feature }))))(
+        'rejects $command for an H document with the $feature feature', async ({ command, feature }) => {
+            const node = nodeFor('board', 'book');
+            node.setAttribute('docLocationType', 'H');
+            node.setAttribute('features', `docFile;${feature}`);
+            const download = jest.spyOn(manager, 'downloadDocument').mockResolvedValue(undefined);
+            const importDocument = jest.spyOn(manager, 'importDocument');
 
-        await commands.mockRunRegistered(DocumentCommand.downloadCommandId, node);
+            await commands.mockRunRegistered(command, node);
 
-        expect(download).not.toHaveBeenCalled();
-        expect(window.showOpenDialog).not.toHaveBeenCalled();
-        expect(window.showWarningMessage).not.toHaveBeenCalled();
-        expect(window.showErrorMessage).not.toHaveBeenCalled();
-    });
+            expect(download).not.toHaveBeenCalled();
+            expect(importDocument).not.toHaveBeenCalled();
+            expect(window.showOpenDialog).not.toHaveBeenCalled();
+            expect(window.showWarningMessage).not.toHaveBeenCalled();
+            expect(window.showErrorMessage).not.toHaveBeenCalled();
+        },
+    );
 
     it.each([
         { command: DocumentCommand.addCommandId, action: 'Overwrite', message: 'The destination file already exists. Overwrite it?' },
@@ -148,7 +153,7 @@ describe('DocumentCommand', () => {
             await manager.initialize(testData.tmpDir);
             solutionManager.getDocManager.mockReturnValue(manager);
             const previousPath = path.join(testData.tmpDir, 'docs', 'Vendor', 'Selected', 'manual', 'manual.pdf');
-            writeTextFile(previousPath, 'Existing document');
+            fsUtils.writeTextFile(previousPath, 'Existing document');
             const isAdd = command === DocumentCommand.addCommandId;
             const doc = await manager.addUserBook('Vendor::Selected', 'board', isAdd ? previousPath : name, 'Original title');
             doc!.mode = isAdd ? 'user' : undefined;
@@ -237,6 +242,7 @@ describe('DocumentCommand', () => {
         if (command !== DocumentCommand.addCommandId) {
             node.setAttribute('docParentId', parentId);
             node.setAttribute('docParentTag', 'device');
+            node.setAttribute('docLocationType', 'W');
             node.addFeature('webDoc');
             if (command === DocumentCommand.removeCommandId) {
                 node.addFeature('userDoc');
@@ -329,11 +335,9 @@ describe('DocumentCommand', () => {
         { docName: 'https://example.com/manual.md?download=1', locationType: 'W', extension: 'md' },
         { docName: 'https://example.com/manual.PDF', locationType: 'W', extension: 'pdf' },
         { docName: 'https://example.com/manual.docx', locationType: 'W', extension: 'docx' },
-        { docName: 'https://example.com/manual.html', locationType: 'H', extension: 'pdf' },
-        { docName: 'https://example.com/manual.html', locationType: 'H', extension: 'md' },
     ])('imports a $locationType document from .$extension using its original identity, retaining URL and mode', async ({ docName, locationType, extension }) => {
         const selectedPath = path.join(testData.tmpDir, 'source', `manual.${extension}`);
-        writeTextFile(selectedPath, 'Selected document');
+        fsUtils.writeTextFile(selectedPath, 'Selected document');
         window.showOpenDialog.mockResolvedValueOnce([vscode.Uri.file(selectedPath)]);
         const doc = manager.file.ensureDoc(docName, 'Vendor::Selected', 'board');
         const node = nodeFor('board', 'book');
@@ -386,6 +390,61 @@ describe('DocumentCommand', () => {
         await commands.mockRunRegistered(DocumentCommand.importCommandId, node);
         expect(doc.path).toBeUndefined();
         expect(window.showOpenDialog).not.toHaveBeenCalled();
+    });
+
+    it.each(['board', 'device', 'common'] as const)('removes a local copy using its %s inventory identity', async parentTag => {
+        const parentId = parentTag === 'common' ? 'arm-docs' : 'Vendor::Selected';
+        const doc = manager.file.ensureDoc(name, parentId, parentTag);
+        if (parentTag === 'common') {
+            doc.id = 'manual';
+            doc.version = '1';
+            doc.format = 'pdf';
+        }
+        await manager.file.save();
+        expect(await manager.importDocument(parentId, parentTag, name, localPath)).toBe(true);
+        const node = nodeFor(parentTag === 'board' ? 'board' : 'device', 'book');
+        node.setAttribute('docParentId', parentId);
+        node.setAttribute('docParentTag', parentTag);
+        node.addFeature('localCopy');
+
+        await commands.mockRunRegistered(DocumentCommand.removeLocalCopyCommandId, node);
+
+        expect(manager.file.getDoc(name, parentId, parentTag)).toEqual(expect.objectContaining({ name, path: undefined }));
+        expect(window.showOpenDialog).not.toHaveBeenCalled();
+        expect(window.showErrorMessage).not.toHaveBeenCalled();
+    });
+
+    it.each(['missing', 'H', 'L', 'P', 'user', 'remote'])(
+        'ignores local-copy removal for an ineligible outline target: %s', async state => {
+            const node = state === 'missing' ? undefined : nodeFor('board', 'book');
+            if (state === 'user') {
+                node!.addFeature('userDoc');
+            } else if (node && ['H', 'L', 'P'].includes(state)) {
+                node.setAttribute('docLocationType', state);
+            }
+            if (state !== 'remote') {
+                node?.addFeature('localCopy');
+            }
+            const remove = jest.spyOn(manager, 'removeLocalCopy');
+
+            await commands.mockRunRegistered(DocumentCommand.removeLocalCopyCommandId, node);
+
+            expect(remove).not.toHaveBeenCalled();
+            expect(window.showOpenDialog).not.toHaveBeenCalled();
+            expect(window.showErrorMessage).not.toHaveBeenCalled();
+        },
+    );
+
+    it('reports local-copy removal failure for a stale outline target', async () => {
+        manager.file.ensureDoc(name, 'Vendor::Selected', 'board');
+        await manager.file.save();
+        const node = nodeFor('board', 'book');
+        node.addFeature('localCopy');
+
+        await commands.mockRunRegistered(DocumentCommand.removeLocalCopyCommandId, node);
+
+        expect(window.showErrorMessage).toHaveBeenCalledWith('Failed to remove the local copy.');
+        expect(manager.file.getDoc(name, 'Vendor::Selected', 'board')).toBeDefined();
     });
 
     it.each([undefined, 'future', 'user'])('removes only user entries through the command: %s', async mode => {
