@@ -34,7 +34,7 @@ import yaml from 'yaml';
 import { csolutionFactory } from '../solutions/csolution.factory';
 import { TasksJsonFile } from './tasks-json-file';
 import { PYOCD_TASK_TYPE } from './pyocd-task-provider';
-import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
+import { ETextFileResult, TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
 
 class DebugLaunchProviderTest extends DebugLaunchProviderImpl   {
 
@@ -110,6 +110,7 @@ describe('DebugLaunchProvider', () => {
     });
 
     afterEach(() => {
+        jest.restoreAllMocks();
         testDataHandler.rmFile(tasksJsonFile);
         testDataHandler.rmFile(launchJsonFile);
         testDataHandler.rmDir(solutionVscodeDir);
@@ -632,6 +633,9 @@ describe('DebugLaunchProvider', () => {
                             if (section.options.every(opt => opt.default === undefined)) {
                                 return undefined;
                             } else if ('pname-options' in section) {
+                                if (section['yml-node'] === 'stdio') {
+                                    return [{ port: 4444 }];
+                                }
                                 return undefined;
                             } else {
                                 return {};
@@ -709,7 +713,7 @@ describe('DebugLaunchProvider', () => {
                             if (section.options.every(opt => opt.default === undefined)) {
                                 return undefined;
                             } else if ('pname-options' in section) {
-                                if (section['yml-node'] === 'telnet') {
+                                if (section['yml-node'] === 'stdio') {
                                     return params.processors.map((p, idx) => ({ pname: p.pname, port: 4444 + idx }));
                                 }
                                 return params.processors.map(p => ({ pname: p.pname }));
@@ -751,6 +755,53 @@ describe('DebugLaunchProvider', () => {
                 });
             }
         });
+    });
+
+    it.each([
+        { adapterName: 'CMSIS-DAP@pyOCD', key: 'stdio' },
+        { adapterName: 'CMSIS-DAP@pyOCD', key: 'telnet' },
+        { adapterName: 'J-Link Server', key: 'stdio' },
+        { adapterName: 'J-Link Server', key: 'telnet' },
+    ])('generates single-core serial I/O launch arguments for $adapterName with $key YAML', async ({ adapterName, key }) => {
+        const source = new TextFile(path.join(workspaceFolder, 'serial.cbuild-run.yml'));
+        source.text = `cbuild-run:
+  solution: solution.csolution.yml
+  output:
+    - file: image.elf
+      type: elf
+      load: image+symbols
+  debugger:
+    name: ${adapterName}
+    gdbserver:
+      - port: 3333
+    ${key}:
+      - mode: monitor
+        port: 5555
+`;
+        expect(await source.save()).toBe(ETextFileResult.Success);
+        const buildRun = new CbuildRunYamlFile(source.fileName);
+        expect(await buildRun.load()).toBe(ETextFileResult.Success);
+
+        const provider = new DebugLaunchProviderTest();
+        provider.etaMock.renderObject.mockImplementation(EtaExt.prototype.renderObject);
+        provider.solutionManagerMock.workspaceFolder = workspaceFolderUri;
+        provider.solutionManagerMock.getCsolution.mockReturnValue(csolutionFactory({
+            solutionPath: path.join(workspaceFolder, 'solution.csolution.yml'), solutionDir: workspaceFolder,
+        }));
+        jest.spyOn(provider, 'loadCbuildRunYml').mockResolvedValue(buildRun);
+
+        await provider.handleUpdateDebugTasks();
+
+        const launchFile = new LaunchJsonFile(launchJsonFile);
+        expect(await launchFile.load()).toBe(ETextFileResult.Success);
+        const launch = launchFile.findConfigItem('request', 'launch');
+        const serverParameters = launch?.getChild('target')?.getValuesAsArray('serverParameters');
+        if (adapterName === 'J-Link Server') {
+            expect(serverParameters).toEqual(expect.arrayContaining(['-TelnetPort', '5555']));
+            expect(launch?.getValuesAsArray('initCommands')).toContain('monitor semihosting enable');
+        } else {
+            expect(serverParameters).toContain('--semihosting');
+        }
     });
 
     describe('handleUpdateDebugTasks', () => {

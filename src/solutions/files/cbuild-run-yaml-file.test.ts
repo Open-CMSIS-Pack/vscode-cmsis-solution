@@ -16,15 +16,20 @@
 
 import { CbuildRunYamlFile } from './cbuild-run-yaml-file';
 import path from 'path';
-import * as fsUtils from '../../utils/fs-utils';
-import { TestDataHandler } from '../../__test__/test-data';
+import { ETextFileResult, TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
+import { textFileSystemFactory } from '../../__test__/text-file-system';
 
 describe('cbuild-run-yaml-file', () => {
-    const testDataHandler = new TestDataHandler();
-    const tmpDir = testDataHandler.tmpDir;
-
-    const workspaceFolder = tmpDir;
+    const workspaceFolder = path.resolve('test-workspace');
     const fileUri = path.join(workspaceFolder, 'out', 'test.cbuild-run.yml');
+    let files: Map<string, string>;
+
+    beforeEach(() => {
+        files = new Map();
+        TextFile.setFileSystem(textFileSystemFactory(files));
+    });
+
+    afterEach(() => TextFile.setFileSystem());
     const bootElf = path.join('boot', 'release', 'boot.elf');
     const bootHex = path.join('boot', 'release', 'boot.hex');
     const appElf = path.join('app', 'debug', 'app.elf');
@@ -58,15 +63,9 @@ describe('cbuild-run-yaml-file', () => {
               pname: core1
     `;
 
-    afterAll(async () => {
-        testDataHandler.dispose();
-    });
-
     it('returns debugger configuration from basic cbuild-run.yml file', async () => {
         const cbuildRunFile = new CbuildRunYamlFile(fileUri);
-
-        jest.spyOn(fsUtils, 'readTextFile').mockReturnValue(cbuildRunYamlFile);
-        jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
+        files.set(fileUri, cbuildRunYamlFile);
         await cbuildRunFile.load();
 
         expect(cbuildRunFile.getDebugger()).toEqual({
@@ -84,13 +83,50 @@ describe('cbuild-run-yaml-file', () => {
         });
     });
 
+    describe('getStdio', () => {
+        const monitor = { mode: 'monitor', port: 4444, pname: 'core0' };
+        const consoleOutput = { mode: 'console', pname: 'core1' };
+
+        it.each([
+            { description: 'stdio for multiple processors', yaml: '    stdio: [{ mode: monitor, port: 4444, pname: core0 }, { mode: console, pname: core1 }]', expected: [monitor, consoleOutput] },
+            { description: 'legacy telnet', yaml: '    telnet: [{ mode: monitor, port: 4444, pname: core0 }]', expected: [monitor] },
+            { description: 'stdio in preference to legacy telnet', yaml: '    stdio: [{ mode: console, pname: core1 }]\n    telnet: [{ mode: monitor, port: 4444, pname: core0 }]', expected: [consoleOutput] },
+            { description: 'an explicitly empty stdio', yaml: '    stdio: []\n    telnet: [{ mode: monitor, port: 4444, pname: core0 }]', expected: [] },
+            { description: 'no serial configuration', yaml: '', expected: undefined },
+        ])('reads $description from cbuild-run YAML', async ({ yaml, expected }) => {
+            files.set(fileUri, `cbuild-run:
+  output: []
+  debugger:
+    name: CMSIS-DAP
+${yaml}
+`);
+
+            const cbuildRunFile = new CbuildRunYamlFile(fileUri);
+            expect(await cbuildRunFile.load()).toBe(ETextFileResult.Success);
+            expect(cbuildRunFile.getDebugger().stdio).toEqual(expected);
+            expect(cbuildRunFile.getStdio()).toEqual(expected ?? []);
+        });
+
+        it.each(['off', 'console', 'file'])('accepts %s mode without a TCP port', async mode => {
+            files.set(fileUri, `cbuild-run:
+  output: []
+  debugger:
+    name: CMSIS-DAP
+    stdio:
+      - mode: ${mode}
+`);
+            const cbuildRunFile = new CbuildRunYamlFile(fileUri);
+            expect(await cbuildRunFile.load()).toBe(ETextFileResult.Success);
+            expect(cbuildRunFile.getDebugger().stdio).toEqual([{ mode }]);
+            expect(cbuildRunFile.getStdio()).toEqual([{ mode }]);
+        });
+    });
+
     describe('getToolVersion', () => {
 
         it('returns tools and version', async () => {
             const cbuildRunFile = new CbuildRunYamlFile(fileUri);
-
-            jest.spyOn(fsUtils, 'readTextFile').mockReturnValue(cbuildRunYamlFile);
-            jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
+            files.set(fileUri, cbuildRunYamlFile);
             await cbuildRunFile.load();
 
             const [tool, version] = cbuildRunFile.getToolVersion();
@@ -102,9 +138,7 @@ describe('cbuild-run-yaml-file', () => {
             const cbuildRunFile = new CbuildRunYamlFile(fileUri);
 
             const yaml = cbuildRunYamlFile.replace('generated-by: unittest version 1.2.3', 'generated-by: unittest version invalid');
-
-            jest.spyOn(fsUtils, 'readTextFile').mockReturnValue(yaml);
-            jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
+            files.set(fileUri, yaml);
 
             await cbuildRunFile.load();
 
@@ -117,9 +151,7 @@ describe('cbuild-run-yaml-file', () => {
             const cbuildRunFile = new CbuildRunYamlFile(fileUri);
 
             const yaml = cbuildRunYamlFile.replace('generated-by: unittest version 1.2.3', 'generated-by: unittest');
-
-            jest.spyOn(fsUtils, 'readTextFile').mockReturnValue(yaml);
-            jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
+            files.set(fileUri, yaml);
 
             await cbuildRunFile.load();
 
@@ -132,9 +164,7 @@ describe('cbuild-run-yaml-file', () => {
             const cbuildRunFile = new CbuildRunYamlFile(fileUri);
 
             const yaml = cbuildRunYamlFile.replace('generated-by: unittest version 1.2.3', '');
-
-            jest.spyOn(fsUtils, 'readTextFile').mockReturnValue(yaml);
-            jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
+            files.set(fileUri, yaml);
 
             await cbuildRunFile.load();
 
@@ -147,9 +177,7 @@ describe('cbuild-run-yaml-file', () => {
 
     it('returns resolved path to solution', async () => {
         const cbuildRunFile = new CbuildRunYamlFile(fileUri);
-
-        jest.spyOn(fsUtils, 'readTextFile').mockReturnValue(cbuildRunYamlFile);
-        jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
+        files.set(fileUri, cbuildRunYamlFile);
 
         await cbuildRunFile.load();
 
@@ -170,9 +198,7 @@ describe('cbuild-run-yaml-file', () => {
         filterTests.forEach(({ filter, description }) => {
             it(description, async () => {
                 const cbuildRunFile = new CbuildRunYamlFile(fileUri);
-
-                jest.spyOn(fsUtils, 'readTextFile').mockReturnValue(cbuildRunYamlFile);
-                jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
+                files.set(fileUri, cbuildRunYamlFile);
 
                 await cbuildRunFile.load();
 
