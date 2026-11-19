@@ -15,7 +15,8 @@
   - Updated **Extension Settings**:
     - The `Auto Refresh On File Change` setting can be disabled to avoid frequent `cbuild setup` calls caused by changes to watched files. The refresh button in the **CMSIS** view displays an exclamation mark when a manual refresh is required.
     - The `Build Output Verbosity` setting now includes the level `build-commands` which provides verbose output from the `cmake build` command without verbose `cbuild` output.
-  - Introduced the extended CMSIS Solution Extension API V3 for the CMSIS Developer Assistant MCP server and other extension integrations.
+  - Introduced the extended ] for the CMSIS Developer Assistant MCP server and other extension integrations.
+  - Introduced the extended [CMSIS Solution Extension API V3](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/blob/main/api/README.md#api-version-3-in-development) for the CMSIS Developer Assistant MCP server and other extension integrations.
   - Solution descriptions are now displayed in the workspace solution picker making solutions easier to identify in workspaces containing multiple solutions.
   - The **What's New** option in the **CMSIS** view menu opens the corresponding document from the Keil Studio Pack extension.
 
