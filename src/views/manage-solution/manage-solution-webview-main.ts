@@ -350,10 +350,10 @@ export class ManageSolutionWebviewMain {
 
             if (subsection) {
                 this.controller.setDebuggerParameter(service, param, value.toString(), subsection, pname);
-            } else if ((pname === undefined || pname === null) || this.controller.availableCoreNames.length <= 1) {
+            } else if (!pname) {
                 this.controller.setDebuggerParameter(service, param, value.toString());
             } else {
-                this.controller.setDebuggerParameterWithPname(service, pname, param, value.toString());
+                await this.controller.setDebuggerParameterWithPname(service, pname, param, value.toString());
             }
             await this.sendContextData();
         });

@@ -982,6 +982,39 @@ describe('manage-solution-controller', () => {
         expect(stdio?.getChildByValue('pname', 'M55_HE')?.getValue('mode')).toBe('off');
     });
 
+    it.each([
+        { deviceCoreNames: ['C0', 'C1'], entries: [{ mode: 'monitor' }] },
+        { deviceCoreNames: ['C0'], entries: [{ mode: 'monitor' }, { mode: 'console' }] },
+        { deviceCoreNames: ['C0'], entries: [{ pname: 'OtherCore', mode: 'console' }] },
+    ])('preserves STDIO entries that cannot be assigned to the requested processor for device cores $deviceCoreNames', async ({ deviceCoreNames, entries }) => {
+        const controller = new ManageSolutionController();
+        const targetSet = controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
+        controller.activeTargetTypeName = 'test-target';
+        controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
+        const stdio = targetSet.ensureDebugger('Test Debugger').item?.createChild('stdio', true);
+        stdio?.fromObject(entries);
+        const adaptersFile = new DebugAdaptersYamlFile();
+        jest.spyOn(adaptersFile, 'debugAdapters', 'get').mockReturnValue([{
+            name: 'Test Debugger',
+            'user-interface': [{ section: 'Standard I/O', 'yml-node': 'stdio', 'pname-options': true, options: [] }],
+        }]);
+        controller['debugAdaptersYmlFile'] = adaptersFile;
+        controller.csolutionService = csolutionServiceFactory({
+            getDeviceInfo: jest.fn().mockResolvedValue({
+                device: {
+                    processors: deviceCoreNames.map(name => ({ name, core: 'Cortex-M0+' })),
+                },
+            }),
+        });
+
+        await controller.getAvailableCoreNames();
+        expect(stdio?.toObject()).toEqual(entries);
+
+        await controller.setDebuggerParameterWithPname('stdio', 'C0', 'mode', 'file');
+
+        expect(stdio?.toObject()).toEqual([...entries, { pname: 'C0', mode: 'file' }]);
+    });
+
     it('should get solution data', async () => {
         const controller = new ManageSolutionController();
         await controller.loadSolution('test-resources/solutions/solution-with-debuggers.csolution');
