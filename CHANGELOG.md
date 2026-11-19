@@ -14,7 +14,7 @@
   - Added a new [Refresh Build and RTE Information](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#refresh-build-and-rte-information) button to the CMSIS view. This makes the command Refresh (Reload Packs and Update RTE) more accessible, especially when the Auto Refresh On File Change extension setting is disabled.
   - Updated **Extension Settings**:
     - The [`Auto Refresh On File Change`](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#auto-refresh-on-file-change) setting can be disabled to avoid frequent `cbuild setup` calls caused by changes to watched files. The refresh button in the **CMSIS** view displays an exclamation mark when a manual refresh is required.
-    - The `Build Output Verbosity` setting now includes the level `build-commands` which provides verbose output from the `cmake build` command without verbose `cbuild` output.
+    - The [`Build Output Verbosity`](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#build-output-verbosity) setting now includes the level `build-commands` which provides verbose output from the `cmake build` command without verbose `cbuild` output.
   - Introduced the extended ] for the CMSIS Developer Assistant MCP server and other extension integrations.
   - Introduced the extended [CMSIS Solution Extension API V3](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/blob/main/api/README.md#api-version-3-in-development) for the CMSIS Developer Assistant MCP server and other extension integrations.
   - Solution descriptions are now displayed in the workspace solution picker making solutions easier to identify in workspaces containing multiple solutions.
