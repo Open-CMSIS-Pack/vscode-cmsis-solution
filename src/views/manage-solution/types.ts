@@ -15,12 +15,3 @@
  */
 
 export type PathType = 'absolute' | 'relative';
-
-export type FileSelectorOptionsType = {
-    canSelectMany?: boolean,
-    defaultUri?: string,
-    openLabel?: string,
-    title?: string,
-    pathType?: PathType,
-    filters?: { [key: string]: string[] }
-};

@@ -166,19 +166,6 @@ describe('ContextSelectionWebviewMain', () => {
         expect(addImageSpy).toHaveBeenCalledWith('images/application.axf');
     });
 
-    it('sets debugger on SET_DEBUGGER', async () => {
-        const main = manageSolutionWebviewMainFactory({
-            webviewManager
-        });
-        await main.activate(context as unknown as vscode.ExtensionContext);
-
-        await fireAndWait('SET_DEBUGGER', { name: 'debugger1' });
-
-        expect(webviewManager.sendMessage).toHaveBeenCalledWith(
-            expect.objectContaining({ type: 'DEBUGGER', data: expect.any(String) })
-        );
-    });
-
     it('updates context on SET_SELECTED_CONTEXTS', async () => {
         const initial = solutionDataFactory();
         const updated = solutionDataFactory();
@@ -257,88 +244,6 @@ describe('ContextSelectionWebviewMain', () => {
                 .map(m => m.data);
             expect(dirtyMessages).toEqual(expect.arrayContaining([true, false]));
         });
-    });
-
-    it('toggles debugger enabled state on TOGGLE_DEBUGGER', async () => {
-        const main = manageSolutionWebviewMainFactory({
-            webviewManager
-        });
-        await main.activate(context as unknown as vscode.ExtensionContext);
-
-        await fireAndWait('TOGGLE_DEBUGGER', { value: true });
-        await fireAndWait('TOGGLE_DEBUGGER', { value: false });
-
-        const debuggerMessages = webviewManager.sendMessage.mock.calls
-            .filter(c => c[0].type === 'DEBUGGER');
-        expect(debuggerMessages.length).toBeGreaterThanOrEqual(2);
-    });
-
-    it('updates debug adapter section on TOGGLE_DEBUG_ADAPTER_SECTION', async () => {
-        const main = manageSolutionWebviewMainFactory({
-            webviewManager
-        });
-        await main.activate(context as unknown as vscode.ExtensionContext);
-
-        await fireAndWait('TOGGLE_DEBUG_ADAPTER_SECTION', { section: 'connection' });
-
-        expect(webviewManager.sendMessage).toHaveBeenCalledWith(
-            expect.objectContaining({ type: 'DEBUG_ADAPTERS' })
-        );
-    });
-
-    it('records trace subsection edits in snapshots and restores them through undo and redo', async () => {
-        const onEdit = jest.fn();
-        const configurationProvider = configurationProviderFactory({ [manifest.CONFIG_EXPERIMENTAL_FEATURES]: true });
-        const main = manageSolutionWebviewMainFactory({ webviewManager, onEdit, configurationProvider });
-        await main.activate(context as unknown as vscode.ExtensionContext);
-        main.controller.enableDebugger(true, 'Test Adapter');
-        main.controller.experimentalFeatures = true;
-        const before = main.getSolutionSnapshot();
-
-        await fireAndWait('ADD_DEBUG_ADAPTER_SUBSECTION', { section: 'trace', subsection: ['serialwire'] });
-        await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', { service: 'trace', subsection: ['serialwire'], key: 'input-clock', value: 64000000 });
-        await fireAndWait('SET_DEBUG_ADAPTER_SUBSECTION_ENABLED', { section: 'trace', subsection: ['serialwire'], enabled: false });
-        const configured = main.getSolutionSnapshot();
-        expect(main.controller.activeDebugger?.item?.getChild('trace')?.toObject()).toEqual([
-            { 'swo-uart': null, mode: 'off', 'input-clock': 64000000 },
-        ]);
-
-        await fireAndWait('REMOVE_DEBUG_ADAPTER_SUBSECTION', { section: 'trace', subsection: ['serialwire'] });
-        expect(main.controller.activeDebugger?.item?.getChild('trace')).toBeUndefined();
-        expect(onEdit).toHaveBeenCalledTimes(4);
-        expect(onEdit.mock.calls.map(([label]) => label)).toEqual([
-            'ADD_DEBUG_ADAPTER_SUBSECTION', 'UPDATE_DEBUGGER_PARAMETER', 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED', 'REMOVE_DEBUG_ADAPTER_SUBSECTION',
-        ]);
-
-        await main.applySnapshot(before);
-        expect(main.controller.activeDebugger?.item?.getChild('trace')).toBeUndefined();
-        await main.applySnapshot(configured);
-        expect(main.getSolutionSnapshot()).toEqual(configured);
-    });
-
-    it('routes nested field messages by descriptor identity without creating a node for the display identity', async () => {
-        const main = manageSolutionWebviewMainFactory({ webviewManager });
-        await main.activate(context as unknown as vscode.ExtensionContext);
-        main.controller.enableDebugger(true, 'Test Adapter');
-        main.controller['debugAdaptersCache'] = [{
-            name: 'Test Adapter',
-            'user-interface': [{
-                id: 'advanced', section: 'Advanced', 'yml-node': 'settings', options: [],
-                subsections: [{
-                    id: 'transport', section: 'Transport', options: [],
-                    subsections: [{
-                        id: 'channel', section: 'Channel', options: [{ name: 'Clock', 'yml-node': 'input-clock', type: 'number' }],
-                    }],
-                }],
-            }],
-        }];
-
-        await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', {
-            service: 'advanced', subsection: ['transport', 'channel'], key: 'input-clock', value: 64000000,
-        });
-
-        expect(main.controller.activeDebugger?.item?.getChild('settings')?.toObject()).toEqual({ transport: { channel: { 'input-clock': 64000000 } } });
-        expect(main.controller.activeDebugger?.item?.getChild('advanced')).toBeUndefined();
     });
 
     describe('onDidChangeLoadState callback', () => {
@@ -527,7 +432,7 @@ describe('ContextSelectionWebviewMain', () => {
         });
     });
 
-    it('subscribes to configuration changes and sends AUTO_UPDATE', async () => {
+    it('subscribes to configuration changes and sends the canonical settings snapshot', async () => {
         const settings = {
             [`${manifest.PACKAGE_NAME}.${manifest.CONFIG_AUTO_DEBUG_LAUNCH}`]: true,
         };
@@ -535,9 +440,17 @@ describe('ContextSelectionWebviewMain', () => {
         const main = manageSolutionWebviewMainFactory({ webviewManager, configurationProvider });
 
         await main.activate(context as unknown as vscode.ExtensionContext);
+        let posted: () => void = () => undefined;
+        const snapshotSent = new Promise<void>(resolve => { posted = resolve; });
+        webviewManager.sendMessage.mockImplementation(async message => {
+            if (message.type === 'ADAPTER_SETTINGS') posted();
+        });
         await configurationProvider.setConfigVariable(manifest.CONFIG_AUTO_DEBUG_LAUNCH, false);
+        await snapshotSent;
 
-        expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'AUTO_UPDATE', data: false });
+        expect(webviewManager.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'ADAPTER_SETTINGS', snapshot: expect.objectContaining({ header: expect.objectContaining({ autoUpdate: false }) }),
+        }));
     });
 
     it('does not show warning message on dispose when not dirty', async () => {
@@ -613,40 +526,6 @@ describe('ContextSelectionWebviewMain', () => {
         expect(sendContextDataSpy).toHaveBeenCalled();
     });
 
-    describe('updateDebuggerParameter', () => {
-        it('creates missing sections for field edits without invoking the switch action', async () => {
-            const main = manageSolutionWebviewMainFactory({ webviewManager });
-            await main.activate(context as unknown as vscode.ExtensionContext);
-            main.controller.enableDebugger(true, 'Test Adapter');
-            const toggle = jest.spyOn(main.controller, 'toggleDebugAdapterSection');
-
-            await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', { service: 'settings', key: 'port', value: 3333 });
-            expect(main.controller.activeDebugger?.item?.getChild('settings')?.toObject()).toEqual({ port: '3333' });
-            expect(toggle).not.toHaveBeenCalled();
-
-            await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', { service: 'settings', key: 'host', value: 'localhost' });
-            expect(main.controller.activeDebugger?.item?.getChild('settings')?.toObject()).toEqual({ port: '3333', host: 'localhost' });
-        });
-
-        it('invokes setDebuggerParameter with stringified value and sends DEBUG_ADAPTERS + DATA_CONTEXT_SELECTION', async () => {
-            const main = manageSolutionWebviewMainFactory({ webviewManager });
-            await main.activate(context as unknown as vscode.ExtensionContext);
-
-            const spy = jest.spyOn(main.controller, 'setDebuggerParameter');
-
-            await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', {
-                service: 'gdb',
-                key: 'port',
-                value: 3333
-            });
-
-            expect(spy).toHaveBeenCalledWith('gdb', 'port', '3333');
-            const sentTypes = webviewManager.sendMessage.mock.calls.map(c => c[0].type);
-            expect(sentTypes).toContain('DEBUG_ADAPTERS');
-            expect(sentTypes).toContain('DATA_CONTEXT_SELECTION');
-        });
-    });
-
     it('resets wasDirty after saving changes', async () => {
         const main = manageSolutionWebviewMainFactory({ webviewManager });
 
@@ -719,104 +598,5 @@ describe('ContextSelectionWebviewMain', () => {
         expect(result).toBe(ETextFileResult.Success);
     });
 
-    describe('selectFileDialog', () => {
-        it('sends FILE_SELECTED with relative path and respects defaultUri', async () => {
-            const main = manageSolutionWebviewMainFactory({ webviewManager });
-            await main.activate(context as unknown as vscode.ExtensionContext);
 
-            const rootDir = path.resolve('root');
-            const solutionPath = path.join(rootDir, 'solution.csolution.yml');
-            main.controller.csolutionYml.fileName = solutionPath;
-
-            const filePath = path.join(rootDir, 'images', 'app.axf');
-            const defaultPath = path.join(rootDir, 'images', 'seed.bin');
-            const showOpenDialogSpy = jest.spyOn(vscode.window, 'showOpenDialog').mockResolvedValue([
-                URI.file(filePath) as unknown as vscode.Uri
-            ]);
-
-            await fireAndWait('SELECT_FILE', {
-                requestId: 'image-path',
-                options: {
-                    defaultUri: defaultPath,
-                    canSelectMany: false,
-                    openLabel: 'Select File',
-                    title: 'Select File',
-                }
-            });
-
-            const dialogOptions = showOpenDialogSpy.mock.calls[0][0];
-            expect(dialogOptions?.defaultUri?.toString()).toBe(URI.file(path.resolve(defaultPath)).toString());
-            expect(webviewManager.sendMessage).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    type: 'FILE_SELECTED',
-                    data: ['images/app.axf'],
-                    requestId: 'image-path'
-                })
-            );
-        });
-
-        it('sends FILE_SELECTED with empty data when dialog is cancelled', async () => {
-            const main = manageSolutionWebviewMainFactory({ webviewManager });
-            await main.activate(context as unknown as vscode.ExtensionContext);
-
-            const rootDir = path.resolve('root');
-            main.controller.csolutionYml.fileName = path.join(rootDir, 'solution.csolution.yml');
-
-            jest.spyOn(vscode.window, 'showOpenDialog').mockResolvedValue(undefined);
-
-            await fireAndWait('SELECT_FILE', {
-                requestId: 'image-path',
-                options: {
-                    canSelectMany: false,
-                    openLabel: 'Select File',
-                    title: 'Select File',
-                }
-            });
-
-            const selectedMessages = webviewManager.sendMessage.mock.calls
-                .map(([message]) => message)
-                .filter(message => message.type === 'FILE_SELECTED');
-
-            expect(selectedMessages).toEqual([
-                expect.objectContaining({
-                    type: 'FILE_SELECTED',
-                    data: [],
-                    requestId: 'image-path'
-                })
-            ]);
-        });
-
-        it('sends all selected files when canSelectMany is true', async () => {
-            const main = manageSolutionWebviewMainFactory({ webviewManager });
-            await main.activate(context as unknown as vscode.ExtensionContext);
-
-            const rootDir = path.resolve('root');
-            main.controller.csolutionYml.fileName = path.join(rootDir, 'solution.csolution.yml');
-
-            const firstFile = path.join(rootDir, 'images', 'app.axf');
-            const secondFile = path.join(rootDir, 'images', 'boot.axf');
-
-            jest.spyOn(vscode.window, 'showOpenDialog').mockResolvedValue([
-                URI.file(firstFile) as unknown as vscode.Uri,
-                URI.file(secondFile) as unknown as vscode.Uri
-            ]);
-
-            await fireAndWait('SELECT_FILE', {
-                requestId: 'image-path',
-                options: {
-                    canSelectMany: true,
-                    openLabel: 'Select Files',
-                    title: 'Select Files',
-                }
-            });
-
-            expect(webviewManager.sendMessage).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    type: 'FILE_SELECTED',
-                    data: ['images/app.axf', 'images/boot.axf'],
-                    requestId: 'image-path'
-                })
-            );
-        });
-    });
 });

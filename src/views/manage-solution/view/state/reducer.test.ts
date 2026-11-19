@@ -16,7 +16,7 @@
 
 import { ManageSolutionState, ImageSelection, ProjectSelection, TargetType } from './manage-solution-state';
 import { solutionDataFactory, projectSelectionFactory } from './manage-solution-state.factories';
-import { editablePropertyKey, manageSolutionReducer, initialState } from './reducer';
+import { manageSolutionReducer, initialState } from './reducer';
 
 describe('contextSelectionReducer', () => {
     describe('INCOMING_MESSAGE', () => {
@@ -34,23 +34,6 @@ describe('contextSelectionReducer', () => {
             expect(output).toEqual({
                 ...initialState,
                 solutionData,
-            });
-        });
-
-        it('sets the context selection state when the message type is DEBUG_ADAPTERS', () => {
-            const input: ManageSolutionState = { ...initialState };
-
-            const output = manageSolutionReducer(input, {
-                type: 'INCOMING_MESSAGE', message: {
-                    type: 'DEBUG_ADAPTERS',
-                    data: [{ name: 'my-debug-adapter' }],
-                    sectionsInUse: []
-                }
-            });
-
-            expect(output).toEqual({
-                ...initialState,
-                debugAdapters: [{ name: 'my-debug-adapter' }],
             });
         });
 
@@ -87,22 +70,6 @@ describe('contextSelectionReducer', () => {
             });
         });
 
-        it('sets the debugger property when the message type is DEBUGGER', () => {
-            const input: ManageSolutionState = { ...initialState };
-
-            const output = manageSolutionReducer(input, {
-                type: 'INCOMING_MESSAGE', message: {
-                    type: 'DEBUGGER',
-                    data: 'my_debugger',
-                }
-            });
-
-            expect(output).toEqual({
-                ...initialState,
-                debugger: 'my_debugger',
-            });
-        });
-
         it('sets the debugger property when the message type is ACTIVE_TARGET_SET', () => {
             const input: ManageSolutionState = { ...initialState };
 
@@ -115,38 +82,6 @@ describe('contextSelectionReducer', () => {
 
             expect(output).toEqual({
                 ...initialState
-            });
-        });
-
-        it('sets returns a file path is FILE_SELECTED is received', () => {
-            const input: ManageSolutionState = { ...initialState };
-
-            const output = manageSolutionReducer(input, {
-                type: 'INCOMING_MESSAGE', message: {
-                    type: 'FILE_SELECTED',
-                    data: ['C:/path/to/my/file.txt'],
-                    requestId: 'some-id',
-                }
-            });
-
-            expect(output).toEqual({
-                ...initialState
-            });
-        });
-
-        it('receives a correct autoUpdate value if AUTO_UPDATED is received', () => {
-            const input: ManageSolutionState = { ...initialState, autoUpdate: false };
-
-            const output = manageSolutionReducer(input, {
-                type: 'INCOMING_MESSAGE', message: {
-                    type: 'AUTO_UPDATE',
-                    data: true,
-                }
-            });
-
-            expect(output).toEqual({
-                ...initialState,
-                autoUpdate: true,
             });
         });
     });
@@ -191,67 +126,6 @@ describe('contextSelectionReducer', () => {
                     selectedTarget: newSelectedTarget,
                 }
             });
-        });
-    });
-
-    describe('editable properties', () => {
-        const section = { section: 'Debug', options: [{ name: 'Misc', 'yml-node': 'args', type: 'string' as const }] };
-        const adapter = { name: 'TestAdapter', 'user-interface': [section] };
-        const solutionData = solutionDataFactory();
-        solutionData.selectedTarget = {
-            name: 'target',
-            selectedSet: 'set',
-            targetSets: [{ name: 'set', debugger: { args: '' } }],
-        };
-        const key = editablePropertyKey(solutionData, adapter.name, section, section.options[0]);
-
-        const editorState = (value: string, dirty: boolean, focused = false): ManageSolutionState => ({
-            ...initialState,
-            solutionData,
-            debugger: adapter.name,
-            debugAdapters: [adapter],
-            editableProperties: { [key]: { value, dirty, focused } },
-        });
-
-        it('preserves a dirty value when a stale snapshot arrives', () => {
-            const output = manageSolutionReducer(editorState('--simlimit 25', true), {
-                type: 'INCOMING_MESSAGE',
-                message: { type: 'DATA_CONTEXT_SELECTION', data: solutionData },
-            });
-
-            expect(output.editableProperties[key]).toEqual({ value: '--simlimit 25', dirty: true, focused: false });
-        });
-
-        it('marks a dirty value clean when an acknowledging snapshot arrives', () => {
-            const acknowledgedData = {
-                ...solutionData,
-                selectedTarget: {
-                    ...solutionData.selectedTarget!,
-                    targetSets: [{ name: 'set', debugger: { args: '--simlimit 25' } }],
-                },
-            };
-            const output = manageSolutionReducer(editorState('--simlimit 25', true), {
-                type: 'INCOMING_MESSAGE',
-                message: { type: 'DATA_CONTEXT_SELECTION', data: acknowledgedData },
-            });
-
-            expect(output.editableProperties[key]).toEqual({ value: '--simlimit 25', dirty: false, focused: false });
-        });
-
-        it('updates a clean value from a new snapshot', () => {
-            const updatedData = {
-                ...solutionData,
-                selectedTarget: {
-                    ...solutionData.selectedTarget!,
-                    targetSets: [{ name: 'set', debugger: { args: '--updated' } }],
-                },
-            };
-            const output = manageSolutionReducer(editorState('', false), {
-                type: 'INCOMING_MESSAGE',
-                message: { type: 'DATA_CONTEXT_SELECTION', data: updatedData },
-            });
-
-            expect(output.editableProperties[key]).toEqual({ value: '--updated', dirty: false, focused: false });
         });
     });
 

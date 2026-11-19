@@ -1,0 +1,87 @@
+/**
+ * Copyright 2026 Arm Limited
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+.settings-tree { display: grid; grid-template-columns: 190px minmax(0, 1fr); margin-top: 20px; min-height: 225px; }
+.settings-navigation { border-right: 1px solid var(--vscode-panel-border); }
+.settings-navigation-row { cursor: pointer; border-right: 2px solid transparent; outline-offset: -2px; margin-bottom: 8px; margin-right: -1px; }
+.settings-navigation-row:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+.settings-navigation-row.active { color: var(--vscode-textLink-foreground); border-right-color: var(--vscode-focusBorder); }
+.settings-navigation .settings-section-header { padding: 0 10px 0 12px; gap: 4px; }
+.settings-navigation .settings-checkbox-slot { flex-basis: 20px; }
+.settings-section-header { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 14px; }
+.settings-checkbox-slot { flex: 0 0 16px; }
+.settings-chevron-slot { flex: 0 0 16px; }
+.settings-expand { display: flex; flex: 1; align-items: center; gap: 10px; text-align: left; font: inherit; background: transparent; border: 0; color: inherit; cursor: pointer; padding: 0; min-height: 42px; }
+.settings-expand > .codicon { flex: 0 0 16px; }
+.settings-expand:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.settings-label { flex: 1; overflow-wrap: anywhere; }
+.settings-actions { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.settings-actions .ant-btn { width: 20px; height: 25px; padding: 0; }
+.settings-actions .ant-btn:disabled { color: var(--vscode-disabledForeground); background: transparent; border-color: transparent; opacity: 1; }
+.settings-content { min-width: 0; padding: 5px 0 13px 24px; }
+.settings-container { border: 1px solid var(--vscode-panel-border); border-radius: 3px; margin-bottom: 8px; }
+.settings-container > .settings-section-header { background: var(--vscode-sideBarSectionHeader-background); }
+.settings-container > .settings-section-body { border-top: 1px solid var(--vscode-panel-border); padding: 0 14px; }
+.settings-section-body > .settings-container:first-of-type { margin-top: 15px; }
+.settings-section-body > .settings-container:first-child { margin-top: 0; }
+.settings-container .settings-section-body > .settings-container:last-child { margin-bottom: 10px; }
+.settings-inline-section { margin-bottom: 8px; }
+.settings-inline-section > .settings-section-header { padding: 0; min-height: 32px; }
+.settings-inline-section > .settings-section-header > .settings-label { font-weight: 600; }
+.settings-inline-section > .settings-section-body { padding: 0; }
+.settings-inline-row { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 16px; align-items: start; min-width: 0; }
+.settings-inline-row[data-inline-layout='columns'] { grid-template-columns: var(--settings-header-width) minmax(0, 1fr); }
+.settings-inline-row > .settings-section-header { min-width: 0; max-width: 100%; flex-wrap: wrap; }
+.settings-inline-row > .settings-section-header > .settings-label { min-width: 0; }
+.settings-inline-row > .settings-section-body { min-width: 0; }
+.settings-inline-row > .settings-section-body > .settings-field:first-child { margin-top: 0; }
+.settings-inline-row .settings-actions:empty { display: none; }
+.settings-inline-row > .settings-section-body > .settings-field > .compact-dropdown { flex: 1; min-width: 0; }
+.settings-layout-probe { position: fixed; left: -100000px; top: 0; visibility: hidden; pointer-events: none; width: max-content; max-width: none; contain: layout style; }
+.settings-layout-probe .settings-layout-sample { display: block; width: max-content; max-width: none; }
+.settings-layout-probe .settings-section-header { width: max-content; max-width: none; flex-wrap: nowrap; }
+.settings-layout-probe .settings-label { flex: none; white-space: nowrap; overflow-wrap: normal; }
+.settings-layout-probe .settings-section-body { width: max-content; }
+.settings-layout-probe .settings-field { width: max-content; flex-wrap: nowrap; }
+.settings-layout-probe .settings-field > * { flex: none; width: max-content; max-width: none; }
+.settings-layout-probe .settings-field > .settings-warning { display: none; }
+.settings-unlabeled-section > .settings-section-body > .settings-field:first-child { margin-top: 0; }
+.settings-field { display: flex; align-items: center; gap: 8px; margin: 14px 0; flex-wrap: wrap; }
+.settings-content-section > .settings-section-body > .settings-field:first-child { margin-top: 0; }
+.settings-field > .ant-input-number-group-wrapper, .settings-field > .ant-input-group-wrapper { flex: 1; min-width: 0; }
+.settings-field .ant-input-affix-wrapper { height: 28px; padding: 0 8px; }
+.settings-field .ant-input-affix-wrapper > input.ant-input { height: auto; }
+.settings-file-actions { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.settings-file-actions:empty { display: none; }
+.settings-file-actions .ant-btn { width: 22px; min-width: 22px; height: 20px; padding: 0; border: 0; box-shadow: none; font-size: 14px; }
+.settings-processor { min-width: 70px; }
+.settings-warning { color: var(--vscode-editorWarning-foreground); }
+.settings-section-header .settings-warning { display: inline-flex; align-items: center; font-size: 16px; }
+.settings-warning-tooltip { white-space: pre-line; }
+.settings-adapter-choice { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.settings-adapter-header .settings-adapter-choice .compact-dropdown { width: 252px; }
+.manage-solution-frame .settings-adapter-header > .compact-dropdown { width: auto; }
+.settings-adapter-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-bottom: 16px; }
+@media (max-width: 550px) {
+    .settings-tree { grid-template-columns: minmax(0, 1fr); }
+    .settings-navigation { border-right: 0; border-bottom: 1px solid var(--vscode-panel-border); }
+    .settings-content { padding: 16px 0 13px; }
+    .settings-section-header { padding: 0 10px; gap: 8px; }
+    .settings-container > .settings-section-body { padding: 0 8px; }
+}
+@media (pointer: coarse) {
+    .settings-actions .ant-btn, .settings-expand { min-width: 44px; min-height: 44px; }
+}

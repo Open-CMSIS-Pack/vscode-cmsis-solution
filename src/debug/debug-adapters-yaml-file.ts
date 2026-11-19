@@ -20,8 +20,10 @@ import { ITreeItem, CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { CTreeItemYamlFile, ITreeItemFile } from '@open-cmsis-pack/cmsis-common/tree-item-file';
 import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { DEBUG_ADAPTERS_YAML_FILE_PATH } from '../manifest';
+import { resolveSectionYamlBinding, type UISectionYamlNode } from './section-yaml-binding';
 import type { PathType } from '../views/manage-solution/types';
 
+export type { UISectionYamlNode } from './section-yaml-binding';
 
 export type UIOption<T extends string, V> = {
     name: string;                                   //Label text for the option in the user interface.
@@ -58,16 +60,20 @@ export type UISectionChildren =
 /** Describes a settings section at any depth, including optional switches and dynamic children. */
 export type UISection = {
     id?: string;                       // Stable identity within the parent, falling back to the YAML node or label.
-    section: string;                    // Label text for the section in the tab group.
+    section: string | null;             // Empty or null labels leave the section's content visible without a heading.
     description?: string;               // Hover over text.
     warning?: string;                   // Constraint tooltip, including when disabled; active sections also show a warning icon.
-    'yml-node'?: string;                // Map key or marker identifying this section in a YAML sequence.
+    readOnly?: boolean;                 // Host-resolved state when expressions cannot provide a safe storage location.
+    condition?: boolean | string;       // Host expression controlling availability, resolved before presentation.
+    'condition-message'?: string;       // Warning shown for configured sections whose condition is false.
+    'yml-node'?: UISectionYamlNode;                // Map key or marker identifying this section in a YAML sequence.
     select?: boolean;                   // If present, the section can be enabled. Applies to all options.
-    removable?: boolean;                // If true, the subsection can be removed independently of addOptions.
+    collapsible?: boolean;              // Content sections can be collapsed unless explicitly false or unlabeled.
+    usage?: 'available' | 'used';
+    'subsections-layout'?: 'navigation' | 'content';
     options: UISectionChildren[];       // List of available options.
     'pname-options'?: boolean;          // Indicates if the option is pname based. Then the same property will be created for each pname instance.
     subsections?: UISection[];         // Nested settings sections supplied by the backend.
-    addOptions?: { id: string; name: string }[]; // Currently addable subsection types, filtered by the backend.
 }
 
 export interface DebugAdapter {
@@ -118,6 +124,9 @@ class DebugAdaptersYamlFileImpl extends CTreeItemYamlFile implements DebugAdapte
     protected static normalizeUserInterface(ui: Optional<UISection[]>): UISection[] {
         ui = (ui ?? []) as UISection[];
         ui.forEach(section => {
+            if (section['yml-node'] !== undefined) {
+                resolveSectionYamlBinding(section['yml-node']);
+            }
             section.options.forEach(option => {
                 if (option.type === 'enum' && Array.isArray(option.values)) {
                     option.values = option.values.map(v => {

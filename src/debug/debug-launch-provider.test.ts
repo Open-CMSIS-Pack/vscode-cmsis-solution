@@ -25,6 +25,7 @@ import { AdapterJson, AdapterJsonFile } from './adapter-json-file';
 import { DebugLaunchProviderImpl } from './debug-launch-provider';
 import { Configuration, LaunchJsonFile } from './launch-json-file';
 import { DebugAdapter, DebugAdaptersYamlFile, UISection } from './debug-adapters-yaml-file';
+import { sectionYamlNodeName } from './section-yaml-binding';
 import path from 'path';
 import { configurationProviderFactory } from '../vscode-api/configuration-provider.factories';
 import { DEBUG_ADAPTERS_YAML_FILE_PATH, DEBUG_TEMPLATES_FOLDER, PACKAGE_NAME } from '../manifest';
@@ -641,7 +642,7 @@ describe('DebugLaunchProvider', () => {
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         const debugParams = params.debug as Record<string, any>;
                         for (const section of adapter['user-interface'] ?? []) {
-                            const yamlNode = section['yml-node'] ? (debugParams[section['yml-node']] ??= initYamlNode(section)) : debugParams;
+                            const yamlNode = sectionYamlNodeName(section) ? (debugParams[sectionYamlNodeName(section)!] ??= initYamlNode(section)) : debugParams;
                             for (const option of section.options) {
                                 if (option.default) {
                                     if ('pname-options' in section && Array.isArray(yamlNode)) {
@@ -709,7 +710,7 @@ describe('DebugLaunchProvider', () => {
                             if (section.options.every(opt => opt.default === undefined)) {
                                 return undefined;
                             } else if ('pname-options' in section) {
-                                if (section['yml-node'] === 'telnet') {
+                                if (sectionYamlNodeName(section) === 'telnet') {
                                     return params.processors.map((p, idx) => ({ pname: p.pname, port: 4444 + idx }));
                                 }
                                 return params.processors.map(p => ({ pname: p.pname }));
@@ -721,7 +722,7 @@ describe('DebugLaunchProvider', () => {
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         const debugParams = params.debug as Record<string, any>;
                         for (const section of adapter['user-interface'] ?? []) {
-                            const yamlNode = section['yml-node'] ? (debugParams[section['yml-node']] ??= initYamlNode(section)) : debugParams;
+                            const yamlNode = sectionYamlNodeName(section) ? (debugParams[sectionYamlNodeName(section)!] ??= initYamlNode(section)) : debugParams;
                             for (const option of section.options) {
                                 if (option.default) {
                                     if ('pname-options' in section && Array.isArray(yamlNode)) {
