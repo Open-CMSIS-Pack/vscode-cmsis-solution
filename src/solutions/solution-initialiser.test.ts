@@ -26,6 +26,8 @@ import { SolutionInitialiser, SolutionInitialiserImp } from './solution-initiali
 import { TestDataHandler } from '../__test__/test-data';
 import fs from 'node:fs';
 import path from 'node:path';
+import { CmsisSettingsJsonFile } from '../global/cmsis-settings-json-file';
+import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 
 describe('SolutionInitialiserImp', () => {
     const testDataHandler = new TestDataHandler();
@@ -104,6 +106,36 @@ describe('SolutionInitialiserImp', () => {
             activeTarget: 'SelectedTarget',
         }));
         expect(mockOpenNewSolutionModal).toHaveBeenCalled();
+    });
+
+    it('initialises nested solution state in its owning workspace folder without changing the first folder', async () => {
+        const firstFolder = Uri.file(path.join(testDataHandler.tmpDir, 'first'));
+        const secondFolder = Uri.file(path.join(testDataHandler.tmpDir, 'second'));
+        workspaceFoldersProvider.updateWorkspaceFolders([
+            { uri: firstFolder, name: 'First', index: 0 },
+            { uri: secondFolder, name: 'Second', index: 1 },
+        ]);
+        const firstSettings = new CmsisSettingsJsonFile(path.join(firstFolder.fsPath, '.vscode', 'cmsis.json'));
+        firstSettings.setSettings({ activeSolution: '../First.csolution.yml' });
+        expect(await firstSettings.save()).toBe(ETextFileResult.Success);
+        const solutionDir = Uri.file(path.join(secondFolder.fsPath, 'nested'));
+        const solutionFile = Uri.file(path.join(solutionDir.fsPath, 'Selected.csolution.yml'));
+
+        await solutionInitialiser.initialiseSolution({
+            createdSolution: createdSolutionFactory({ solutionDir, solutionFile, vcpkgConfigured: true, forceRteUpdate: true }),
+            activeTarget: 'SelectedTarget',
+        });
+
+        const secondSettings = new CmsisSettingsJsonFile(path.join(secondFolder.fsPath, '.vscode', 'cmsis.json'));
+        expect(await secondSettings.load()).toBe(ETextFileResult.Success);
+        expect(secondSettings.getSettings()).toEqual({
+            activeSolution: '../nested/Selected.csolution.yml',
+            activeTarget: 'SelectedTarget',
+            'force-update-rte': true,
+        });
+        expect(await firstSettings.load()).toBe(ETextFileResult.Unchanged);
+        expect(firstSettings.getSettings()).toEqual({ activeSolution: '../First.csolution.yml' });
+        expect(new CmsisSettingsJsonFile(path.join(solutionDir.fsPath, '.vscode', 'cmsis.json')).exists()).toBe(false);
     });
 
 });

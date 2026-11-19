@@ -21,6 +21,8 @@ import path from 'path';
 import { CMSIS_TOOLBOX_FOLDER, CONFIG_ENVIRONMENT_VARIABLES } from '../manifest';
 import { waitTimeout } from '../__test__/test-waits';
 import { getCmsisPackRoot, setPackRootEnvironment } from '../utils/path-utils';
+import { activeSolutionTrackerFactory } from '../solutions/active-solution-tracker.factories';
+import { ConfigurationProviderImpl } from '../vscode-api/configuration-provider';
 
 const DEFAULT_PATH_VAR = (process.platform === 'win32') ? 'Path' : 'PATH';
 
@@ -345,7 +347,96 @@ describe('EnvironmentManager', () => {
         environmentManager = new EnvironmentManager(configurationProviderMock);
     });
 
-    afterEach(() => setPackRootEnvironment(() => process.env));
+    afterEach(() => {
+        mockContext.subscriptions.forEach(subscription => subscription.dispose());
+        setPackRootEnvironment(() => process.env);
+        jest.restoreAllMocks();
+    });
+
+    describe('Python environment readiness', () => {
+        const firstFolder = vscode.Uri.file(path.resolve('first'));
+        const secondFolder = vscode.Uri.file(path.resolve('second'));
+        let tracker: ReturnType<typeof activeSolutionTrackerFactory>;
+        let changed: vscode.EventEmitter<void>;
+        let requests: { resolve: (variables: NodeJS.ProcessEnv) => void; reject: (error: Error) => void }[];
+
+        afterEach(() => {
+            jest.mocked(vscode.extensions.getExtension).mockReset();
+            jest.mocked(vscode.workspace.getWorkspaceFolder).mockReset();
+            changed.dispose();
+        });
+
+        beforeEach(async () => {
+            tracker = activeSolutionTrackerFactory({ activeSolution: path.join(firstFolder.fsPath, 'App.csolution.yml') });
+            changed = new vscode.EventEmitter<void>();
+            requests = [];
+            jest.mocked(vscode.workspace.getWorkspaceFolder).mockImplementation(uri => ({
+                uri: uri.fsPath.startsWith(secondFolder.fsPath) ? secondFolder : firstFolder,
+                name: 'Workspace folder', index: 0,
+            }));
+            const api = {
+                getEnvironment: jest.fn().mockResolvedValue(undefined),
+                getEnvironmentVariables: jest.fn().mockResolvedValueOnce({ PYTHON_MARKER: 'initial' })
+                    .mockImplementation(() => new Promise<NodeJS.ProcessEnv>((resolve, reject) => requests.push({ resolve, reject }))),
+                onDidChangeEnvironment: changed.event,
+                onDidChangeEnvironmentVariables: new vscode.EventEmitter<void>().event,
+            };
+            jest.mocked(vscode.extensions.getExtension).mockImplementation(id =>
+                id === 'ms-python.vscode-python-envs' ? { isActive: true, exports: api } as unknown as vscode.Extension<unknown> : undefined);
+            environmentManager = new EnvironmentManager(configurationProviderMock, tracker);
+            await environmentManager.activate(mockContext);
+        });
+
+        it('waits for the latest folder and ignores older responses after returning to it', async () => {
+            tracker.activeSolution = path.join(secondFolder.fsPath, 'App.csolution.yml');
+            tracker.onDidChangeActiveSolutionEmitter!.fire();
+            const ready = environmentManager.waitUntilReady();
+            expect(environmentManager.getEnvironmentVariables().PYTHON_MARKER).toBeUndefined();
+            tracker.activeSolution = path.join(firstFolder.fsPath, 'App.csolution.yml');
+            tracker.onDidChangeActiveSolutionEmitter!.fire();
+            tracker.activeSolution = path.join(secondFolder.fsPath, 'App.csolution.yml');
+            tracker.onDidChangeActiveSolutionEmitter!.fire();
+            requests[2].resolve({ PYTHON_MARKER: 'latest second' });
+            await ready;
+            expect(environmentManager.getEnvironmentVariables().PYTHON_MARKER).toBe('latest second');
+
+            const listener = jest.fn();
+            environmentManager.onDidChangeEnvVars(listener);
+            requests[0].resolve({ PYTHON_MARKER: 'stale second' });
+            requests[1].resolve({ PYTHON_MARKER: 'stale first' });
+            await Promise.all([environmentManager.waitUntilReady(), Promise.resolve()]);
+            expect(environmentManager.getEnvironmentVariables().PYTHON_MARKER).toBe('latest second');
+            expect(listener).not.toHaveBeenCalled();
+        });
+
+        it('keeps same-folder values while refreshing and settles readiness on failure', async () => {
+            const listener = jest.fn();
+            environmentManager.onDidChangeEnvVars(listener);
+            changed.fire();
+            expect(environmentManager.getEnvironmentVariables().PYTHON_MARKER).toBe('initial');
+            requests[0].resolve({ PYTHON_MARKER: 'refreshed' });
+            await environmentManager.waitUntilReady();
+            expect(environmentManager.getEnvironmentVariables().PYTHON_MARKER).toBe('refreshed');
+            expect(listener).toHaveBeenCalledTimes(1);
+
+            const error = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+            changed.fire();
+            requests[1].reject(new Error('Python unavailable'));
+            await environmentManager.waitUntilReady();
+            expect(environmentManager.getEnvironmentVariables().PYTHON_MARKER).toBe('refreshed');
+            expect(error).toHaveBeenCalledWith('Failed to update Python environment', expect.any(Error));
+        });
+
+        it('releases waiters on disposal and ignores a late response', async () => {
+            changed.fire();
+            const ready = environmentManager.waitUntilReady();
+            mockContext.subscriptions.forEach(subscription => subscription.dispose());
+            await ready;
+            requests[0].resolve({ PYTHON_MARKER: 'disposed' });
+            await environmentManager.waitUntilReady();
+            expect(environmentManager.getEnvironmentVariables().PYTHON_MARKER).toBeUndefined();
+        });
+    });
 
     describe('activate', () => {
         it('provides the current augmented pack root until disposed', async () => {
@@ -390,6 +481,54 @@ describe('EnvironmentManager', () => {
     });
 
     describe('tools environment sources', () => {
+        it('resolves settings and Python environments from the active solution folder when switching roots', async () => {
+            const firstFolder = vscode.Uri.file(path.resolve('first'));
+            const secondFolder = vscode.Uri.file(path.resolve('second'));
+            const tracker = activeSolutionTrackerFactory({
+                activeSolution: path.join(firstFolder.fsPath, 'nested', 'App.csolution.yml'),
+            });
+            const folderSpy = jest.mocked(vscode.workspace.getWorkspaceFolder).mockImplementation(uri => ({
+                uri: uri.fsPath.startsWith(secondFolder.fsPath) ? secondFolder : firstFolder,
+                name: 'Workspace folder', index: 0,
+            }));
+            const configurationSpy = jest.mocked(vscode.workspace.getConfiguration).mockImplementation((_section, scope) => ({
+                get: () => scope === secondFolder ? { SECOND_ONLY: 'second' } : { FIRST_ONLY: 'first' },
+            } as unknown as vscode.WorkspaceConfiguration));
+            const pythonApi = {
+                getEnvironment: jest.fn().mockResolvedValue(undefined),
+                getEnvironmentVariables: jest.fn().mockResolvedValue(undefined).mockResolvedValueOnce({ PYTHON_MARKER: 'first' }),
+                onDidChangeEnvironment: jest.fn((_listener: () => void) => ({ dispose: jest.fn() })),
+                onDidChangeEnvironmentVariables: jest.fn(() => ({ dispose: jest.fn() })),
+            };
+            const extensionSpy = jest.mocked(vscode.extensions.getExtension).mockImplementation(id =>
+                id === 'ms-python.vscode-python-envs' ? { isActive: true, exports: pythonApi } as unknown as vscode.Extension<unknown> : undefined);
+            environmentManager = new EnvironmentManager(new ConfigurationProviderImpl(mockContext), tracker);
+            try {
+                await environmentManager.activate(mockContext);
+                expect(environmentManager.getConfiguredEnvironmentVariables()).toMatchObject({ FIRST_ONLY: 'first' });
+                expect(pythonApi.getEnvironment).toHaveBeenLastCalledWith(firstFolder);
+                expect(environmentManager.getEnvironmentVariables().PYTHON_MARKER).toBe('first');
+                pythonApi.onDidChangeEnvironment.mock.calls[0][0]();
+                expect(environmentManager.getEnvironmentVariables().PYTHON_MARKER).toBe('first');
+
+                tracker.activeSolution = path.join(secondFolder.fsPath, 'nested', 'App.csolution.yml');
+                tracker.onDidChangeActiveSolutionEmitter?.fire();
+
+                expect(environmentManager.getConfiguredEnvironmentVariables()).toMatchObject({ SECOND_ONLY: 'second' });
+                expect(environmentManager.getConfiguredEnvironmentVariables()).not.toHaveProperty('FIRST_ONLY');
+                expect(environmentManager.getEnvironmentVariables().PYTHON_MARKER).toBeUndefined();
+                expect(mockEnvironmentVariableCollection.clear).toHaveBeenCalledTimes(2);
+                expect(mockEnvironmentVariableCollection.replace).toHaveBeenLastCalledWith('SECOND_ONLY', 'second');
+                expect(pythonApi.getEnvironment).toHaveBeenLastCalledWith(secondFolder);
+                expect(pythonApi.getEnvironmentVariables).toHaveBeenLastCalledWith(secondFolder);
+            } finally {
+                mockContext.subscriptions.forEach(subscription => subscription.dispose());
+                folderSpy.mockReset();
+                configurationSpy.mockReset();
+                extensionSpy.mockReset();
+            }
+        });
+
         it('returns resolved and configured environment variables', async () => {
             configurationProviderMock = configurationProviderFactory({
                 [CONFIG_ENVIRONMENT_VARIABLES]: {

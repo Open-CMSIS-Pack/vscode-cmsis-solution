@@ -58,7 +58,7 @@ export class ProcessManagerImpl implements ProcessManager {
     // https://github.com/microsoft/node-pty/issues/763
     private readonly debuggingOnWindows = process.platform === 'win32' && inspector.url() !== undefined;
 
-    public spawn(
+    public async spawn(
         command: string,
         args: string[],
         options: ProcessSpawnOptions,
@@ -66,6 +66,10 @@ export class ProcessManagerImpl implements ProcessManager {
         cancellationToken?: CancellationToken,
         dimensions?: TerminalDimensions,
     ): Promise<ProcessResult> {
+        if (cancellationToken?.isCancellationRequested) {
+            throw { code: 130 };
+        }
+        await this.environmentManager.waitUntilReady();
         return new Promise((resolve, reject) => {
             if (cancellationToken?.isCancellationRequested) {
                 reject({ code: 130 });

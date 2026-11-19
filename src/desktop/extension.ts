@@ -131,8 +131,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
 
     // VS Code API providers
     const configurationProvider = new ConfigurationProviderImpl(context);
-    const envManager = new EnvironmentManager(configurationProvider);
-    const processManager = new ProcessManagerImpl(envManager);
     const outputChannelProvider = new OutputChannelProviderImpl(context);
 
     const externalFileOpener = new OpenFileExternal();
@@ -152,6 +150,8 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         workspaceFsProvider,
         configurationProvider,
     );
+    const envManager = new EnvironmentManager(configurationProvider, activeSolutionTracker);
+    const processManager = new ProcessManagerImpl(envManager);
 
     const solutionRootsWatcher = new SolutionRootsWatcher(fileWatcherProvider, workspaceFoldersProvider, workspaceFsProvider, commandsProvider);
 
