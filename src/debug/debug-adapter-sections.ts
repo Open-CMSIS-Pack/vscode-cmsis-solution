@@ -137,7 +137,7 @@ export class DebugAdapterSections {
     /** Reads current switches, configured children, and add choices without mutating the debugger tree. */
     public get sections(): UISection[] {
         return this.compileDefinitions()
-            .filter(definition => definition.ui.condition !== false || this.node([definition]))
+            .filter(definition => definition.ui.readOnly || definition.ui.condition !== false || this.node([definition]))
             .map(definition => this.toUI([definition]));
     }
 
@@ -155,7 +155,7 @@ export class DebugAdapterSections {
             }
             branch.push(definition);
         }
-        return branch;
+        return branch.some(part => part.ui.readOnly) ? undefined : branch;
     }
 
     /** Creates an allowed dynamic child once, applying typed defaults and its optional switch binding. */
@@ -274,7 +274,7 @@ export class DebugAdapterSections {
         const dynamic = definition.dynamic;
         const validContainer = dynamic?.kind === 'sequence' ? container?.isSequence() : container?.isMap();
         const instances = validContainer ? dynamic?.types.filter(candidate => !!this.node([...branch, candidate])) ?? [] : [];
-        return [...children.filter(child => child.ui.condition !== false || this.node([...branch, child])), ...instances];
+        return [...children.filter(child => child.ui.readOnly || child.ui.condition !== false || this.node([...branch, child])), ...instances];
     }
 
     /** Projects backend definitions into plain UI data, keeping callbacks and templates out of webview messages. */
@@ -299,7 +299,7 @@ export class DebugAdapterSections {
 
     /** Resolves a branch using the debugger wrapper's generic map and sequence traversal. */
     private node(branch: DebugAdapterSectionDefinition[]): CTreeItemWrap | undefined {
-        return this.getDebugger()?.getSection(this.yamlPath(branch));
+        return branch.some(part => part.ui.readOnly) ? undefined : this.getDebugger()?.getSection(this.yamlPath(branch));
     }
 
     /** Computes the storage path independently of display labels and dynamic type identities. */
@@ -361,7 +361,7 @@ export class DebugAdapterSections {
 
     /** Identifies static branches with initial values, without materializing empty or optional children. */
     private hasInitialValues(definition: DebugAdapterSectionDefinition): boolean {
-        return definition.ui.condition !== false && definition.ui.select !== false
+        return !definition.ui.readOnly && definition.ui.condition !== false && definition.ui.select !== false
             && (definition.ui.select === true
                 || definition.ui.options.some(option => storedOptionDefault(option) !== undefined)
                 || (definition.subsections ?? []).some(child => this.hasInitialValues(child)));

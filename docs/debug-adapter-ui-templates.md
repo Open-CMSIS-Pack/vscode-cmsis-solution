@@ -11,10 +11,14 @@ Expressions use the existing host-side Eta JavaScript expression engine.
 `config` contains the complete effective `debugger` subtree for the active target
 set. Each evaluation reads the current in-memory model, including unsaved edits
 and undo/redo. Registry option defaults, including user overrides, fill missing
-values in storage units. Explicit values, including `false`, `0`, empty strings,
-and null markers, take precedence. Defaults apply within existing sections and
-sequence entries; optional sections and Add candidates are not instantiated.
-Evaluation does not write defaults into the solution.
+values in storage units. Explicit values, including `false`, `0`, and null
+markers, take precedence. Cleared string and file fields become `null` in
+`config`; optional properties can also be absent. Expressions must handle both,
+for example `(config.args ?? '').length > 0` or `config.args?.trim() ?? ''`.
+Empty strings do not need to be stored as quoted YAML values.
+Defaults apply within existing sections and sequence entries; optional sections
+and Add candidates are not instantiated. Evaluation does not write defaults into
+the solution.
 
 `device` contains the complete device object from the active device's
 `GetDeviceInfo` response. Processor, memory, pack, and additional returned
@@ -97,8 +101,21 @@ marker-only identity and storage behavior.
 
 Named buffers are stored as `trace-buffer: MTB`; unnamed buffers use
 `trace-buffer: null`. Each can be added, edited, switched, and removed independently.
-Invalid expressions and conflicting concrete identities or selectors are reported
-through host diagnostics, and affected Add choices are suppressed.
+Expression exceptions and malformed expression syntax are caught and logged with
+the failing expression. Evaluation continues with `undefined`: a failed condition
+becomes false, a failed section label or interpolated fragment becomes empty text,
+and failed optional display text is omitted. Other expressions, siblings, and
+children continue to be evaluated.
+
+If an expression fails while computing a YAML binding name, selector, or an ID
+used as a storage key, the section and its children remain visible with a warning
+and read-only fields. Edit, Browse, Open, enable, Add, and Remove actions are
+unavailable until the storage location can be resolved. Defaults and edits never
+fall back to the parent container. Existing YAML remains unchanged.
+
+Invalid declaration types and conflicting concrete identities or selectors are
+reported through host diagnostics; invalid declarations and conflicting Add
+choices are suppressed.
 
 When a configured section fails its condition, its YAML is preserved and its
 warning uses `condition-message`, or a generic unsupported-configuration message.

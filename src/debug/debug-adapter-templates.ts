@@ -73,8 +73,15 @@ type Projection = { value: unknown; scope: Map<object, unknown>; available: bool
 /** Runs registry expressions without converting their results to strings or reparsing JSON. */
 const expressions = new Eta({ useWith: true, autoEscape: false });
 
-/** Evaluates one expression against detached, read-only context views. */
-function evaluate(expression: string, context: AdapterTemplateContext, scope: Map<object, unknown>): unknown {
+/** Logs an expression failure and notifies storage callers before returning an empty result. */
+function expressionFailure(expression: string, error: unknown, onError?: () => void): undefined {
+    console.error(`Invalid adapter expression ${expression}:`, error);
+    onError?.();
+    return undefined;
+}
+
+/** Evaluates a read-only expression, logging failures and returning undefined so expansion can continue. */
+function evaluate(expression: string, context: AdapterTemplateContext, scope: Map<object, unknown>, onError?: () => void): unknown {
     let result: unknown;
     const data = {
         ...context,
@@ -82,8 +89,12 @@ function evaluate(expression: string, context: AdapterTemplateContext, scope: Ma
             result = value;
         },
     };
-    expressions.renderString(`<% it.capture((${expression})); %>`, view(data, scope) as object);
-    return result;
+    try {
+        expressions.renderString(`<% it.capture((${expression})); %>`, view(data, scope) as object);
+        return result;
+    } catch (error) {
+        return expressionFailure(expression, error, onError);
+    }
 }
 
 /** Preserves full arrays while resolving projected properties against their associated record. */
@@ -111,26 +122,30 @@ function view(value: unknown, scope: Map<object, unknown>): unknown {
     });
 }
 
-/** Resolves complete expressions as typed values and interpolated fragments as text. */
-function render(value: unknown, context: AdapterTemplateContext, scope: Map<object, unknown>): unknown {
+/** Resolves typed values or interpolated text, logging template failures and returning undefined. */
+function render(value: unknown, context: AdapterTemplateContext, scope: Map<object, unknown>, onError?: () => void): unknown {
     if (typeof value !== 'string' || !value.includes('${{')) {
         return value;
     }
     const whole = /^\$\{\{((?:(?!\$\{\{)[\s\S])*)\}\}$/.exec(value);
     if (whole) {
-        return evaluate(whole[1], context, scope);
+        return evaluate(whole[1], context, scope, onError);
     }
-    const rendered = value.replace(/\$\{\{([\s\S]*?)\}\}/g, (_match, expression: string) => {
-        const result = evaluate(expression, context, scope);
-        if (result !== null && typeof result === 'object') {
-            throw new Error('Interpolated fields require scalar values');
+    try {
+        const rendered = value.replace(/\$\{\{([\s\S]*?)\}\}/g, (_match, expression: string) => {
+            const result = evaluate(expression, context, scope, onError);
+            if (result !== null && typeof result === 'object') {
+                throw new Error('Interpolated fields require scalar values');
+            }
+            return String(result ?? '');
+        });
+        if (rendered.includes('${{')) {
+            throw new Error('Unclosed template expression');
         }
-        return String(result ?? '');
-    });
-    if (rendered.includes('${{')) {
-        throw new Error('Unclosed template expression');
+        return rendered;
+    } catch (error) {
+        return expressionFailure(value, error, onError);
     }
-    return rendered;
 }
 
 /** Projects a property path through arrays, retaining unnamed records and source ordering. */
@@ -213,6 +228,9 @@ export function effectiveDebugConfiguration(sections: UISection[], actual: unkno
     /** Applies defaults only to existing storage containers, matching processor-specific entries. */
     function fill(definitions: UISection[], parents: unknown[], depth: number): void {
         for (const section of definitions) {
+            if (section.readOnly) {
+                continue;
+            }
             const nodes = containers(parents, section, depth);
             for (const node of nodes) {
                 for (const option of section.options) {
@@ -290,18 +308,22 @@ function expandSections(
     function expandOne(definition: UISection, parents: UISection[], scope: Map<object, unknown>, inherited: boolean): UISection[] {
         const raw = definition['yml-node'];
         const hasValue = typeof raw === 'object' && 'value' in raw;
+        const inheritedReadOnly = definition.readOnly === true || parents.some(parent => parent.readOnly);
         const path = hasValue && typeof raw.value === 'string'
             ? /^\$\{\{\s*((?:config|device|processors)(?:\.[A-Za-z_$][\w$]*)+)\s*\}\}$/.exec(raw.value)?.[1].split('.') : undefined;
         let projections: Projection[] = [{ value: null, scope, available: true }];
+        let selectorFailed = false;
         if (hasValue) {
             if (path) {
                 projections = project(context, path, scope);
             } else {
-                const result = render(raw.value, context, scope);
+                const result = render(raw.value, context, scope, () => {
+                    selectorFailed = true;
+                });
                 projections = (Array.isArray(result) ? result : [result]).map(value => ({ value: value ?? null, scope, available: true }));
             }
             const marker = render(raw.name, context, scope);
-            const stored = debuggerWrap?.getSection(sectionStoragePath(parents))?.item;
+            const stored = inheritedReadOnly ? undefined : debuggerWrap?.getSection(sectionStoragePath(parents))?.item;
             if (typeof marker === 'string' && stored?.isSequence()) {
                 for (const entry of stored.getChildren()) {
                     if (!entry.isMap()) {
@@ -338,34 +360,47 @@ function expandSections(
         }
         return projections.map(projection => {
             const itemScope = projection.scope;
-            const binding = typeof raw === 'object' ? { ...raw, name: render(raw.name, context, itemScope) as string } : raw;
+            let readOnly = inheritedReadOnly || selectorFailed;
+            /** Prevents editing when a failed expression leaves the storage location unknown. */
+            const onStorageError = (): void => {
+                readOnly = true;
+            };
+            const binding = typeof raw === 'object' ? { ...raw, name: render(raw.name, context, itemScope, onStorageError) as string } : raw;
             if (hasValue && typeof binding === 'object') {
                 binding.value = selector(projection.value, binding.optional);
             }
-            const resolvedBinding = typeof binding === 'string' ? render(binding, context, itemScope) as string : binding;
-            if (raw !== undefined && resolvedBinding === undefined) {
-                throw new Error('Section bindings must resolve to storage addresses');
+            let resolvedBinding = typeof binding === 'string' ? render(binding, context, itemScope, onStorageError) as string : binding;
+            const name = typeof resolvedBinding === 'object' ? resolvedBinding.name : resolvedBinding;
+            if (raw !== undefined && (name === undefined || name === null || name === '')) {
+                readOnly = true;
+            }
+            if (readOnly) {
+                resolvedBinding = undefined;
             }
             if (resolvedBinding !== undefined) {
                 resolveSectionYamlBinding(resolvedBinding);
             }
+            const usesIdForStorage = raw === undefined && parents.length > 0;
+            const resolveId = !bindingsOnly || usesIdForStorage;
+            const id = resolveId ? render(definition.id, context, itemScope, usesIdForStorage ? onStorageError : undefined) as string | undefined : definition.id;
+            if (usesIdForStorage && definition.id !== undefined && !id) {
+                readOnly = true;
+            }
+            const storage: UISection = {
+                ...definition, id, 'yml-node': resolvedBinding,
+                ...(readOnly ? { readOnly: true, usage: undefined } : {}),
+            };
             if (bindingsOnly) {
-                const storage: UISection = { ...definition, 'yml-node': resolvedBinding };
-                if (raw === undefined) {
-                    storage.id = render(definition.id, context, itemScope) as string | undefined;
-                }
                 if (definition.subsections) {
                     storage.subsections = expand(definition.subsections, [...parents, storage], itemScope);
                 }
                 return storage;
             }
             const ui: UISection = {
-                ...definition,
+                ...storage,
                 section: (render(definition.section, context, itemScope) ?? '') as string,
-                id: render(definition.id, context, itemScope) as string | undefined,
                 description: render(definition.description, context, itemScope) as string | undefined,
                 warning: render(definition.warning, context, itemScope) as string | undefined,
-                'yml-node': resolvedBinding,
             };
             if (typeof ui.section !== 'string') {
                 throw new Error('Section labels must resolve to strings or null');
@@ -379,7 +414,7 @@ function expandSections(
                 }
             }
             if (hasValue && !ui.id) {
-                ui.id = JSON.stringify([sectionYamlNodeName(ui), selector(projection.value, typeof raw === 'object' && raw.optional)]);
+                ui.id = JSON.stringify([sectionYamlNodeName(ui) ?? sectionYamlNodeName(definition), selector(projection.value, typeof raw === 'object' && raw.optional)]);
             }
             const allowed = inherited && projection.available && render(definition.condition ?? true, context, itemScope) === true;
             if (definition.condition !== undefined || !allowed) {
@@ -388,6 +423,9 @@ function expandSections(
             if (!allowed) {
                 ui.warning = render(definition['condition-message'], context, itemScope) as string | undefined
                     ?? 'This section is not supported by the current device or debugger configuration.';
+            }
+            if (readOnly) {
+                ui.warning = 'The storage location could not be resolved. These settings are read-only.';
             }
             if (ui.warning !== undefined && typeof ui.warning !== 'string') {
                 throw new Error('Section warnings must resolve to strings');
