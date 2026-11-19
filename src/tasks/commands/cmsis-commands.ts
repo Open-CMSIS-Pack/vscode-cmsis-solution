@@ -283,11 +283,12 @@ export class CmsisCommands {
             return;
         }
         cbuildRunYml.load();
-        for (const telnet of cbuildRunYml.getTelnet()) {
-            if (telnet.mode === 'monitor') {
+        for (const stdio of cbuildRunYml.getStdio()) {
+            const port = stdio.port;
+            if (stdio.mode === 'monitor' && port !== undefined) {
                 this.serialMonitors.push(
-                    new TCPPortMonitor(telnet.port, () => {
-                        const portPromise = api.startMonitoringTCPConnection({ host: 'localhost', port: telnet.port, swoEnabled: false });
+                    new TCPPortMonitor(port, () => {
+                        const portPromise = api.startMonitoringTCPConnection({ host: 'localhost', port, swoEnabled: false });
                         portPromise.then(() => {
                             vscode.commands.executeCommand('workbench.debug.action.focusRepl');
                         });
