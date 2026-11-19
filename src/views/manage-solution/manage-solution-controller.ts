@@ -708,8 +708,8 @@ export class ManageSolutionController {
                 } else {
                     processorNode = sectionNode?.createChild('-');
                     processorNode?.setKind(ETreeItemKind.Map).setText(undefined);
-                    processorNode?.setValue('pname', pname);
                 }
+                processorNode?.setValue('pname', pname);
             }
             processorNode?.setValue(param, value as string);
         }

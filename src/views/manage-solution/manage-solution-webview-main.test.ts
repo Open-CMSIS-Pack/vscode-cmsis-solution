@@ -696,7 +696,7 @@ describe('ContextSelectionWebviewMain', () => {
             expect(controller.activeDebugger?.item?.getChild('stdio')?.toObject()).toEqual([expectedEntry]);
         });
 
-        it.each([undefined, null, ''])('reuses an existing STDIO entry with pname=%s for the only named processor', async legacyPname => {
+        it.each([undefined, null, ''])('assigns the only named processor when reusing a STDIO entry with pname=%s', async legacyPname => {
             const main = manageSolutionWebviewMainFactory({ webviewManager });
             await main.activate(context as unknown as vscode.ExtensionContext);
 
@@ -720,7 +720,7 @@ describe('ContextSelectionWebviewMain', () => {
             });
 
             expect(controller.activeDebugger?.item?.getChild('stdio')?.toObject()).toEqual([
-                { mode: 'file', port: 4444, ...(legacyPname === undefined ? {} : { pname: null }) },
+                { mode: 'file', port: 4444, pname: 'Cortex-M0p' },
             ]);
         });
 
