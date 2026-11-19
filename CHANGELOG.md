@@ -3,32 +3,33 @@
 ## 1.74.0
 
 - Updates:
-  - Improved document management in the **CMSIS** view
-    - now supports adding, removing, downloading and importing documents, with overwrite confirmations and indicators for document locations and download errors. 
-    - Web hosted PDF documents can be downloaded an are cached on the host machine (`~/.cmsis/docs`) for sharing across projects and with the CMSIS Developer Assistant.
-    - Processor specific Arm architecture, core, debug and NPU manuals are automatically added to the list of Device specific books.
-  - Improved **Create Solution** dialog shows available projects:
-    - in a refined order starting from local Csolution examples and reference applications followed by templates and uVision examples.
-    - a checkbox allows to also list examples from Web.
-    - Built-in `Blank solution` templates are displayed, even if target specific templates are available from packs.
-  - Added a new button `Refresh Build and RTE Information` to the **CMSIS** view, making the command `Refresh (Reload Packs and Update RTE)` more accessible especially when `Auto Refresh On File Change` extension setting is disabled.
+  - Improved document management in the **CMSIS** view:
+    - Documents can now be added, removed, downloaded, and imported, with overwrite confirmations and indicators for document locations and download errors. 
+    - Web-hosted PDF documents can be downloaded and cached on the host machine (`~/.cmsis/docs`) for sharing across projects and with the CMSIS Developer Assistant.
+    - Processor-specific Arm architecture, core, debug and NPU manuals are automatically added to the list of device-specific books.
+  - Improved the **Create Solution** dialog:
+    - Available projects are shown in a refined order, starting with local Csolution examples and reference applications followed by templates and µVision examples.
+    - A checkbox allows examples from the web to be included.
+    - Built-in `Blank solution` templates are displayed even when target specific templates are available from packs.
+  - Added a new Refresh Build and RTE Information button to the CMSIS view. This makes the command Refresh (Reload Packs and Update RTE) more accessible, especially when the Auto Refresh On File Change extension setting is disabled.
   - Updated **Extension Settings**:
-    - The `Auto Refresh On File Change` setting can be disabled to avoid frequent `cbuild setup` calls due to edits of watched files. The refresh button in the **CMSIS** view shows an exclamation mark when a manual refresh is needed.
-    - The `Build Output Verbosity` setting adds the level `build-commands` for verbose output of the `cmake build` command without verbose `cbuild` output.
-  - Introduced an extended CMSIS Solution extension API V3 targeted at the CMSIS Developer Assistant MCP server and other extension integrations.
-  - Solution descriptions are now displayed in the workspace solution picker to help identifying solutions in multi solution workspaces.
+    - The `Auto Refresh On File Change` setting can be disabled to avoid frequent `cbuild setup` calls caused by changes to watched files. The refresh button in the **CMSIS** view displays an exclamation mark when a manual refresh is required.
+    - The `Build Output Verbosity` setting now includes the level `build-commands` which provides verbose output from the `cmake build` command without verbose `cbuild` output.
+  - Introduced the extended CMSIS Solution Extension API V3 for the CMSIS Developer Assistant MCP server and other extension integrations.
+  - Solution descriptions are now displayed in the workspace solution picker making solutions easier to identify in workspaces containing multiple solutions.
   - The **What's New** option in the **CMSIS** view menu opens the corresponding document from the Keil Studio Pack extension.
 
-- Solved issues:
-  - Replaced absolute with workspace relative paths in `.vscode/settings.json` `clangd.arguments`.
-  - The actual exit status of the build execution is reported back to the task now correctly indicating failed tasks.
-  - Fixed a lock-up of the extension, when cancelling `cbuild setup` would block subsequent solution operations.
-  - **Create Solution** correctly loads a solution from an example or template even if it is located in subfolder of the new workspace.
-  - **Configuration Wizard** selections now stay synchronized with the source editor without loosing keyboard focus.
-  - **Run Generator** activation got fixed and specifies the context of the selected component again.
-  - **Manage Solution** now shows the available processor cores in the debugger configuration's `Start Processor` drop down for multi-core targets.
-  - RTE version update files are now written on initial solution load, enabling immediate invocation of the configuration merge tool.
-  - Generator input files no longer appear as project source files in the **CMSIS** view.
+Solved issues:
+
+- Replaced absolute paths in the `clangd.arguments` setting in `.vscode/settings.json` with workspace-relative paths.
+- The build task now reports the actual exit status of the build process, ensuring that failed tasks are correctly indicated.
+- Fixed an extension lockup in which canceling cbuild setup blocked subsequent solution operations.
+- **Create Solution** now correctly loads a solution from an example or template located in a subfolder of the new workspace.
+- **Configuration Wizard** selections now remain synchronized with the source editor without losing keyboard focus.
+- Fixed **Run Generator** activation so that it once again specifies the context of the selected component.
+- For multi-core targets, **Manage Solution** now shows the available processor cores in the debugger configuration’s Start Processor drop-down list.
+- RTE version update files are now written when a solution is first loaded, allowing the configuration merge tool to be invoked immediately.
+- Generator input files no longer appear as project source files in the **CMSIS view**.
 
 ## 1.72.0
 
