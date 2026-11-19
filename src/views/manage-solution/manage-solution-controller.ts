@@ -633,12 +633,13 @@ export class ManageSolutionController {
         return availableCores.flatMap(core => section.options.map(option => ({ ...option, pname: core })));
     }
 
+    /** Builds section defaults, preserving processor names even when only one core is used. */
     private buildSectionDefaults(section: UISection, availableCores: string[]): Record<string, string | Record<string, string>> {
         const defaults: Record<string, string | Record<string, string>> = {};
         const options = this.expandPnameOptions(section, availableCores);
 
         if (section['pname-options'] !== undefined) {
-            if (availableCores.length > 1) {
+            if (availableCores.length > 0) {
                 options.forEach(option => {
                     if (option.default !== undefined) {
                         const core = option.pname ?? '';

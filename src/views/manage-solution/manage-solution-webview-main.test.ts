@@ -34,6 +34,7 @@ import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { configurationProviderFactory } from '../../vscode-api/configuration-provider.factories';
 import { csolutionFactory } from '../../solutions/csolution.factory';
 import { csolutionServiceFactory } from '../../json-rpc/csolution-rpc-client.factory';
+import { DebugAdapter, DebugAdaptersYamlFile } from '../../debug/debug-adapters-yaml-file';
 
 // Helper for firing a message and waiting (now inside describe, uses local webviewManager)
 describe('ContextSelectionWebviewMain', () => {
@@ -642,6 +643,59 @@ describe('ContextSelectionWebviewMain', () => {
     });
 
     describe('updateDebuggerParameter', () => {
+        it.each([
+            { deviceCoreNames: ['Cortex-M0p', 'Cortex-M4'], pname: 'Cortex-M0p' },
+            { deviceCoreNames: ['Cortex-M0p'], pname: 'Cortex-M0p' },
+            { deviceCoreNames: [undefined], pname: undefined },
+            { deviceCoreNames: [null], pname: null },
+            { deviceCoreNames: [''], pname: '' },
+        ])('keeps one STDIO entry when selecting File mode with device cores $deviceCoreNames', async ({ deviceCoreNames, pname }) => {
+            const main = manageSolutionWebviewMainFactory({ webviewManager });
+            await main.activate(context as unknown as vscode.ExtensionContext);
+
+            const adapter: DebugAdapter = {
+                name: 'Test Adapter',
+                'user-interface': [{
+                    section: 'Standard I/O',
+                    'yml-node': 'stdio',
+                    select: false,
+                    'pname-options': true,
+                    options: [{
+                        name: 'Redirect Mode',
+                        'yml-node': 'mode',
+                        type: 'enum',
+                        default: 'monitor',
+                        values: [{ name: 'Text File', value: 'file' }],
+                    }],
+                }],
+            };
+            const adaptersFile = new DebugAdaptersYamlFile();
+            jest.spyOn(adaptersFile, 'debugAdapters', 'get').mockReturnValue([adapter]);
+            const controller = main.controller;
+            controller['debugAdaptersYmlFile'] = adaptersFile;
+            controller.enableDebugger(true, adapter.name);
+            controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
+            controller.activeTargetSetWrap.addImage('Blinky.axf').device = pname ?? undefined;
+            controller.csolutionService = csolutionServiceFactory({
+                getDeviceInfo: jest.fn().mockResolvedValue({
+                    device: {
+                        processors: deviceCoreNames.map(name => ({ name, core: 'Cortex-M0+' })),
+                    },
+                }),
+            });
+
+            await fireAndWait('TOGGLE_DEBUG_ADAPTER_SECTION', { section: 'stdio' });
+            await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', {
+                service: 'stdio',
+                key: 'mode',
+                value: 'file',
+                pname,
+            });
+
+            const expectedEntry = pname ? { pname, mode: 'file' } : { mode: 'file' };
+            expect(controller.activeDebugger?.item?.getChild('stdio')?.toObject()).toEqual([expectedEntry]);
+        });
+
         it('creates missing sections for field edits without invoking the switch action', async () => {
             const main = manageSolutionWebviewMainFactory({ webviewManager });
             await main.activate(context as unknown as vscode.ExtensionContext);
