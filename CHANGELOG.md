@@ -3,7 +3,7 @@
 ## 1.74.0
 
 - Updates:
-  - Improved document management in the **CMSIS** view:
+  - Improved [document management](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#documentation-management) in the **CMSIS** view:
     - Documents can now be added, removed, downloaded, and imported, with overwrite confirmations and indicators for document locations and download errors. 
     - Web-hosted PDF documents can be downloaded and cached on the host machine (`~/.cmsis/docs`) for sharing across projects and with the CMSIS Developer Assistant.
     - Processor-specific Arm architecture, core, debug and NPU manuals are automatically added to the list of device-specific books.
