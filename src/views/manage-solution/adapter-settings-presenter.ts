@@ -177,9 +177,11 @@ export class AdapterSettingsPresenter {
         const identity = branch.map((part, depth) => sectionIdentity(part, depth === 0));
         const root = identity[0];
         const path = identity.slice(1);
-        const disabled = inheritedDisabled || section.select === false;
+        const readOnly = branch.some(part => part.readOnly);
+        const disabled = readOnly || inheritedDisabled || section.select === false;
+        const canToggle = section.select !== undefined && !inheritedDisabled && !readOnly;
         const children = section.subsections ?? [];
-        const sectionNode = context.debugger?.getSection(sectionStoragePath(branch))?.item;
+        const sectionNode = readOnly ? undefined : context.debugger?.getSection(sectionStoragePath(branch))?.item;
 
         /** Registers a section action using its complete path or a candidate child's path. */
         const sectionAction = (kind: AdapterSettingsAction['kind'], child?: UISection) => {
@@ -195,7 +197,7 @@ export class AdapterSettingsPresenter {
                 ? option.pname || undefined : undefined;
 
             /** Registers a field action without exposing its storage address to the webview. */
-            const fieldAction = (kind: 'edit' | 'browse' | 'open') => action({ kind, root, path, option }, fieldIdentity);
+            const fieldAction = (kind: 'edit' | 'browse' | 'open') => readOnly ? undefined : action({ kind, root, path, option }, fieldIdentity);
             const base: SettingsFieldBase = {
                 id: this.identity('field', [contextId, ...fieldIdentity]),
                 label: option.name,
@@ -214,11 +216,11 @@ export class AdapterSettingsPresenter {
             warning: section.warning,
             disabled,
             selected: section.select,
-            toggleAction: section.select !== undefined && !inheritedDisabled
+            toggleAction: canToggle
                 && (section.condition !== false || section.select)
                 && (sectionYamlNodeName(section) || (branch.length > 1 && section.id)) ? sectionAction('toggle') : undefined,
-            removeAction: section.usage === 'used' ? sectionAction('remove') : undefined,
-            addActions: disabled ? [] : children.filter(child => child.usage === 'available').map(child => ({
+            removeAction: section.usage === 'used' && !readOnly ? sectionAction('remove') : undefined,
+            addActions: disabled ? [] : children.filter(child => child.usage === 'available' && !child.readOnly).map(child => ({
                 label: child.section || 'Unnamed section', action: sectionAction('add', child),
             })),
             childCount: children.some(child => child.usage !== undefined)
@@ -226,7 +228,7 @@ export class AdapterSettingsPresenter {
             childrenLayout: section['subsections-layout'] ?? 'content',
             collapsible: section.collapsible ?? true,
             fields,
-            children: children.filter(child => child.usage !== 'available')
+            children: children.filter(child => readOnly || child.usage !== 'available' || child.readOnly)
                 .map(child => this.prepareSection(context, contextId, [...branch, child], disabled, action)),
         };
     }
@@ -236,7 +238,7 @@ export class AdapterSettingsPresenter {
         option: UISectionChildren,
         raw: string | undefined,
         base: SettingsFieldBase,
-        action: (kind: 'edit' | 'browse' | 'open') => string,
+        action: (kind: 'edit' | 'browse' | 'open') => string | undefined,
     ): SettingsField {
         switch (option.type) {
             case 'number': {

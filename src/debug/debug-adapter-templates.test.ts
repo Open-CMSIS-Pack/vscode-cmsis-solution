@@ -314,12 +314,141 @@ describe('device-aware registry templates', () => {
         const sections: UISection[] = [{ section: 'Custom', options: [], condition: '${{ config.custom.enabled === false && config.trace.length === 1 && device.family === "Family" }}' }];
         expect(expandAdapterSections(sections, context)[0].condition).toBe(true);
         const diagnostic = jest.spyOn(console, 'error').mockImplementation(() => undefined);
-        expect(expandAdapterSections([{ ...sections[0], condition: '${{ config.custom.enabled = true }}' }], context)).toEqual([]);
+        expect(expandAdapterSections([{ ...sections[0], condition: '${{ config.custom.enabled = true }}' }], context))
+            .toMatchObject([{ section: 'Custom', condition: false }]);
         expect(context.config.custom.enabled).toBe(false);
+        expect(diagnostic).toHaveBeenCalled();
         diagnostic.mockRestore();
     });
 
-    it('suppresses malformed expressions and duplicate concrete selectors with diagnostics', () => {
+    it.each(['string', 'file'] as const)('retains configured sections and children when a cleared %s field makes a condition throw', type => {
+        const diagnostic = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const item = new CTreeItem('debugger');
+        item.fromObject({ args: 'initial', child: { retained: true } });
+        const wrap = new DebuggerWrap(item);
+        const settings = new DebugAdapterSections([{
+            section: 'Arguments', condition: '${{ config.args.length > 0 }}',
+            options: [{ name: 'Arguments', 'yml-node': 'args', type }],
+            subsections: [{ section: 'Child', 'yml-node': 'child', options: [] }],
+        }, {
+            section: 'Other', options: [],
+        }], () => wrap, () => wrap);
+
+        settings.setParameter('arguments', [], 'args', '');
+
+        expect(settings.sections).toMatchObject([
+            { section: 'Arguments', condition: false, subsections: [{ section: 'Child', condition: false }] },
+            { section: 'Other' },
+        ]);
+        expect(item.toObject()).toEqual({ args: null, child: { retained: true } });
+        expect(diagnostic).toHaveBeenCalledWith(expect.stringContaining('config.args.length'), expect.any(Error));
+        diagnostic.mockRestore();
+    });
+
+    it('uses empty text for failed display expressions and continues rendering siblings and children', () => {
+        const diagnostic = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const context = { config: { args: null }, device: templateDevice() };
+        const sections: UISection[] = [{
+            id: 'arguments', section: '${{ config.args.length }}',
+            description: 'Before ${{ config.args.length }} after ${{ 2 + 2 }}',
+            warning: '${{ config.args.length }}', options: [],
+            subsections: [{ section: 'Child', options: [] }],
+        }, {
+            section: 'Other', options: [],
+        }];
+
+        expect(expandAdapterSections(sections, context)).toMatchObject([
+            { id: 'arguments', section: '', description: 'Before  after 4', warning: undefined, subsections: [{ section: 'Child' }] },
+            { section: 'Other' },
+        ]);
+        expect(diagnostic).toHaveBeenCalledWith(expect.stringContaining('config.args.length'), expect.any(Error));
+        expect(context.config).toEqual({ args: null });
+        diagnostic.mockRestore();
+    });
+
+    it('uses the default warning when a condition message expression fails', () => {
+        const diagnostic = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const sections: UISection[] = [{
+            section: 'Arguments', options: [], condition: false,
+            'condition-message': '${{ config.args.length }}',
+        }];
+
+        expect(expandAdapterSections(sections, { config: { args: null }, device: templateDevice() }))
+            .toMatchObject([{ section: 'Arguments', condition: false,
+                warning: 'This section is not supported by the current device or debugger configuration.' }]);
+        expect(diagnostic).toHaveBeenCalled();
+        diagnostic.mockRestore();
+    });
+
+    it.each([
+        { binding: '${{ config.args.trim() }}', id: 'target' },
+        { binding: 'prefix-${{ config.args.trim() }}', id: 'target' },
+        { binding: { name: '${{ config.args.trim() }}' }, id: 'target' },
+        { binding: { name: 'entry', value: '${{ config.args.trim() }}' }, id: 'target' },
+        { binding: undefined, id: '${{ config.args.trim() }}' },
+    ])('retains failed storage binding $binding and ID $id as a read-only subtree', ({ binding, id }) => {
+        const diagnostic = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const item = new CTreeItem('debugger');
+        const actual = { args: null, parent: { rate: 123, child: { value: 'retained' } } };
+        item.fromObject(actual);
+        const wrap = new DebuggerWrap(item);
+        const ensureDebugger = jest.fn(() => wrap);
+        const settings = new DebugAdapterSections([{
+            section: 'Parent', 'yml-node': 'parent', options: [], subsections: [{
+                section: 'Target', id, 'yml-node': binding, select: true, usage: 'available', condition: false,
+                options: [{ name: 'Rate', 'yml-node': 'rate', type: 'number', default: 7 }],
+                subsections: [{
+                    section: 'Child', 'yml-node': 'child', select: true,
+                    options: [{ name: 'Value', 'yml-node': 'value', type: 'string', default: 'default' }],
+                }],
+            }],
+        }], () => wrap, ensureDebugger);
+        const target = settings.sections[0].subsections![0];
+        const path = [target.id ?? target.section!];
+
+        expect(target).toMatchObject({
+            section: 'Target', readOnly: true, usage: undefined, warning: expect.stringContaining('read-only'),
+            subsections: [{ section: 'Child', readOnly: true }],
+        });
+        settings.setParameter('parent', path, 'rate', 999);
+        settings.setParameter('parent', [...path, 'child'], 'value', 'changed');
+        settings.setEnabled('parent', path, true);
+        settings.setEnabled('parent', path, false);
+        settings.add('parent', path);
+        settings.remove('parent', path);
+
+        expect(ensureDebugger).not.toHaveBeenCalled();
+        expect(item.toObject()).toEqual(actual);
+        expect(diagnostic).toHaveBeenCalled();
+        diagnostic.mockRestore();
+    });
+
+    it('skips unresolved child defaults when enabling a parent and restores editing when its binding resolves', () => {
+        const diagnostic = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const item = new CTreeItem('debugger');
+        item.fromObject({ args: null });
+        const wrap = new DebuggerWrap(item);
+        const settings = new DebugAdapterSections([{
+            section: 'Parent', 'yml-node': 'parent', select: false, options: [], subsections: [{
+                section: 'Target', id: 'target', 'yml-node': '${{ config.args.trim() }}', select: true,
+                options: [{ name: 'Rate', 'yml-node': 'rate', type: 'number', default: 7 }],
+            }],
+        }], () => wrap, () => wrap);
+
+        settings.setEnabled('parent', [], true);
+        expect(item.toObject()).toEqual({ args: null, parent: {} });
+        expect(settings.sections[0].subsections?.[0].readOnly).toBe(true);
+
+        item.getChild('args')!.fromObject('resolved');
+        expect(settings.sections[0].subsections?.[0].readOnly).toBeUndefined();
+        settings.setEnabled('parent', ['target'], true);
+        settings.setParameter('parent', ['target'], 'rate', 9);
+
+        expect(item.toObject()).toEqual({ args: 'resolved', parent: { resolved: { rate: 9 } } });
+        diagnostic.mockRestore();
+    });
+
+    it('recovers from expression syntax errors while rejecting invalid storage and presentation types', () => {
         const diagnostic = jest.spyOn(console, 'error').mockImplementation(() => undefined);
         const bad: UISection[] = [
             { section: 'Bad', options: [], condition: '${{ broken( }}' },
@@ -327,7 +456,8 @@ describe('device-aware registry templates', () => {
             { section: '${{ 123 }}', options: [] },
             { section: 'Bad binding', 'yml-node': { name: '${{ 123 }}' }, options: [] },
         ];
-        expect(expandAdapterSections(bad, { config: {}, device: templateDevice() })).toEqual([]);
+        expect(expandAdapterSections(bad, { config: {}, device: templateDevice() }))
+            .toMatchObject([{ section: 'Bad', condition: false }, { section: '' }]);
         const { trace } = model({}, { id: 'D', trace: { tracebuffer: [{ name: 'MTB' }, { name: 'MTB' }] } });
         expect(trace().subsections).toEqual([]);
         expect(diagnostic).toHaveBeenCalled();

@@ -63,6 +63,7 @@ export type UISection = {
     section: string | null;             // Empty or null labels leave the section's content visible without a heading.
     description?: string;               // Hover over text.
     warning?: string;                   // Constraint tooltip, including when disabled; active sections also show a warning icon.
+    readOnly?: boolean;                 // Host-resolved state when expressions cannot provide a safe storage location.
     condition?: boolean | string;       // Host expression controlling availability, resolved before presentation.
     'condition-message'?: string;       // Warning shown for configured sections whose condition is false.
     'yml-node'?: UISectionYamlNode;                // Map key or marker identifying this section in a YAML sequence.

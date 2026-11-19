@@ -106,6 +106,42 @@ describe('AdapterSettingsPresenter', () => {
         expect(root.children[1].removeAction).toBeDefined();
     });
 
+    it('keeps read-only subtrees visible and revokes all their actions without reading parent values', () => {
+        const presenter = new AdapterSettingsPresenter();
+        const input = context([{
+            section: 'Root', options: [], subsections: [{
+                id: 'target', section: 'Target', usage: 'used', select: true,
+                options: [{ name: 'File', 'yml-node': 'file', type: 'file', default: 'default.elf' }],
+                subsections: [{
+                    id: 'child', section: 'Child', usage: 'available', select: true,
+                    options: [{ name: 'Value', 'yml-node': 'value', type: 'string' }],
+                }],
+            }],
+        }], { file: 'parent.elf', target: { file: 'saved.elf' } });
+        const first = presenter.prepare(input);
+        const previous = first.sections[0].children[0];
+        const file = previous.fields[0];
+        if (file.type !== 'file') {
+            throw new Error('Expected a file field');
+        }
+        input.sections[0].subsections![0].readOnly = true;
+
+        const second = presenter.prepare(input);
+        const target = second.sections[0].children[0];
+        expect(target).toMatchObject({
+            disabled: true, toggleAction: undefined, removeAction: undefined, addActions: [],
+            fields: [{ value: 'default.elf', disabled: true, editAction: undefined, browseAction: undefined, openAction: undefined }],
+            children: [{ label: 'Child', disabled: true, toggleAction: undefined, removeAction: undefined }],
+        });
+        for (const actionId of [previous.toggleAction, previous.removeAction, previous.addActions[0].action,
+            file.editAction, file.browseAction, file.openAction]) {
+            expect(actionId).toBeDefined();
+            expect(presenter.resolve({ contextId: first.contextId, revision: first.revision, requestId: 'old', actionId: actionId! })).toBeUndefined();
+        }
+        expect(second.sections[0].addActions).toEqual([]);
+        expect(input.debugger?.object).toEqual({ file: 'parent.elf', target: { file: 'saved.elf' } });
+    });
+
     it('derives counts from immediate dynamic children and omits counts for static sections', () => {
         const presenter = new AdapterSettingsPresenter();
         const snapshot = presenter.prepare(context([
