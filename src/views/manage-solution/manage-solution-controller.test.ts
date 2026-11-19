@@ -1018,6 +1018,59 @@ describe('manage-solution-controller', () => {
         expect(controller.activeDebuggerName).toBe('Keil uVision');
     });
 
+    it('preserves the start processor when switching adapters and saving the solution', async () => {
+        const controller = new ManageSolutionController();
+        expect(await controller.loadSolution(path.join(tmpSolutionDir, 'targetSet/TargetSets.csolution.yml'))).toBe(ETextFileResult.Success);
+        controller.setActiveTargetSet('FRDM-K32L3A6', 'FRDM-ST-Link');
+        controller.activeDebugger!.startPname = 'cm4';
+        controller.csolutionService = csolutionServiceFactory({
+            getDeviceInfo: jest.fn().mockResolvedValue({
+                device: { processors: [{ name: 'cm0plus', core: 'Cortex-M0+' }, { name: 'cm4', core: 'Cortex-M4' }] },
+            }),
+        });
+        controller.customDebugAdapterDefaults = {
+            'CMSIS-DAP@pyOCD': { clock: 2000, protocol: 'jtag' },
+        };
+        const otherTargetSet = controller.activeTargetTypeWrap!.getTargetSet('CMSIS-DAP')!;
+        const otherDebugger = otherTargetSet.debugger?.object;
+        expect(await controller.getEffectiveStartProcessor()).toBe('cm4');
+        expect(controller.usedCoreNames).toEqual(['cm0plus', 'cm4']);
+
+        controller.setSelectedDebugger('CMSIS-DAP');
+
+        expect(controller.activeDebugger?.object).toEqual({
+            name: 'CMSIS-DAP@pyOCD',
+            clock: 2000000,
+            protocol: 'jtag',
+            'start-pname': 'cm4',
+        });
+        expect(await controller.getEffectiveStartProcessor()).toBe('cm4');
+        expect(otherTargetSet.debugger?.object).toEqual(otherDebugger);
+
+        controller.setSelectedDebugger('ST-Link@pyOCD');
+        expect(controller.activeDebugger?.startPname).toBe('cm4');
+        const savedPath = path.join(tmpSolutionDir, 'targetSet/PreservedStart.csolution.yml');
+        expect(await controller.csolutionYml.save(savedPath)).toBe(ETextFileResult.Success);
+        const reloadedController = new ManageSolutionController();
+        expect(await reloadedController.loadSolution(savedPath)).toBe(ETextFileResult.Success);
+        reloadedController.setActiveTargetSet('FRDM-K32L3A6', 'FRDM-ST-Link');
+        expect(reloadedController.activeDebugger?.startPname).toBe('cm4');
+    });
+
+    it('keeps the default processor behavior when switching adapters without a configured start processor', async () => {
+        const controller = new ManageSolutionController();
+        expect(await controller.loadSolution(path.join(tmpSolutionDir, 'targetSet/TargetSets.csolution.yml'))).toBe(ETextFileResult.Success);
+        controller.activeDebugger!.startPname = undefined;
+
+        controller.setSelectedDebugger('ST-Link@pyOCD');
+
+        expect(controller.activeDebugger?.object).toEqual({
+            name: 'ST-Link@pyOCD',
+            clock: 4000000,
+            protocol: 'swd',
+        });
+    });
+
     it('applies debugger configuration from snapshot to active target set', async () => {
         const controller = new ManageSolutionController();
         await controller.loadSolution('test-resources/solutions/solution-with-debuggers.csolution');
