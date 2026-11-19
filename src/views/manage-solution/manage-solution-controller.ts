@@ -923,10 +923,11 @@ export class ManageSolutionController {
     }
 
     /**
-     * Sets selected debugger and initializes top-level debugger defaults.
+     * Sets selected debugger and initializes top-level defaults, preserving the start processor.
      * @param name Debugger adapter name or alias.
      */
     public setSelectedDebugger(name: string) {
+        const startPname = this.activeDebugger?.startPname;
         const adapter = this.debugAdaptersYmlFile?.getAdapterByName(name);
         this.customizeDebugAdapterDefaults(adapter);
 
@@ -949,6 +950,10 @@ export class ManageSolutionController {
             }
         });
 
-        this.activeTargetSetWrap.ensureDebugger(adapterName).object = selectedDebugger;
+        const debuggerWrap = this.activeTargetSetWrap.ensureDebugger(adapterName);
+        debuggerWrap.object = selectedDebugger;
+        if (startPname !== undefined) {
+            debuggerWrap.startPname = startPname;
+        }
     }
 };

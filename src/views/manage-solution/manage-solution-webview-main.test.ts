@@ -166,17 +166,45 @@ describe('ContextSelectionWebviewMain', () => {
         expect(addImageSpy).toHaveBeenCalledWith('images/application.axf');
     });
 
-    it('sets debugger on SET_DEBUGGER', async () => {
+    it('preserves the start processor in published state and undo/redo snapshots on SET_DEBUGGER', async () => {
+        const onEdit = jest.fn();
         const main = manageSolutionWebviewMainFactory({
-            webviewManager
+            webviewManager,
+            onEdit,
         });
         await main.activate(context as unknown as vscode.ExtensionContext);
+        main.controller.csolutionService = csolutionServiceFactory({
+            getDeviceInfo: jest.fn().mockResolvedValue({
+                device: { processors: [{ name: 'CM4', core: 'Cortex-M4' }, { name: 'CM7', core: 'Cortex-M7' }] },
+            }),
+        });
+        main.controller.setActiveTargetSet('STM32H7', 'debug');
+        main.controller.activeTargetTypeWrap!.device = 'STMicroelectronics::STM32H747XIHx';
+        main.controller.activeTargetSetWrap.ensureDebugger().object = {
+            name: 'ST-Link@pyOCD',
+            'start-pname': 'CM7',
+            clock: 5000000,
+        };
+        const beforeSnapshot = main.getSolutionSnapshot();
 
-        await fireAndWait('SET_DEBUGGER', { name: 'debugger1' });
+        await main['handleMessage']({ type: 'SET_DEBUGGER', name: 'CMSIS-DAP@pyOCD' });
 
-        expect(webviewManager.sendMessage).toHaveBeenCalledWith(
-            expect.objectContaining({ type: 'DEBUGGER', data: expect.any(String) })
-        );
+        const afterSnapshot = main.getSolutionSnapshot();
+        expect(main.controller.activeDebugger?.object).toEqual({ name: 'CMSIS-DAP@pyOCD', 'start-pname': 'CM7' });
+        expect(afterSnapshot.usedCoreNames).toEqual(['CM4', 'CM7']);
+        expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'DEBUGGER', data: 'CMSIS-DAP@pyOCD' });
+        expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'DATA_CONTEXT_SELECTION', data: afterSnapshot });
+        expect(onEdit).toHaveBeenCalledTimes(1);
+        expect(onEdit).toHaveBeenCalledWith('SET_DEBUGGER', beforeSnapshot, afterSnapshot);
+
+        await main.applySnapshot(beforeSnapshot);
+        expect(main.controller.activeDebugger?.object).toEqual({
+            name: 'ST-Link@pyOCD',
+            'start-pname': 'CM7',
+            clock: 5000000,
+        });
+        await main.applySnapshot(afterSnapshot);
+        expect(main.getSolutionSnapshot()).toEqual(afterSnapshot);
     });
 
     it('updates context on SET_SELECTED_CONTEXTS', async () => {
