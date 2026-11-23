@@ -10,7 +10,7 @@
   - Improved the [**Create Solution**](https://mdk-packs.github.io/vscode-cmsis-solution-docs/create_app.html) dialog:
     - Available projects are shown in a refined order, starting with local Csolution examples and reference applications followed by templates and µVision examples.
     - A checkbox allows examples from the web to be included.
-    - Built-in `Blank solution` templates are displayed even when target specific templates are available from packs.
+    - Built-in "Blank solution" templates are displayed even when target specific templates are available from packs.
   - Added a new [Refresh Build and RTE Information](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#refresh-build-and-rte-information) button to the CMSIS view. This makes the command Refresh (Reload Packs and Update RTE) more accessible, especially when the Auto Refresh On File Change extension setting is disabled.
   - Updated **Extension Settings**:
     - The [`Auto Refresh On File Change`](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#auto-refresh-on-file-change) setting can be disabled to avoid frequent `cbuild setup` calls caused by changes to watched files. The refresh button in the **CMSIS** view displays an exclamation mark when a manual refresh is required.
@@ -27,11 +27,11 @@ Solved issues:
 - **Create Solution** now correctly loads a solution from an example or template located in a subfolder of the new workspace.
 - **Configuration Wizard** selections now remain synchronized with the source editor without losing keyboard focus.
 - Fixed **Run Generator** activation so that it once again specifies the context of the selected component.
-- For multi-core targets, **Manage Solution** now shows the available processor cores in the debugger configuration’s Start Processor drop-down list.
+- For multi-core targets, **Manage Solution** now shows the available processor cores in the debugger configuration’s "Start Processor" drop-down list.
 - RTE version update files are now written when a solution is first loaded, allowing the configuration merge tool to be invoked immediately.
 - Generator input files no longer appear as project source files in the **CMSIS view**.
-- Updated debugger configuration to support the new `stdio` setting in CMSIS-Toolbox while maintaining compatibility with older `telnet` configurations.
-- **Manage Solution** now preserves the selected Start Processor when switching debug adapters.
+- **Manage Solution** now preserves the selected "Start Processor" when switching between debug adapters.
+- In **Manage Solution**, the "Telnet" debugger configuration was renamed to "Standard I/O". It now uses the [`stdio`](https://open-cmsis-pack.github.io/cmsis-toolbox/pyOCD-Debugger/#stdio) YAML node instead of `telnet`. The legacy `telnet` node remains supported by CMSIS-Toolbox as a backward-compatible alias.
 
 ## 1.72.0
 
