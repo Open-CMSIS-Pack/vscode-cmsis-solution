@@ -633,12 +633,13 @@ export class ManageSolutionController {
         return availableCores.flatMap(core => section.options.map(option => ({ ...option, pname: core })));
     }
 
+    /** Builds section defaults, preserving processor names even when only one core is used. */
     private buildSectionDefaults(section: UISection, availableCores: string[]): Record<string, string | Record<string, string>> {
         const defaults: Record<string, string | Record<string, string>> = {};
         const options = this.expandPnameOptions(section, availableCores);
 
         if (section['pname-options'] !== undefined) {
-            if (availableCores.length > 1) {
+            if (availableCores.length > 0) {
                 options.forEach(option => {
                     if (option.default !== undefined) {
                         const core = option.pname ?? '';
@@ -670,14 +671,15 @@ export class ManageSolutionController {
     }
 
     /**
-     * Sets a debugger parameter for a specific processor core (`pname`).
+     * Sets a processor-specific debugger parameter, reusing an unambiguous unnamed entry.
      * @param section Optional debugger section.
      * @param pname Processor/core name.
      * @param param Parameter key.
      * @param value Parameter value.
      */
     public async setDebuggerParameterWithPname(section: string | undefined, pname: string, param: string, value: string | number) {
-        if ((await this.getAvailableCoreNames()).length === 0) {
+        const availableCoreNames = await this.getAvailableCoreNames();
+        if (availableCoreNames.length === 0) {
             const sequence = this.activeTargetSetWrap.ensureDebugger().item
                 ?.createChild(section, true)
                 ?.setKind(ETreeItemKind.Sequence);
@@ -690,10 +692,23 @@ export class ManageSolutionController {
             const sectionNode = this.activeTargetSetWrap.ensureDebugger().item
                 ?.createChild(section, true)
                 ?.setKind(ETreeItemKind.Sequence);
+            const entries = sectionNode?.getChildren() ?? [];
+
+            const canReuseUnnamedProcessorEntry = () => {
+                if (availableCoreNames.length !== 1 || availableCoreNames[0] !== pname) {
+                    return false;
+                }
+                return entries.length === 1 && !entries[0].getValue('pname');
+            };
+
             let processorNode = sectionNode?.getChildByValue('pname', pname);
             if (!processorNode) {
-                processorNode = sectionNode?.createChild('-');
-                processorNode?.setKind(ETreeItemKind.Map).setText(undefined);
+                if (canReuseUnnamedProcessorEntry()) {
+                    processorNode = entries[0];
+                } else {
+                    processorNode = sectionNode?.createChild('-');
+                    processorNode?.setKind(ETreeItemKind.Map).setText(undefined);
+                }
                 processorNode?.setValue('pname', pname);
             }
             processorNode?.setValue(param, value as string);
@@ -923,10 +938,11 @@ export class ManageSolutionController {
     }
 
     /**
-     * Sets selected debugger and initializes top-level debugger defaults.
+     * Sets selected debugger and initializes top-level defaults, preserving the start processor.
      * @param name Debugger adapter name or alias.
      */
     public setSelectedDebugger(name: string) {
+        const startPname = this.activeDebugger?.startPname;
         const adapter = this.debugAdaptersYmlFile?.getAdapterByName(name);
         this.customizeDebugAdapterDefaults(adapter);
 
@@ -949,6 +965,10 @@ export class ManageSolutionController {
             }
         });
 
-        this.activeTargetSetWrap.ensureDebugger(adapterName).object = selectedDebugger;
+        const debuggerWrap = this.activeTargetSetWrap.ensureDebugger(adapterName);
+        debuggerWrap.object = selectedDebugger;
+        if (startPname !== undefined) {
+            debuggerWrap.startPname = startPname;
+        }
     }
 };

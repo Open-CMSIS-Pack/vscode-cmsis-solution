@@ -954,10 +954,10 @@ describe('manage-solution-controller', () => {
         const targetSet = controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
         controller.activeTargetTypeName = 'test-target';
         controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
-        const telnet = targetSet.ensureDebugger('Test Debugger').item
-            ?.createChild('telnet', true)
+        const stdio = targetSet.ensureDebugger('Test Debugger').item
+            ?.createChild('stdio', true)
             ?.setKind(ETreeItemKind.Sequence);
-        const hpEntry = telnet?.createChild('-');
+        const hpEntry = stdio?.createChild('-');
         hpEntry?.setKind(ETreeItemKind.Map).setText(undefined);
         hpEntry?.setValue('pname', 'M55_HP');
         hpEntry?.setValue('mode', 'console');
@@ -975,11 +975,44 @@ describe('manage-solution-controller', () => {
             }),
         });
 
-        await controller.setDebuggerParameterWithPname('telnet', 'M55_HE', 'mode', 'off');
+        await controller.setDebuggerParameterWithPname('stdio', 'M55_HE', 'mode', 'off');
 
-        expect(telnet?.getChildren()).toHaveLength(2);
-        expect(telnet?.getChildByValue('pname', 'M55_HP')?.getValue('mode')).toBe('console');
-        expect(telnet?.getChildByValue('pname', 'M55_HE')?.getValue('mode')).toBe('off');
+        expect(stdio?.getChildren()).toHaveLength(2);
+        expect(stdio?.getChildByValue('pname', 'M55_HP')?.getValue('mode')).toBe('console');
+        expect(stdio?.getChildByValue('pname', 'M55_HE')?.getValue('mode')).toBe('off');
+    });
+
+    it.each([
+        { deviceCoreNames: ['C0', 'C1'], entries: [{ mode: 'monitor' }] },
+        { deviceCoreNames: ['C0'], entries: [{ mode: 'monitor' }, { mode: 'console' }] },
+        { deviceCoreNames: ['C0'], entries: [{ pname: 'OtherCore', mode: 'console' }] },
+    ])('preserves STDIO entries that cannot be assigned to the requested processor for device cores $deviceCoreNames', async ({ deviceCoreNames, entries }) => {
+        const controller = new ManageSolutionController();
+        const targetSet = controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
+        controller.activeTargetTypeName = 'test-target';
+        controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
+        const stdio = targetSet.ensureDebugger('Test Debugger').item?.createChild('stdio', true);
+        stdio?.fromObject(entries);
+        const adaptersFile = new DebugAdaptersYamlFile();
+        jest.spyOn(adaptersFile, 'debugAdapters', 'get').mockReturnValue([{
+            name: 'Test Debugger',
+            'user-interface': [{ section: 'Standard I/O', 'yml-node': 'stdio', 'pname-options': true, options: [] }],
+        }]);
+        controller['debugAdaptersYmlFile'] = adaptersFile;
+        controller.csolutionService = csolutionServiceFactory({
+            getDeviceInfo: jest.fn().mockResolvedValue({
+                device: {
+                    processors: deviceCoreNames.map(name => ({ name, core: 'Cortex-M0+' })),
+                },
+            }),
+        });
+
+        await controller.getAvailableCoreNames();
+        expect(stdio?.toObject()).toEqual(entries);
+
+        await controller.setDebuggerParameterWithPname('stdio', 'C0', 'mode', 'file');
+
+        expect(stdio?.toObject()).toEqual([...entries, { pname: 'C0', mode: 'file' }]);
     });
 
     it('should get solution data', async () => {
@@ -1016,6 +1049,59 @@ describe('manage-solution-controller', () => {
 
         controller.setSelectedDebugger('Keil uVision');
         expect(controller.activeDebuggerName).toBe('Keil uVision');
+    });
+
+    it('preserves the start processor when switching adapters and saving the solution', async () => {
+        const controller = new ManageSolutionController();
+        expect(await controller.loadSolution(path.join(tmpSolutionDir, 'targetSet/TargetSets.csolution.yml'))).toBe(ETextFileResult.Success);
+        controller.setActiveTargetSet('FRDM-K32L3A6', 'FRDM-ST-Link');
+        controller.activeDebugger!.startPname = 'cm4';
+        controller.csolutionService = csolutionServiceFactory({
+            getDeviceInfo: jest.fn().mockResolvedValue({
+                device: { processors: [{ name: 'cm0plus', core: 'Cortex-M0+' }, { name: 'cm4', core: 'Cortex-M4' }] },
+            }),
+        });
+        controller.customDebugAdapterDefaults = {
+            'CMSIS-DAP@pyOCD': { clock: 2000, protocol: 'jtag' },
+        };
+        const otherTargetSet = controller.activeTargetTypeWrap!.getTargetSet('CMSIS-DAP')!;
+        const otherDebugger = otherTargetSet.debugger?.object;
+        expect(await controller.getEffectiveStartProcessor()).toBe('cm4');
+        expect(controller.usedCoreNames).toEqual(['cm0plus', 'cm4']);
+
+        controller.setSelectedDebugger('CMSIS-DAP');
+
+        expect(controller.activeDebugger?.object).toEqual({
+            name: 'CMSIS-DAP@pyOCD',
+            clock: 2000000,
+            protocol: 'jtag',
+            'start-pname': 'cm4',
+        });
+        expect(await controller.getEffectiveStartProcessor()).toBe('cm4');
+        expect(otherTargetSet.debugger?.object).toEqual(otherDebugger);
+
+        controller.setSelectedDebugger('ST-Link@pyOCD');
+        expect(controller.activeDebugger?.startPname).toBe('cm4');
+        const savedPath = path.join(tmpSolutionDir, 'targetSet/PreservedStart.csolution.yml');
+        expect(await controller.csolutionYml.save(savedPath)).toBe(ETextFileResult.Success);
+        const reloadedController = new ManageSolutionController();
+        expect(await reloadedController.loadSolution(savedPath)).toBe(ETextFileResult.Success);
+        reloadedController.setActiveTargetSet('FRDM-K32L3A6', 'FRDM-ST-Link');
+        expect(reloadedController.activeDebugger?.startPname).toBe('cm4');
+    });
+
+    it('keeps the default processor behavior when switching adapters without a configured start processor', async () => {
+        const controller = new ManageSolutionController();
+        expect(await controller.loadSolution(path.join(tmpSolutionDir, 'targetSet/TargetSets.csolution.yml'))).toBe(ETextFileResult.Success);
+        controller.activeDebugger!.startPname = undefined;
+
+        controller.setSelectedDebugger('ST-Link@pyOCD');
+
+        expect(controller.activeDebugger?.object).toEqual({
+            name: 'ST-Link@pyOCD',
+            clock: 4000000,
+            protocol: 'swd',
+        });
     });
 
     it('applies debugger configuration from snapshot to active target set', async () => {

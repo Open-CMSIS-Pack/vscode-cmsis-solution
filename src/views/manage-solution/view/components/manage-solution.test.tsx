@@ -153,22 +153,22 @@ describe('ContextSelection', () => {
                     name: 'TestAdapter',
                     'user-interface': [
                         {
-                            section: 'telnet', options: [
-                                { name: 'propA', 'yml-node': 'telnet-prop_a', type: 'string', },
+                            section: 'Standard I/O', 'yml-node': 'stdio', select: true, options: [
+                                { name: 'propA', 'yml-node': 'stdio-prop_a', type: 'string', },
                                 { name: 'Misc', 'yml-node': 'args', type: 'string' },
-                                { name: 'propB', 'yml-node': 'telnet-prop_b', type: 'number' },
-                                { name: 'propC', 'yml-node': 'telnet-prop_c', type: 'enum', values: [{ name: 'A', value: 'a' }, { name: 'B', value: 'b' }, { name: 'C', value: 'c' }] },
-                                { name: 'propD', 'yml-node': 'telnet-prop_d', type: 'file' },
+                                { name: 'propB', 'yml-node': 'stdio-prop_b', type: 'number' },
+                                { name: 'Redirect Mode', 'yml-node': 'mode', type: 'enum', values: [{ name: 'Serial Monitor', value: 'monitor' }, { name: 'Debug Console', value: 'console' }, { name: 'Disabled', value: 'off' }] },
+                                { name: 'propD', 'yml-node': 'stdio-prop_d', type: 'file' },
                             ]
                         }
                     ]
                 }, {
                     name: 'AnotherAdapter',
                     'user-interface': [
-                        { section: 'telnet', options: [{ name: 'port', 'yml-node': 'telnet-port', type: 'number' }] }
+                        { section: 'Standard I/O', 'yml-node': 'stdio', select: true, options: [{ name: 'port', 'yml-node': 'stdio-port', type: 'number' }] }
                     ]
                 }],
-                sectionsInUse: ['telnet']
+                sectionsInUse: ['stdio']
             });
 
             messageHandler.postWindowMessage({
@@ -177,6 +177,31 @@ describe('ContextSelection', () => {
             });
         });
     };
+
+    it('renders Standard I/O and Redirect Mode while sending edits using the stdio YAML key', () => {
+        createContextSelectionComponent();
+        postGenericDataContext();
+        listener.mockClear();
+
+        expect(Array.from(container.querySelectorAll('.section-label')).some(label => label.textContent === 'Standard I/O')).toBe(true);
+        expect(Array.from(container.querySelectorAll('.compact-dropdown-addon-before')).some(label => label.textContent === 'Redirect Mode')).toBe(true);
+        const control = Array.from(container.querySelectorAll('.section-control'))
+            .find(element => element.querySelector('.ant-input-group-addon')?.textContent === 'propA');
+        const input = control?.querySelector('input') as HTMLInputElement;
+        expect(input).not.toBeNull();
+        expect(input.disabled).toBe(false);
+
+        React.act(() => {
+            fireEvent.change(input, { target: { value: 'updated' } });
+        });
+        React.act(() => {
+            fireEvent.blur(input);
+        });
+
+        expect(listener).toHaveBeenCalledWith({
+            type: 'SET_DEBUG_ADAPTER_PROPERTY', service: 'stdio', key: 'stdio-prop_a', value: 'updated',
+        });
+    });
 
     it('fires a click to documentation links', () => {
         createContextSelectionComponent();
@@ -589,7 +614,7 @@ describe('ContextSelection', () => {
                 postGenericDataContext();
                 listener.mockClear();
 
-                const filePathInput = container.querySelector('input[data-yml-node="telnet-prop_d"]') as HTMLInputElement;
+                const filePathInput = container.querySelector('input[data-yml-node="stdio-prop_d"]') as HTMLInputElement;
                 expect(filePathInput).toBeDefined();
                 expect(filePathInput.value).toBe('');
 
@@ -621,8 +646,8 @@ describe('ContextSelection', () => {
 
                 expect(listener).toHaveBeenCalledWith({
                     type: 'SET_DEBUG_ADAPTER_PROPERTY',
-                    service: undefined,
-                    key: 'telnet-prop_d',
+                    service: 'stdio',
+                    key: 'stdio-prop_d',
                     value: selectedPath,
                 });
                 expect(filePathInput.value).toBe(selectedPath);
