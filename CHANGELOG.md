@@ -30,6 +30,8 @@ Solved issues:
 - For multi-core targets, **Manage Solution** now shows the available processor cores in the debugger configuration’s Start Processor drop-down list.
 - RTE version update files are now written when a solution is first loaded, allowing the configuration merge tool to be invoked immediately.
 - Generator input files no longer appear as project source files in the **CMSIS view**.
+- Updated debugger configuration to support the new `stdio` setting in CMSIS-Toolbox while maintaining compatibility with older `telnet` configurations.
+- **Manage Solution** now preserves the selected Start Processor when switching debug adapters.
 
 ## 1.72.0
 
