@@ -105,12 +105,27 @@ class VcpkgManagerImpl implements VcpkgManager {
         if (api.getActiveTools().length > 0) {
             return;
         }
-        await new Promise<void>((resolve) => {
-            const handler = () => {
-                event.dispose();
-                resolve();
+        await new Promise<void>((resolve, reject) => {
+            let failureCheck: ReturnType<typeof setInterval> | undefined;
+            const dispose = () => {
+                activationEvent.dispose();
+                failureEvent.dispose();
+                clearInterval(failureCheck);
             };
-            const event = api.onDidActivate(handler);
+            const activationEvent = api.onDidActivate(() => {
+                dispose();
+                resolve();
+            });
+            const failureEvent = api.onDidFailActivation(() => {
+                // Environment Manager may update registries and retry after this event.
+                // A failed registry update emits no further activation event.
+                failureCheck ??= setInterval(() => {
+                    if (!api.isActivating()) {
+                        dispose();
+                        reject(new Error('Environment activation failed'));
+                    }
+                }, 100);
+            });
         });
     }
 }
