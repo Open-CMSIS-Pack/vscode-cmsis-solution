@@ -34,6 +34,7 @@ class VcpkgManagerImpl implements VcpkgManager {
 
     static _instance: VcpkgManager | null = null;
     private activationComplete = false;
+    private activationError: Error | undefined;
     private activationPromise: Promise<void> | undefined;
 
     static get instance(): VcpkgManager {
@@ -105,6 +106,10 @@ class VcpkgManagerImpl implements VcpkgManager {
         if (api.getActiveTools().length > 0) {
             return;
         }
+        if (this.activationError && !api.isActivating()) {
+            throw this.activationError;
+        }
+        this.activationError = undefined;
         await new Promise<void>((resolve, reject) => {
             let failureCheck: ReturnType<typeof setInterval> | undefined;
             const dispose = () => {
@@ -122,7 +127,8 @@ class VcpkgManagerImpl implements VcpkgManager {
                 failureCheck ??= setInterval(() => {
                     if (!api.isActivating()) {
                         dispose();
-                        reject(new Error('Environment activation failed'));
+                        this.activationError = new Error('Environment activation failed');
+                        reject(this.activationError);
                     }
                 }, 100);
             });
