@@ -12,6 +12,7 @@
     - A checkbox allows examples from the web to be included.
     - Built-in "Blank solution" templates are displayed even when target specific templates are available from packs.
   - Added a new [Refresh Build and RTE Information](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#refresh-build-and-rte-information) button to the CMSIS view. This makes the command Refresh (Reload Packs and Update RTE) more accessible, especially when the Auto Refresh On File Change extension setting is disabled.
+  - In **Manage Solution**, the "Telnet" debugger configuration was renamed to "Standard I/O". It now uses the [`stdio`](https://open-cmsis-pack.github.io/cmsis-toolbox/pyOCD-Debugger/#stdio) YAML node instead of `telnet`. The legacy `telnet` node remains supported by CMSIS-Toolbox as a backward-compatible alias.
   - Updated **Extension Settings**:
     - The [`Auto Refresh On File Change`](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#auto-refresh-on-file-change) setting can be disabled to avoid frequent `cbuild setup` calls caused by changes to watched files. The refresh button in the **CMSIS** view displays an exclamation mark when a manual refresh is required.
     - The [`Build Output Verbosity`](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#build-output-verbosity) setting now includes the level `build-commands` which provides verbose output from the `cmake build` command without verbose `cbuild` output.
@@ -31,7 +32,6 @@ Solved issues:
 - RTE version update files are now written when a solution is first loaded, allowing the configuration merge tool to be invoked immediately.
 - Generator input files no longer appear as project source files in the **CMSIS view**.
 - **Manage Solution** now preserves the selected "Start Processor" when switching between debug adapters.
-- In **Manage Solution**, the "Telnet" debugger configuration was renamed to "Standard I/O". It now uses the [`stdio`](https://open-cmsis-pack.github.io/cmsis-toolbox/pyOCD-Debugger/#stdio) YAML node instead of `telnet`. The legacy `telnet` node remains supported by CMSIS-Toolbox as a backward-compatible alias.
 
 ## 1.72.0
 
