@@ -998,14 +998,11 @@ describe('manage-solution-controller', () => {
         const targetSet = controller.csolutionYml.ensureTargetTypeAndSet('test-target', 'test-set');
         controller.activeTargetTypeName = 'test-target';
         controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
-        const stdio = targetSet.ensureDebugger('Test Debugger').item?.createChild('stdio', true);
+        const stdio = targetSet.ensureDebugger('CMSIS-DAP@pyOCD').item?.createChild('stdio', true);
         stdio?.fromObject(entries);
-        const adaptersFile = new DebugAdaptersYamlFile();
-        jest.spyOn(adaptersFile, 'debugAdapters', 'get').mockReturnValue([{
-            name: 'Test Debugger',
-            'user-interface': [{ section: 'Standard I/O', 'yml-node': 'stdio', 'pname-options': true, options: [] }],
-        }]);
-        controller['debugAdaptersYmlFile'] = adaptersFile;
+        const registry = new DebugAdaptersYamlFile();
+        expect(await registry.load(path.join(__dirname, '../../../test-data/debug-adapters/declarative.yml'))).toBe(ETextFileResult.Success);
+        controller['debugAdaptersYmlFile'] = registry;
         controller.csolutionService = csolutionServiceFactory({
             getDeviceInfo: jest.fn().mockResolvedValue({
                 device: {
@@ -1014,10 +1011,11 @@ describe('manage-solution-controller', () => {
             }),
         });
 
+        await controller.getAvailableCoreNames();
         await controller.adapterSettingsContext(true);
         expect(stdio?.toObject()).toEqual(entries);
 
-        editSetting(controller, 'stdio', 'mode', 'file', [], 'C0');
+        editSetting(controller, 'stdio', 'mode', 'file', [JSON.stringify(['pname', 'C0'])]);
 
         expect(stdio?.toObject()).toEqual([...entries, { pname: 'C0', mode: 'file' }]);
     });

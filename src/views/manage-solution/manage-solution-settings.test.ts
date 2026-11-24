@@ -198,30 +198,60 @@ describe('registry-driven settings actions', () => {
             .toEqual(['rejected', 'applied']);
     });
 
+    it('preserves the start processor in published settings and undo/redo snapshots when switching adapters', async () => {
+        const { main, latest, perform, send, onEdit, messages } = await setup();
+        main.controller.activeTargetTypeWrap!.device = 'Vendor::DualCore';
+        main.controller.csolutionService = csolutionServiceFactory({
+            getDeviceInfo: jest.fn().mockResolvedValue({
+                device: { processors: [{ name: 'CM4', core: 'Cortex-M4' }, { name: 'CM7', core: 'Cortex-M7' }] },
+            }),
+        });
+        main.controller.activeDebugger!.startPname = 'CM7';
+        await main.controller.getAvailableCoreNames();
+        await send({ type: 'GET_ADAPTER_SETTINGS' });
+        const before = main.getSolutionSnapshot();
+
+        await perform(latest().header.selectAdapterAction!, 'Without sections');
+
+        const after = main.getSolutionSnapshot();
+        expect(main.controller.activeDebugger?.object).toEqual({ name: 'Without sections', 'start-pname': 'CM7' });
+        expect(latest().header).toMatchObject({ selectedAdapter: 'Without sections', selectedProcessor: 'CM7' });
+        expect(messages()).toContainEqual({ type: 'DATA_CONTEXT_SELECTION', data: expect.objectContaining({ usedCoreNames: ['CM4', 'CM7'] }) });
+        expect(onEdit).toHaveBeenCalledTimes(1);
+        expect(onEdit).toHaveBeenCalledWith('UPDATE_ADAPTER_SETTINGS', before, after);
+
+        await main.applySnapshot(before);
+        expect(main.controller.activeDebugger?.startPname).toBe('CM7');
+        expect(latest().header.selectedAdapter).toBe('CMSIS-DAP@pyOCD');
+        await main.applySnapshot(after);
+        expect(main.getSolutionSnapshot()).toEqual(after);
+        expect(latest().header.selectedProcessor).toBe('CM7');
+    });
+
     it('enables compact unnamed Telnet settings with custom defaults and restores edits through undo/redo', async () => {
         const { main, latest, perform, send } = await setup();
-        main.controller.customDebugAdapterDefaults = { 'CMSIS-DAP@pyOCD': { 'telnet.mode': 'console' } };
+        main.controller.customDebugAdapterDefaults = { 'CMSIS-DAP@pyOCD': { 'stdio.mode': 'console' } };
         await send({ type: 'GET_ADAPTER_SETTINGS' });
-        const telnet = () => latest().sections.find(section => section.label === 'Telnet')!;
-        const initialChildId = telnet().children[0].id;
-        expect(telnet()).toMatchObject({ selected: false, children: [{ label: '', collapsible: false, disabled: true }] });
-        expect(main.controller.activeDebugger?.object).not.toHaveProperty('telnet');
+        const stdio = () => latest().sections.find(section => section.label === 'Telnet')!;
+        const initialChildId = stdio().children[0].id;
+        expect(stdio()).toMatchObject({ selected: false, children: [{ label: '', collapsible: false, disabled: true }] });
+        expect(main.controller.activeDebugger?.object).not.toHaveProperty('stdio');
 
-        await perform(telnet().toggleAction!, true);
-        expect(telnet().children[0]).toMatchObject({ id: initialChildId, fields: [{ value: 'console', disabled: false }] });
-        expect(main.controller.activeDebugger?.object).toMatchObject({ telnet: [{ mode: 'console' }] });
+        await perform(stdio().toggleAction!, true);
+        expect(stdio().children[0]).toMatchObject({ id: initialChildId, fields: [{ value: 'console', disabled: false }] });
+        expect(main.controller.activeDebugger?.object).toMatchObject({ stdio: [{ mode: 'console' }] });
         const enabled = main.getSolutionSnapshot();
-        await perform(telnet().children[0].fields[0].editAction!, 'file');
+        await perform(stdio().children[0].fields[0].editAction!, 'file');
         const edited = main.getSolutionSnapshot();
-        expect(main.controller.activeDebugger?.object).toMatchObject({ telnet: [{ mode: 'file' }] });
+        expect(main.controller.activeDebugger?.object).toMatchObject({ stdio: [{ mode: 'file' }] });
 
         await main.applySnapshot(enabled);
-        expect(telnet().children[0]).toMatchObject({ id: initialChildId, fields: [{ value: 'console' }] });
+        expect(stdio().children[0]).toMatchObject({ id: initialChildId, fields: [{ value: 'console' }] });
         await main.applySnapshot(edited);
-        expect(telnet().children[0].fields[0].value).toBe('file');
-        await perform(telnet().toggleAction!, false);
-        expect(main.controller.activeDebugger?.object).not.toHaveProperty('telnet');
-        expect(telnet().children[0]).toMatchObject({ id: initialChildId, disabled: true });
+        expect(stdio().children[0].fields[0].value).toBe('file');
+        await perform(stdio().toggleAction!, false);
+        expect(main.controller.activeDebugger?.object).not.toHaveProperty('stdio');
+        expect(stdio().children[0]).toMatchObject({ id: initialChildId, disabled: true });
     });
 
     it('adds, edits, disables and removes trace through opaque actions and restores undo/redo snapshots', async () => {

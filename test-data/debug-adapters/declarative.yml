@@ -8,7 +8,7 @@ debug-adapters:
       gdbserver:
         active:
         port: 3333
-      telnet:
+      stdio:
         port: 4444
       protocol: swd
       clock: 10000000
@@ -40,7 +40,7 @@ debug-adapters:
       - section: Telnet
         description: Serial input/output via semihosting or RTT channel 0
         yml-node:
-          name: telnet
+          name: stdio
           kind: sequence
         select: false
         options: []

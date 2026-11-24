@@ -34,7 +34,6 @@ import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { configurationProviderFactory } from '../../vscode-api/configuration-provider.factories';
 import { csolutionFactory } from '../../solutions/csolution.factory';
 import { csolutionServiceFactory } from '../../json-rpc/csolution-rpc-client.factory';
-import { DebugAdapter, DebugAdaptersYamlFile } from '../../debug/debug-adapters-yaml-file';
 
 // Helper for firing a message and waiting (now inside describe, uses local webviewManager)
 describe('ContextSelectionWebviewMain', () => {
