@@ -183,32 +183,32 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
         return [...new Set(solutionPaths)].sort();
     }
 
-    private async getConfiguredDefaultSolution(): Promise<string | undefined> {
-        const workspaceFolder = this.workspaceFoldersProvider.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            return undefined;
-        }
+    private async getConfiguredDefaultSolution(solutions: string[]): Promise<string | undefined> {
+        for (const workspaceFolder of this.workspaceFoldersProvider.workspaceFolders ?? []) {
+            const cmsisJsonPath = path.join(workspaceFolder.uri.fsPath, '.vscode', 'cmsis.json');
+            const cmsisJson = new CmsisSettingsJsonFile(cmsisJsonPath);
+            if (!cmsisJson.exists() || await cmsisJson.load() === ETextFileResult.Error) {
+                continue;
+            }
 
-        const cmsisJsonPath = path.join(workspaceFolder.uri.fsPath, '.vscode', 'cmsis.json');
-        const cmsisJson = new CmsisSettingsJsonFile(cmsisJsonPath);
-        if (!cmsisJson.exists() || await cmsisJson.load() === ETextFileResult.Error) {
-            return undefined;
+            const activeSolution = cmsisJson.get('activeSolution');
+            if (typeof activeSolution === 'string' && activeSolution.trim()) {
+                const solutionPath = path.resolve(path.dirname(cmsisJsonPath), activeSolution);
+                if (solutions.includes(solutionPath)
+                    && this.workspaceFoldersProvider.getWorkspaceFolder(solutionPath)?.uri.fsPath === workspaceFolder.uri.fsPath) {
+                    return solutionPath;
+                }
+            }
         }
-
-        const activeSolution = cmsisJson.get('activeSolution');
-        return typeof activeSolution === 'string' && activeSolution.trim()
-            ? path.resolve(path.dirname(cmsisJsonPath), activeSolution)
-            : undefined;
+        return undefined;
     }
 
     /**
      * Reload list of available solutions, check active solution is still present.
      */
     private async refresh() {
-        const [solutions, configuredDefaultSolution] = await Promise.all([
-            this.getSolutionPaths(),
-            this.getConfiguredDefaultSolution(),
-        ]);
+        const solutions = await this.getSolutionPaths();
+        const configuredDefaultSolution = await this.getConfiguredDefaultSolution(solutions);
         this._solutions = solutions;
 
         const previous = this._activeSolution || this.workspaceState?.get<string>(ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_KEY);

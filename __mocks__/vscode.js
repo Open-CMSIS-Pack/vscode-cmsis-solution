@@ -219,6 +219,7 @@ const fs = {
 const workspace = {
     fs,
     findFiles: jest.fn(async () => []),
+    getWorkspaceFolder: jest.fn(),
     getConfiguration: jest.fn(),
     onDidChangeConfiguration: new EventEmitter().event,
     onDidChangeWorkspaceFolders: jest.fn(() => ({ dispose: jest.fn() })),

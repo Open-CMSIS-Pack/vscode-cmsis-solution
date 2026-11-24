@@ -19,7 +19,7 @@ import { CONFIG_ROOT, PACKAGE_NAME } from '../manifest';
 
 export interface ConfigurationProvider {
     getConfigVariable<T>(name: string, extension?: string): T | undefined;
-    getConfigVariableOrDefault<T>(name: string, def: T, extension?: string): T;
+    getConfigVariableOrDefault<T>(name: string, def: T, extension?: string, scope?: vscode.Uri): T;
     setConfigVariable<T>(name: string, value: T, extension?: string, workspace?: boolean): Promise<void>;
     inspectConfigVariable<T>(name: string, extension?: string): {
         key: string;
@@ -45,9 +45,9 @@ export class ConfigurationProviderImpl implements ConfigurationProvider {
         return vscode.workspace.getConfiguration(extension).get<T>(name);
     }
 
-    public getConfigVariableOrDefault<T>(name: string, def: T, extension?: string): T {
+    public getConfigVariableOrDefault<T>(name: string, def: T, extension?: string, scope?: vscode.Uri): T {
         extension = extension ? extension : CONFIG_ROOT;
-        return vscode.workspace.getConfiguration(extension).get<T>(name, def);
+        return vscode.workspace.getConfiguration(extension, scope).get<T>(name, def);
     }
 
     public async setConfigVariable<T>(name: string, value: T, extension?: string, workspace = false): Promise<void> {
