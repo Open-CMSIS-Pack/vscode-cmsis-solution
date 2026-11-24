@@ -109,6 +109,32 @@ describe('HardwareItemBuilder', () => {
         expect(device.getFeatures()).toBe('docParent');
     });
 
+    it('adds distinct dbgconf files from later cbuilds to an existing device node', async () => {
+        const csolution = new CSolution();
+        expect(await csolution.load(cSolFile)).toBe(ETextFileResult.Success);
+        const builds = [...csolution.cbuildYmlRoot.values()].map(root => root.getChildItem()!);
+        const builder = new HardwareItemBuilder(csolution, undefined, docManager);
+        const nodes = builder.createHardwareNodes(csolution);
+        const device = nodes.get(csolution.getDeviceNameWithVendor())!;
+        expect(device.getChildren()).toEqual([]);
+
+        const fileName = '.cmsis/device.dbgconf';
+        const filePaths: string[] = [];
+        for (const cbuild of builds) {
+            cbuild.createChild('dbgconf').createChild('-').setValue('file', fileName);
+            filePaths.push(cbuild.resolvePath(fileName));
+            builder.createHardwareNodes(csolution, cbuild, nodes);
+            builder.createHardwareNodes(csolution, cbuild, nodes);
+        }
+
+        const expectedPaths = [...new Set(filePaths)];
+        expect(expectedPaths.length).toBeGreaterThan(1);
+        expect(nodes.get(csolution.getDeviceNameWithVendor())).toBe(device);
+        expect(device.getChildren().map(item => [item.getTag(), item.getAttribute('label'), item.getAttribute('resourcePath')]))
+            .toEqual(expectedPaths.map(filePath => ['file', 'device.dbgconf', filePath]));
+        expect(nodes.get(csolution.getBoardName())!.getChildren()).toEqual([]);
+    });
+
     it.each(['board', 'device'] as const)('includes inventory-only documents in %s books', async parentTag => {
         const csolution = new CSolution();
         const loadResult = await csolution.load(cSolFile);

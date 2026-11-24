@@ -49,9 +49,11 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
             return;
         }
         if (!hardwareItem) {
-            hardwareItem = this.createHardwareNode(hardwareName, isBoard, csolution, cbuild);
+            hardwareItem = this.createHardwareNode(hardwareName, isBoard, csolution);
             hardwareTreeNodes.set(hardwareName, hardwareItem);
         }
+
+        this.createDbgConfigNode(hardwareItem, isBoard, cbuild);
 
         for (const doc of this.docManager?.getBooks(hardwareName, hardwareType, cbuild ?? csolution.getCbuildTop()) ?? []) {
             this.createBookNode(hardwareItem, doc);
@@ -61,7 +63,7 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
             || (a.getAttribute('label') ?? '').localeCompare(b.getAttribute('label') ?? ''));
     }
 
-    private createHardwareNode(hardwareName: string, isBoard: boolean, csolution: CSolution, cbuild?: CTreeItem): COutlineItem {
+    private createHardwareNode(hardwareName: string, isBoard: boolean, csolution: CSolution): COutlineItem {
         const boardPackName = csolution.getBoardPack();
         const devicePackName = csolution.getDevicePack();
         const hardwarePackName = isBoard ? boardPackName : devicePackName;
@@ -78,9 +80,6 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
         hardwareItem.setAttribute('expandable', '1');
         hardwareItem.setAttribute('iconPath', isBoard ? 'circuit-board' : 'chip');
         hardwareItem.setAttribute('tooltip', tooltip);
-
-        // add dbgconfig file
-        this.createDbgConfigNode(hardwareItem, isBoard, cbuild);
 
         return hardwareItem;
     }
@@ -168,6 +167,10 @@ export class HardwareItemBuilder extends SolutionOutlineItemBuilder {
 
         const fileName = file.getText() ?? '';
         const filePath = file.resolvePath(fileName);
+        if (hardwareItem.getChildren().some(item => item.getTag() === 'file'
+            && item.getAttribute('resourcePath') === filePath)) {
+            return;
+        }
         const dbgConfFile = path.basename(fileName);
         const dbgConfigEntry = file.getParent();
 
