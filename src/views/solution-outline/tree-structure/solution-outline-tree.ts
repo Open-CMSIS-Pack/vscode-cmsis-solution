@@ -93,11 +93,7 @@ export class SolutionOutlineTree extends SolutionOutlineItemBuilder {
                 projectsTreeNode.push(projectTreeNode);
             }
             // add hardware nodes
-            const hardware = hardwareTreeItem.createHardwareNodes(csolution, cbuild);
-
-            hardware.forEach((value, key) => {
-                hardwareTreeNode.set(key, value);
-            });
+            hardwareTreeItem.createHardwareNodes(csolution, cbuild, hardwareTreeNode);
         }
         const hardwareTreeNodes = [...hardwareTreeNode.values()];
         const cdefaultTreeNode = this.createCdefaultNode(parent, csolution);

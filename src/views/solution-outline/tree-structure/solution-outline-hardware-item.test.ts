@@ -70,6 +70,71 @@ describe('HardwareItemBuilder', () => {
         manager.dispose();
     });
 
+    it('reuses hardware nodes and appends device books without duplicating children', async () => {
+        const csolution = new CSolution();
+        expect(await csolution.load(cSolFile)).toBe(ETextFileResult.Success);
+        const build = csolution.getCbuildTop()!;
+        build.createChild('dbgconf').createChild('-').setValue('file', '.cmsis/device.dbgconf');
+        const boardId = csolution.getBoardName();
+        const deviceId = csolution.getDeviceNameWithVendor();
+        const name = 'https://example.com/manual.pdf';
+        docManager.file.ensureDoc(name, boardId, 'board').title = 'Board guide';
+        docManager.file.ensureDoc(name, deviceId, 'device').title = 'Device guide';
+        const builder = new HardwareItemBuilder(csolution, undefined, docManager);
+        const nodes = builder.createHardwareNodes(csolution, build);
+        const board = nodes.get(boardId)!;
+        const device = nodes.get(deviceId)!;
+
+        const additionalName = 'https://example.com/additional.pdf';
+        docManager.file.ensureDoc(additionalName, boardId, 'board').title = 'Additional board guide';
+        docManager.file.ensureDoc(additionalName, deviceId, 'device').title = 'Device guide';
+        const alphabeticalName = 'https://example.com/alphabetical.pdf';
+        docManager.file.ensureDoc(alphabeticalName, deviceId, 'device').title = 'A device guide';
+        builder.createHardwareNodes(csolution, build, nodes);
+        builder.createHardwareNodes(csolution, build, nodes);
+
+        expect(nodes.size).toBe(2);
+        expect(nodes.get(boardId)).toBe(board);
+        expect(nodes.get(deviceId)).toBe(device);
+        expect(board.getChildren().map(item => item.getAttribute('label'))).toEqual(['Board guide']);
+        expect(device.getChildren().map(item => [item.getTag(), item.getAttribute('label')])).toEqual([
+            ['file', 'device.dbgconf'],
+            ['book', 'A device guide'],
+            ['book', 'Device guide'],
+            ['book', 'Device guide'],
+        ]);
+        expect(device.getChildren().filter(item => item.getTag() === 'book').map(item => item.getAttribute('docName')))
+            .toEqual([alphabeticalName, name, additionalName]);
+        expect(device.getChildren().every(item => item.getParent() === device)).toBe(true);
+        expect(device.getFeatures()).toBe('docParent');
+    });
+
+    it('adds distinct dbgconf files from later cbuilds to an existing device node', async () => {
+        const csolution = new CSolution();
+        expect(await csolution.load(cSolFile)).toBe(ETextFileResult.Success);
+        const builds = [...csolution.cbuildYmlRoot.values()].map(root => root.getChildItem()!);
+        const builder = new HardwareItemBuilder(csolution, undefined, docManager);
+        const nodes = builder.createHardwareNodes(csolution);
+        const device = nodes.get(csolution.getDeviceNameWithVendor())!;
+        expect(device.getChildren()).toEqual([]);
+
+        const fileName = '.cmsis/device.dbgconf';
+        const filePaths: string[] = [];
+        for (const cbuild of builds) {
+            cbuild.createChild('dbgconf').createChild('-').setValue('file', fileName);
+            filePaths.push(cbuild.resolvePath(fileName));
+            builder.createHardwareNodes(csolution, cbuild, nodes);
+            builder.createHardwareNodes(csolution, cbuild, nodes);
+        }
+
+        const expectedPaths = [...new Set(filePaths)];
+        expect(expectedPaths.length).toBeGreaterThan(1);
+        expect(nodes.get(csolution.getDeviceNameWithVendor())).toBe(device);
+        expect(device.getChildren().map(item => [item.getTag(), item.getAttribute('label'), item.getAttribute('resourcePath')]))
+            .toEqual(expectedPaths.map(filePath => ['file', 'device.dbgconf', filePath]));
+        expect(nodes.get(csolution.getBoardName())!.getChildren()).toEqual([]);
+    });
+
     it.each(['board', 'device'] as const)('includes inventory-only documents in %s books', async parentTag => {
         const csolution = new CSolution();
         const loadResult = await csolution.load(cSolFile);
@@ -106,9 +171,9 @@ describe('HardwareItemBuilder', () => {
         }));
 
         expect(books).toEqual([
+            { tag: 'book', label: 'Cbuild manual', docPath: path.join(path.dirname(cSolFile), 'reported.pdf') },
             { tag: 'book', label: 'Inventory guide', docPath: guidePath },
             { tag: 'book', label: 'Inventory reference', docPath: referencePath },
-            { tag: 'book', label: 'Cbuild manual', docPath: path.join(path.dirname(cSolFile), 'reported.pdf') },
         ]);
         expect(addBooks).not.toHaveBeenCalled();
         expect(docManager.file.stringify()).toBe(inventory);
@@ -185,9 +250,9 @@ describe('HardwareItemBuilder', () => {
         expect(await csolution.load(cSolFile)).toBe(ETextFileResult.Success);
         const parentId = csolution.getDeviceNameWithVendor();
         const names = ['https://example.com/manual.pdf', 'https://example.com/manual.html', 'local.pdf', '${CMSIS_PACK_ROOT}/manual.pdf'];
-        for (const name of names) {
+        for (const [index, name] of names.entries()) {
             const doc = docManager.file.ensureDoc(name, parentId, 'device');
-            doc.title = name;
+            doc.title = `Manual ${index + 1}`;
             doc.mode = mode;
         }
         const builder = new HardwareItemBuilder(csolution, undefined, docManager);
