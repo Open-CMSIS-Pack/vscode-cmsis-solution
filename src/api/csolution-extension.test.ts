@@ -24,34 +24,55 @@ import { DataManager } from '../data-manager/data-manager';
 describe('CsolutionExtension', () => {
     let extension: CsolutionExtensionImpl;
     let context: { subscriptions: Disposable[] };
+    const getBuildResult = jest.fn();
 
     beforeEach(async () => {
         context = { subscriptions: [] };
 
         extension = new CsolutionExtensionImpl(
             {} as SolutionCreator,
-            {} as BuildTaskProvider,
+            { getBuildResult } as unknown as BuildTaskProvider,
             {} as DataManager,
-            { loadState: {} },
-            { getToolsEnvironment: jest.fn() },
+            { getCsolution: jest.fn(), loadState: {} },
+            { getPacksInfo: jest.fn() },
+            { getToolsEnvironment: jest.fn(), getToolchains: jest.fn() },
+            { executeCommand: jest.fn() },
+            { convertSolution: jest.fn() },
         );
 
         await extension.activate(context as unknown as ExtensionContext);
     });
 
+    const commandGetters = [
+        'convertSolution', 'getSolutionFile', 'getActiveTarget', 'getDeviceName', 'getBoardName',
+        'getDfpName', 'getBspName', 'getDfpPath', 'getBspPath', 'getPackRootPath', 'getCbuildRunFile',
+    ];
+
     it('returns the APIv2', () => {
         const api = extension.getApi(2);
         expect(api.getBoards).toBeDefined();
-        expect(api).not.toHaveProperty('getToolsEnvironment');
+        for (const method of ['getBuildResult', 'getDebuggers', 'getToolchains', 'getToolsEnvironment', 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution', ...commandGetters]) {
+            expect(api).not.toHaveProperty(method);
+        }
     });
 
     it('returns independent V3 instances with the established operations', () => {
         const api = extension.getApi(3);
         expect(api).not.toBe(extension.getApi(3));
         expect(api).not.toBe(extension.getApi(2));
-        for (const method of ['getBoards', 'getDevices', 'getDraftProjects', 'createNewSolution', 'build', 'getToolsEnvironment']) {
+        for (const method of ['getBuildResult', 'getDebuggers', 'getToolchains', 'getBoards', 'getDevices', 'getDraftProjects', 'createNewSolution', 'build', 'getToolsEnvironment', 'getPacks', 'installPacks', 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution', ...commandGetters]) {
             expect(api).toHaveProperty(method, expect.any(Function));
         }
+    });
+
+    it('shares build result lookup across V3 API instances', () => {
+        const execution = { task: {} as import('vscode').Task, terminate: jest.fn() };
+        const result = Promise.resolve({ exitCode: 0, output: 'compiled' });
+        getBuildResult.mockReturnValue(result);
+
+        expect(extension.getApi(3).getBuildResult(execution)).toBe(result);
+        expect(extension.getApi(3).getBuildResult(execution)).toBe(result);
+        expect(getBuildResult).toHaveBeenCalledWith(execution);
     });
 
     it.each([1, 4, 0])('rejects unsupported version %s', version => {

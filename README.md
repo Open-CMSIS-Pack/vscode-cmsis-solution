@@ -50,6 +50,29 @@ The **CMSIS** view gives you access to the source code of your application. The 
 
 Action buttons allow you to build, run, and debug your application, [edit *csolution project files*](#yml-editor-support) or [manage the solution configuration](#manage-solution-view). The [Configuration Wizard](#configuration-wizard) offers a graphical view to configuration file options.
 
+Arm documents matching the current core or its architecture appear under the device,
+including matching Generic User Guides.
+Initialization registers the complete catalog once in `~/.cmsis/docs.yml` under
+`docs.commons` with `common: arm-docs`, without a build or network request.
+Catalog entries persist `id`, `version`, `format`, and `metadataUrl`; these fields
+are optional for other documents. Documents open using their recorded local path
+when set, or their URL otherwise. Documents are not downloaded automatically.
+
+**Add Document** copies a selected local file into the managed document directory.
+For eligible web documents, **Import** copies a local file while preserving the
+document's URL and metadata; **Download Document** retrieves the file from the web.
+Import is available for both downloadable files and HTML links; Download Document
+is available only for downloadable files. Both commands are unavailable for user
+documents and local or pack files. Replacing an existing destination file requires **Overwrite** confirmation.
+The selected source file remains unchanged.
+
+Managed files use `docs/<vendor>/<hardware>/<basename>/<filename>` beside
+`docs.yml`; common Arm documents use `docs/<id>-<version>/<id>-<version>.<format>`.
+HTML links use the selected file's name for imported hardware documents and its
+extension for imported common documents, without changing the recorded URL or format.
+**Remove Document** removes a user entry and its managed document directory,
+including companion files. External legacy files are retained.
+
 ## Action buttons
 
 The **CMSIS** view displays the name of the current *csolution project* and offers several action buttons.
@@ -78,6 +101,10 @@ To start a new *csolution project*, select a [board](https://www.keil.arm.com/bo
 - [Reference applications](https://open-cmsis-pack.github.io/cmsis-toolbox/ReferenceApplications/): Reference applications are hardware-agnostic and require additional software layers with API drivers for the target board selected.
 - CMSIS solution examples: These examples are created for a specific hardware or evaluation board and interface with board and device peripherals.
 - µVision examples: Example projects created for the µVision IDE. Arm CMSIS Solution automatically converts µVision projects to the csolution project format.
+
+Use **Show Web and uVision examples** to include or hide Web examples and local µVision examples.
+This option is enabled automatically when the selected hardware has no local CMSIS solution examples or reference applications; templates do not affect this default.
+Your choice is retained within the wizard until you select different hardware.
 
 Then create the *csolution project* on the selected folder on your Host computer.
 

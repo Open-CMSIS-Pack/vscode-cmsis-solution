@@ -48,6 +48,7 @@ export class SolutionOutlineView {
             }),
             this.solutionManager.onDidChangeLoadState(this.handleChangeLoadState, this),
             this.solutionManager.onUpdatedCompileCommands(this.handleUpdatedCompileCommands, this),
+            this.solutionManager.getDocManager().onDidChange(() => this.updateTree(this.solutionManager.loadState)),
         );
         this.treeViewProvider.activate(context);
     }
@@ -101,7 +102,9 @@ export class SolutionOutlineView {
             if (this.treeUpdateCount !== thisTreeUpdateNumber) {
                 return;
             }
-            const solutionOutlineTree = new SolutionOutlineTree(this.solutionManager.getCsolution(), this.solutionManager.getRpcData());
+            const solutionOutlineTree = new SolutionOutlineTree(
+                this.solutionManager.getCsolution(), this.solutionManager.getRpcData(), this.solutionManager.getDocManager(),
+            );
             const tree = solutionOutlineTree.createTree();
             this.treeViewProvider.updateTree(tree);
             this.treeViewFileDecorationProvider.setTreeRoot(tree);

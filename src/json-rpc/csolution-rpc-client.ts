@@ -9,7 +9,7 @@ import * as manifest from '../manifest';
 import { ChildProcess, spawn } from 'node:child_process';
 import { MessageConnection } from 'vscode-jsonrpc';
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter } from 'vscode-jsonrpc/node';
-import { RpcMethods, RpcInterface, GetVersionResult } from './interface/rpc-interface';
+import { RpcMethods, RpcInterface, GetVersionResult, GetPacksInfoParams, PacksInfo } from './interface/rpc-interface';
 import { constructor } from '@open-cmsis-pack/cmsis-common/constructor';
 import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { debounce } from 'lodash';
@@ -31,6 +31,7 @@ declare module './interface/rpc-interface' {
 export interface CsolutionService extends RpcInterface {
     activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>): Promise<void>;
     getCsolutionBin(): string;
+    getPackRoot(): string;
     waitForExit(): Promise<void>;
     suspendPackIdxWatcher(): void;
     resumePackIdxWatcher(skipPendingReload?: boolean): void;
@@ -52,9 +53,12 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     private csolutionBin = 'csolution';
     private exitPromise: Promise<void> | undefined;
     private cachedVersion: GetVersionResult = { success: false };
+    private packsReady: ReturnType<RpcInterface['loadPacks']> | undefined;
+    private packsFailed = false;
     private packIdxWatcherSuspendDepth = 0;
     private pendingPackIdxChange = false;
     private readonly mutex: Mutex;
+    private processEnvironment: string | undefined;
 
     constructor(
         private readonly environmentManager: EnvironmentManager,
@@ -70,7 +74,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
             this,
             this.commandsProvider.registerCommand(CsolutionServiceImpl.reloadPacksCommandId, this.reloadPacks, this),
         );
-        this.loadPacks(); // direct load without notification
+        void this.loadPacks().catch(error => console.error('Initial pack loading failed:', error));
     }
 
     public async dispose() {
@@ -83,7 +87,35 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         return (response ?? {}) as TResponse;
     }
 
+    public async getPacksInfo(args: GetPacksInfoParams): Promise<PacksInfo> {
+        if (this.processEnvironment !== undefined) {
+            await this.prepareEnvironment();
+        }
+        if (this.packsFailed) {
+            this.loadPacks();
+        }
+        for (;;) {
+            const ready = this.packsReady ?? this.loadPacks();
+            try {
+                const result = await ready;
+                if (ready === this.packsReady) {
+                    if (!result.success) {
+                        throw new Error(result.message ?? 'Unable to initialize pack catalog');
+                    }
+                    return super.getPacksInfo(args);
+                }
+            } catch (error) {
+                if (ready === this.packsReady) {
+                    throw error;
+                }
+            }
+        }
+    }
+
     public async getVersion(): Promise<GetVersionResult> {
+        if (this.processEnvironment !== undefined) {
+            await this.prepareEnvironment();
+        }
         if (!this.cachedVersion.success) {
             // Query daemon version once per launched session
             this.cachedVersion = await super.getVersion();
@@ -92,15 +124,30 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         return this.cachedVersion;
     }
 
-    public async loadPacks() {
+    public loadPacks() {
+        const previous = this.packsReady;
+        this.packsFailed = false;
+        const ready: ReturnType<RpcInterface['loadPacks']> = previous
+            ? previous.catch(() => undefined).then(() =>
+                this.packsReady === ready ? this.initializePacks() : { success: false, message: 'Pack load superseded' })
+            : this.initializePacks();
+        this.packsReady = ready;
+        void ready.then(
+            result => { if (this.packsReady === ready) { this.packsFailed = !result.success; } },
+            () => { if (this.packsReady === ready) { this.packsFailed = true; } },
+        );
+        return ready;
+    }
+
+    private async initializePacks() {
+        // Version lookup waits for the active environment and launches its RPC session.
+        await this.getVersion();
         if (this.idxWatcher === undefined) {
             this.watchPackIdxFile();
         }
         if (this.localRepositoryIdxWatcher === undefined) {
             this.watchLocalRepositoryPidxFile();
         }
-        // ensure version is cached
-        await this.getVersion();
         return super.loadPacks();
     }
 
@@ -115,6 +162,10 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
 
     public getCsolutionBin(): string {
         return this.csolutionBin;
+    }
+
+    public getPackRoot(): string {
+        return getCmsisPackRoot(this.environmentManager.augmentEnv(new Environment(process.env)).vars);
     }
 
     public async waitForExit(): Promise<void> {
@@ -141,7 +192,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     private watchPackIdxFile() {
         this.idxWatcher = this.watchPackIndexFile(
             this.idxWatcher,
-            path.join(getCmsisPackRoot(), 'pack.idx'),
+            path.join(this.getPackRoot(), 'pack.idx'),
             'pack.idx'
         );
     }
@@ -149,7 +200,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
     private watchLocalRepositoryPidxFile() {
         this.localRepositoryIdxWatcher = this.watchPackIndexFile(
             this.localRepositoryIdxWatcher,
-            path.join(getCmsisPackRoot(), '.Local', 'local_repository.pidx'),
+            path.join(this.getPackRoot(), '.Local', 'local_repository.pidx'),
             'local_repository.pidx'
         );
     }
@@ -185,6 +236,11 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         Promise<TResponse | undefined> {
         const release = await this.mutex.acquire();
         try {
+            if (method !== 'Shutdown') {
+                await this.updateSessionEnvironment();
+            } else if (!this.child?.pid) {
+                return { success: true } as TResponse;
+            }
             if (!(this.child?.pid) && !(await this.launch())) {
                 return undefined;
             }
@@ -205,8 +261,56 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         }
     }
 
-    private onTerminate() {
+    private getEnvironmentKey(variables = this.environmentManager.augmentEnv(new Environment(process.env)).vars): string {
+        return JSON.stringify(Object.entries(variables)
+            .filter(([, value]) => value !== undefined)
+            .sort(([left], [right]) => left.localeCompare(right)));
+    }
+
+    private async prepareEnvironment(): Promise<void> {
+        const release = await this.mutex.acquire();
+        try {
+            await this.updateSessionEnvironment();
+        } finally {
+            release();
+        }
+    }
+
+    private async updateSessionEnvironment(): Promise<void> {
+        for (;;) {
+            await this.environmentManager.waitUntilReady();
+            if (!this.child?.pid || this.processEnvironment === undefined || this.processEnvironment === this.getEnvironmentKey()) {
+                return;
+            }
+            // Send directly while holding the mutex: calling shutdown() here would reacquire it.
+            await this.connection?.sendRequest('Shutdown');
+            await this.waitForExit();
+            await this.launch();
+            this.watchPackIdxFile();
+            this.watchLocalRepositoryPidxFile();
+            this.cachedVersion = await this.connection!.sendRequest<GetVersionResult>('GetVersion');
+            const loading = this.connection!.sendRequest<Awaited<ReturnType<RpcInterface['loadPacks']>>>('LoadPacks');
+            this.packsReady = loading;
+            this.packsFailed = false;
+            try {
+                const result = await loading;
+                if (!result.success) {
+                    throw new Error(result.message ?? 'Unable to initialize pack catalog');
+                }
+            } catch (error) {
+                this.packsFailed = true;
+                throw error;
+            }
+            // The folder may have changed again while the new catalog was loading.
+        }
+    }
+
+    private onTerminate(child?: ChildProcess) {
+        if (child && child !== this.child) {
+            return;
+        }
         this.child = undefined;
+        this.processEnvironment = undefined;
         this.idxWatcher?.close();
         this.idxWatcher = undefined;
         this.localRepositoryIdxWatcher?.close();
@@ -214,6 +318,8 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         this.connection?.dispose();
         this.connection = undefined;
         this.cachedVersion = { success: false };
+        this.packsReady = undefined;
+        this.packsFailed = false;
     }
 
     private async launch(): Promise<boolean> {
@@ -223,6 +329,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         } catch {
             console.warn('VcpkgManager activation failed or timed out');
         }
+        await this.environmentManager.waitUntilReady();
 
         // Augment environment
         const augmentedEnv = this.environmentManager
@@ -241,26 +348,27 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
         if (!this.child) {
             // append extra args from env.CSOLUTION_ARGS only if it is defined and not empty
             const args = augmentedEnv.CSOLUTION_ARGS?.split(',').map(s => s.trim()).filter(s => s) ?? [];
-            this.child = spawn(this.csolutionBin, ['rpc', '--content-length', ...args],
+            const child = spawn(this.csolutionBin, ['rpc', '--content-length', ...args],
                 {
                     cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? './',
                     env: augmentedEnv,
                 }
             );
+            this.child = child;
             this.exitPromise = new Promise((resolve, reject) => {
-                this.child?.on('exit', (code) => {
+                child.on('exit', (code) => {
                     console.warn(`csolution rpc child process exited (${code})`);
-                    this.onTerminate();
+                    this.onTerminate(child);
                     resolve();
                 });
-                this.child?.on('error', (error) => {
+                child.on('error', (error) => {
                     console.error('csolution rpc child process error:', error);
-                    this.onTerminate();
+                    this.onTerminate(child);
                     reject();
                 });
-                this.child?.on('disconnect', () => {
+                child.on('disconnect', () => {
                     console.warn('csolution rpc child process disconnected');
-                    this.onTerminate();
+                    this.onTerminate(child);
                     reject();
                 });
             });
@@ -281,10 +389,9 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
             );
 
             // Listen for child process close event
-            this.child.on('close', (code) => {
+            child.on('close', (code) => {
                 console.warn(`csolution rpc child process closed (${code})`);
-                this.onTerminate();
-                throw new Error(`csolution rpc child process closed (${code})`);
+                this.onTerminate(child);
             });
 
             // Listen for rpc connection errors
@@ -295,6 +402,7 @@ class CsolutionServiceImpl extends RpcMethods implements CsolutionService {
 
             // Start listening
             this.connection.listen();
+            this.processEnvironment = this.getEnvironmentKey(augmentedEnv);
         } else {
             console.log('ignoring launch request, csolution rpc already running');
         }

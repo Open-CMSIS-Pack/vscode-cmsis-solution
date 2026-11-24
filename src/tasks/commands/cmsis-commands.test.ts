@@ -36,7 +36,9 @@ import { Port, SerialMonitorApi } from '@microsoft/vscode-serial-monitor-api';
 import { extensionApiWrapperFactory, ExtensionApiWrapperMock } from '../../vscode-api/extension-api-wrapper.factories';
 import { CbuildRunYamlFile } from '../../solutions/files/cbuild-run-yaml-file';
 import { waitForPromises } from '../../__test__/test-waits';
-import { faker } from '@faker-js/faker';
+import { PYOCD_TASK_TYPE } from '../../debug/pyocd-task-provider';
+import { TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
+import { textFileSystemFactory } from '../../__test__/text-file-system';
 
 jest.mock('vscode');
 (vscode.tasks.fetchTasks as jest.Mock) = jest.fn();
@@ -214,12 +216,71 @@ describe('CmsisCommands', () => {
         expect(vscode.tasks.executeTask).toHaveBeenCalledWith(mockTask);
     });
 
+    it('preserves Load+Run state transitions for managed tasks without OS process events', async () => {
+        const end = new vscode.EventEmitter<{ task: vscode.Task; exitCode: number }>();
+        const commands = new CmsisCommands(configProvider, commandsProvider, solutionManager,
+            debugLaunchProvider, serialMonitorExtension, { onDidEndTask: end.event, stopTask: jest.fn() });
+        jest.mocked(vscode.tasks.fetchTasks).mockResolvedValue([]);
+        const context = extensionContextFactory();
+        await commands.activate(context);
+        const start = jest.mocked(vscode.tasks.onDidStartTask).mock.calls.slice(-1)[0][0];
+        const finish = jest.mocked(vscode.tasks.onDidEndTask).mock.calls.slice(-1)[0][0];
+        const load = new vscode.Task({ type: PYOCD_TASK_TYPE, args: ['load'] }, vscode.TaskScope.Workspace, 'CMSIS Load', 'Workspace');
+        const run = new vscode.Task({ type: PYOCD_TASK_TYPE, args: ['gdbserver'] }, vscode.TaskScope.Workspace, 'CMSIS Run', 'Workspace');
+        const event = (task: vscode.Task): vscode.TaskStartEvent => ({ execution: { task, terminate: jest.fn() } });
+        start(event(load));
+        expect(vscode.commands.executeCommand).toHaveBeenLastCalledWith('setContext', 'canStartDebug', false);
+        expect(vscode.commands.executeCommand).toHaveBeenCalledWith('setContext', `${PACKAGE_NAME}.executionState`, 'loading');
+        end.fire({ task: load, exitCode: 0 });
+        finish(event(load));
+        expect(commands['taskLifecycles'].get('CMSIS Load')?.exitCode).toBe(0);
+        start(event(run));
+        expect(vscode.commands.executeCommand).toHaveBeenCalledWith('setContext', `${PACKAGE_NAME}.executionState`, 'running');
+        end.fire({ task: run, exitCode: 130 });
+        finish(event(run));
+        expect(vscode.commands.executeCommand).toHaveBeenCalledWith('setContext', `${PACKAGE_NAME}.executionState`, 'idle');
+        start(event(load));
+        end.fire({ task: load, exitCode: 1 });
+        expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('CMSIS Load task failed before launch.');
+        finish(event(load));
+        end.dispose();
+        context.subscriptions.forEach(disposable => disposable?.dispose());
+    });
+
     it('shows error message if CMSIS task is not found', async () => {
         (vscode.tasks.fetchTasks as jest.Mock).mockResolvedValue([]);
 
         await cmsisCommands['runCmsisTask']('CMSIS x', 'running');
 
         expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("Task 'CMSIS x' not found");
+    });
+
+    it.each(['CMSIS Load', 'CMSIS Run'])('keeps %s and its compound task connected during graceful Stop', async name => {
+        const end = new vscode.EventEmitter<{ task: vscode.Task; exitCode: number }>();
+        const stopTask = jest.fn().mockReturnValue(true);
+        const commands = new CmsisCommands(configProvider, commandsProvider, solutionManager,
+            debugLaunchProvider, serialMonitorExtension, { onDidEndTask: end.event, stopTask });
+        const executions = [name, 'CMSIS Load+Run'].map(taskName => ({
+            task: new vscode.Task({ type: taskName === name ? PYOCD_TASK_TYPE : 'shell' }, vscode.TaskScope.Workspace, taskName, 'Workspace'),
+            terminate: jest.fn(),
+        }));
+        const original = Object.getOwnPropertyDescriptor(vscode.tasks, 'taskExecutions');
+        Object.defineProperty(vscode.tasks, 'taskExecutions', { configurable: true, value: executions });
+        try {
+            await commands['stopCmsisTask']('CMSIS');
+            expect(stopTask.mock.calls).toEqual(executions.map(execution => [execution.task]));
+            executions.forEach(execution => expect(execution.terminate).not.toHaveBeenCalled());
+            stopTask.mockReturnValue(false);
+            await commands['stopCmsisTask']('CMSIS');
+            executions.forEach(execution => expect(execution.terminate).toHaveBeenCalledTimes(1));
+        } finally {
+            if (original) {
+                Object.defineProperty(vscode.tasks, 'taskExecutions', original);
+            } else {
+                Reflect.deleteProperty(vscode.tasks, 'taskExecutions');
+            }
+            end.dispose();
+        }
     });
 
     it('starts debugging if launch config and workspace folder are available', async () => {
@@ -513,24 +574,35 @@ describe('CmsisCommands', () => {
         );
     });
 
-    it('Starts and stops serial monitors on debug session start and end', async () => {
+    function createMonitorConfiguration(key: string, port: number): CbuildRunYamlFile {
+        const fileName = '/test.cbuild-run.yml';
+        TextFile.setFileSystem(textFileSystemFactory(new Map([[fileName, `cbuild-run:
+  output: []
+  debugger:
+    name: CMSIS-DAP
+    ${key}:
+      - mode: monitor
+        port: ${port}
+      - mode: off
+      - mode: console
+      - mode: file
+      - mode: monitor
+`]])));
+        return new CbuildRunYamlFile(fileName);
+    }
+
+    afterEach(() => TextFile.setFileSystem());
+
+    it.each(['stdio', 'telnet'])('Starts and stops serial monitors on debug session start and end with %s YAML', async key => {
         await cmsisCommands.activate(extensionContextFactory());
 
         await configProvider.setConfigVariable(CONFIG_AUTO_CONFIGURE_TELNET_PORT_MONITOR, true);
 
-        const portNumber = faker.number.int({ min: 1025, max: 65535 });
-        const cbuildRunYmlMock : jest.Mocked<CbuildRunYamlFile> = {
-            load: jest.fn().mockResolvedValue(undefined),
-            getTelnet: jest.fn().mockReturnValue([{
-                mode: 'monitor',
-                port: portNumber,
-            }, {
-                mode: 'off',
-            }]),
-        } as unknown as jest.Mocked<CbuildRunYamlFile>;
+        const portNumber = 4444;
+        const cbuildRunYml = createMonitorConfiguration(key, portNumber);
 
         const csolution = {
-            cbuildRunYml: cbuildRunYmlMock,
+            cbuildRunYml,
         } as unknown as jest.Mocked<CSolution>;
         solutionManager.getCsolution.mockReturnValue(csolution);
 
@@ -549,6 +621,8 @@ describe('CmsisCommands', () => {
         await mockWaitUntilUsed.resolve();
 
         // Then the serial monitor should be started
+        expect(mockWaitUntilUsed.mock).toHaveBeenCalledTimes(1);
+        expect(serialMonitorExtension.api?.startMonitoringTCPConnection).toHaveBeenCalledTimes(1);
         expect(serialMonitorExtension.api?.startMonitoringTCPConnection)
             .toHaveBeenCalledWith(expect.objectContaining({
                 host: 'localhost',
@@ -567,23 +641,15 @@ describe('CmsisCommands', () => {
         expect(port.stopMonitoring).toHaveBeenCalledTimes(1);
     });
 
-    it('Skip serial port monitoring when ports do not become used', async () => {
+    it.each(['stdio', 'telnet'])('Skip serial port monitoring when ports do not become used with %s YAML', async key => {
         await cmsisCommands.activate(extensionContextFactory());
 
         await configProvider.setConfigVariable(CONFIG_AUTO_CONFIGURE_TELNET_PORT_MONITOR, true);
 
-        const cbuildRunYmlMock : jest.Mocked<CbuildRunYamlFile> = {
-            load: jest.fn().mockResolvedValue(undefined),
-            getTelnet: jest.fn().mockReturnValue([{
-                mode: 'monitor',
-                port: 4444,
-            }, {
-                mode: 'off',
-            }]),
-        } as unknown as jest.Mocked<CbuildRunYamlFile>;
+        const cbuildRunYml = createMonitorConfiguration(key, 4444);
 
         const csolution = {
-            cbuildRunYml: cbuildRunYmlMock,
+            cbuildRunYml,
         } as unknown as jest.Mocked<CSolution>;
         solutionManager.getCsolution.mockReturnValue(csolution);
 

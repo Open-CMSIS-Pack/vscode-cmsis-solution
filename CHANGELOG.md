@@ -1,5 +1,38 @@
 # Change Log
 
+## 1.74.0
+
+- Updates:
+  - Improved [document management](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#documentation-management) in the **CMSIS** view:
+    - Documents can now be added, removed, downloaded, and imported, with overwrite confirmations and indicators for document locations and download errors. 
+    - Web-hosted PDF documents can be downloaded and cached on the host machine (`~/.cmsis/docs`) for sharing across projects and with the CMSIS Developer Assistant.
+    - Processor-specific Arm architecture, core, debug and NPU manuals are automatically added to the list of device-specific books.
+  - Improved the [**Create Solution**](https://mdk-packs.github.io/vscode-cmsis-solution-docs/create_app.html) dialog:
+    - Available projects are shown in a refined order, starting with local Csolution examples and reference applications followed by templates and µVision examples.
+    - A checkbox allows examples from the web to be included.
+    - Built-in "Blank solution" templates are displayed even when target specific templates are available from packs.
+  - Added a new [Refresh Build and RTE Information](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#refresh-build-and-rte-information) button to the CMSIS view. This makes the command Refresh (Reload Packs and Update RTE) more accessible, especially when the Auto Refresh On File Change extension setting is disabled.
+  - In **Manage Solution**, the "Telnet" debugger configuration was renamed to "Standard I/O". It now uses the [`stdio`](https://open-cmsis-pack.github.io/cmsis-toolbox/pyOCD-Debugger/#stdio) YAML node instead of `telnet`. The legacy `telnet` node remains supported by CMSIS-Toolbox as a backward-compatible alias.
+  - Updated **Extension Settings**:
+    - The [`Auto Refresh On File Change`](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#auto-refresh-on-file-change) setting can be disabled to avoid frequent `cbuild setup` calls caused by changes to watched files. The refresh button in the **CMSIS** view displays an exclamation mark when a manual refresh is required.
+    - The [`Build Output Verbosity`](https://mdk-packs.github.io/vscode-cmsis-solution-docs/userinterface.html#build-output-verbosity) setting now includes the level `build-commands` which provides verbose output from the `cmake build` command without verbose `cbuild` output.
+  - Introduced the extended [CMSIS Solution Extension API V3](https://github.com/Open-CMSIS-Pack/vscode-cmsis-solution/blob/main/api/README.md#api-version-3-in-development) for the CMSIS Developer Assistant MCP server and other extension integrations.
+  - Solution descriptions are now displayed in the workspace solution picker making solutions easier to identify in workspaces containing multiple solutions.
+  - The **What's New** option in the **CMSIS** view menu opens the corresponding document from the Keil Studio Pack extension.
+
+Solved issues:
+
+- Replaced absolute paths in the `clangd.arguments` setting in `.vscode/settings.json` with workspace-relative paths.
+- The build task now reports the actual exit status of the build process, ensuring that failed tasks are correctly indicated.
+- Fixed an extension lockup in which canceling cbuild setup blocked subsequent solution operations.
+- **Create Solution** now correctly loads a solution from an example or template located in a subfolder of the new workspace.
+- **Configuration Wizard** selections now remain synchronized with the source editor without losing keyboard focus.
+- Fixed **Run Generator** activation so that it once again specifies the context of the selected component.
+- For multi-core targets, **Manage Solution** now shows the available processor cores in the debugger configuration’s "Start Processor" drop-down list.
+- RTE version update files are now written when a solution is first loaded, allowing the configuration merge tool to be invoked immediately.
+- Generator input files no longer appear as project source files in the **CMSIS view**.
+- **Manage Solution** now preserves the selected "Start Processor" when switching between debug adapters.
+
 ## 1.72.0
 
 - Updates:

@@ -166,6 +166,7 @@ describe('BuildRunner', () => {
         it.each([
             ['quiet', '--quiet'],
             ['normal', undefined],
+            ['build-commands', '--build-commands'],
             ['verbose', '--verbose'],
             ['debug', '--debug'],
         ])('maps build output verbosity %s to flag %s', (outputVerbosity, expectedFlag) => {
@@ -180,6 +181,7 @@ describe('BuildRunner', () => {
                 expect(args).toContain(expectedFlag);
             } else {
                 expect(args).not.toContain('--quiet');
+                expect(args).not.toContain('--build-commands');
                 expect(args).not.toContain('--verbose');
                 expect(args).not.toContain('--debug');
             }
@@ -187,6 +189,17 @@ describe('BuildRunner', () => {
     });
 
     describe('run', () => {
+        it('returns the cbuild exit code', async () => {
+            jest.spyOn(cmsisToolboxManager, 'runCmsisTool').mockResolvedValue([7, 'cbuild']);
+            const desktopBuildRunner = new BuildRunner(cmsisToolboxManager);
+
+            await expect(desktopBuildRunner.run(
+                { type: 'some-task', solution: 'some-solution' },
+                jest.fn(),
+                cancellationTokenFactory().token,
+            )).resolves.toBe(7);
+        });
+
         it('spawns a process with the params from the given build task definition', async () => {
             const buildTaskDefinition: BuildTaskDefinition = {
                 type: 'some-task',
@@ -274,6 +287,18 @@ describe('BuildRunner', () => {
             await desktopBuildRunner.run(buildTaskDefinition, listener, cancellationTokenFactory().token);
 
             expect(listener).toHaveBeenCalledWith(expectedLine);
+        });
+
+        it('reports a redundant queued build without changing its existing return code', async () => {
+            const runner = new BuildRunner(cmsisToolboxManager);
+            const definition = { type: 'some-task', solution: 'some-solution' };
+            const onSkipped = jest.fn();
+            const first = runner.run(definition, jest.fn(), cancellationTokenFactory().token);
+            const second = runner.run(definition, jest.fn(), cancellationTokenFactory().token, undefined, onSkipped);
+
+            await expect(second).resolves.toBe(0);
+            expect(onSkipped).toHaveBeenCalledTimes(1);
+            await first;
         });
 
         it('cancels the process when the cancellation token is cancelled', async () => {

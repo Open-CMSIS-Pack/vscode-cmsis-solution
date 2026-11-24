@@ -22,6 +22,7 @@ import { ActiveTool, EnvironmentManagerApiV1, VcpkgResults } from '@arm-software
 import { EnvironmentManager } from '../desktop/env-manager';
 import { CMSIS_TOOLBOX_FOLDER, PACKAGE_NAME } from '../manifest';
 import { getCmsisToolboxRoot } from '../utils/path-utils';
+import { getWorkspaceFolder } from '../utils/vscode-utils';
 import { ExtensionApiProvider } from '../vscode-api/extension-api-provider';
 
 const ENVIRONMENT_MANAGER_EXTENSION_ID = 'arm.environment-manager';
@@ -30,6 +31,7 @@ const CMSIS_DEBUGGER_EXTENSION_ID = 'arm.vscode-cmsis-debugger';
 const CMSIS_SDS_EXTENSION_ID = 'arm.cmsis-sds';
 const DOCUMENT_VERSION = '1.1.0';
 const CMSIS_ENVIRONMENT_VARIABLES = ['CMSIS_PACK_ROOT', 'CMSIS_COMPILER_ROOT'];
+const TOOLCHAIN_REGISTRATION = /^([A-Z][A-Z0-9]*)_TOOLCHAIN_(\d+)_(\d+)_(\d+)$/i;
 
 type EnvironmentManagerToolsApi = Pick<EnvironmentManagerApiV1, 'getActiveTools'>
     & Partial<Pick<EnvironmentManagerApiV1, 'isActivating' | 'onDidActivate' | 'onDidFailActivation'>>;
@@ -96,6 +98,7 @@ export class ToolsEnvironment {
         if (environmentManagerApi) {
             await this.waitUntilReady(environmentManagerApi);
         }
+        await this.environmentManager.waitUntilReady();
         return this.createContent(solutionPath, environmentManagerApi?.getActiveTools() ?? []);
     }
 
@@ -103,20 +106,44 @@ export class ToolsEnvironment {
         this.vcpkgResults = results;
     }
 
-    public async captureAndQueueWrite(solutionPath: string): Promise<void> {
+    public async getToolchains(): Promise<{ name: string; version: string; path: string; registrationVariable: string }[]> {
+        const environmentManagerApi = await this.environmentManagerApiProvider.activateIfEnabled();
+        if (environmentManagerApi) {
+            await this.waitUntilReady(environmentManagerApi);
+        }
+        await this.environmentManager.waitUntilReady();
+        const variables = this.mergeEnvironmentVariables(
+            this.environmentManager.getEnvironmentVariables(),
+            this.vcpkgResults?.variables,
+        );
+        return Object.entries(variables).flatMap(([registrationVariable, registeredPath]) => {
+            const match = TOOLCHAIN_REGISTRATION.exec(registrationVariable);
+            return match && registeredPath?.trim() ? [{
+                name: match[1],
+                version: match.slice(2).join('.'),
+                path: registeredPath,
+                registrationVariable,
+            }] : [];
+        });
+    }
+
+    public async captureAndQueueWrite(solutionPath: string, isCurrent: () => boolean = () => true): Promise<void> {
         const content = await this.getToolsEnvironment(solutionPath);
-        this.queueWrite(solutionPath, content);
+        if (isCurrent()) {
+            this.queueWrite(solutionPath, content);
+        }
     }
 
     public async write(solutionPath: string): Promise<void> {
         const environmentManagerApi = await this.environmentManagerApiProvider.activateIfEnabled();
+        await this.environmentManager.waitUntilReady();
         const content = this.createContent(solutionPath, environmentManagerApi?.getActiveTools() ?? []);
         await this.writeContent(solutionPath, content);
     }
 
     private createContent(solutionPath: string | undefined, installedTools: ActiveTool[]): string {
         return this.render({
-            folder: solutionPath ? path.dirname(solutionPath) : '',
+            folder: solutionPath ? this.getEnvironmentFolder(solutionPath) : '',
             solutionPath,
             environment: this.environmentManager.getEnvironmentVariables(),
             configuredVariables: this.environmentManager.getConfiguredEnvironmentVariables(),
@@ -191,7 +218,7 @@ export class ToolsEnvironment {
     }
 
     private async writeContent(solutionPath: string, content: string): Promise<void> {
-        const document = new ToolsEnvironmentFile(path.join(path.dirname(solutionPath), '.cmsis', 'tools-environment.yml'));
+        const document = new ToolsEnvironmentFile(path.join(this.getEnvironmentFolder(solutionPath), '.cmsis', 'tools-environment.yml'));
         if (document.exists()) {
             await document.load();
             if (document.text === content) {
@@ -206,7 +233,7 @@ export class ToolsEnvironment {
     }
 
     private queueWrite(solutionPath: string, content: string): void {
-        const outputPath = path.join(path.dirname(solutionPath), '.cmsis', 'tools-environment.yml');
+        const outputPath = path.join(this.getEnvironmentFolder(solutionPath), '.cmsis', 'tools-environment.yml');
         const previousWrite = this.pendingWrites.get(outputPath) ?? Promise.resolve();
         const pendingWrite = previousWrite
             .catch(() => undefined)
@@ -219,6 +246,10 @@ export class ToolsEnvironment {
                 this.pendingWrites.delete(outputPath);
             }
         });
+    }
+
+    private getEnvironmentFolder(solutionPath: string): string {
+        return getWorkspaceFolder(solutionPath) || path.dirname(solutionPath);
     }
 
     private async waitUntilReady(environmentManagerApi: EnvironmentManagerToolsApi): Promise<void> {
@@ -435,7 +466,7 @@ export class ToolsEnvironment {
             ...CMSIS_ENVIRONMENT_VARIABLES,
             ...Object.keys(configuredVariables),
             ...Object.keys(vcpkgResults?.variables ?? {}),
-            ...Object.keys(variables).filter(name => /^[A-Z][A-Z0-9]*_TOOLCHAIN_\d+_\d+_\d+$/i.test(name)),
+            ...Object.keys(variables).filter(name => TOOLCHAIN_REGISTRATION.test(name)),
         ].map(name => name.toLowerCase()));
         return Object.fromEntries(
             Object.entries(variables).filter(([name]) => name.toLowerCase() !== 'path' && selectedNames.has(name.toLowerCase())),

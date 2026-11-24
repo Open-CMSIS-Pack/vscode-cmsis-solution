@@ -29,6 +29,7 @@ import { SolutionRpcData } from './solution-rpc-data';
 import { EnvironmentManager } from '../desktop/env-manager';
 import { pathsEqual } from '../utils/path-utils';
 import { ToolsEnvironment } from './tools-environment';
+import { DocManager } from '../doc-manager/doc-manager';
 
 const solutionDirtyContextKey = `${manifest.PACKAGE_NAME}.solutionDirty`;
 const refreshDirtyCommandId = `${manifest.PACKAGE_NAME}.refreshDirty`;
@@ -49,8 +50,8 @@ export const solutionLoadStatesEqual = (a: SolutionLoadState, b: SolutionLoadSta
         && a.activated === b.activated;
 };
 
-export const isAutoConvertOnFileChangeEnabled = (): boolean => vscode.workspace.getConfiguration(manifest.CONFIG_ROOT)
-    .get<boolean>(manifest.CONFIG_AUTO_CONVERT_ON_FILE_CHANGE, true);
+export const isAutoRefreshOnFileChangeEnabled = (): boolean => vscode.workspace.getConfiguration(manifest.CONFIG_ROOT)
+    .get<boolean>(manifest.CONFIG_AUTO_REFRESH_ON_FILE_CHANGE, true);
 
 export interface SolutionLoadStateChangeEvent {
     previousState: SolutionLoadState;
@@ -67,6 +68,8 @@ export interface SolutionManager {
     readonly getCsolution: () => CSolution | undefined;
 
     readonly getRpcData: () => SolutionRpcData | undefined;
+
+    readonly getDocManager: () => DocManager;
 
     readonly onDidChangeLoadState: vscode.Event<SolutionLoadStateChangeEvent>;
 
@@ -94,7 +97,7 @@ export class SolutionManagerImpl implements SolutionManager {
 
     private readonly debouncedHandleEnvironmentChange = debounce(this.handleEnvironmentChange.bind(this), 500);
     private readonly debouncedRefreshOnFileChange = debounce((solutionPath: string) => {
-        if (this.loadState.solutionPath === solutionPath && this.loadState.loaded && isAutoConvertOnFileChangeEnabled()) {
+        if (this.loadState.solutionPath === solutionPath && this.loadState.loaded && isAutoRefreshOnFileChangeEnabled()) {
             void this.refresh();
         }
     }, 100);
@@ -111,6 +114,7 @@ export class SolutionManagerImpl implements SolutionManager {
         private readonly environmentManagerApiProvider: ExtensionApiProvider<Pick<EnvironmentManagerApiV1,
             'onDidActivate' | 'onDidFailActivation' | 'getActiveTools' | 'isActivating'>>,
         private readonly environmentManager: EnvironmentManager,
+        private readonly docManager: DocManager,
         private readonly toolsEnvironment = new ToolsEnvironment(environmentManager, environmentManagerApiProvider),
     ) { }
 
@@ -123,13 +127,11 @@ export class SolutionManagerImpl implements SolutionManager {
             this.eventHub.onDidCbuildCompleted(this.handleCbuildCompleted, this),
             this.eventHub.onDidReloadPacks(() => this.markDirty()),
             this.commandsProvider.registerCommand(manifest.REFRESH_COMMAND_ID, this.refresh, this),
+            this.commandsProvider.registerCommand(manifest.REFRESH_SOLUTION_COMMAND_ID, this.refresh, this),
             this.commandsProvider.registerCommand(refreshDirtyCommandId, this.refresh, this),
             this.environmentManagerApiProvider.onActivate(environmentManagerApi => {
                 environmentManagerApi.onDidActivate(results => {
                     this.toolsEnvironment.updateVcpkgResults(results);
-                    if (!this.isSolutionActivated()) {
-                        return;
-                    }
                     this.debouncedHandleEnvironmentChange();
                 }, undefined, context.subscriptions);
             }),
@@ -150,6 +152,9 @@ export class SolutionManagerImpl implements SolutionManager {
         return this.rpcData;
     }
 
+    public getDocManager(): DocManager {
+        return this.docManager;
+    }
 
     public get loadState(): SolutionLoadState {
         return this._loadState;
@@ -164,7 +169,7 @@ export class SolutionManagerImpl implements SolutionManager {
         return !!this.loadState.solutionPath && this.loadState.activated === true;
     }
 
-    private async handleEnvironmentChange(): Promise<void> {
+    private handleEnvironmentChange(): void {
         if (!this.isSolutionActivated()) {
             return;
         }
@@ -186,6 +191,10 @@ export class SolutionManagerImpl implements SolutionManager {
 
         if (solutionPath) {
             this.setLoadState(newState, false);
+            await this.environmentManager.waitUntilReady();
+            if (solutionPath !== this.activeSolutionTracker.activeSolution) {
+                return;
+            }
             if (await this.loadSolution(true)) { // first load, read RPC data for fast update of the views
                 // trigger solution convert without RTE update
                 this.requestConvert(false, false, true);
@@ -199,7 +208,7 @@ export class SolutionManagerImpl implements SolutionManager {
         if (!this.loadState.solutionPath || !this.loadState.loaded) {
             return;
         }
-        if (!isAutoConvertOnFileChangeEnabled() && !this.loadState.dirty) {
+        if (!isAutoRefreshOnFileChangeEnabled() && !this.loadState.dirty) {
             this.setLoadState({ ...this.loadState, dirty: true }, true);
         }
     }
@@ -212,7 +221,7 @@ export class SolutionManagerImpl implements SolutionManager {
         if (isSolutionYmlFile || isUsedDbgconfFile) {
             this.markDirty();
             const solutionPath = this.loadState.solutionPath;
-            if (solutionPath && isAutoConvertOnFileChangeEnabled()) {
+            if (solutionPath && isAutoRefreshOnFileChangeEnabled()) {
                 this.debouncedRefreshOnFileChange(solutionPath);
             }
         }
@@ -223,7 +232,7 @@ export class SolutionManagerImpl implements SolutionManager {
             return;
         }
         if (await this.loadSolution(false)) { // no update RTE before convert
-            this.requestConvert(true, false, false);
+            await this.requestConvert(true, false, false);
         }
     }
 
@@ -249,7 +258,9 @@ export class SolutionManagerImpl implements SolutionManager {
         this.setLoadState(newState, true);
 
         const solutionPath = this.csolution.solutionPath;
-        void this.toolsEnvironment.captureAndQueueWrite(solutionPath).catch(error => {
+        void this.toolsEnvironment.captureAndQueueWrite(
+            solutionPath, () => solutionPath === this.activeSolutionTracker.activeSolution,
+        ).catch(error => {
             console.error(`Failed to queue tools environment write for '${solutionPath}'`, error);
         });
         this.eventHub.fireConvertRequest({
@@ -301,6 +312,15 @@ export class SolutionManagerImpl implements SolutionManager {
         }
         await this.updateRpcData(); // refresh RPC data
         await this.loadSolutionBuildFiles();
+        await this.updateDocs();
+        const newState: SolutionLoadState = {
+            ...this.loadState,
+            activated: true,
+            converted: true,
+            dirty: false,
+        };
+        // Always emit so subscribers are notified when conversion completes
+        this.setLoadState(newState, true);
         this.setupCompletedEmitter.fire([data.severity, data.detection]);
 
         if (data.severity != 'error' && !data.detection) {
@@ -308,6 +328,19 @@ export class SolutionManagerImpl implements SolutionManager {
             // spawn cbuild setup asynchronously (fire-and-forget)
             // cbuild completion will be signaled via onDidCbuildCompleted event
             void this.eventHub.requestCbuildSetup();
+        }
+    }
+
+    private async updateDocs(): Promise<void> {
+        for (const cbuildYml of this.csolution?.cbuildYmlRoot.values() ?? []) {
+            const cbuild = cbuildYml.getChildItem();
+            if (cbuild) {
+                try {
+                    await this.docManager.addBooks(cbuild);
+                } catch (error) {
+                    console.error('Failed to update the document inventory:', error);
+                }
+            }
         }
     }
 
@@ -326,14 +359,6 @@ export class SolutionManagerImpl implements SolutionManager {
     public async loadSolutionBuildFiles() {
         if (this.csolution) {
             await this.csolution.loadBuildFiles();
-            const newState: SolutionLoadState = {
-                ...this.loadState,
-                activated: true,
-                converted: true,
-                dirty: false,
-            };
-            // Always emit so subscribers are notified when conversion completes
-            this.setLoadState(newState, true);
         }
     }
 

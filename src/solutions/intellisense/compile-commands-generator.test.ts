@@ -71,6 +71,7 @@ describe('CompileCommandsGenerator', () => {
             schemaCheck: false
         };
         mockBuildTaskProvider = {
+            getBuildResult: jest.fn(),
             createTask: jest.fn((taskDefinition) => new vscode.Task(
                 taskDefinition, vscode.TaskScope.Workspace, 'Build', taskDefinition.type
             )),

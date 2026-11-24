@@ -15,10 +15,135 @@
  */
 
 import { CsolutionApiV2 } from './csolution-api-v2';
+import type * as vscode from 'vscode';
 
-/** API V3 retains the existing V2 operations. */
+/** API V3 retains the existing V2 operations, with build result capture. */
 export interface CsolutionApiV3 extends CsolutionApiV2 {
     dispose(): void;
+    /** Await captured output and completion of a CMSIS Solution task from any entry point. Repeated calls return the same promise. Rejects unknown executions, including builds from before capture was active. Results are retained while the execution handle remains reachable. */
+    getBuildResult(execution: vscode.TaskExecution): Promise<CsolutionApiV3.BuildResult>;
+    /** Latest completed build for the active loaded solution and target, including failures; undefined if none was observed. Excludes clean/setup tasks and does not wait for running builds. A recorded success does not establish that sources or artifacts are up to date. */
+    getBuildResult(): Promise<CsolutionApiV3.BuildResult | undefined>;
+    /** Convert the loaded solution's active target without emitting conversion/configuration events. updateRte defaults to false. Rejects if no solution is loaded or an unexpected error occurs. */
+    convertSolution(options?: { updateRte?: boolean }): Promise<CsolutionApiV3.ConvertResult>;
+    /** Activate a solution file or directory in the current workspace using the existing command. */
+    activateSolution(solutionPath: string): Promise<void>;
+    /** Clear the active solution using the existing command. */
+    deactivateSolution(): Promise<void>;
+    /** Selected solution's absolute file path, or undefined if none is selected. */
+    getSolutionFile(): Promise<string | undefined>;
+    /** Available targets in the loaded solution, in declaration order, using <target-type>[@<target-set>]. Returns an empty array when no solution is loaded. */
+    getTargets(): Promise<string[]>;
+    /** Loaded solution's active target in the format <target-type>[@<target-set>], or an empty string. */
+    getActiveTarget(): Promise<string>;
+    /** Select an existing, case-sensitive active target in the format <target-type>[@<target-set>]. A bare target type selects its existing unnamed set. Persists selection and requests a refresh. Rejects invalid names, missing solutions and save/refresh failures. Does not wait for conversion to complete. */
+    setActiveTarget(activeTarget: string): Promise<void>;
+    /** Loaded solution's device name, or an empty string when unavailable. */
+    getDeviceName(): Promise<string>;
+    /** Loaded solution's board name, or an empty string when unavailable. */
+    getBoardName(): Promise<string>;
+    /** Loaded solution's device family pack ID, or an empty string when unavailable. */
+    getDfpName(): Promise<string>;
+    /** Loaded solution's board support pack ID, or an empty string when unavailable. */
+    getBspName(): Promise<string>;
+    /** Device family pack path with CMSIS_PACK_ROOT expanded, or '<not found>' when unavailable. */
+    getDfpPath(): Promise<string>;
+    /** Board support pack path with CMSIS_PACK_ROOT expanded, or '<not found>' when unavailable. */
+    getBspPath(): Promise<string>;
+    /** Current CMSIS pack root path; does not require a solution. */
+    getPackRootPath(): Promise<string>;
+    /** Loaded solution's cbuild-run file path, or an empty string when unavailable. Does not generate the file. */
+    getCbuildRunFile(): Promise<string>;
     /** Return current VS Code window tools-environment YAML, waiting for an in-progress Arm Tools activation. No solution or output file is required. Multi-root workspaces share one environment, not isolated per-folder tools. Arm Tools owns activation and its prompts. */
     getToolsEnvironment(): Promise<string>;
+    /** Exact debugger adapter names from debug-adapters.yml, in declaration order, excluding aliases. No solution required. Rejects if the catalog cannot be loaded. */
+    getDebuggers(): Promise<string[]>;
+    /** Registered toolchains in the resolved window environment, waiting for Arm Tools activation. No solution required; returns [] when none are registered. */
+    getToolchains(): Promise<CsolutionApiV3.Toolchain[]>;
+    /** Defaults to all: merge local index packs and installed RPC packs. Used and missing scopes require an explicit context in the loaded solution. Missing records preserve original requirements and origins. Catalog queries reject only when every source fails. */
+    getPacks(options?: CsolutionApiV3.PackQuery): Promise<CsolutionApiV3.PackQueryResult>;
+    /** Install without prompting. The caller must obtain user approval and pass approved: true; otherwise all results are cancelled. Returns one result per requested pack, in input order. */
+    installPacks(options: { packs: string[]; approved: boolean }): Promise<CsolutionApiV3.PackInstallResult[]>;
+}
+
+export namespace CsolutionApiV3 {
+    export interface BuildResult {
+        /** Runner exit code, including negative toolbox error codes. Undefined for skipped tasks, cancellation without a nonzero code, or unavailable results. Only 0 means success. */
+        exitCode?: number;
+        /** Combined output as emitted to the terminal, including formatting and successful-build warnings. */
+        output: string;
+    }
+
+    export interface ConvertResult {
+        success: boolean;
+        severity: 'abort' | 'error' | 'warning' | 'info' | 'success';
+        /** Compiler selection or layer configuration is required. */
+        detection: boolean;
+        logMessages: {
+            success: boolean;
+            errors?: string[];
+            warnings?: string[];
+            info?: string[];
+        };
+        toolsOutputMessages?: string[];
+    }
+
+    export interface Toolchain {
+        /** Compiler name from the registration variable. */
+        name: string;
+        /** Semantic version from the registration variable. */
+        version: string;
+        /** Registered path, without path separator normalization or existence checks. */
+        path: string;
+        /** Exact environment variable name, such as AC6_TOOLCHAIN_6_24_0. */
+        registrationVariable: string;
+    }
+
+    export interface PackFilter {
+        /** Case-insensitive literal substring of id or description; missing scope matches the original requirement only. Omitted/empty means no restriction; whitespace is literal. */
+        text?: string;
+    }
+
+    export interface MissingPackQuery {
+        scope: 'missing';
+        /** Exact context name in the currently loaded solution's active target set. */
+        context: string;
+        filter?: PackFilter;
+    }
+
+    export type PackQuery = MissingPackQuery | {
+        scope?: 'all' | 'installed';
+        filter?: PackFilter;
+    } | {
+        scope: 'used';
+        /** Exact context name in the currently loaded solution's active target set. */
+        context: string;
+        filter?: PackFilter;
+    };
+
+    export interface PackData {
+        /** Canonical vendor::name@version identifier; absent for missing requirements. */
+        id?: string;
+        version?: string;
+        /** Undefined when installation status is unknown. Used scope sets true only with a matching non-missing resolved RPC reference. */
+        installed?: boolean;
+        /** Present only when supplied by RPC for this installed pack. */
+        path?: string;
+        description?: string;
+        /** Original requirement and its origin for missing references. */
+        pack?: string;
+        origin?: string;
+        resolvedPack?: string;
+    }
+
+    export interface PackQueryResult {
+        packs: PackData[];
+    }
+
+    export type PackInstallResult = {
+        pack: string;
+        status: 'installed' | 'failed' | 'cancelled';
+        path?: string;
+        error?: string;
+    };
 }

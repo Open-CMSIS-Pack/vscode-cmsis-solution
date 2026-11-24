@@ -20,11 +20,13 @@ import { SolutionRpcData } from '../../../solutions/solution-rpc-data';
 import { expandRootVars } from '../../../utils/path-utils';
 import { COutlineItem } from './solution-outline-item';
 import { matchesContext } from '../../../utils/context-utils';
+import { DocManager } from '../../../doc-manager/doc-manager';
 
 export class SolutionOutlineItemBuilder {
     constructor(
         protected csolution?: CSolution,
         protected rpcData?: SolutionRpcData,
+        protected docManager?: DocManager,
         protected context?: string,
     ) { }
 

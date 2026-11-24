@@ -19,6 +19,12 @@ import * as os from 'os';
 import { stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { CMSIS_TOOLBOX_FOLDER } from '../manifest';
 
+let packRootEnvironment: () => NodeJS.ProcessEnv = () => process.env;
+
+export function setPackRootEnvironment(provider: () => NodeJS.ProcessEnv): void {
+    packRootEnvironment = provider;
+}
+
 /**
  * Check if two paths are equal. This should work on all platforms, e.g. on Windows it will compare case insensitively.
  */
@@ -47,7 +53,7 @@ export function pathIsAncestor(maybeAncestor: string, inputPath: string) {
  * @returns `CMSIS_PACK_ROOT` value when set; otherwise a platform-specific default path.
  * @default Windows: `%LOCALAPPDATA%/arm/packs`; macOS/Linux: `~/.cache/arm/packs`.
  */
-export function getCmsisPackRoot (environment = process.env) : string {
+export function getCmsisPackRoot (environment = packRootEnvironment()) : string {
     const environmentValue = environment['CMSIS_PACK_ROOT'];
     if (environmentValue) {
         return environmentValue;

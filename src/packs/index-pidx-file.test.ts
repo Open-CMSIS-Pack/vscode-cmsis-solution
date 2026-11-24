@@ -16,7 +16,7 @@
 
 import 'jest';
 import type { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
-import { getLatestAvailablePacks, IndexPidxFile, isPackIndexCurrent } from './index-pidx-file';
+import { getLatestAvailablePacks, getLatestAvailablePacksInfo, IndexPidxFile, isPackIndexCurrent } from './index-pidx-file';
 import * as pathUtils from '../utils/path-utils';
 import * as fsUtils from '../utils/fs-utils';
 
@@ -109,6 +109,7 @@ describe('isPackIndexCurrent', () => {
 describe('getLatestAvailablePacks', () => {
     afterEach(() => {
         jest.restoreAllMocks();
+        pathUtils.setPackRootEnvironment(() => process.env);
     });
 
     it('should load and return pack IDs from index.pidx file', async () => {
@@ -133,11 +134,21 @@ describe('getLatestAvailablePacks', () => {
         expect(packs.get('NXP::LPC55S69_DFP@15.0.0')).toBe('https://www.keil.arm.com/packs/lpc55s69_dfp-nxp/versions/');
     });
 
-    it('should return empty map when index.pidx file is not found', async () => {
-
-        jest.spyOn(pathUtils, 'getCmsisPackRoot').mockReturnValue('/mock/pack/root');
+    it('reads the pack index using the configured environment', async () => {
+        pathUtils.setPackRootEnvironment(() => ({ CMSIS_PACK_ROOT: '/configured/packs' }));
+        jest.spyOn(fsUtils, 'readTextFile').mockReturnValue('<index><pindex><pdsc vendor="ARM" name="CMSIS" version="6.0.0" /></pindex></index>');
         jest.spyOn(fsUtils, 'fileExists').mockReturnValue(true);
+
         const packs = await getLatestAvailablePacks();
-        expect(packs.size).toBe(0);
+
+        expect(packs.has('ARM::CMSIS@6.0.0')).toBe(true);
+        expect(fsUtils.readTextFile).toHaveBeenCalledWith('/configured/packs/.Web/index.pidx');
+    });
+
+    it('rejects when index.pidx file is not found', async () => {
+        jest.spyOn(pathUtils, 'getCmsisPackRoot').mockReturnValue('/mock/pack/root');
+        jest.spyOn(fsUtils, 'fileExists').mockReturnValue(false);
+        await expect(getLatestAvailablePacks()).rejects.toThrow('Failed to load pack index');
+        expect((await getLatestAvailablePacksInfo()).packIds.size).toBe(0);
     });
 });

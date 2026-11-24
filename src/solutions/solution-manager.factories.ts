@@ -22,8 +22,9 @@ import path from 'path';
 import { csolutionFactory } from './csolution.factory';
 import { Severity } from './constants';
 import { solutionRpcDataFactory } from './solution-rpc-data.factory';
+import { DocManager } from '../doc-manager/doc-manager';
 
-export type MockSolutionManager = jest.Mocked<StubEvents<SolutionManager>> & { fireOnDidChangeLoadState: ReturnType<typeof fireOnDidChangeLoadState> };
+export type MockSolutionManager = jest.Mocked<Omit<StubEvents<SolutionManager>, 'getDocManagerEmitter'>> & { fireOnDidChangeLoadState: ReturnType<typeof fireOnDidChangeLoadState> };
 
 export const idleSolutionLoadStateFactory = makeFactory<SolutionLoadState>({
     solutionPath: () => undefined,
@@ -54,6 +55,7 @@ export const solutionManagerFactory = makeFactory<MockSolutionManager>({
     loadState: () => idleSolutionLoadStateFactory(),
     getCsolution: () => jest.fn().mockReturnValue(csolutionFactory()),
     getRpcData: () => jest.fn().mockReturnValue(solutionRpcDataFactory()),
+    getDocManager: () => jest.fn().mockReturnValue(new DocManager()),
     onDidChangeLoadStateEmitter: () => new vscode.EventEmitter<SolutionLoadStateChangeEvent>(),
     onDidChangeLoadState: (r) => jest.fn(r.onDidChangeLoadStateEmitter!.event),
     onDidSetupCompletedEmitter: () => new vscode.EventEmitter<[Severity, boolean]>(),

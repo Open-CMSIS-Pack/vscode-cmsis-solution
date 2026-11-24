@@ -36,6 +36,8 @@ import { EnvironmentManager } from '../desktop/env-manager';
 import { CONFIG_ENVIRONMENT_VARIABLES } from '../manifest';
 import { ETextFileResult, YamlFile } from '@open-cmsis-pack/cmsis-common';
 import { ToolsEnvironment } from './tools-environment';
+import { DocManager } from '../doc-manager/doc-manager';
+import * as vscodeUtils from '../utils/vscode-utils';
 
 
 const convertResultData: ConvertResultData = {
@@ -73,12 +75,14 @@ describe('SolutionManager', () => {
     let writeFile: jest.Mock<void, [string, string]>;
     let saveSpy: jest.SpyInstance;
     let toolsEnvironment: ToolsEnvironment;
-    let autoConvertOnFileChange: boolean | undefined;
+    let docManager: DocManager;
+    let autoRefreshOnFileChange: boolean | undefined;
 
     const testDataHandler = new TestDataHandler();
 
     beforeAll(async () => {
         tmpSolutionsDir = testDataHandler.copyTestDataToTmp('solutions');
+        jest.spyOn(vscodeUtils, 'getWorkspaceFolder').mockReturnValue(tmpSolutionsDir);
     });
 
     afterAll(async () => {
@@ -91,9 +95,9 @@ describe('SolutionManager', () => {
     });
 
     beforeEach(async () => {
-        autoConvertOnFileChange = undefined;
+        autoRefreshOnFileChange = undefined;
         jest.mocked(vscode.workspace.getConfiguration).mockReturnValue({
-            get: jest.fn((_key: string, defaultValue: unknown) => autoConvertOnFileChange ?? defaultValue),
+            get: jest.fn((_key: string, defaultValue: unknown) => autoRefreshOnFileChange ?? defaultValue),
         } as unknown as vscode.WorkspaceConfiguration);
         changeConfigurationEmitter = new EventEmitter();
         (
@@ -163,6 +167,9 @@ describe('SolutionManager', () => {
             environmentManager,
             extensionApiProviderFactory(environmentManagerApi),
         );
+        docManager = new DocManager();
+        docManager.file.fileName = path.join(tmpSolutionsDir, 'inventory', 'docs.yml');
+        jest.spyOn(docManager, 'initialize').mockResolvedValue(ETextFileResult.Unchanged);
         solutionManager = new SolutionManagerImpl(
             mockActiveSolutionTracker as unknown as ActiveSolutionTracker,
             eventHub,
@@ -170,6 +177,7 @@ describe('SolutionManager', () => {
             commandsProvider,
             extensionApiProviderFactory(environmentManagerApi),
             environmentManager,
+            docManager,
             toolsEnvironment,
         );
         loadStateChangeListener = jest.fn();
@@ -194,12 +202,21 @@ describe('SolutionManager', () => {
     };
 
 
+    it('exposes the injected document manager', () => {
+        expect(solutionManager.getDocManager()).toBe(docManager);
+    });
+
     it('register the command on activation', async () => {
-        expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(2);
+        expect(commandsProvider.registerCommand).toHaveBeenCalledTimes(3);
         expect(commandsProvider.registerCommand).toHaveBeenCalledWith(
             manifest.REFRESH_COMMAND_ID,
             expect.any(Function),
             expect.anything(),
+        );
+        expect(commandsProvider.registerCommand).toHaveBeenCalledWith(
+            manifest.REFRESH_SOLUTION_COMMAND_ID,
+            solutionManager.refresh,
+            solutionManager,
         );
         expect(commandsProvider.registerCommand).toHaveBeenCalledWith(
             'cmsis-csolution.refreshDirty',
@@ -209,7 +226,10 @@ describe('SolutionManager', () => {
         expect(commandsProvider.executeCommand).toHaveBeenCalledWith('setContext', 'cmsis-csolution.solutionDirty', false);
     });
 
-    it('reloads the active solution when the refresh command is executed', async () => {
+    it.each([
+        manifest.REFRESH_COMMAND_ID,
+        manifest.REFRESH_SOLUTION_COMMAND_ID,
+    ])('reloads the active solution when %s is executed', async commandId => {
         // Initialize solution state first
         mockActiveSolutionTracker.activeSolution = testSolutionPath;
         changeActiveSolutionEmitter.fire();
@@ -219,7 +239,7 @@ describe('SolutionManager', () => {
         testDataHandler.rmFile(cmsisJsonFile);
 
         await commandsProvider.mockRunRegistered(
-            manifest.REFRESH_COMMAND_ID,
+            commandId,
         );
 
         await waitTimeout(200);
@@ -230,6 +250,10 @@ describe('SolutionManager', () => {
 
         expect(solutionManager.loadState).toEqual(expectedLoadState);
         expect(solutionManager.getCsolution()!.cmsisJsonFile.exists()).toBe(true);
+        expect(convertMock).toHaveBeenLastCalledWith(expect.objectContaining({
+            solutionPath: testSolutionPath,
+            updateRte: true,
+        }));
         const csolution = solutionManager.getCsolution()!;
         const settings = csolution.cmsisJsonFile.getSettings();
         expect(path.resolve(
@@ -269,7 +293,7 @@ describe('SolutionManager', () => {
     });
 
     it('marks the solution dirty when a file in the active solution is modified', async () => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         // Initialize solution state first
         mockActiveSolutionTracker.activeSolution = testSolutionPath;
         changeActiveSolutionEmitter.fire();
@@ -299,7 +323,7 @@ describe('SolutionManager', () => {
     });
 
     it('marks a watched solution file dirty without converting or setting up again', async () => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await activateTestSolution();
         convertMock.mockClear();
         cbuildSetupRequestedListener.mockClear();
@@ -350,7 +374,7 @@ describe('SolutionManager', () => {
         ['automatic', undefined, false],
         ['dirty-only', false, true],
     ] as const)('handles a pack reload in %s mode without converting or setting up', async (_mode, autoConvert, expectedDirty) => {
-        autoConvertOnFileChange = autoConvert;
+        autoRefreshOnFileChange = autoConvert;
         await activateTestSolution();
         convertMock.mockClear();
         cbuildSetupRequestedListener.mockClear();
@@ -367,8 +391,14 @@ describe('SolutionManager', () => {
         const changedPath = getLoadedSolutionFile('.cproject.yml');
         convertMock.mockClear();
         changeSolutionFilesEmitter.fire(changedPath);
+        const completed = new Promise<void>(resolve => {
+            const subscription = solutionManager.onDidSetupCompleted(() => {
+                subscription.dispose();
+                resolve();
+            });
+        });
         await solutionManager.refresh();
-        await waitTimeout(50);
+        await completed;
         expect(solutionManager.loadState).toEqual(expect.objectContaining({ converted: true, dirty: false }));
 
         changeSolutionFilesEmitter.fire(changedPath);
@@ -394,7 +424,7 @@ describe('SolutionManager', () => {
         ['success', 'success', true],
         ['error', 'error', false],
     ] as const)('clears dirty after %s conversion completes with a newer change', async (_result, severity, success) => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await activateTestSolution();
         convertMock.mockClear();
         convertMock.mockImplementationOnce(() => undefined);
@@ -453,7 +483,7 @@ describe('SolutionManager', () => {
         ['clayer', '.clayer.yml'],
         ['cgen', '.cgen.yml'],
     ])('marks the solution dirty when a changed %s file belongs to the active solution', async (_fileType, suffix) => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await activateTestSolution();
         const changedPath = getLoadedSolutionFile(suffix);
         convertMock.mockClear();
@@ -468,7 +498,7 @@ describe('SolutionManager', () => {
     });
 
     it('marks the solution dirty when an outside workspace file is listed by the active solution model', async () => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await activateTestSolution();
         const outsideProjectPath = path.join(tmpSolutionsDir, 'external', 'External.cproject.yml');
         jest.spyOn(solutionManager.getCsolution()!, 'getSolutionYmlFiles').mockReturnValue([
@@ -485,7 +515,7 @@ describe('SolutionManager', () => {
     });
 
     it('marks the solution dirty when a changed dbgconf file is used by the active solution', async () => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await activateTestSolution();
         const dbgconfPath = path.join(path.dirname(testSolutionPath), '.cmsis', 'Used.Debug+B-U585I-IOT02A.dbgconf');
         jest.spyOn(solutionManager.getCsolution()!, 'getUsedDbgconfFiles').mockReturnValue([dbgconfPath]);
@@ -540,7 +570,7 @@ describe('SolutionManager', () => {
     });
 
     it('keeps dirty state when multiple active solution file changes arrive', async () => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await activateTestSolution();
         const cprojectPath = getLoadedSolutionFile('.cproject.yml');
         const clayerPath = getLoadedSolutionFile('.clayer.yml');
@@ -571,7 +601,7 @@ describe('SolutionManager', () => {
         convertMock.mockClear();
 
         changeSolutionFilesEmitter.fire(getLoadedSolutionFile('.cproject.yml'));
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await waitTimeout(200);
 
         expect(convertMock).not.toHaveBeenCalled();
@@ -579,7 +609,7 @@ describe('SolutionManager', () => {
     });
 
     it('allows manual refresh when automatic mode is disabled', async () => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await activateTestSolution();
         convertMock.mockClear();
 
@@ -594,7 +624,7 @@ describe('SolutionManager', () => {
     });
 
     it('clears the dirty indicator when the active solution closes or switches', async () => {
-        autoConvertOnFileChange = false;
+        autoRefreshOnFileChange = false;
         await activateTestSolution();
         solutionManager.markDirty();
 
@@ -667,6 +697,32 @@ describe('SolutionManager', () => {
                 convertResultData.detection,
             ]),
         );
+    });
+
+    it.each([false, true])('preserves the document inventory when the pack root changes with activated=%s', async activated => {
+        if (activated) {
+            await activateTestSolution();
+        }
+        await environmentManager.activate({
+            subscriptions: [],
+            environmentVariableCollection: {
+                clear: jest.fn(),
+                prepend: jest.fn(),
+                replace: jest.fn(),
+            } as unknown as vscode.GlobalEnvironmentVariableCollection,
+        } as unknown as ExtensionContext);
+
+        const inventoryFileName = docManager.file.fileName;
+        const packRoot = path.join(tmpSolutionsDir, 'changed-packs');
+        jest.mocked(environmentManager.getEnvironmentVariables).mockReturnValue({ CMSIS_PACK_ROOT: packRoot });
+        configurationProviderMock.getConfigVariableOrDefault.mockReturnValue({ CMSIS_PACK_ROOT: packRoot });
+        convertMock.mockClear();
+        configurationProviderMock.fireOnChangeConfiguration(CONFIG_ENVIRONMENT_VARIABLES);
+        await waitTimeout(600);
+
+        expect(docManager.initialize).not.toHaveBeenCalled();
+        expect(docManager.file.fileName).toBe(inventoryFileName);
+        expect(convertMock).not.toHaveBeenCalled();
     });
 
     it('defers restartRpc until refresh when envVars change after solution is activated', async () => {
@@ -795,7 +851,7 @@ describe('SolutionManager', () => {
         await waitTimeout(200);
 
         expect(writeFile).toHaveBeenCalledWith(
-            path.join(path.dirname(testSolutionPath), '.cmsis', 'tools-environment.yml'),
+            path.join(tmpSolutionsDir, '.cmsis', 'tools-environment.yml'),
             expect.any(String),
         );
     });
@@ -824,7 +880,7 @@ describe('SolutionManager', () => {
         try {
             await activateTestSolution();
 
-            expect(captureSpy).toHaveBeenCalledWith(testSolutionPath);
+            expect(captureSpy).toHaveBeenCalledWith(testSolutionPath, expect.any(Function));
             expect(convertMock).toHaveBeenCalledTimes(1);
             expect(consoleErrorSpy).toHaveBeenCalledWith(
                 `Failed to queue tools environment write for '${testSolutionPath}'`,
@@ -903,7 +959,7 @@ describe('SolutionManager', () => {
 
         expect(cbuildSetupRequestedListener).not.toHaveBeenCalled();
         expect(writeFile).toHaveBeenCalledWith(
-            path.join(path.dirname(testSolutionPath), '.cmsis', 'tools-environment.yml'),
+            path.join(tmpSolutionsDir, '.cmsis', 'tools-environment.yml'),
             expect.any(String),
         );
     });

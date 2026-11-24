@@ -135,6 +135,18 @@ export function fileExists(filePath?: string): filePath is string {
     return filePath ? fs.existsSync(filePath) : false;
 }
 
+export function getFileStats(filePath: string): fs.Stats {
+    return fs.statSync(filePath);
+}
+
+export function createDirectory(directoryPath: string) {
+    fs.mkdirSync(directoryPath, { recursive: true });
+}
+
+export function deleteDirectory(directoryPath: string) {
+    fs.rmSync(directoryPath, { recursive: true, force: true });
+}
+
 export function deleteFileIfExists(filePath?: string) {
     if (fileExists(filePath)) {
         fs.rmSync(filePath, { force: true });

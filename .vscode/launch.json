@@ -5,26 +5,6 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "API V3 Smoke Tests (Real VS Code)",
-            "type": "extensionHost",
-            "request": "launch",
-            "args": [
-                "${workspaceFolder}/.vscode-test/api-v3-smoke/smoke.code-workspace",
-                "--new-window",
-                "--skip-welcome",
-                "--skip-release-notes",
-                "--disable-workspace-trust",
-                "--user-data-dir=${workspaceFolder}/.vscode-test/api-v3-smoke-user-data",
-                "--extensionDevelopmentPath=${workspaceFolder}",
-                "--extensionTestsPath=${workspaceFolder}/out/api/extension-host-v3-smoke.js"
-            ],
-            "outFiles": [
-                "${workspaceFolder}/out/api/**/*.js",
-                "${workspaceFolder}/dist/**/*.js"
-            ],
-            "preLaunchTask": "Prepare API Smoke Test"
-        },
-        {
             "name": "Desktop Extension",
             "type": "extensionHost",
             "request": "launch",
@@ -34,7 +14,7 @@
             ],
             "outFiles": [
                 "${workspaceFolder}/dist/**/*.js",
-                "${workspaceFolder}/packages/cmsis-common/dist/**/*.js",
+                "${workspaceFolder}/packages/cmsis-common/dist/**/*.js"
             ],
             "envFile": "${workspaceFolder}/.env",
             "sourceMapRenames": false
@@ -58,13 +38,14 @@
             "name": "Unit Tests",
             "program": "${workspaceFolder}/node_modules/.bin/jest",
             "args": [
-                "--collectCoverage", "false"
+                "--collectCoverage",
+                "false"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
             "disableOptimisticBPs": true,
             "windows": {
-                "program": "${workspaceFolder}/node_modules/jest/bin/jest",
+                "program": "${workspaceFolder}/node_modules/jest/bin/jest"
             }
         },
         {
@@ -73,7 +54,8 @@
             "name": "Unit Test Current File",
             "program": "${workspaceFolder}/node_modules/.bin/jest",
             "args": [
-                "--collectCoverage", "false",
+                "--collectCoverage",
+                "false",
                 "${fileBasenameNoExtension}"
             ],
             "console": "integratedTerminal",
@@ -170,20 +152,104 @@
             "type": "node",
             "request": "launch",
             "runtimeExecutable": "npx",
-            "runtimeArgs": ["ts-node"],
-            "args": ["${workspaceFolder}/scripts/update-tpip.ts", "${workspaceFolder}/docs/third-party-licenses.json"],
+            "runtimeArgs": [
+                "ts-node"
+            ],
+            "args": [
+                "${workspaceFolder}/scripts/update-tpip.ts",
+                "${workspaceFolder}/docs/third-party-licenses.json"
+            ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen"
         },
         {
-              "name": "Launch download-tools.ts",
-              "type": "node",
-              "request": "launch",
-              "runtimeExecutable": "npx",
-              "runtimeArgs": ["tsx"],
-              "args": ["${workspaceFolder}/scripts/download-tools.ts", "-f", "debug-adapters"],
-              "console": "integratedTerminal",
-              "internalConsoleOptions": "neverOpen"
+            "name": "Launch download-tools.ts",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "npx",
+            "runtimeArgs": [
+                "tsx"
+            ],
+            "args": [
+                "${workspaceFolder}/scripts/download-tools.ts",
+                "-f",
+                "debug-adapters"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen"
+        },
+        {
+            "name": "API V3 Smoke Tests",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": [
+                "${workspaceFolder}/.vscode-test/api-v3-smoke/${input:apiV3SmokeMode}.code-workspace",
+                "--new-window",
+                "--skip-welcome",
+                "--skip-release-notes",
+                "--disable-workspace-trust",
+                "--user-data-dir=${workspaceFolder}/.vscode-test/api-v3-${input:apiV3SmokeMode}-user-data",
+                "--extensionDevelopmentPath=${workspaceFolder}",
+                "--extensionTestsPath=${workspaceFolder}/out/api/extension-host-v3-smoke.js"
+            ],
+            "env": {
+                "CMSIS_V3_SMOKE_MODE": "${input:apiV3SmokeMode}"
+            },
+            "outFiles": [
+                "${workspaceFolder}/out/api/**/*.js",
+                "${workspaceFolder}/dist/**/*.js"
+            ],
+            "preLaunchTask": "Prepare API Smoke Test"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "apiV3SmokeMode",
+            "type": "pickString",
+            "description": "Select API V3 smoke test",
+            "options": [
+                {
+                    "label": "Tools Environment",
+                    "value": "tools"
+                },
+                {
+                    "label": "Solution Getters (Empty Window)",
+                    "value": "getters"
+                },
+                {
+                    "label": "Solution Getters and Target Selection (Loaded Solution)",
+                    "value": "selection"
+                },
+                {
+                    "label": "Convert Solution (Loaded Solution)",
+                    "value": "convert"
+                },
+                {
+                    "label": "Installed Packs",
+                    "value": "installed"
+                },
+                {
+                    "label": "All Packs (Index)",
+                    "value": "index"
+                },
+                {
+                    "label": "Used Packs (Loaded Solution)",
+                    "value": "loaded"
+                },
+                {
+                    "label": "Missing Packs (Loaded Solution)",
+                    "value": "missing"
+                },
+                {
+                    "label": "Install Packs (Real Installation)",
+                    "value": "install"
+                },
+                {
+                    "label": "Build and Build Results (Loaded Solution)",
+                    "value": "build"
+                }
+            ],
+            "default": "tools"
         }
     ]
 }

@@ -28,6 +28,7 @@ import { ConfigurationProvider } from '../vscode-api/configuration-provider';
 import { stripTwoExtensions } from '@open-cmsis-pack/cmsis-common/string-utils';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { CmsisSettingsJsonFile } from '../global/cmsis-settings-json-file';
+import { YamlFile } from '@open-cmsis-pack/cmsis-common/yaml-file';
 
 export const COMMAND_OPEN_SOLUTION = `${manifest.PACKAGE_NAME}.openSolution`;
 export const COMMAND_ACTIVATE_SOLUTION = `${manifest.PACKAGE_NAME}.activateSolution`;
@@ -182,32 +183,32 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
         return [...new Set(solutionPaths)].sort();
     }
 
-    private async getConfiguredDefaultSolution(): Promise<string | undefined> {
-        const workspaceFolder = this.workspaceFoldersProvider.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            return undefined;
-        }
+    private async getConfiguredDefaultSolution(solutions: string[]): Promise<string | undefined> {
+        for (const workspaceFolder of this.workspaceFoldersProvider.workspaceFolders ?? []) {
+            const cmsisJsonPath = path.join(workspaceFolder.uri.fsPath, '.vscode', 'cmsis.json');
+            const cmsisJson = new CmsisSettingsJsonFile(cmsisJsonPath);
+            if (!cmsisJson.exists() || await cmsisJson.load() === ETextFileResult.Error) {
+                continue;
+            }
 
-        const cmsisJsonPath = path.join(workspaceFolder.uri.fsPath, '.vscode', 'cmsis.json');
-        const cmsisJson = new CmsisSettingsJsonFile(cmsisJsonPath);
-        if (!cmsisJson.exists() || await cmsisJson.load() === ETextFileResult.Error) {
-            return undefined;
+            const activeSolution = cmsisJson.get('activeSolution');
+            if (typeof activeSolution === 'string' && activeSolution.trim()) {
+                const solutionPath = path.resolve(path.dirname(cmsisJsonPath), activeSolution);
+                if (solutions.includes(solutionPath)
+                    && this.workspaceFoldersProvider.getWorkspaceFolder(solutionPath)?.uri.fsPath === workspaceFolder.uri.fsPath) {
+                    return solutionPath;
+                }
+            }
         }
-
-        const activeSolution = cmsisJson.get('activeSolution');
-        return typeof activeSolution === 'string' && activeSolution.trim()
-            ? path.resolve(path.dirname(cmsisJsonPath), activeSolution)
-            : undefined;
+        return undefined;
     }
 
     /**
      * Reload list of available solutions, check active solution is still present.
      */
     private async refresh() {
-        const [solutions, configuredDefaultSolution] = await Promise.all([
-            this.getSolutionPaths(),
-            this.getConfiguredDefaultSolution(),
-        ]);
+        const solutions = await this.getSolutionPaths();
+        const configuredDefaultSolution = await this.getConfiguredDefaultSolution(solutions);
         this._solutions = solutions;
 
         const previous = this._activeSolution || this.workspaceState?.get<string>(ActiveSolutionTrackerImpl.ACTIVE_SOLUTION_KEY);
@@ -306,12 +307,23 @@ export class ActiveSolutionTrackerImpl implements ActiveSolutionTracker {
         return path.join(inputSolutionPath, csolutionFileName);
     }
 
+    private async getSolutionQuickPickItem(solutionPath: string): Promise<vscode.QuickPickItem & { path: string }> {
+        const file = new YamlFile(solutionPath);
+        await file.load();
+        const content = file.content as { solution?: { description?: unknown } } | undefined;
+        const description = content?.solution?.description;
+        return {
+            label: this.getSolutionDetails(solutionPath).displayName,
+            detail: typeof description === 'string' && description.trim() ? description : undefined,
+            path: solutionPath,
+        };
+    }
+
     private async promptUserToSelectSolution(): Promise<string | undefined> {
         const solutions = this._solutions;
-        const items = solutions
-            .map(solutionPath => this.getSolutionDetails(solutionPath).displayName);
+        const items = await Promise.all(solutions.map(this.getSolutionQuickPickItem, this));
         const result = await vscode.window.showQuickPick(items, { placeHolder: 'Select a solution' });
-        return result && solutions[items.indexOf(result)];
+        return result?.path;
     }
 
     private async handleGetSolutionFile(): Promise<string | undefined> {

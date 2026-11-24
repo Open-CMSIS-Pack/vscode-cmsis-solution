@@ -180,12 +180,19 @@ when running in development mode.
 
 Before running a release, check the following:
 
-1. Tools and schemas integrated into the extension packages according to `package.json`
-   - schema version referenced in `csolution` section
+1. Verify the tools and dependencies integrated into the extension packages according to `package.json`:
+   - Check the versions referenced in the `csolution` section:
 
-     `"schemaVersion": "<version>"`
+     ```json
+     "csolution": {
+       "uv2csolutionVersion": "<version>",
+       "toolboxVersion": "<version or nightly>",
+       "rpcVersion": "<version>"
+     }
+     ```
 
-     `<version>` must match a [project manager schemas tag](https://github.com/Open-CMSIS-Pack/devtools/releases)
+   - Ensure the configured versions are appropriate for the release.
+     Update them only if required.
 
 2. User guide is up-to-date at [MDK-Packs/vscode-cmsis-solution-docs@main](https://github.com/MDK-Packs/vscode-cmsis-solution-docs/tree/main/docs).
 
@@ -334,10 +341,6 @@ To debug the `csolution` server (C++ code) running on the backend:
 4. **Load a csolution project** in the extension to trigger `csolution` startup.
 
 5. **Attach the native debugger** (Visual Studio Debugger or gdb/lldb) to the running `csolution` process by PID. The process will be active while the extension is communicating with it.
-
-## Security
-
-For security considerations see [SECURITY.md](./SECURITY.md)
 
 ## Test or develop in Dev Containers
 

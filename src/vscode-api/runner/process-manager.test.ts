@@ -19,6 +19,8 @@ import { EventEmitter } from 'events';
 import * as inspector from 'inspector';
 import * as pty from '@lydell/node-pty';
 import { ProcessManagerImpl, type ProcessSpawnOptions } from './process-manager';
+import { CmsisToolboxManagerImpl } from '../../solutions/cmsis-toolbox';
+import { csolutionServiceFactory } from '../../json-rpc/csolution-rpc-client.factory';
 
 const spawnMock = jest.fn();
 const createInterfaceMock = jest.fn();
@@ -39,6 +41,8 @@ jest.mock('inspector', () => ({
     url: jest.fn(() => undefined),
 }));
 
+jest.mock('which', () => jest.fn(async (command: string) => command));
+
 describe('process-manager.ts', () => {
     const originalPlatform = process.platform;
 
@@ -52,6 +56,78 @@ describe('process-manager.ts', () => {
     });
 
     describe('spawn', () => {
+        it('does not spawn when cancelled while waiting for the environment', async () => {
+            let finish!: () => void;
+            const environmentManager = {
+                waitUntilReady: () => new Promise<void>(resolve => { finish = resolve; }),
+                augmentEnv: jest.fn(),
+            };
+            const processManager = new ProcessManagerImpl(environmentManager as never);
+            const token = { isCancellationRequested: false, onCancellationRequested: jest.fn() };
+            const result = processManager.spawn('cbuild', [], {}, jest.fn(), token);
+            expect(spawnMock).not.toHaveBeenCalled();
+            token.isCancellationRequested = true;
+            finish();
+            await expect(result).rejects.toEqual({ code: 130 });
+            expect(environmentManager.augmentEnv).not.toHaveBeenCalled();
+            expect(spawnMock).not.toHaveBeenCalled();
+        });
+
+        it.each([false, true])('rejects an already-cancelled request without spawning (usePty: %s)', async (usePty) => {
+            const environmentManager = { waitUntilReady: jest.fn().mockResolvedValue(undefined), augmentEnv: jest.fn() };
+            const processManager = new ProcessManagerImpl(environmentManager as never);
+            const cancellationToken = { isCancellationRequested: true, onCancellationRequested: jest.fn() };
+
+            await expect(processManager.spawn('cbuild', [], { usePty }, jest.fn(), cancellationToken))
+                .rejects.toEqual({ code: 130 });
+
+            expect(environmentManager.augmentEnv).not.toHaveBeenCalled();
+            expect(spawnMock).not.toHaveBeenCalled();
+            expect(pty.spawn).not.toHaveBeenCalled();
+        });
+
+        it.each(['queued', 'version check'])('releases the toolbox after setup is cancelled during %s', async (cancelDuring) => {
+            const environmentManager = {
+                waitUntilReady: jest.fn().mockResolvedValue(undefined),
+                augmentEnv: jest.fn(() => ({ vars: {} })),
+            };
+            const processManager = new ProcessManagerImpl(environmentManager as never);
+            const service = csolutionServiceFactory();
+            service.getLogMessages.mockResolvedValue({ success: true });
+            const toolbox = new CmsisToolboxManagerImpl(processManager, jest.fn(), service);
+            const cancellationToken = { isCancellationRequested: false, onCancellationRequested: jest.fn() };
+
+            spawnMock.mockImplementation((_command: string, args: string[]) => {
+                const childProcess = new EventEmitter();
+                queueMicrotask(() => {
+                    if (args.includes('--version')) {
+                        cancellationToken.isCancellationRequested = true;
+                    }
+                    childProcess.emit('close', 0);
+                });
+                return childProcess;
+            });
+
+            const setup = toolbox.runCmsisTool('cbuild', ['setup'], jest.fn(), cancellationToken);
+            if (cancelDuring === 'queued') {
+                cancellationToken.isCancellationRequested = true;
+            }
+            const build = toolbox.runCmsisTool('cbuild', ['--target', 'all'], jest.fn());
+            const refresh = toolbox.runCsolutionRpc('GetLogMessages', {});
+            const clean = toolbox.runCmsisTool('cbuild', ['--clean'], jest.fn());
+
+            await expect(setup).resolves.toEqual([130, 'cbuild']);
+            await expect(build).resolves.toEqual([0, 'cbuild']);
+            await expect(refresh).resolves.toEqual({ success: true });
+            await expect(clean).resolves.toEqual([0, 'cbuild']);
+
+            expect(spawnMock).not.toHaveBeenCalledWith('cbuild', ['setup'], expect.anything());
+            expect(spawnMock).toHaveBeenCalledWith('cbuild', ['--target', 'all'], expect.anything());
+            expect(service.getLogMessages).toHaveBeenCalledTimes(1);
+            expect(spawnMock).toHaveBeenCalledWith('cbuild', ['--clean'], expect.anything());
+            expect(toolbox.isRunning()).toBe(false);
+        });
+
         it('forwards stdout and stderr line output and resolves on close code 0', async () => {
             const stdoutStream = {};
             const stderrStream = {};
@@ -80,6 +156,7 @@ describe('process-manager.ts', () => {
             spawnMock.mockReturnValue(childProcess);
 
             const environmentManager = {
+                waitUntilReady: jest.fn().mockResolvedValue(undefined),
                 augmentEnv: jest.fn(() => ({ vars: { AUGMENTED: '1' } })),
             };
 
@@ -88,6 +165,8 @@ describe('process-manager.ts', () => {
             const spawnOptions: ProcessSpawnOptions = { cwd: '.', env: { ORIGINAL: '1' }, filterOutput: true };
 
             const resultPromise = processManager.spawn('tool', ['--flag'], spawnOptions, onOutput);
+
+            await Promise.resolve();
 
             lineCallbacks.get(stdoutStream)?.('stdout line');
             lineCallbacks.get(stderrStream)?.('stderr line');
@@ -135,6 +214,7 @@ describe('process-manager.ts', () => {
             spawnMock.mockReturnValue(childProcess);
 
             const environmentManager = {
+                waitUntilReady: jest.fn().mockResolvedValue(undefined),
                 augmentEnv: jest.fn(() => ({ vars: { AUGMENTED: '1' } })),
             };
             const processManager = new ProcessManagerImpl(environmentManager as never);
@@ -142,6 +222,8 @@ describe('process-manager.ts', () => {
 
             const args = ['run', 'd:\\examples\\csolution examples\\DualCore\\HelloWorld.csolution.yml', '-g', 'MCUXpressoConfig', '-c', 'HelloWorld_cm0plus.Debug+FRDM-K32L3A6'];
             const resultPromise = processManager.spawn('tool', args, { usePty: true }, onOutput, undefined, dimensions);
+
+            await Promise.resolve();
 
             lineCallbacks.get(stdoutStream)?.('output');
             childProcess.emit('close', 0);
@@ -168,6 +250,7 @@ describe('process-manager.ts', () => {
             (pty.spawn as jest.Mock).mockReturnValue(ptyProcess);
 
             const environmentManager = {
+                waitUntilReady: jest.fn().mockResolvedValue(undefined),
                 augmentEnv: jest.fn(() => ({ vars: { AUGMENTED: '1' } })),
             };
             const processManager = new ProcessManagerImpl(environmentManager as never);
@@ -179,6 +262,8 @@ describe('process-manager.ts', () => {
                 { cwd: '.', env: { ORIGINAL: '1' }, usePty: true },
                 onOutput,
             );
+
+            await Promise.resolve();
 
             onData?.('\x1b[?9001h\x1b[?1004houtput chunk');
             onExit?.({ exitCode: 0 });
@@ -209,12 +294,15 @@ describe('process-manager.ts', () => {
             (pty.spawn as jest.Mock).mockReturnValue(ptyProcess);
 
             const environmentManager = {
+                waitUntilReady: jest.fn().mockResolvedValue(undefined),
                 augmentEnv: jest.fn(() => ({ vars: {} })),
             };
             const processManager = new ProcessManagerImpl(environmentManager as never);
             const onOutput = jest.fn();
 
             const resultPromise = processManager.spawn('tool', [], { usePty: true, filterOutput: true }, onOutput);
+
+            await Promise.resolve();
 
             onData?.('\x1b[?90');
             onData?.('01hGenerator output\r\n');

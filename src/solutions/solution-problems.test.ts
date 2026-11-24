@@ -24,6 +24,10 @@ import { SolutionEventHub } from './solution-event-hub';
 import { enrichLogMessagesFromToolOutput, SolutionProblemsImpl, hasToolError, hasToolWarning, getToolsSeverity, getSeverity } from './solution-problems';
 import { waitTimeout } from '../__test__/test-waits';
 import * as fsUtils from '../utils/fs-utils';
+import { CSolution } from './csolution';
+import { CSolutionYamlFile } from './files/csolution-yaml-file';
+import { CProjectYamlFile } from './files/cproject-yaml-file';
+import { appendSequenceMapEntry } from './files/yaml-creation-helpers';
 
 const solutionPath = '/work/app.csolution.yml';
 const layerPath = '/work/config/mylayer.clayer.yml';
@@ -31,6 +35,8 @@ const layerPath = '/work/config/mylayer.clayer.yml';
 const buildCsolution = () => {
     return {
         solutionPath,
+        csolutionYml: new CSolutionYamlFile(solutionPath),
+        projects: new Map<string, CProjectYamlFile>(),
         cbuildRunYml: undefined,
         cbuildIdxFile: {
             fileName: '/work/app.cbuild-idx.yml',
@@ -173,6 +179,132 @@ describe('SolutionProblems', () => {
         const [uri] = setSpy.mock.calls[0] as unknown as [vscode.Uri, readonly vscode.Diagnostic[] | undefined];
         expect(uri.fsPath).toContain('outside.clayer.yml');
         expect(uri.fsPath).not.toContain('app.csolution.yml');
+    });
+
+    it.each([
+        ['warning', 'yaml schemas were not found, file cannot be validated', vscode.DiagnosticSeverity.Warning],
+        ['error', 'invalid node; first invalid key: "layer"', vscode.DiagnosticSeverity.Error],
+    ])('maps %s tool output diagnostics to the prefixed absolute filename', async (kind, message, severity) => {
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+        const filePath = 'D:/tmp/2269/Alif_CMSIS3/Board/M55_HP/Board_HP.clayer';
+
+        await eventHub.fireConvertCompleted({
+            success: false,
+            severity: 'error',
+            detection: false,
+            logMessages: { success: false, errors: [], warnings: [], info: [] },
+            toolsOutputMessages: [`${filePath} - ${kind} csolution: ${message}`],
+        });
+        await waitTimeout();
+
+        expect(setSpy).toHaveBeenCalledTimes(1);
+        expect(setSpy).toHaveBeenCalledWith(
+            vscode.Uri.file(path.normalize(filePath)),
+            [expect.objectContaining({
+                message,
+                severity,
+                source: 'csolution',
+                range: new vscode.Range(0, 0, 0, 0),
+            })],
+        );
+    });
+
+    it.each([
+        ['project', '$SolutionDir()$/Board/M55_HP/Board_HP.clayer'],
+        ['project', '../Board/M55_HP/Board_HP.clayer'],
+        ['solution', './Board/M55_HP/Board_HP.clayer'],
+    ])('maps RPC diagnostics using a %s layer reference %s without build metadata', async (owner, reference) => {
+        const csolution = new CSolution();
+        csolution.solutionPath = path.resolve('/work/MyProject.csolution.yml');
+        csolution.solutionDir = path.dirname(csolution.solutionPath);
+        csolution.csolutionYml.fileName = csolution.solutionPath;
+        const project = new CProjectYamlFile(path.join(csolution.solutionDir, 'projects', 'MyProject.cproject.yml'));
+        csolution.projects.set('MyProject', project);
+        const file = owner === 'project' ? project : csolution.csolutionYml;
+        appendSequenceMapEntry(file.ensureTopItem(), 'layers', 'layer', reference);
+        solutionManager.getCsolution.mockReturnValue(csolution);
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+        const error = 'invalid node; first invalid key: "layer"';
+        const warning = 'yaml schemas were not found, file cannot be validated';
+
+        await eventHub.fireConvertCompleted({
+            success: false,
+            severity: 'error',
+            detection: false,
+            logMessages: {
+                success: false,
+                errors: [`Board_HP.clayer - ${error}`],
+                warnings: [`Board_HP.clayer - ${warning}`],
+            },
+        });
+        await waitTimeout();
+
+        const uri = vscode.Uri.file(path.join(csolution.solutionDir, 'Board', 'M55_HP', 'Board_HP.clayer'));
+        expect(setSpy).toHaveBeenCalledTimes(2);
+        expect(setSpy).toHaveBeenCalledWith(uri, [expect.objectContaining({ message: error })]);
+        expect(setSpy).toHaveBeenCalledWith(uri, [expect.objectContaining({ message: warning })]);
+    });
+
+    it('maps diagnostics to referenced project files when project loading fails', async () => {
+        const csolution = new CSolution();
+        csolution.solutionPath = path.resolve('/work/MyProject.csolution.yml');
+        csolution.solutionDir = path.dirname(csolution.solutionPath);
+        csolution.csolutionYml.fileName = csolution.solutionPath;
+        csolution.csolutionYml.appendProjectRef('projects/Broken.cproject.yml');
+        solutionManager.getCsolution.mockReturnValue(csolution);
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+        await eventHub.fireConvertCompleted({
+            success: false,
+            severity: 'error',
+            detection: false,
+            logMessages: {
+                success: false,
+                errors: ['Broken.cproject.yml:4:2 - project failed to load'],
+                warnings: [],
+                info: [],
+            },
+        });
+        await waitTimeout();
+
+        expect(setSpy).toHaveBeenCalledWith(
+            vscode.Uri.file(path.join(csolution.solutionDir, 'projects', 'Broken.cproject.yml')),
+            [expect.objectContaining({ message: 'project failed to load' })],
+        );
+    });
+
+    it('prefers an absolute diagnostic path when referenced layers share a basename', async () => {
+        const csolution = new CSolution();
+        csolution.solutionPath = path.resolve('/work/MyProject.csolution.yml');
+        csolution.solutionDir = path.dirname(csolution.solutionPath);
+        csolution.csolutionYml.fileName = csolution.solutionPath;
+        const firstLayer = path.join(csolution.solutionDir, 'First', 'Shared.clayer.yml');
+        appendSequenceMapEntry(csolution.csolutionYml.ensureTopItem(), 'layers', 'layer', './First/Shared.clayer.yml');
+        appendSequenceMapEntry(csolution.csolutionYml.ensureTopItem(), 'layers', 'layer', './Second/Shared.clayer.yml');
+        solutionManager.getCsolution.mockReturnValue(csolution);
+        await solutionProblems.activate({ subscriptions: [] } as unknown as ExtensionContext);
+        const setSpy = jest.spyOn(vscode.languages.createDiagnosticCollection(), 'set');
+
+        await eventHub.fireConvertCompleted({
+            success: false,
+            severity: 'error',
+            detection: false,
+            logMessages: {
+                success: false,
+                errors: [`${firstLayer}:4:2 - invalid layer`],
+                warnings: [],
+                info: [],
+            },
+        });
+        await waitTimeout();
+
+        expect(setSpy).toHaveBeenCalledWith(
+            vscode.Uri.file(firstLayer),
+            [expect.objectContaining({ message: 'invalid layer' })],
+        );
     });
 
     it('does not open problems view when all messages are excluded', async () => {

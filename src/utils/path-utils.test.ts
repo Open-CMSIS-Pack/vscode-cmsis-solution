@@ -23,6 +23,7 @@ import {
     getCmsisCompilerRoot,
     getCmsisPackRoot,
     getCmsisToolboxRoot,
+    setPackRootEnvironment,
     getFileNameFromPath,
     getFileNameNoExt,
     pathIsAncestor,
@@ -103,6 +104,14 @@ describe('path-utils', () => {
 
     describe('getCmsisPackRoot', () => {
         const environmentPath = path.join(__dirname, 'environmentCmsis');
+
+        afterEach(() => setPackRootEnvironment(() => process.env));
+
+        it('uses the registered environment by default', () => {
+            setPackRootEnvironment(() => ({ CMSIS_PACK_ROOT: environmentPath }));
+            expect(getCmsisPackRoot()).toBe(environmentPath);
+            expect(getCmsisPackRoot({ CMSIS_PACK_ROOT: '/explicit/packs' })).toBe('/explicit/packs');
+        });
 
         it('uses the CMSIS_PACK_ROOT environment variable', () => {
             const output = getCmsisPackRoot({ CMSIS_PACK_ROOT: environmentPath });

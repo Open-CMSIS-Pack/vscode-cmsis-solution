@@ -39,7 +39,7 @@ jobs:
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: audit
 
@@ -217,7 +217,7 @@ jobs:
           if-no-files-found: error
 
   test:
-    name: 'Test (${{ matrix.target }})'
+    name: 'Test (${{ matrix.target }}, ${{ matrix.platform }})'
     runs-on: ${{ matrix.platform }}
     needs: [ build ]
     permissions:
@@ -233,12 +233,16 @@ jobs:
             platform: windows-2022
           - target: linux-x64
             platform: ubuntu-24.04
+          - target: linux-x64
+            platform: ubuntu-26.04
           - target: darwin-arm64
-            platform: macos-14
+            platform: macos-15
+          - target: darwin-arm64
+            platform: macos-26
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: audit
 
@@ -269,11 +273,11 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
-          name: test-report-${{ matrix.target }}
+          name: test-report-${{ matrix.target }}-${{ matrix.platform }}
           path: ./test-report.html
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: ${{ matrix.target == 'linux-x64' }}
+        if: ${{ matrix.platform == 'ubuntu-24.04' }}
         with:
           name: unit-test-coverage
           path: ./coverage
@@ -281,12 +285,12 @@ jobs:
       - name: Publish coverage report to QLTY
         if: >
           github.repository_owner == 'Open-CMSIS-Pack' &&
-          matrix.target == 'linux-x64' &&
+          matrix.platform == 'ubuntu-24.04' &&
           (
             github.event_name != 'pull_request' ||
             github.event.pull_request.user.login != 'dependabot[bot]'
           )
-        uses: qltysh/qlty-action/coverage@c9b09987143d1e4ac955f4803c7bea742102feb5 # v2.4.0
+        uses: qltysh/qlty-action/coverage@0ff2178667bf8eb28ed0013a7ef54857a24d4056 # v2.7.0
         with:
           token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
           files: coverage/lcov.info
@@ -300,7 +304,7 @@ jobs:
       contents: write
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: audit
 
@@ -312,7 +316,7 @@ jobs:
       - name: Download test report
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: test-report-linux-x64
+          pattern: test-report-linux-x64-ubuntu-24.04
           path: test-report-linux
 
       - name: Zip test report
@@ -330,7 +334,7 @@ jobs:
         working-directory: test-coverage
 
       - name: Attach packages
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           fail_on_unmatched_files: true
           files: |

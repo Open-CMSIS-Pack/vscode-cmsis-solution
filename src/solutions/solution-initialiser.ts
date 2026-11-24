@@ -59,7 +59,8 @@ export class SolutionInitialiserImp implements SolutionInitialiser {
         }
 
         if (options.createdSolution.solutionFile) {
-            const cmsisJsonFile = path.join(solutionDirUri.fsPath, '.vscode', 'cmsis.json');
+            const workspaceFolder = this.workspaceFoldersProvider.getWorkspaceFolder(options.createdSolution.solutionFile.fsPath);
+            const cmsisJsonFile = path.join(workspaceFolder?.uri.fsPath ?? solutionDirUri.fsPath, '.vscode', 'cmsis.json');
             const ccmsisJson = new CmsisSettingsJsonFile(cmsisJsonFile);
             if (ccmsisJson.exists()) {
                 await ccmsisJson.load();

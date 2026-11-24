@@ -29,7 +29,7 @@ export type ContextSelectionSettings = {
 };
 
 export class CmsisSettingsJsonFile extends JsonFile {
-    constructor(filename: string = 'cmsis.json') {
+    constructor(private readonly filename: string = 'cmsis.json') {
         super(filename);
         if (!path.isAbsolute(filename)) {
             const workspaceFolder = vscodeUtils.getWorkspaceFolder();
@@ -45,11 +45,27 @@ export class CmsisSettingsJsonFile extends JsonFile {
     }
 
     get solutionDisplayName() {
-        const workspaceFolder = vscodeUtils.getWorkspaceFolder();
+        const workspaceFolder = vscodeUtils.getWorkspaceFolder(this.solutionPath) || path.dirname(this.solutionPath);
         return backToForwardSlashes(stripTwoExtensions(path.relative(workspaceFolder, this.solutionPath)));
     }
 
-    public solutionPath: string = '';
+    private _solutionPath = '';
+
+    public get solutionPath(): string {
+        return this._solutionPath;
+    }
+
+    public set solutionPath(solutionPath: string) {
+        this._solutionPath = solutionPath;
+        if (solutionPath && !path.isAbsolute(this.filename)) {
+            const workspaceFolder = vscodeUtils.getWorkspaceFolder(solutionPath) || path.dirname(solutionPath);
+            const fileName = path.join(workspaceFolder, '.vscode', this.filename);
+            if (fileName !== this.fileName) {
+                this.clear();
+                this.fileName = fileName;
+            }
+        }
+    }
 
     get targetSetMap(): Record<string, string | number> | undefined {
         return this.get(`targetSet.${this.solutionDisplayName}`) as Record<string, string | number>;

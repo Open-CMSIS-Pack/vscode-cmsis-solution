@@ -28,6 +28,13 @@ export const DebugTopologySchema = new Schema({
 const ImageLoadTypes = ['none', 'image', 'symbols', 'image+symbols'] as const;
 type ImageLoadType = typeof ImageLoadTypes[number];
 
+const StdioSchema = arrayOf({
+    mode: string,
+    port: optional(number),
+    pname: optional(string),
+    file: optional(string),
+});
+
 export const CbuildRunYamlSchema = new Schema({
     'cbuild-run': {
         'generated-by': optional(string),
@@ -53,12 +60,9 @@ export const CbuildRunYamlSchema = new Schema({
                 pname: optional(string),
             })),
             'probe-id': optional(string),
-            'telnet': optional(arrayOf({
-                mode: string,
-                port: number,
-                pname: optional(string),
-                file: optional(string),
-            })),
+            stdio: optional(StdioSchema),
+            // Legacy alias emitted by older CMSIS-Toolbox versions.
+            telnet: optional(StdioSchema),
         },
         'debug-topology': optional(DebugTopologySchema),
     },
@@ -110,15 +114,19 @@ export class CbuildRunYamlFile extends YamlFile {
     }
 
     public getDebugger() {
-        return this.parsedContent['cbuild-run'].debugger;
+        const debuggerConfig = this.parsedContent['cbuild-run'].debugger;
+        if (debuggerConfig.stdio === undefined && debuggerConfig.telnet !== undefined) {
+            debuggerConfig.stdio = debuggerConfig.telnet;
+        }
+        return debuggerConfig;
     }
 
     public getProcessors() {
         return this.parsedContent['cbuild-run']?.['debug-topology']?.processors || [];
     }
 
-    public getTelnet() {
-        return this.parsedContent['cbuild-run'].debugger.telnet ?? [];
+    public getStdio() {
+        return this.getDebugger().stdio ?? [];
     }
 
     protected imageTypeFilter(filter: { image?: boolean, symbols?: boolean }) : Set<ImageLoadType> {

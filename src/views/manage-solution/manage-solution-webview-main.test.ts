@@ -34,6 +34,7 @@ import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
 import { configurationProviderFactory } from '../../vscode-api/configuration-provider.factories';
 import { csolutionFactory } from '../../solutions/csolution.factory';
 import { csolutionServiceFactory } from '../../json-rpc/csolution-rpc-client.factory';
+import { DebugAdapter, DebugAdaptersYamlFile } from '../../debug/debug-adapters-yaml-file';
 
 // Helper for firing a message and waiting (now inside describe, uses local webviewManager)
 describe('ContextSelectionWebviewMain', () => {
@@ -166,17 +167,45 @@ describe('ContextSelectionWebviewMain', () => {
         expect(addImageSpy).toHaveBeenCalledWith('images/application.axf');
     });
 
-    it('sets debugger on SET_DEBUGGER', async () => {
+    it('preserves the start processor in published state and undo/redo snapshots on SET_DEBUGGER', async () => {
+        const onEdit = jest.fn();
         const main = manageSolutionWebviewMainFactory({
-            webviewManager
+            webviewManager,
+            onEdit,
         });
         await main.activate(context as unknown as vscode.ExtensionContext);
+        main.controller.csolutionService = csolutionServiceFactory({
+            getDeviceInfo: jest.fn().mockResolvedValue({
+                device: { processors: [{ name: 'CM4', core: 'Cortex-M4' }, { name: 'CM7', core: 'Cortex-M7' }] },
+            }),
+        });
+        main.controller.setActiveTargetSet('STM32H7', 'debug');
+        main.controller.activeTargetTypeWrap!.device = 'STMicroelectronics::STM32H747XIHx';
+        main.controller.activeTargetSetWrap.ensureDebugger().object = {
+            name: 'ST-Link@pyOCD',
+            'start-pname': 'CM7',
+            clock: 5000000,
+        };
+        const beforeSnapshot = main.getSolutionSnapshot();
 
-        await fireAndWait('SET_DEBUGGER', { name: 'debugger1' });
+        await main['handleMessage']({ type: 'SET_DEBUGGER', name: 'CMSIS-DAP@pyOCD' });
 
-        expect(webviewManager.sendMessage).toHaveBeenCalledWith(
-            expect.objectContaining({ type: 'DEBUGGER', data: expect.any(String) })
-        );
+        const afterSnapshot = main.getSolutionSnapshot();
+        expect(main.controller.activeDebugger?.object).toEqual({ name: 'CMSIS-DAP@pyOCD', 'start-pname': 'CM7' });
+        expect(afterSnapshot.usedCoreNames).toEqual(['CM4', 'CM7']);
+        expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'DEBUGGER', data: 'CMSIS-DAP@pyOCD' });
+        expect(webviewManager.sendMessage).toHaveBeenCalledWith({ type: 'DATA_CONTEXT_SELECTION', data: afterSnapshot });
+        expect(onEdit).toHaveBeenCalledTimes(1);
+        expect(onEdit).toHaveBeenCalledWith('SET_DEBUGGER', beforeSnapshot, afterSnapshot);
+
+        await main.applySnapshot(beforeSnapshot);
+        expect(main.controller.activeDebugger?.object).toEqual({
+            name: 'ST-Link@pyOCD',
+            'start-pname': 'CM7',
+            clock: 5000000,
+        });
+        await main.applySnapshot(afterSnapshot);
+        expect(main.getSolutionSnapshot()).toEqual(afterSnapshot);
     });
 
     it('updates context on SET_SELECTED_CONTEXTS', async () => {
@@ -284,6 +313,61 @@ describe('ContextSelectionWebviewMain', () => {
         expect(webviewManager.sendMessage).toHaveBeenCalledWith(
             expect.objectContaining({ type: 'DEBUG_ADAPTERS' })
         );
+    });
+
+    it('records trace subsection edits in snapshots and restores them through undo and redo', async () => {
+        const onEdit = jest.fn();
+        const configurationProvider = configurationProviderFactory({ [manifest.CONFIG_EXPERIMENTAL_FEATURES]: true });
+        const main = manageSolutionWebviewMainFactory({ webviewManager, onEdit, configurationProvider });
+        await main.activate(context as unknown as vscode.ExtensionContext);
+        main.controller.enableDebugger(true, 'Test Adapter');
+        main.controller.experimentalFeatures = true;
+        const before = main.getSolutionSnapshot();
+
+        await fireAndWait('ADD_DEBUG_ADAPTER_SUBSECTION', { section: 'trace', subsection: ['serialwire'] });
+        await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', { service: 'trace', subsection: ['serialwire'], key: 'input-clock', value: 64000000 });
+        await fireAndWait('SET_DEBUG_ADAPTER_SUBSECTION_ENABLED', { section: 'trace', subsection: ['serialwire'], enabled: false });
+        const configured = main.getSolutionSnapshot();
+        expect(main.controller.activeDebugger?.item?.getChild('trace')?.toObject()).toEqual([
+            { 'swo-uart': null, mode: 'off', 'input-clock': 64000000 },
+        ]);
+
+        await fireAndWait('REMOVE_DEBUG_ADAPTER_SUBSECTION', { section: 'trace', subsection: ['serialwire'] });
+        expect(main.controller.activeDebugger?.item?.getChild('trace')).toBeUndefined();
+        expect(onEdit).toHaveBeenCalledTimes(4);
+        expect(onEdit.mock.calls.map(([label]) => label)).toEqual([
+            'ADD_DEBUG_ADAPTER_SUBSECTION', 'UPDATE_DEBUGGER_PARAMETER', 'SET_DEBUG_ADAPTER_SUBSECTION_ENABLED', 'REMOVE_DEBUG_ADAPTER_SUBSECTION',
+        ]);
+
+        await main.applySnapshot(before);
+        expect(main.controller.activeDebugger?.item?.getChild('trace')).toBeUndefined();
+        await main.applySnapshot(configured);
+        expect(main.getSolutionSnapshot()).toEqual(configured);
+    });
+
+    it('routes nested field messages by descriptor identity without creating a node for the display identity', async () => {
+        const main = manageSolutionWebviewMainFactory({ webviewManager });
+        await main.activate(context as unknown as vscode.ExtensionContext);
+        main.controller.enableDebugger(true, 'Test Adapter');
+        main.controller['debugAdaptersCache'] = [{
+            name: 'Test Adapter',
+            'user-interface': [{
+                id: 'advanced', section: 'Advanced', 'yml-node': 'settings', options: [],
+                subsections: [{
+                    id: 'transport', section: 'Transport', options: [],
+                    subsections: [{
+                        id: 'channel', section: 'Channel', options: [{ name: 'Clock', 'yml-node': 'input-clock', type: 'number' }],
+                    }],
+                }],
+            }],
+        }];
+
+        await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', {
+            service: 'advanced', subsection: ['transport', 'channel'], key: 'input-clock', value: 64000000,
+        });
+
+        expect(main.controller.activeDebugger?.item?.getChild('settings')?.toObject()).toEqual({ transport: { channel: { 'input-clock': 64000000 } } });
+        expect(main.controller.activeDebugger?.item?.getChild('advanced')).toBeUndefined();
     });
 
     describe('onDidChangeLoadState callback', () => {
@@ -559,6 +643,101 @@ describe('ContextSelectionWebviewMain', () => {
     });
 
     describe('updateDebuggerParameter', () => {
+        it.each([
+            { deviceCoreNames: ['Cortex-M0p', 'Cortex-M4'], pname: 'Cortex-M0p' },
+            { deviceCoreNames: ['Cortex-M0p'], pname: 'Cortex-M0p' },
+            { deviceCoreNames: [undefined], pname: undefined },
+            { deviceCoreNames: [null], pname: null },
+            { deviceCoreNames: [''], pname: '' },
+        ])('keeps one STDIO entry when selecting File mode with device cores $deviceCoreNames', async ({ deviceCoreNames, pname }) => {
+            const main = manageSolutionWebviewMainFactory({ webviewManager });
+            await main.activate(context as unknown as vscode.ExtensionContext);
+
+            const adapter: DebugAdapter = {
+                name: 'Test Adapter',
+                'user-interface': [{
+                    section: 'Standard I/O',
+                    'yml-node': 'stdio',
+                    select: false,
+                    'pname-options': true,
+                    options: [{
+                        name: 'Redirect Mode',
+                        'yml-node': 'mode',
+                        type: 'enum',
+                        default: 'monitor',
+                        values: [{ name: 'Text File', value: 'file' }],
+                    }],
+                }],
+            };
+            const adaptersFile = new DebugAdaptersYamlFile();
+            jest.spyOn(adaptersFile, 'debugAdapters', 'get').mockReturnValue([adapter]);
+            const controller = main.controller;
+            controller['debugAdaptersYmlFile'] = adaptersFile;
+            controller.enableDebugger(true, adapter.name);
+            controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
+            controller.activeTargetSetWrap.addImage('Blinky.axf').device = pname ?? undefined;
+            controller.csolutionService = csolutionServiceFactory({
+                getDeviceInfo: jest.fn().mockResolvedValue({
+                    device: {
+                        processors: deviceCoreNames.map(name => ({ name, core: 'Cortex-M0+' })),
+                    },
+                }),
+            });
+
+            await fireAndWait('TOGGLE_DEBUG_ADAPTER_SECTION', { section: 'stdio' });
+            await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', {
+                service: 'stdio',
+                key: 'mode',
+                value: 'file',
+                pname,
+            });
+
+            const expectedEntry = pname ? { pname, mode: 'file' } : { mode: 'file' };
+            expect(controller.activeDebugger?.item?.getChild('stdio')?.toObject()).toEqual([expectedEntry]);
+        });
+
+        it.each([undefined, null, ''])('assigns the only named processor when reusing a STDIO entry with pname=%s', async legacyPname => {
+            const main = manageSolutionWebviewMainFactory({ webviewManager });
+            await main.activate(context as unknown as vscode.ExtensionContext);
+
+            const controller = main.controller;
+            controller.enableDebugger(true, 'Test Adapter');
+            controller.activeTargetTypeWrap!.device = 'TestVendor::TestDevice';
+            controller.activeDebugger?.item?.createChild('stdio', true).fromObject([
+                { mode: 'monitor', port: 4444, ...(legacyPname === undefined ? {} : { pname: legacyPname }) },
+            ]);
+            controller.csolutionService = csolutionServiceFactory({
+                getDeviceInfo: jest.fn().mockResolvedValue({
+                    device: { processors: [{ name: 'Cortex-M0p', core: 'Cortex-M0+' }] },
+                }),
+            });
+
+            await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', {
+                service: 'stdio',
+                key: 'mode',
+                value: 'file',
+                pname: 'Cortex-M0p',
+            });
+
+            expect(controller.activeDebugger?.item?.getChild('stdio')?.toObject()).toEqual([
+                { mode: 'file', port: 4444, pname: 'Cortex-M0p' },
+            ]);
+        });
+
+        it('creates missing sections for field edits without invoking the switch action', async () => {
+            const main = manageSolutionWebviewMainFactory({ webviewManager });
+            await main.activate(context as unknown as vscode.ExtensionContext);
+            main.controller.enableDebugger(true, 'Test Adapter');
+            const toggle = jest.spyOn(main.controller, 'toggleDebugAdapterSection');
+
+            await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', { service: 'settings', key: 'port', value: 3333 });
+            expect(main.controller.activeDebugger?.item?.getChild('settings')?.toObject()).toEqual({ port: '3333' });
+            expect(toggle).not.toHaveBeenCalled();
+
+            await fireAndWait('SET_DEBUG_ADAPTER_PROPERTY', { service: 'settings', key: 'host', value: 'localhost' });
+            expect(main.controller.activeDebugger?.item?.getChild('settings')?.toObject()).toEqual({ port: '3333', host: 'localhost' });
+        });
+
         it('invokes setDebuggerParameter with stringified value and sends DEBUG_ADAPTERS + DATA_CONTEXT_SELECTION', async () => {
             const main = manageSolutionWebviewMainFactory({ webviewManager });
             await main.activate(context as unknown as vscode.ExtensionContext);

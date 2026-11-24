@@ -15,11 +15,14 @@
  */
 
 import type { EnvironmentManagerApiV1, EnvironmentManagerExtension } from '@arm-software/vscode-environment-manager';
+import { homedir } from 'node:os';
+import * as path from 'node:path';
 import { ExtensionContext, window, workspace } from 'vscode';
 import { CsolutionExtension } from '../../api/csolution';
 import { CsolutionExtensionImpl } from '../api/csolution-extension';
 import { DataManager } from '../data-manager/data-manager';
 import { CsolutionDataSource, SolarDataSource } from '../data-manager/data-source';
+import { DocManager } from '../doc-manager/doc-manager';
 import * as manifest from '../manifest';
 import { OpenFileExternal } from '../open-file-external';
 import { PackInstallCommands } from '../packs/pack-install-commands';
@@ -45,6 +48,7 @@ import { StatusBar } from '../status-bar';
 import { BuildCommand } from '../tasks/build/build-command';
 import { BuildTaskDefinitionBuilderImpl } from '../tasks/build/build-task-definition-builder';
 import { BuildTaskProviderImpl } from '../tasks/build/build-task-provider';
+import { PyocdTaskProvider } from '../debug/pyocd-task-provider';
 import { BuildRunner } from '../tasks/build/build-runner';
 import { getHandleBuildEnoent } from '../tasks/build/handle-enoent';
 import { GeneratorCommand } from '../tasks/generator/generator-command';
@@ -58,6 +62,7 @@ import { AddToGroupCommand } from '../views/solution-outline/commands/add-to-gro
 import { DeleteCommand } from '../views/solution-outline/commands/delete-command';
 import { EditCommand } from '../views/solution-outline/commands/edit-command';
 import { OpenCommand } from '../views/solution-outline/commands/open-command';
+import { DocumentCommand } from '../views/solution-outline/commands/document-command';
 import { FindCommand } from '../views/solution-outline/commands/find-command';
 import { MergeCommand } from '../views/solution-outline/commands/merge-command';
 import { MergeSessionCoordinatorImpl } from '../views/solution-outline/commands/merge-session-coordinator';
@@ -104,7 +109,13 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     console.log(`Activating extension ${manifest.PACKAGE_NAME}`);
 
     TextFile.setErrorReporter(vscodeUtils.showErrorMessage);
-    context.subscriptions.push({ dispose: () => TextFile.setErrorReporter() });
+    DocManager.setErrorReporter(vscodeUtils.showErrorMessage);
+    context.subscriptions.push({ dispose: () => {
+        TextFile.setErrorReporter();
+        DocManager.setErrorReporter();
+    } });
+
+    const docManager = new DocManager(path.join(context.extensionPath, 'dist', 'arm-docs.json'));
 
     // Companion Extensions
     type SerialMonitorExtension = {
@@ -120,8 +131,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
 
     // VS Code API providers
     const configurationProvider = new ConfigurationProviderImpl(context);
-    const envManager = new EnvironmentManager(configurationProvider);
-    const processManager = new ProcessManagerImpl(envManager);
     const outputChannelProvider = new OutputChannelProviderImpl(context);
 
     const externalFileOpener = new OpenFileExternal();
@@ -141,6 +150,8 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         workspaceFsProvider,
         configurationProvider,
     );
+    const envManager = new EnvironmentManager(configurationProvider, activeSolutionTracker);
+    const processManager = new ProcessManagerImpl(envManager);
 
     const solutionRootsWatcher = new SolutionRootsWatcher(fileWatcherProvider, workspaceFoldersProvider, workspaceFsProvider, commandsProvider);
 
@@ -160,6 +171,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         commandsProvider,
         environmentManagerApiProvider,
         envManager,
+        docManager,
         toolsEnvironment);
 
     initUtils(configurationProvider, solutionManager);
@@ -181,7 +193,9 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         cmsisToolboxManager,
     );
 
-    const buildTaskProvider = new BuildTaskProviderImpl(buildRunner);
+    const buildTaskProvider = new BuildTaskProviderImpl(buildRunner, undefined, undefined, solutionManager);
+    const pyocdTaskProvider = new PyocdTaskProvider(() => envManager.getEnvironmentVariables());
+    pyocdTaskProvider.activate(context);
     const buildTaskDefinitionBuilder = new BuildTaskDefinitionBuilderImpl(solutionManager, configurationProvider);
     const compileCommandsGenerator = new CompileCommandsGenerator(buildTaskProvider, buildTaskDefinitionBuilder, eventHub, outputChannelProvider, commandsProvider);
 
@@ -240,6 +254,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const editCommand = new EditCommand(commandsProvider);
     const copyHeaderCommand = new CopyHeaderCommand(commandsProvider);
     const openCommand = new OpenCommand(solutionManager, commandsProvider, externalFileOpener, undefined, fileOpenGroupOrchestrator);
+    const documentCommand = new DocumentCommand(solutionManager, commandsProvider);
     const findCommand = new FindCommand(commandsProvider);
     const searchSolutionSourcesCommand = new SearchSolutionSourcesCommand(solutionManager, commandsProvider, workspaceFsProvider, messageProvider);
     const fileDecorationProviderManager = new FileDecorationProviderManagerImpl();
@@ -247,7 +262,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const treeViewFileDecorationProvider = new TreeViewFileDecorationProvider(fileDecorationProviderManager, themeProvider);
     const mergeSessionCoordinator = new MergeSessionCoordinatorImpl(commandsProvider);
     const mergeCommand = new MergeCommand(commandsProvider, mergeSessionCoordinator, messageProvider);
-    const buildCommand = new BuildCommand(buildTaskProvider, commandsProvider, buildTaskDefinitionBuilder, componentsManager);
+    const buildCommand = new BuildCommand(buildTaskProvider, commandsProvider, buildTaskDefinitionBuilder, solutionManager, componentsManager);
     const runGeneratorCommand = new GeneratorCommand(commandsProvider, solutionManager, outputChannelProvider, cmsisToolboxManager, eventHub);
     const armclangDefineGetter = new ArmclangDefineGetter(processManager, workspaceFsProvider);
     const manageSolutionCustomEditorProvider = new ManageSolutionCustomEditorProvider(
@@ -272,15 +287,19 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
     const clangdManager = new ClangdManager(solutionManager, configurationProvider, armclangDefineGetter, compileCommandsParser, workspaceFsProvider, commandsProvider);
     const targetPackCommand = new TargetPackCommandImpl(commandsProvider, solutionManager);
     const debugHardwareCommands = new DebugHardwareCommands(commandsProvider, solutionManager);
-    const csolutionExtension = new CsolutionExtensionImpl(solutionCreator, buildTaskProvider, dataManager, solutionManager, toolsEnvironment);
+    const csolutionExtension = new CsolutionExtensionImpl(solutionCreator, buildTaskProvider, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverterImpl);
     const solutionOutline = new SolutionOutlineView(solutionManager, treeViewProviderImpl, globalStateProvider, treeViewFileDecorationProvider, configurationProvider);
-    const cmsisCommands = new CmsisCommands(configurationProvider, commandsProvider, solutionManager, debugProvider, serialMonitorExtension);
+    const cmsisCommands = new CmsisCommands(configurationProvider, commandsProvider, solutionManager, debugProvider, serialMonitorExtension, pyocdTaskProvider);
     const buildStopCommand = new BuildStopCommand(commandsProvider, buildTaskProvider);
     const configurationWizardView = new ConfWizWebview(context);
     const solutionLanguageFeatures = new SolutionLanguageFeaturesProvider(solutionManager);
     const packInstallCommands = new PackInstallCommands(commandsProvider, cmsisToolboxManager, outputChannelProvider);
     const protocolHandler = new ProtocolHandler(cmsisToolboxManager, outputChannelProvider);
     const openArmExamplesCommand = new OpenArmExamplesCommand(commandsProvider, externalFileOpener);
+
+    await envManager.activate(context);
+    context.subscriptions.push(docManager);
+    await docManager.initialize(path.join(homedir(), '.cmsis'));
 
     const activations = [
         eventHub.activate(context),
@@ -309,6 +328,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         editCommand.activate(context),
         copyHeaderCommand.activate(context),
         openCommand.activate(context),
+        documentCommand.activate(context),
         findCommand.activate(context),
         searchSolutionSourcesCommand.activate(context),
         mergeCommand.activate(context),
@@ -321,7 +341,6 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         buildStopCommand.activate(context),
         protocolHandler.activate(context),
         debugProvider.activate(context),
-        envManager.activate(context),
         serialMonitorExtension.activate(context),
         solutionRootsWatcher.activate(context),
         openArmExamplesCommand.activate(context),

@@ -15,6 +15,7 @@
  */
 
 import * as semver from 'semver';
+import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 
 export class PackId {
     public readonly key: string;
@@ -29,7 +30,7 @@ export class PackId {
         this.familyKey = `${this.vendor.toLowerCase()}::${this.name.toLowerCase()}`;
     }
 
-    public compare(other: PackId) : number {
+    public compare(other: PackId): number {
         const vendorDiff = this.vendor.toLowerCase().localeCompare(other.vendor.toLowerCase());
         if (vendorDiff !== 0) {
             return vendorDiff;
@@ -41,8 +42,44 @@ export class PackId {
         return semver.compare(this.version ?? '', other.version ?? '');
     }
 
-    public equalByName(other: PackId) : boolean {
+    public equalByName(other: PackId): boolean {
         return this.vendor.toLowerCase() === other.vendor.toLowerCase() && this.name.toLowerCase() === other.name.toLowerCase();
     }
 
+}
+
+export function splitVendorNameId(id: string): { vendor?: string, name: string, suffix?: string };
+export function splitVendorNameId(id: Optional<string>): Optional<{ vendor?: string, name: string, suffix?: string }>;
+export function splitVendorNameId(id?: string): Optional<{ vendor?: string, name: string, suffix?: string }> {
+    if (!id) {
+        return undefined;
+    }
+    const match = id.match(/^(?:([^:]*)::)?([^:]*)(?::(.*))?$/);
+    if (!match) {
+        return undefined;
+    }
+    return { vendor: match[1], name: match[2], suffix: match[3] };
+}
+
+export function splitPackId(packId: string): { vendor: string, name: string, version?: string };
+export function splitPackId(packId: Optional<string>): Optional<{ vendor: string, name: string, version?: string }>;
+export function splitPackId(packId?: string): Optional<{ vendor: string, name: string, version?: string }> {
+    if (!packId) {
+        return undefined;
+    }
+    // Pattern: vendor::name@version
+    const pattern = /^([^:]+)::([^@]+)(@(.*))?$/;
+    const match = packId.match(pattern);
+    if (!match) {
+        return undefined;
+    }
+    return { vendor: match[1], name: match[2], version: match[4] };
+}
+
+export function comparePackIds(first: string, second: string): number {
+    const firstId = splitPackId(first);
+    const secondId = splitPackId(second);
+    const firstPack = new PackId(firstId.vendor, firstId.name, firstId.version);
+    const secondPack = new PackId(secondId.vendor, secondId.name, secondId.version);
+    return firstPack.compare(secondPack);
 }

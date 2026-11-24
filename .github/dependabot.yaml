@@ -35,6 +35,9 @@ updates:
     ignore:
       - dependency-name: "cmsis-csolution"  # Ignore the workspace root package
       - dependency-name: "@types/vscode"
+      - dependency-name: "yargs-parser"
+        update-types:
+        - version-update:semver-major
       - dependency-name: "react"
         update-types:
         - version-update:semver-major

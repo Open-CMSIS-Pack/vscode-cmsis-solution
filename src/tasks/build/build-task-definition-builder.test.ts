@@ -179,11 +179,11 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
             expect(createDefinition).rejects.toThrow('No active solution set');
         });
 
-        it('reads buildOutputVerbosity from configuration if non-default value is set', async () => {
+        it.each(['verbose', 'build-commands'])('reads buildOutputVerbosity %s from configuration', async (verbosity) => {
             const solutionManager = solutionManagerFactory();
             const configProvider = configurationProviderFactory();
             configProvider.getConfigVariable.mockImplementation((name: string) => {
-                return (name === manifest.CONFIG_BUILD_OUTPUT_VERBOSITY) ? 'verbose' : undefined;
+                return (name === manifest.CONFIG_BUILD_OUTPUT_VERBOSITY) ? verbosity : undefined;
             });
             const buildTaskDefinitionBuilder = new BuildTaskDefinitionBuilderImpl(
                 solutionManager,
@@ -192,7 +192,7 @@ describe('BuildTaskDefinitionBuilderImpl', () => {
 
             const taskDefinition = await buildTaskDefinitionBuilder.createDefinitionFromUriOrSolutionNode('build');
 
-            expect(taskDefinition.buildOutputVerbosity).toBe('verbose');
+            expect(taskDefinition.buildOutputVerbosity).toBe(verbosity);
         });
     });
 });

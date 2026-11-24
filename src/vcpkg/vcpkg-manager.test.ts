@@ -130,6 +130,8 @@ describe('VcpkgManager', () => {
             const vcpkgManager = new VcpkgManager(apiMock);
 
             const disposeMock = jest.fn();
+            const failureDisposeMock = jest.fn();
+            apiMock.onDidFailActivation.mockReturnValue({ dispose: failureDisposeMock });
             apiMock.getActiveTools.mockReturnValue([]);
             apiMock.onDidActivate.mockImplementation((listener) => {
                 return jest.mocked<vscode.Disposable & { timeout: NodeJS.Timeout }>({
@@ -143,6 +145,7 @@ describe('VcpkgManager', () => {
             await expect(activation).resolves.toBeUndefined();
 
             expect(disposeMock).toHaveBeenCalledTimes(1);
+            expect(failureDisposeMock).toHaveBeenCalledTimes(1);
         });
 
         it('pass if activation already done', async () => {
@@ -166,6 +169,48 @@ describe('VcpkgManager', () => {
             expect(apiMock.onDidActivate).not.toHaveBeenCalled();
         });
 
+        it.each([false, true])('settles after an activation failure while preserving automatic retry (success: %s)', async retrySucceeds => {
+            jest.useFakeTimers();
+            const success = new vscode.EventEmitter<VcpkgResults>();
+            const failure = new vscode.EventEmitter<vscode.Uri>();
+            try {
+                findFilesMock.mockResolvedValue([vscode.Uri.file('/workspace/vcpkg-configuration.json')]);
+                const apiMock = vcpkgApiFactory();
+                apiMock.getActiveTools.mockReturnValue([]);
+                // Activation may still be waiting for workspace consent.
+                apiMock.isActivating.mockReturnValue(false);
+                apiMock.onDidActivate.mockImplementation(success.event);
+                apiMock.onDidFailActivation.mockImplementation(failure.event);
+                const vcpkgManager = new VcpkgManager(apiMock);
+                const outcome = jest.fn();
+                const activation = vcpkgManager.awaitActivation();
+                void activation.then(() => outcome('success'), () => outcome('failure'));
+                await jest.advanceTimersByTimeAsync(0);
+                expect(outcome).not.toHaveBeenCalled();
+
+                // Environment Manager reports failure before starting its registry update and retry.
+                apiMock.isActivating.mockReturnValue(false);
+                failure.fire(vscode.Uri.file('/workspace/vcpkg-configuration.json'));
+                apiMock.isActivating.mockReturnValue(true);
+                await jest.advanceTimersByTimeAsync(500);
+                expect(outcome).not.toHaveBeenCalled();
+
+                apiMock.isActivating.mockReturnValue(false);
+                if (retrySucceeds) {
+                    success.fire({} as VcpkgResults);
+                }
+                // A failed registry update ends activation without another activation event.
+                await jest.advanceTimersByTimeAsync(100);
+                expect(outcome).toHaveBeenCalledTimes(1);
+                expect(outcome).toHaveBeenCalledWith(retrySucceeds ? 'success' : 'failure');
+                expect(jest.getTimerCount()).toBe(0);
+            } finally {
+                success.dispose();
+                failure.dispose();
+                jest.useRealTimers();
+            }
+        });
+
         it('returns without checking again after activation completed', async () => {
             const configFileMock = jest.fn();
             findFilesMock.mockResolvedValue([configFileMock]);
@@ -181,11 +226,59 @@ describe('VcpkgManager', () => {
             expect(apiMock.getActiveTools).toHaveBeenCalledTimes(1);
         });
 
+        it('retains terminal failure for later waits and allows a new activation attempt', async () => {
+            jest.useFakeTimers();
+            const success = new vscode.EventEmitter<VcpkgResults>();
+            const failure = new vscode.EventEmitter<vscode.Uri>();
+            try {
+                findFilesMock.mockResolvedValue([vscode.Uri.file('/workspace/vcpkg-configuration.json')]);
+                const apiMock = vcpkgApiFactory();
+                apiMock.getActiveTools.mockReturnValue([]);
+                apiMock.isActivating.mockReturnValue(true);
+                apiMock.onDidActivate.mockImplementation(success.event);
+                apiMock.onDidFailActivation.mockImplementation(failure.event);
+                const vcpkgManager = new VcpkgManager(apiMock);
+                const rejected = jest.fn();
+                void vcpkgManager.awaitActivation().catch(rejected);
+                await jest.advanceTimersByTimeAsync(0);
+
+                apiMock.isActivating.mockReturnValue(false);
+                failure.fire(vscode.Uri.file('/workspace/vcpkg-configuration.json'));
+                await jest.advanceTimersByTimeAsync(100);
+                expect(rejected).toHaveBeenCalledTimes(1);
+                expect(rejected).toHaveBeenLastCalledWith(new Error('Environment activation failed'));
+
+                // No further events arrive while Environment Manager remains idle.
+                void vcpkgManager.awaitActivation().catch(rejected);
+                await jest.advanceTimersByTimeAsync(0);
+                expect(rejected).toHaveBeenCalledTimes(2);
+                expect(rejected).toHaveBeenLastCalledWith(new Error('Environment activation failed'));
+
+                apiMock.isActivating.mockReturnValue(true);
+                const resolved = jest.fn();
+                const retry = vcpkgManager.awaitActivation();
+                void retry.then(resolved, rejected);
+                await jest.advanceTimersByTimeAsync(0);
+                expect(resolved).not.toHaveBeenCalled();
+                expect(rejected).toHaveBeenCalledTimes(2);
+
+                apiMock.isActivating.mockReturnValue(false);
+                success.fire({} as VcpkgResults);
+                await expect(retry).resolves.toBeUndefined();
+                expect(jest.getTimerCount()).toBe(0);
+            } finally {
+                success.dispose();
+                failure.dispose();
+                jest.useRealTimers();
+            }
+        });
+
         it('shares an activation wait between concurrent calls', async () => {
             const configFileMock = jest.fn();
             findFilesMock.mockResolvedValue([configFileMock]);
 
             const apiMock = vcpkgApiFactory();
+            apiMock.onDidFailActivation.mockReturnValue({ dispose: jest.fn() });
             apiMock.getActiveTools.mockReturnValue([]);
             let activateListener: (() => void) | undefined;
             let listenerRegistered: () => void;

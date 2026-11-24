@@ -15,7 +15,7 @@
  */
 
 import './components-properties.css';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Modal, InputNumber, Dropdown, Button, Space } from 'antd';
 import { DownOutlined } from '@ant-design/icons';
 import { ComponentRowDataType } from '../../data/component-tools';
@@ -28,10 +28,12 @@ interface ComponentPropertiesDialogProperties {
 
 export const ComponentPropertiesDialog: React.FC<ComponentPropertiesDialogProperties> = ({ component, onClose }) => {
     const [localComponent, setLocalComponent] = useState<ComponentRowDataType | undefined>(component);
+    const [previousComponent, setPreviousComponent] = useState(component);
 
-    useEffect(() => {
+    if (component !== previousComponent) {
+        setPreviousComponent(component);
         setLocalComponent(component);
-    }, [component]);
+    }
 
     const handleInputChange = useCallback((value: number | null) => {
         if (localComponent && localComponent.aggregate) {

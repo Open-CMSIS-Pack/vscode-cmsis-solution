@@ -1,6 +1,7 @@
 solution
   board
     hardwareName=STMicroelectronics::B-U585I-IOT02A
+    features=docParent
     label=Board: STMicroelectronics::B-U585I-IOT02A
     expandable=1
     iconPath=circuit-board
@@ -8,6 +9,7 @@ solution
 - from pack: `Keil::B-U585I-IOT02A_BSP@2.0.0` [$(link-external)](https://www.keil.arm.com/packs/b-u585i-iot02a_bsp-keil/)
   device
     hardwareName=STM32U585AIIx
+    features=docParent
     label=Device: STM32U585AIIx
     expandable=1
     iconPath=chip
