@@ -1550,7 +1550,7 @@
     ],
     "configurationDefaults": {
       "workbench.editorAssociations": {
-        "*.csolution.yml": "cmsis.manageSolution"
+        "*.csolution.yml": "default"
       }
     },
     "configuration": {
