@@ -75,7 +75,7 @@ describe('registerManageSolutionCommand', () => {
         fireTabEvent({ opened: [tab] });
     };
 
-    // Advance to the next event-loop turn, after queued tab operations and their events settle.
+    // Advance to the next event-loop turn, after queued editor switches and their events settle.
     const settleTabEvents = () => new Promise<void>(resolve => setImmediate(resolve));
 
     const register = () => registerManageSolutionCommand(commandsProvider, solutionManager, configurationProvider);
@@ -418,6 +418,83 @@ describe('registerManageSolutionCommand', () => {
         expect(tabGroups.all[0].tabs.map(tab => tab.input)).toEqual([
             new vscode.TabInputCustom(solutionUri, ManageSolutionCustomEditorProvider.viewType),
         ]);
+    });
+
+    it('lets an explicit switch supersede native cleanup that is still queued', async () => {
+        const original = makeTab('ui');
+        const replacement = makeTab('text');
+        tabGroups.all = [{ tabs: [original] }];
+        register();
+
+        openTab(replacement);
+        await commandsProvider.mockRunRegistered(commandOpenUiEditor, solutionUri);
+        await settleTabEvents();
+
+        expect(tabGroups.close).toHaveBeenCalledTimes(1);
+        expect(tabGroups.close).toHaveBeenCalledWith([replacement], true);
+        expect(tabGroups.all[0].tabs).toEqual([original]);
+    });
+
+    it('does not block another solution while a switch is pending', async () => {
+        const otherUri = vscode.Uri.file('/workspace/folder/other.csolution.yml');
+        const original = makeTab('ui');
+        const otherOriginal = makeTab('ui', otherUri);
+        tabGroups.all = [{ tabs: [original, otherOriginal] }];
+        let finishClose!: () => void;
+        const closeResult = new Promise<void>(resolve => { finishClose = resolve; });
+        tabGroups.close.mockImplementationOnce(async (tabs: readonly vscode.Tab[]) => {
+            await closeResult;
+            removeTabs(tabs);
+            return true;
+        });
+        register();
+
+        const firstSwitch = commandsProvider.mockRunRegistered(commandOpenTextEditor, solutionUri);
+        await settleTabEvents();
+        await commandsProvider.mockRunRegistered(commandOpenTextEditor, otherUri);
+
+        expect(tabGroups.all[0].tabs).toEqual([original]);
+        expect(commandsProvider.executeCommand).toHaveBeenCalledTimes(1);
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.openWith', otherUri, 'default', defaultOpenOptions);
+
+        finishClose();
+        await firstSwitch;
+
+        expect(commandsProvider.executeCommand).toHaveBeenLastCalledWith('vscode.openWith', solutionUri, 'default', defaultOpenOptions);
+    });
+
+    it('runs the next queued switch after an editor-open failure and then resumes native cleanup', async () => {
+        const original = makeTab('ui');
+        const error = new Error('Editor open failed');
+        tabGroups.all = [{ tabs: [original] }];
+        let failOpen!: (error: Error) => void;
+        const openResult = new Promise<void>((_resolve, reject) => { failOpen = reject; });
+        commandsProvider.executeCommand.mockImplementationOnce(() => openResult);
+        register();
+
+        const firstSwitch = commandsProvider.mockRunRegistered(commandOpenTextEditor, solutionUri);
+        const firstFailure = expect(firstSwitch).rejects.toThrow(error);
+        await settleTabEvents();
+        const nextSwitch = commandsProvider.mockRunRegistered(commandOpenUiEditor, solutionUri);
+        await settleTabEvents();
+        expect(commandsProvider.executeCommand).toHaveBeenCalledTimes(1);
+
+        failOpen(error);
+        await firstFailure;
+        await nextSwitch;
+        expect(commandsProvider.executeCommand).toHaveBeenLastCalledWith(
+            'vscode.openWith', solutionUri, ManageSolutionCustomEditorProvider.viewType, defaultOpenOptions,
+        );
+
+        const textTab = makeTab('text');
+        const customTab = makeTab('ui');
+        openTab(textTab);
+        await settleTabEvents();
+        openTab(customTab);
+        await settleTabEvents();
+
+        expect(tabGroups.close).toHaveBeenLastCalledWith([textTab], true);
+        expect(tabGroups.all[0].tabs).toEqual([customTab]);
     });
 
     it('uses the latest native mode request when multiple events arrive before cleanup', async () => {

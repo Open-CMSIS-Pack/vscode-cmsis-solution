@@ -254,13 +254,13 @@ export function registerManageSolutionCommand(
         uri: vscode.Uri;
         mode: EditorMode;
     };
-    type EditorOperation = {
+    type SolutionEditorSwitchState = {
         pending: Promise<void>;
         switches: number;
         preferredTab?: vscode.Tab;
     };
 
-    const operations = new Map<string, EditorOperation>();
+    const editorSwitchStates = new Map<string, SolutionEditorSwitchState>();
     const closingTabs = new Set<vscode.Tab>();
     const hasSameUri = (left: vscode.Uri, right: vscode.Uri): boolean => left.toString() === right.toString();
     const isCsolutionUri = (uri: vscode.Uri): boolean => uri.fsPath.endsWith('.csolution.yml');
@@ -282,25 +282,25 @@ export function registerManageSolutionCommand(
     const isSingleEditorModeEnabled = (): boolean =>
         configurationProvider.getConfigVariableOrDefault<boolean>(manifest.CONFIG_MANAGE_SOLUTION_SINGLE_EDITOR, true);
 
-    const getEditorOperation = (solutionUri: vscode.Uri): EditorOperation => {
+    const getEditorSwitchState = (solutionUri: vscode.Uri): SolutionEditorSwitchState => {
         const key = solutionUri.toString();
-        let operation = operations.get(key);
-        if (!operation) {
-            operation = { pending: Promise.resolve(), switches: 0 };
-            operations.set(key, operation);
+        let switchState = editorSwitchStates.get(key);
+        if (!switchState) {
+            switchState = { pending: Promise.resolve(), switches: 0 };
+            editorSwitchStates.set(key, switchState);
         }
-        return operation;
+        return switchState;
     };
 
-    const enqueueEditorOperation = (solutionUri: vscode.Uri, action: () => Promise<void>): Promise<void> => {
-        const operation = getEditorOperation(solutionUri);
-        const pending = operation.pending.then(action);
+    const enqueueEditorSwitch = (solutionUri: vscode.Uri, action: () => Promise<void>): Promise<void> => {
+        const switchState = getEditorSwitchState(solutionUri);
+        const pending = switchState.pending.then(action);
         // A rejected operation must not prevent the next switch for this solution.
         const settled = pending.catch(() => undefined);
-        operation.pending = settled;
+        switchState.pending = settled;
         void settled.then(() => {
-            if (operation.pending === settled) {
-                operations.delete(solutionUri.toString());
+            if (switchState.pending === settled) {
+                editorSwitchStates.delete(solutionUri.toString());
             }
         });
         return pending;
@@ -351,11 +351,11 @@ export function registerManageSolutionCommand(
     };
 
     const enforceSingleEditorModeForUri = (editor: SolutionEditor, preferredTab: vscode.Tab): Promise<void> => {
-        const operation = getEditorOperation(editor.uri);
-        operation.preferredTab = preferredTab;
-        return enqueueEditorOperation(editor.uri, async () => {
+        const switchState = getEditorSwitchState(editor.uri);
+        switchState.preferredTab = preferredTab;
+        return enqueueEditorSwitch(editor.uri, async () => {
             // Native replacement can finish, or a newer switch can arrive, while this is queued.
-            if (operation.switches > 0 || operation.preferredTab !== preferredTab || !getTabs().includes(preferredTab)) {
+            if (switchState.switches > 0 || switchState.preferredTab !== preferredTab || !getTabs().includes(preferredTab)) {
                 return;
             }
             await closeOtherEditorModes(editor.uri, editor.mode);
@@ -380,7 +380,7 @@ export function registerManageSolutionCommand(
             const candidates = new Map<string, { editor: SolutionEditor; tab: vscode.Tab }>();
             for (const tab of [...activatedTabs, ...event.opened]) {
                 const editor = getSolutionEditor(tab.input);
-                if (editor && !closingTabs.has(tab) && !operations.get(editor.uri.toString())?.switches) {
+                if (editor && !closingTabs.has(tab) && !editorSwitchStates.get(editor.uri.toString())?.switches) {
                     candidates.set(editor.uri.toString(), { editor, tab });
                 }
             }
@@ -399,10 +399,10 @@ export function registerManageSolutionCommand(
             return;
         }
 
-        const operation = getEditorOperation(solutionUri);
+        const switchState = getEditorSwitchState(solutionUri);
         // Set before queueing so tab events cannot compete with an explicit switch.
-        operation.switches++;
-        await enqueueEditorOperation(solutionUri, async () => {
+        switchState.switches++;
+        await enqueueEditorSwitch(solutionUri, async () => {
             try {
                 const solutionTabs = getTabs().filter(tab => {
                     const editor = getSolutionEditor(tab.input);
@@ -422,7 +422,7 @@ export function registerManageSolutionCommand(
                     });
                 }
             } finally {
-                operation.switches--;
+                switchState.switches--;
             }
         });
     };
