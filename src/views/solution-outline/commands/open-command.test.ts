@@ -120,7 +120,7 @@ describe('OpenCommand', () => {
         }
     });
 
-    it('opens and shows the csolution file from the path', async () => {
+    it('opens the active csolution in text mode through the shared editor command', async () => {
         const solutionPath = path.join('a', 'path', 'to', 'my-solution.csolution.yml');
         const mockSolutionManager = solutionManagerFactory({
             loadState: activeSolutionLoadStateFactory({ solutionPath: solutionPath }),
@@ -130,7 +130,19 @@ describe('OpenCommand', () => {
 
         await commandsProvider.mockRunRegistered(OpenCommand.openSolutionCommandId, solutionPath);
 
-        expect(commandsProvider.executeCommand).toHaveBeenCalledWith('vscode.open', Uri.file(solutionPath), { viewColumn: vscode.ViewColumn.Active });
+        expect(commandsProvider.executeCommand).toHaveBeenCalledWith(
+            'cmsis-csolution.openManageSolutionTextEditor', Uri.file(solutionPath), vscode.ViewColumn.Active,
+        );
+    });
+
+    it('does not open a solution when none is active', async () => {
+        const openCommand = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+        await openCommand.activate(extensionContextFactory());
+        commandsProvider.executeCommand.mockClear();
+
+        await commandsProvider.mockRunRegistered(OpenCommand.openSolutionCommandId);
+
+        expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
     });
 
     it('opens and shows the cproject file from the path', async () => {

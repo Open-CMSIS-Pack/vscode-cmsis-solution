@@ -27,6 +27,7 @@ import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
 import { SolutionData } from './view/state/manage-solution-state';
 import { COMMAND_OPEN_SOLUTION } from '../../solutions/active-solution-tracker';
 import { IOpenFileExternal } from '../../open-file-external-if';
+import { FileOpenGroupOrchestrator, FileOpenGroupOrchestratorImpl } from '../file-open-group-orchestrator';
 
 type EditEntry = {
     label: string;
@@ -246,45 +247,64 @@ export function registerManageSolutionCommand(
     commandsProvider: CommandsProvider,
     solutionManager: SolutionManager,
     configurationProvider: ConfigurationProvider,
+    fileOpenGroupOrchestrator: FileOpenGroupOrchestrator = new FileOpenGroupOrchestratorImpl(),
 ): vscode.Disposable {
-    type TabInputLike = {
-        uri?: vscode.Uri;
-        viewType?: string;
+    type EditorMode = 'ui' | 'text';
+    type SolutionEditor = {
+        uri: vscode.Uri;
+        mode: EditorMode;
+    };
+    type EditorOperation = {
+        pending: Promise<void>;
+        switches: number;
+        preferredTab?: vscode.Tab;
     };
 
-    const getTabInputLike = (input: unknown): TabInputLike | undefined => {
-        if (!input || typeof input !== 'object') {
-            return undefined;
-        }
-
-        return input as TabInputLike;
-    };
-
+    const operations = new Map<string, EditorOperation>();
+    const closingTabs = new Set<vscode.Tab>();
     const hasSameUri = (left: vscode.Uri, right: vscode.Uri): boolean => left.toString() === right.toString();
-
     const isCsolutionUri = (uri: vscode.Uri): boolean => uri.fsPath.endsWith('.csolution.yml');
 
-    const isTextTabForSolution = (input: unknown, solutionUri: vscode.Uri): boolean => {
-        const tabInput = getTabInputLike(input);
-        if (!tabInput?.uri) {
-            return false;
+    const getSolutionEditor = (input: unknown): SolutionEditor | undefined => {
+        if (input instanceof vscode.TabInputText && isCsolutionUri(input.uri)) {
+            return { uri: input.uri, mode: 'text' };
         }
-
-        // Text tabs have URI but no custom editor viewType.
-        return tabInput.viewType === undefined && hasSameUri(tabInput.uri, solutionUri);
+        if (input instanceof vscode.TabInputCustom && isCsolutionUri(input.uri)
+            && input.viewType === ManageSolutionCustomEditorProvider.viewType) {
+            return { uri: input.uri, mode: 'ui' };
+        }
+        return undefined;
     };
 
-    const isManageSolutionCustomTabForSolution = (input: unknown, solutionUri: vscode.Uri): boolean => {
-        const tabInput = getTabInputLike(input);
-        if (!tabInput?.uri || !tabInput.viewType) {
-            return false;
-        }
-
-        return tabInput.viewType === ManageSolutionCustomEditorProvider.viewType && hasSameUri(tabInput.uri, solutionUri);
-    };
+    const getTabs = (): readonly vscode.Tab[] => vscode.window.tabGroups?.all.flatMap(group => group.tabs) ?? [];
+    let activeTabs = new Set(getTabs().filter(tab => tab.isActive));
 
     const isSingleEditorModeEnabled = (): boolean =>
         configurationProvider.getConfigVariableOrDefault<boolean>(manifest.CONFIG_MANAGE_SOLUTION_SINGLE_EDITOR, true);
+
+    const getEditorOperation = (solutionUri: vscode.Uri): EditorOperation => {
+        const key = solutionUri.toString();
+        let operation = operations.get(key);
+        if (!operation) {
+            operation = { pending: Promise.resolve(), switches: 0 };
+            operations.set(key, operation);
+        }
+        return operation;
+    };
+
+    const enqueueEditorOperation = (solutionUri: vscode.Uri, action: () => Promise<void>): Promise<void> => {
+        const operation = getEditorOperation(solutionUri);
+        const pending = operation.pending.then(action);
+        // A rejected operation must not prevent the next switch for this solution.
+        const settled = pending.catch(() => undefined);
+        operation.pending = settled;
+        void settled.then(() => {
+            if (operation.pending === settled) {
+                operations.delete(solutionUri.toString());
+            }
+        });
+        return pending;
+    };
 
     const getSolutionUri = (resource?: vscode.Uri): vscode.Uri | undefined => {
         if (resource && resource.fsPath.endsWith('.csolution.yml')) {
@@ -304,66 +324,42 @@ export function registerManageSolutionCommand(
         return undefined;
     };
 
-    const closeOtherEditorModes = async (solutionUri: vscode.Uri, desiredMode: 'ui' | 'text'): Promise<void> => {
+    const closeOtherEditorModes = async (solutionUri: vscode.Uri, desiredMode: EditorMode): Promise<boolean> => {
         if (!isSingleEditorModeEnabled()) {
-            return;
+            return true;
         }
 
         const tabGroups = vscode.window.tabGroups;
         if (!tabGroups) {
-            return;
+            return true;
         }
 
-        const tabsToClose: vscode.Tab[] = [];
-
-        for (const group of tabGroups.all) {
-            for (const tab of group.tabs) {
-                const input = tab.input;
-                if (desiredMode === 'ui' && isTextTabForSolution(input, solutionUri)) {
-                    tabsToClose.push(tab);
-                }
-
-                if (desiredMode === 'text' && isManageSolutionCustomTabForSolution(input, solutionUri)) {
-                    tabsToClose.push(tab);
-                }
-            }
+        const tabsToClose = getTabs().filter(tab => {
+            const editor = getSolutionEditor(tab.input);
+            return editor && hasSameUri(editor.uri, solutionUri) && editor.mode !== desiredMode;
+        });
+        if (tabsToClose.length === 0) {
+            return true;
         }
 
-        if (tabsToClose.length > 0) {
-            await tabGroups.close(tabsToClose, true);
+        tabsToClose.forEach(tab => closingTabs.add(tab));
+        try {
+            return await tabGroups.close(tabsToClose, true);
+        } finally {
+            tabsToClose.forEach(tab => closingTabs.delete(tab));
         }
     };
 
-    const enforceSingleEditorModeForUri = async (solutionUri: vscode.Uri): Promise<void> => {
-        if (!isSingleEditorModeEnabled()) {
-            return;
-        }
-
-        const tabGroups = vscode.window.tabGroups;
-        if (!tabGroups) {
-            return;
-        }
-
-        const textTabs: vscode.Tab[] = [];
-        let hasCustomTab = false;
-
-        for (const group of tabGroups.all) {
-            for (const tab of group.tabs) {
-                const input = tab.input;
-                if (isManageSolutionCustomTabForSolution(input, solutionUri)) {
-                    hasCustomTab = true;
-                    continue;
-                }
-
-                if (isTextTabForSolution(input, solutionUri)) {
-                    textTabs.push(tab);
-                }
+    const enforceSingleEditorModeForUri = (editor: SolutionEditor, preferredTab: vscode.Tab): Promise<void> => {
+        const operation = getEditorOperation(editor.uri);
+        operation.preferredTab = preferredTab;
+        return enqueueEditorOperation(editor.uri, async () => {
+            // Native replacement can finish, or a newer switch can arrive, while this is queued.
+            if (operation.switches > 0 || operation.preferredTab !== preferredTab || !getTabs().includes(preferredTab)) {
+                return;
             }
-        }
-
-        if (hasCustomTab && textTabs.length > 0) {
-            await tabGroups.close(textTabs, true);
-        }
+            await closeOtherEditorModes(editor.uri, editor.mode);
+        });
     };
 
     const watchTabChangesForSingleEditorMode = (): vscode.Disposable => {
@@ -373,42 +369,62 @@ export function registerManageSolutionCommand(
         }
 
         return tabGroups.onDidChangeTabs((event: vscode.TabChangeEvent) => {
-            void (async () => {
-                const candidates = new Map<string, vscode.Uri>();
-                for (const tab of [...event.opened, ...event.changed]) {
-                    const tabInput = getTabInputLike(tab.input);
-                    if (tabInput?.uri && isCsolutionUri(tabInput.uri)) {
-                        candidates.set(tabInput.uri.toString(), tabInput.uri);
-                    }
-                }
+            const activatedTabs = event.closed.length === 0
+                ? event.changed.filter(tab => tab.isActive && !activeTabs.has(tab))
+                : [];
+            activeTabs = new Set(getTabs().filter(tab => tab.isActive));
+            if (!isSingleEditorModeEnabled()) {
+                return;
+            }
 
-                for (const solutionUri of candidates.values()) {
-                    await enforceSingleEditorModeForUri(solutionUri);
+            const candidates = new Map<string, { editor: SolutionEditor; tab: vscode.Tab }>();
+            for (const tab of [...activatedTabs, ...event.opened]) {
+                const editor = getSolutionEditor(tab.input);
+                if (editor && !closingTabs.has(tab) && !operations.get(editor.uri.toString())?.switches) {
+                    candidates.set(editor.uri.toString(), { editor, tab });
                 }
-            })();
+            }
+            for (const { editor, tab } of candidates.values()) {
+                void enforceSingleEditorModeForUri(editor, tab).catch(error => {
+                    console.error('Failed to enforce Manage Solution editor mode:', error);
+                });
+            }
         });
     };
 
-    const openUiEditor = async (resource?: vscode.Uri): Promise<void> => {
+    const openEditor = async (desiredMode: EditorMode, resource?: vscode.Uri, viewColumn?: vscode.ViewColumn): Promise<void> => {
         const solutionUri = getSolutionUri(resource);
         if (!solutionUri) {
             void vscode.window.showWarningMessage('No active solution. Open a .csolution.yml first.');
             return;
         }
 
-        await closeOtherEditorModes(solutionUri, 'ui');
-        await commandsProvider.executeCommand('vscode.openWith', solutionUri, ManageSolutionCustomEditorProvider.viewType);
-    };
-
-    const openTextEditor = async (resource?: vscode.Uri): Promise<void> => {
-        const solutionUri = getSolutionUri(resource);
-        if (!solutionUri) {
-            void vscode.window.showWarningMessage('No active solution. Open a .csolution.yml first.');
-            return;
-        }
-
-        await closeOtherEditorModes(solutionUri, 'text');
-        await commandsProvider.executeCommand('vscode.openWith', solutionUri, 'default');
+        const operation = getEditorOperation(solutionUri);
+        // Set before queueing so tab events cannot compete with an explicit switch.
+        operation.switches++;
+        await enqueueEditorOperation(solutionUri, async () => {
+            try {
+                const solutionTabs = getTabs().filter(tab => {
+                    const editor = getSolutionEditor(tab.input);
+                    return editor && hasSameUri(editor.uri, solutionUri);
+                });
+                const existingTab = solutionTabs.find(tab => getSolutionEditor(tab.input)?.mode === desiredMode)
+                    ?? solutionTabs[0];
+                const targetGroup = vscode.window.tabGroups?.all.find(group => existingTab && group.tabs.includes(existingTab));
+                // Closing the other mode can change focus or renumber the surviving groups.
+                const targetViewColumn = targetGroup?.viewColumn ?? viewColumn
+                    ?? vscode.window.tabGroups?.activeTabGroup?.viewColumn ?? vscode.ViewColumn.Active;
+                if (await closeOtherEditorModes(solutionUri, desiredMode)) {
+                    const viewType = desiredMode === 'ui' ? ManageSolutionCustomEditorProvider.viewType : 'default';
+                    await commandsProvider.executeCommand('vscode.openWith', solutionUri, viewType, {
+                        viewColumn: targetGroup?.viewColumn ?? targetViewColumn,
+                        preview: false,
+                    });
+                }
+            } finally {
+                operation.switches--;
+            }
+        });
     };
 
     return vscode.Disposable.from(
@@ -416,19 +432,25 @@ export function registerManageSolutionCommand(
         commandsProvider.registerCommand(
             `${manifest.PACKAGE_NAME}.manageSolution`,
             async () => {
-                await openUiEditor();
+                const solutionPath = solutionManager.loadState.solutionPath;
+                if (!solutionPath) {
+                    void vscode.window.showWarningMessage('No active solution. Open a .csolution.yml first.');
+                    return;
+                }
+                await openEditor('ui', vscode.Uri.file(solutionPath), fileOpenGroupOrchestrator.getTargetViewColumn('solution-outline'));
+                fileOpenGroupOrchestrator.rememberTargetViewColumn('solution-outline', vscode.window.tabGroups.activeTabGroup?.viewColumn);
             }
         ),
         commandsProvider.registerCommand(
             `${manifest.PACKAGE_NAME}.openManageSolutionUiEditor`,
-            async (resource?: vscode.Uri) => {
-                await openUiEditor(resource);
+            async (resource?: vscode.Uri, viewColumn?: vscode.ViewColumn) => {
+                await openEditor('ui', resource, viewColumn);
             }
         ),
         commandsProvider.registerCommand(
             `${manifest.PACKAGE_NAME}.openManageSolutionTextEditor`,
-            async (resource?: vscode.Uri) => {
-                await openTextEditor(resource);
+            async (resource?: vscode.Uri, viewColumn?: vscode.ViewColumn) => {
+                await openEditor('text', resource, viewColumn);
             }
         ),
     );

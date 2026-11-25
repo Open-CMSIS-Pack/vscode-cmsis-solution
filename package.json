@@ -1548,6 +1548,11 @@
         "priority": "option"
       }
     ],
+    "configurationDefaults": {
+      "workbench.editorAssociations": {
+        "*.csolution.yml": "cmsis.manageSolution"
+      }
+    },
     "configuration": {
       "title": "CMSIS Solution",
       "properties": {
