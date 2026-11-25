@@ -203,7 +203,7 @@ describe('ContextSelection', () => {
         });
     });
 
-    it('fires a click to documentation links', () => {
+    it('opens documentation and solution source links', () => {
         createContextSelectionComponent();
 
         postGenericDataContext();
@@ -226,6 +226,11 @@ describe('ContextSelection', () => {
                 type: 'OPEN_FILE',
                 path: manageSolutionTargetDocsUrl,
                 external: true
+            });
+            expect(listener).toHaveBeenCalledWith({
+                type: 'OPEN_FILE',
+                path: '/some/path/to/My-Super-Duper-CSolution.csolution.yml',
+                external: undefined,
             });
             expect(listener).toHaveBeenCalledWith({ type: 'GET_CONTEXT_SELECTION_DATA' });
             expect(listener).toHaveBeenCalledWith({ type: 'GET_DEBUG_ADAPTERS' });

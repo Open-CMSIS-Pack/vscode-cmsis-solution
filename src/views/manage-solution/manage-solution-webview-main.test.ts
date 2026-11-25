@@ -585,7 +585,7 @@ describe('ContextSelectionWebviewMain', () => {
     });
 
     describe('openFile handling', () => {
-        it('opens a file via vscode.open and not external opener on OPEN_FILE', async () => {
+        it.each(['file.txt', 'file.yml', 'file.cproject.yml'])('opens %s via vscode.open on OPEN_FILE', async fileName => {
             const commandsProvider = commandsProviderFactory();
             const main = manageSolutionWebviewMainFactory({
                 webviewManager,
@@ -593,10 +593,40 @@ describe('ContextSelectionWebviewMain', () => {
             });
             await main.activate(context as unknown as vscode.ExtensionContext);
 
-            const filePath = 'tmp/some/file.txt';
+            const filePath = `tmp/some/${fileName}`;
             await fireAndWait('OPEN_FILE', { path: filePath });
 
             expectOpenedFilePath(commandsProvider, filePath);
+        });
+
+        it.each(['relative', 'absolute'])('opens a solution source in text mode with a resolved %s path', async pathType => {
+            const commandsProvider = commandsProviderFactory();
+            const main = manageSolutionWebviewMainFactory({ webviewManager, commandsProvider });
+            const rootDir = path.resolve('workspace');
+            main.controller.csolutionYml.fileName = path.join(rootDir, 'active.csolution.yml');
+            const relativePath = path.join('nested', 'linked.csolution.yml');
+            const resolvedPath = path.join(rootDir, relativePath);
+
+            await main['handleMessage']({
+                type: 'OPEN_FILE',
+                path: pathType === 'absolute' ? resolvedPath : relativePath,
+            });
+
+            expect(commandsProvider.executeCommand).toHaveBeenCalledTimes(1);
+            expect(commandsProvider.executeCommand).toHaveBeenCalledWith(
+                `${manifest.PACKAGE_NAME}.openManageSolutionTextEditor`, vscode.Uri.file(resolvedPath),
+            );
+        });
+
+        it.each(['solution.csolution.yml', 'https://example.com/documentation'])('preserves external opening for %s', async filePath => {
+            const commandsProvider = commandsProviderFactory();
+            const openFileExternal = { openFile: jest.fn() };
+            const main = manageSolutionWebviewMainFactory({ webviewManager, commandsProvider, openFileExternal });
+
+            await main['handleMessage']({ type: 'OPEN_FILE', path: filePath, external: true });
+
+            expect(openFileExternal.openFile).toHaveBeenCalledWith(filePath);
+            expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
         });
 
         it('normalizes already absolute paths on OPEN_FILE', async () => {

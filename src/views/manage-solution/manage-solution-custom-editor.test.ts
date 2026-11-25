@@ -26,6 +26,7 @@ import { ManageSolutionCustomEditorProvider, registerManageSolutionCommand } fro
 import { OpenCommand } from '../solution-outline/commands/open-command';
 import { openFileExternalFactory } from '../../open-file-external.factories';
 import { extensionContextFactory } from '../../vscode-api/extension-context.factories';
+import { manageSolutionWebviewMainFactory } from './manage-solution-webview-main.factories';
 
 type MockTabGroup = { tabs: vscode.Tab[]; viewColumn?: vscode.ViewColumn };
 
@@ -278,6 +279,52 @@ describe('registerManageSolutionCommand', () => {
             expect(target.tabs).toEqual([existing]);
             expect(tabGroups.activeTabGroup).toBe(target);
         });
+    });
+
+    it.each([true, false])('honors the dirty UI close result when opening a solution source link: %s', async closed => {
+        const original = Object.assign(makeTab('ui'), { isDirty: true });
+        tabGroups.all = [{ tabs: [original] }];
+        let finishClose!: (closed: boolean) => void;
+        const closeResult = new Promise<boolean>(resolve => { finishClose = resolve; });
+        tabGroups.close.mockImplementationOnce(async (tabs: readonly vscode.Tab[]) => {
+            if (await closeResult) {
+                removeTabs(tabs);
+                return true;
+            }
+            return false;
+        });
+        commandsProvider.executeCommand.mockImplementation(async (command, ...args) => {
+            if (command === commandOpenTextEditor) {
+                await commandsProvider.mockRunRegistered(command, ...args);
+            } else if (command === 'vscode.openWith') {
+                openTab(makeTab('text', args[0] as vscode.Uri));
+            }
+        });
+        register();
+        const main = manageSolutionWebviewMainFactory({ commandsProvider, solutionManager, configurationProvider });
+        main.controller.csolutionYml.fileName = solutionUri.fsPath;
+
+        const opening = main['handleMessage']({ type: 'OPEN_FILE', path: solutionUri.fsPath });
+        await settleTabEvents();
+
+        expect(tabGroups.close).toHaveBeenCalledWith([original], true);
+        expect(tabGroups.all[0].tabs).toEqual([original]);
+        expect(commandsProvider.executeCommand).toHaveBeenCalledTimes(1);
+
+        finishClose(closed);
+        await opening;
+        await settleTabEvents();
+
+        if (closed) {
+            expect(commandsProvider.executeCommand).toHaveBeenLastCalledWith(
+                'vscode.openWith', expect.objectContaining({ fsPath: solutionUri.fsPath }), 'default', defaultOpenOptions,
+            );
+            expect(tabGroups.all[0].tabs).toHaveLength(1);
+            expect(tabGroups.all[0].tabs[0].input).toBeInstanceOf(vscode.TabInputText);
+        } else {
+            expect(commandsProvider.executeCommand).toHaveBeenCalledTimes(1);
+            expect(tabGroups.all[0].tabs).toEqual([original]);
+        }
     });
 
     it.each(['ui', 'text'] as const)('keeps the %s tab when switching from the toolbar', async mode => {
