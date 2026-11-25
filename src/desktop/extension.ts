@@ -102,6 +102,7 @@ import { FileOpenGroupOrchestratorImpl } from '../views/file-open-group-orchestr
 import { OpenArmExamplesCommand } from '../views/solution-outline/commands/open-arm-examples-command';
 import { TextFile } from '@open-cmsis-pack/cmsis-common/text-file';
 import * as vscodeUtils from '../utils/vscode-utils';
+import { registerDebugAdapterPreview } from '../views/debug-adapter-preview/preview-command';
 
 let installDefaultToolsetProcess: Promise<void> | undefined;
 
@@ -282,6 +283,7 @@ export const activate = async (context: ExtensionContext): Promise<CsolutionExte
         }
     ));
     context.subscriptions.push(registerManageSolutionCommand(commandsProvider, solutionManager));
+    context.subscriptions.push(registerDebugAdapterPreview(context, commandsProvider, csolutionService));
     const getBinaryFile = new BinaryFileLocator(solutionManager, commandsProvider);
     const compileCommandsParser = new CompileCommandsParser(workspaceFsProvider);
     const clangdManager = new ClangdManager(solutionManager, configurationProvider, armclangDefineGetter, compileCommandsParser, workspaceFsProvider, commandsProvider);
