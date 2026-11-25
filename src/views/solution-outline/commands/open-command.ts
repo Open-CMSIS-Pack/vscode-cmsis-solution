@@ -140,6 +140,11 @@ export class OpenCommand {
             return;
         }
 
+        if (solutionPath.endsWith('.csolution.yaml')) {
+            await this.openFile(solutionPath);
+            return;
+        }
+
         await this.commandsProvider.executeCommand(
             `${PACKAGE_NAME}.openManageSolutionTextEditor`,
             vscode.Uri.file(solutionPath),
