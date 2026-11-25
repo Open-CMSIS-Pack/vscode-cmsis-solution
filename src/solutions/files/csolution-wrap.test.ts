@@ -15,7 +15,7 @@
  */
 
 import { TargetTypeWrap, TargetSetWrap, TypedWrap, ProjectRefWrap, ImageWrap, LoadImageType, DebuggerWrap } from './csolution-wrap';
-import { CTreeItem, ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
+import { CTreeItem } from '@open-cmsis-pack/cmsis-common/tree-item';
 import path from 'path';
 import { PROJECT_CMAKE_SUFFIX, PROJECT_WEST_SUFFIX } from '../constants';
 
@@ -328,96 +328,6 @@ describe('CSolutionWrap', () => {
                 ],
             });
             expect(wrap.getSection(['trace', 'missing'])).toBeUndefined();
-        });
-
-        describe('setParameter', () => {
-            it('should set parameter on debugger item when section is undefined', () => {
-                const item = new CTreeItem('debugger');
-                item.setValue('name', 'TestDebugger');
-                const wrap = new DebuggerWrap(item);
-
-                wrap.setParameter(undefined, 'protocol', 'swd');
-
-                expect(wrap.protocol).toBe('swd');
-                expect(item.getValue('protocol')).toBe('swd');
-            });
-
-            it('should set parameter on map section', () => {
-                const item = new CTreeItem('debugger');
-                const section = item.createChild('connections', true);
-                section.setKind(ETreeItemKind.Map);
-                const wrap = new DebuggerWrap(item);
-
-                wrap.setParameter('connections', 'url', 'tcp://localhost:1234');
-
-                expect(section.getValue('url')).toBe('tcp://localhost:1234');
-            });
-
-            it('should set parameter on sequence section - updating existing entries', () => {
-                const item = new CTreeItem('debugger');
-                const section = item.createChild('processors', true);
-                section.setKind(ETreeItemKind.Sequence);
-                const entry1 = section.createChild('-');
-                entry1.setValue('name', 'core0');
-                const entry2 = section.createChild('-');
-                entry2.setValue('name', 'core1');
-                const wrap = new DebuggerWrap(item);
-
-                wrap.setParameter('processors', 'name', 'updated');
-
-                expect(entry1.getValue('name')).toBe('updated');
-                expect(entry2.getValue('name')).toBe('updated');
-            });
-
-            it('should create sequence entry if none exists and set parameter', () => {
-                const item = new CTreeItem('debugger');
-                const section = item.createChild('memory', true);
-                section.setKind(ETreeItemKind.Sequence);
-                const wrap = new DebuggerWrap(item);
-
-                expect(section.getChildren().length).toBe(0);
-                wrap.setParameter('memory', 'address', '0x00000000');
-
-                const children = section.getChildren();
-                expect(children.length).toBe(1);
-                expect(children[0].getValue('address')).toBe('0x00000000');
-            });
-
-            it('should not set parameter if section does not exist', () => {
-                const item = new CTreeItem('debugger');
-                const wrap = new DebuggerWrap(item);
-
-                wrap.setParameter('nonexistent', 'param', 'value');
-
-                expect(item.getChild('nonexistent')).toBeUndefined();
-            });
-
-            it('should set parameter to undefined to remove it', () => {
-                const item = new CTreeItem('debugger');
-                item.setValue('name', 'TestDebugger');
-                item.setValue('protocol', 'swd');
-                const wrap = new DebuggerWrap(item);
-
-                expect(wrap.protocol).toBe('swd');
-                wrap.setParameter(undefined, 'protocol', undefined);
-
-                expect(item.getValue('protocol')).toBeUndefined();
-            });
-
-            it('should update multiple parameters in sequence entries independently', () => {
-                const item = new CTreeItem('debugger');
-                const section = item.createChild('cores', true);
-                section.setKind(ETreeItemKind.Sequence);
-                const entry1 = section.createChild('-');
-                entry1.setValue('mode', 'true');
-                entry1.setValue('id', 'core0');
-                const wrap = new DebuggerWrap(item);
-
-                wrap.setParameter('cores', 'mode', 'false');
-
-                expect(entry1.getValue('id')).toBe('core0');
-                expect(entry1.getValue('mode')).toBe('false');
-            });
         });
     });
 });

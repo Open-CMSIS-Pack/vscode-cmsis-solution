@@ -17,8 +17,9 @@
 import path from 'path';
 import * as fs from 'node:fs';
 import { DebugAdapter, DebugAdaptersYamlFile, loadDebugAdaptersYml, UISection, UISectionChildren } from '../../debug/debug-adapters-yaml-file';
+import { sectionYamlNodeName } from '../../debug/section-yaml-binding';
+import { storedOptionDefault } from '../../debug/debug-adapter-options';
 import { ETextFileResult } from '@open-cmsis-pack/cmsis-common/text-file';
-import { ETreeItemKind } from '@open-cmsis-pack/cmsis-common/tree-item';
 import { Optional } from '@open-cmsis-pack/cmsis-common/type-helper';
 import { DebuggerWrap, ImageWrap, ProjectRefWrap, TargetSetWrap, TargetTypeWrap } from '../../solutions/files/csolution-wrap';
 import { CSolutionYamlFile } from '../../solutions/files/csolution-yaml-file';
@@ -29,8 +30,9 @@ import { extractSuffix, stripTwoExtensions } from '@open-cmsis-pack/cmsis-common
 import { CmsisSettingsJsonFile } from './../../global/cmsis-settings-json-file';
 import { GenericPropertyList, getSelectedTargetSet, ImageSelection, ProjectSelection, SolutionData, TargetSet, TargetType } from './view/state/manage-solution-state';
 import { CsolutionService } from '../../json-rpc/csolution-rpc-client';
-import { DebugAdapterSections, sectionIdentity, sectionYamlPath } from '../../debug/debug-adapter-sections';
-import { createTraceSectionDefinition } from '../../debug/debug-adapter-trace';
+import type { DeviceWithTrace } from '../../debug/debug-adapter-templates';
+import { DebugAdapterSections, sectionYamlPath } from '../../debug/debug-adapter-sections';
+import type { AdapterSettingsAction, AdapterSettingsContext } from './adapter-settings-presenter';
 
 export type CustomDebugAdapterDefaults = { [adapterName: string]: { [propertyName: string]: string | number } };
 
@@ -52,17 +54,15 @@ export class ManageSolutionController {
     private readonly _csolutionYml = new CSolutionYamlFile();
     private readonly _cmsisJsonFile = new CmsisSettingsJsonFile();
     private debugAdaptersYmlFile?: DebugAdaptersYamlFile = undefined;
-    private debugAdaptersCache: DebugAdapter[] = [];
     private availableCoreNamesCache: string[] = [];
+    /** Full metadata for the last applicable device query, including future RPC properties. */
+    private deviceInfo?: DeviceWithTrace;
     private defaults?: TargetConfiguration;
     public customDebugAdapterDefaults: CustomDebugAdapterDefaults = {};
     private _csolutionService?: CsolutionService;
     private csolutionFileStamp?: FileStamp | null;
     private cmsisJsonFileStamp?: FileStamp | null;
     private cmsisJsonLoadResult?: ETextFileResult;
-
-    /** Controls whether experimental debugger sections are contributed to the adapter UI. */
-    public experimentalFeatures = false;
 
     /**
      * Gets the initialized csolution service instance.
@@ -423,50 +423,6 @@ export class ManageSolutionController {
     }
 
     /**
-     * Checks whether a debugger UI section is enabled.
-     * @param section Section key in debugger configuration.
-     */
-    public isDebuggerSectionEnabled(section: string): boolean {
-        return this.activeTargetSetWrap.ensureDebugger().isSectionEnabled(section);
-    }
-
-    /**
-     * Toggles a section only when its UI descriptor defines a switch, applying defaults when enabled.
-     * @param section Section key in debugger configuration.
-     */
-    public async toggleDebugAdapterSection(section: string): Promise<void> {
-        const uiSection = this.sectionBranch(section, [])?.[0];
-        if (uiSection?.select === undefined) {
-            return;
-        }
-
-        const yamlNode = uiSection['yml-node'] ?? section;
-        const debuggerWrap = this.activeDebugger;
-        if (debuggerWrap?.isSectionEnabled(yamlNode)) {
-            debuggerWrap.toggleSection(yamlNode, {});
-            return;
-        }
-
-        await this.ensureDebugAdapterSection(section);
-    }
-
-    /** Loads core information and creates a missing section with defaults, preserving existing field values. */
-    public async ensureDebugAdapterSection(section: string): Promise<void> {
-        const adapter = this.debugAdaptersYmlFile?.getAdapterByName(this.activeDebuggerName);
-        this.customizeDebugAdapterDefaults(adapter);
-        await this.getAvailableCoreNames();
-        const uiSection = adapter?.['user-interface']?.find(sec => sec['yml-node'] === section || sectionIdentity(sec, true) === section);
-        const yamlNode = uiSection?.['yml-node'] ?? section;
-        const debuggerWrap = this.activeTargetSetWrap.ensureDebugger();
-        if (debuggerWrap.isSectionEnabled(yamlNode)) {
-            return;
-        }
-
-        const defaults = uiSection ? this.buildSectionDefaults(uiSection, this.usedCoreNames) : {};
-        debuggerWrap.toggleSection(yamlNode, defaults);
-    }
-
-    /**
      * Gets the default debugger adapter name.
      */
     private get defaultDebuggerName() {
@@ -474,17 +430,21 @@ export class ManageSolutionController {
             this.debugAdaptersYmlFile?.debugAdapters[0]?.name || '';
     }
 
-    /**
-     * Queries available processor core names for the active target device.
-     */
-    public async getAvailableCoreNames(): Promise<string[]> {
-        const device = this.activeTargetTypeWrap?.device ||
+    /** Resolves the active device, including applicable build-run defaults. */
+    private get activeDeviceId(): string | undefined {
+        return this.activeTargetTypeWrap?.device ||
             (this.defaults?.targetType === this.activeTargetTypeName ? this.defaults?.device : undefined);
-        const availableCores = device
-            ? (await this.csolutionService.getDeviceInfo({ id: device })).device?.processors?.flatMap((processor: { name?: string; core: string }) => processor.name ? [processor.name] : []) || []
-            : [];
-        this.availableCoreNamesCache = availableCores;
-        return availableCores;
+    }
+
+    /** Refreshes stored device metadata for an explicit context update, ignoring an obsolete device response. */
+    public async getAvailableCoreNames(): Promise<string[]> {
+        const device = this.activeDeviceId;
+        const info = device ? await this.csolutionService.getDeviceInfo({ id: device }) : undefined;
+        if (device === this.activeDeviceId) {
+            this.deviceInfo = info?.device as DeviceWithTrace | undefined;
+            this.availableCoreNamesCache = this.deviceInfo?.processors?.flatMap(processor => processor.name ? [processor.name] : []) ?? [];
+        }
+        return this.availableCoreNamesCache;
     }
 
     /**
@@ -537,32 +497,6 @@ export class ManageSolutionController {
         return image;
     }
 
-    /**
-     * Gets debug adapters, loading and caching them if needed.
-     */
-    public get debugAdapters(): Promise<DebugAdapter[]> {
-        if (this.debugAdaptersCache.length === 0) {
-            return this.refreshDebugAdapters();
-        }
-        return Promise.resolve(this.debugAdaptersCache);
-    }
-
-    /**
-     * Rebuilds adapter definitions with current defaults, used cores, and dynamic settings.
-     */
-    public async refreshDebugAdapters(): Promise<DebugAdapter[]> {
-        const adapters = this.debugAdaptersYmlFile?.debugAdapters ?? [];
-        await this.getAvailableCoreNames();
-        const usedCores = this.usedCoreNames;
-        adapters.forEach(da => this.customizeDebugAdapterDefaults(da));
-        adapters.forEach(da => {
-            this.refreshSections(da['user-interface'] ?? [], usedCores);
-            da['user-interface'] = this.sectionModel(da).sections;
-        });
-        this.debugAdaptersCache = adapters;
-        return adapters;
-    }
-
     /** Expands processor options throughout the static settings tree. */
     private refreshSections(sections: UISection[], usedCores: string[]): void {
         sections.forEach(section => {
@@ -573,54 +507,42 @@ export class ManageSolutionController {
         });
     }
 
-    /** Composes static UI and runtime extensions against the currently selected target set. */
-    private sectionModel(adapter?: DebugAdapter): DebugAdapterSections {
-        const definition = adapter ?? this.debugAdaptersCache.find(candidate => candidate.name === this.activeDebuggerName)
-            ?? this.debugAdaptersYmlFile?.getAdapterByName(this.activeDebuggerName);
+    /** Resolves fresh registry declarations so stored states never replace declared initial values. */
+    private sectionModel(): DebugAdapterSections {
+        const definition = this.debugAdaptersYmlFile?.getAdapterByName(this.activeDebuggerName);
+        this.customizeDebugAdapterDefaults(definition);
+        this.refreshSections(definition?.['user-interface'] ?? [], this.usedCoreNames);
         return new DebugAdapterSections(
-            definition?.['user-interface']?.filter(section => sectionIdentity(section, true) !== 'trace') ?? [],
-            this.experimentalFeatures ? [createTraceSectionDefinition(this.activeDebugger)] : [],
+            definition?.['user-interface'] ?? [],
             () => this.activeDebugger,
             () => this.activeTargetSetWrap.ensureDebugger(),
+            this.deviceInfo,
+            this.usedCoreNames,
         );
     }
 
-    /** Resolves a displayed section path against the active adapter's descriptors. */
-    private sectionBranch(section: string, path: string[]): UISection[] | undefined {
-        return this.sectionModel().findBranch(section, path)?.map(definition => definition.ui);
+    /** Supplies the host presentation layer with registry-driven sections and the active storage context. */
+    public async adapterSettingsContext(autoUpdate: boolean): Promise<AdapterSettingsContext> {
+        return {
+            identity: [this.solutionPath, this.activeTargetTypeName ?? '', this.activeTargetSetName ?? '', this.activeDebuggerName],
+            adapters: this.debugAdaptersYmlFile?.listAdapterNames() ?? [],
+            adapter: this.activeDebuggerName, processors: this.usedCoreNames,
+            startProcessor: this.activeDebugger?.startPname ?? '', autoUpdate,
+            sections: this.sectionModel().sections, debugger: this.activeDebugger,
+        };
     }
 
-    /**
-     * Sets a debugger parameter on the active target set.
-     * @param section Optional debugger section.
-     * @param param Parameter key.
-     * @param value Parameter value.
-     * @param subsection Optional identity path beneath the root section.
-     */
-    public setDebuggerParameter(section: string | undefined, param: string, value: string | number, subsection?: string[], pname?: string) {
-        if (subsection?.length) {
-            if (section) {
-                this.sectionModel().setParameter(section, subsection, param, value, pname);
-            }
-            return;
+    /** Applies a resolved generic tree action; the webview owner supplies the undo/redo transaction. */
+    public applySettingsAction(action: AdapterSettingsAction): void {
+        const model = this.sectionModel();
+        switch (action.kind) {
+            case 'edit':
+                model.setParameter(action.root, action.path, action.option!['yml-node'], action.value as string | number, action.option?.pname);
+                break;
+            case 'toggle': model.setEnabled(action.root, action.path, action.value as boolean); break;
+            case 'add': model.add(action.root, action.path); break;
+            case 'remove': model.remove(action.root, action.path); break;
         }
-
-        this.activeTargetSetWrap.ensureDebugger().setParameter(section, param, value.toString());
-    }
-
-    /** Adds an available dynamic subsection using its registered template and YAML binding. */
-    public addDebugAdapterSubsection(section: string, subsection: string[]): void {
-        this.sectionModel().add(section, subsection);
-    }
-
-    /** Removes an explicitly removable subsection without changing unrelated settings. */
-    public removeDebugAdapterSubsection(section: string, subsection: string[]): void {
-        this.sectionModel().remove(section, subsection);
-    }
-
-    /** Applies the section's switch binding while retaining its declared persistence behavior. */
-    public setDebugAdapterSubsectionEnabled(section: string, subsection: string[], enabled: boolean): void {
-        this.sectionModel().setEnabled(section, subsection, enabled);
     }
 
     private expandPnameOptions(section: UISection, availableCores: string[]): UISectionChildren[] {
@@ -631,89 +553,6 @@ export class ManageSolutionController {
             return section.options.map(option => ({ ...option, pname: '' }));
         }
         return availableCores.flatMap(core => section.options.map(option => ({ ...option, pname: core })));
-    }
-
-    /** Builds section defaults, preserving processor names even when only one core is used. */
-    private buildSectionDefaults(section: UISection, availableCores: string[]): Record<string, string | Record<string, string>> {
-        const defaults: Record<string, string | Record<string, string>> = {};
-        const options = this.expandPnameOptions(section, availableCores);
-
-        if (section['pname-options'] !== undefined) {
-            if (availableCores.length > 0) {
-                options.forEach(option => {
-                    if (option.default !== undefined) {
-                        const core = option.pname ?? '';
-                        if (!defaults[core]) {
-                            defaults[core] = { pname: core };
-                        }
-                        (defaults[core] as Record<string, string>)[option['yml-node'] as string] = option.default.toString();
-                    }
-                });
-            } else {
-                options.forEach(option => {
-                    if (option.default !== undefined) {
-                        if (!defaults['']) {
-                            defaults[''] = {};
-                        }
-                        (defaults[''] as Record<string, string>)[option['yml-node'] as string] = option.default.toString();
-                    }
-                });
-            }
-            return defaults;
-        }
-
-        options.forEach(option => {
-            if (option.default !== undefined) {
-                defaults[option['yml-node'] as string] = option.default.toString();
-            }
-        });
-        return defaults;
-    }
-
-    /**
-     * Sets a processor-specific debugger parameter, reusing an unambiguous unnamed entry.
-     * @param section Optional debugger section.
-     * @param pname Processor/core name.
-     * @param param Parameter key.
-     * @param value Parameter value.
-     */
-    public async setDebuggerParameterWithPname(section: string | undefined, pname: string, param: string, value: string | number) {
-        const availableCoreNames = await this.getAvailableCoreNames();
-        if (availableCoreNames.length === 0) {
-            const sequence = this.activeTargetSetWrap.ensureDebugger().item
-                ?.createChild(section, true)
-                ?.setKind(ETreeItemKind.Sequence);
-            let child = sequence?.getChildren(true)?.at(0);
-            if (!child) {
-                child = sequence?.createChild('', true);
-            }
-            child?.setValue(param, value as string);
-        } else {
-            const sectionNode = this.activeTargetSetWrap.ensureDebugger().item
-                ?.createChild(section, true)
-                ?.setKind(ETreeItemKind.Sequence);
-            const entries = sectionNode?.getChildren() ?? [];
-
-            const canReuseUnnamedProcessorEntry = () => {
-                if (availableCoreNames.length !== 1 || availableCoreNames[0] !== pname) {
-                    return false;
-                }
-                return entries.length === 1 && !entries[0].getValue('pname');
-            };
-
-            let processorNode = sectionNode?.getChildByValue('pname', pname);
-            if (!processorNode) {
-                if (canReuseUnnamedProcessorEntry()) {
-                    processorNode = entries[0];
-                } else {
-                    processorNode = sectionNode?.createChild('-');
-                    processorNode?.setKind(ETreeItemKind.Map).setText(undefined);
-                }
-                processorNode?.setValue('pname', pname);
-            }
-            processorNode?.setValue(param, value as string);
-        }
-
     }
 
     /**
@@ -739,12 +578,21 @@ export class ManageSolutionController {
      * Set data from SolutionData object to CSolutionYmlFile
      */
     public set solutionData(selectedContextState: SolutionData) {
+        this.applySelection(selectedContextState, true);
+    }
+
+    /** Table messages edit project/image selection; debugger state is restored only by host undo/redo snapshots. */
+    public applyDialogSelection(selectedContextState: SolutionData): void {
+        this.applySelection(selectedContextState, false);
+    }
+
+    private applySelection(selectedContextState: SolutionData, restoreDebugger: boolean): void {
 
         this.setActiveTargetSet(selectedContextState.selectedTarget?.name ?? '', selectedContextState.selectedTarget?.selectedSet);
         const activeTargetSetWrap = this.activeTargetSetWrap;
         this.updateSelectedProjects(activeTargetSetWrap, selectedContextState.projects);
         this.updateSelectedImages(activeTargetSetWrap, selectedContextState.images ?? []);
-        this.updateDebuggerFromSnapshot(selectedContextState);
+        if (restoreDebugger) this.updateDebuggerFromSnapshot(selectedContextState);
         this.activeTargetSetWrap.purgeImages();
     }
 
@@ -951,17 +799,11 @@ export class ManageSolutionController {
 
         const selectedDebugger: Record<string, string | number> = { name: adapterName };
 
-        const uiSection = adapter?.['user-interface']?.find(sec => sec['yml-node'] === undefined);
+        const uiSection = adapter?.['user-interface']?.find(sec => sectionYamlNodeName(sec) === undefined);
         uiSection?.options?.forEach(option => {
-            if (option.default !== undefined) {
-                switch (option.type) {
-                    case 'number':
-                        selectedDebugger[option['yml-node']] = option.default * (option.scale ?? 1);
-                        break;
-                    default:
-                        selectedDebugger[option['yml-node']] = option.default;
-                        break;
-                }
+            const value = storedOptionDefault(option);
+            if (value !== undefined) {
+                selectedDebugger[option['yml-node']] = value;
             }
         });
 

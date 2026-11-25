@@ -24,6 +24,17 @@ import { getVirtualProjectDescriptor } from './virtual-project';
 // Allowed load modes for an Image entry
 export type LoadImageType = 'image+symbols' | 'symbols' | 'image' | 'none';
 
+/** Addresses a map key or sequence marker, allowing optional empty markers to be absent. */
+export type SectionPathSegment = string | { name: string; value: string | number | boolean | null; optional?: boolean };
+
+/** Matches optional empty selectors to missing, null, or empty markers without matching named entries. */
+export function matchesSectionSelector(actual: unknown, expected: unknown, optional = false): boolean {
+    if (optional && (expected === null || expected === '')) {
+        return actual === undefined || actual === null || actual === '';
+    }
+    return actual === expected;
+}
+
 export class TypedWrap extends CTreeItemWrap {
     get type(): string { return this.getValue(this.nameKey) ?? ''; }
     override get nameKey(): string {
@@ -165,20 +176,39 @@ export class DebuggerWrap extends CTreeItemWrap {
     set startPname(pname: string | undefined) { this.setValue('start-pname', pname); }
 
     /** Resolves nested maps and trace-style sequence entries, optionally creating missing containers. */
-    getSection(path: string[], create = false): CTreeItemWrap | undefined {
+    getSection(path: SectionPathSegment[], create = false): CTreeItemWrap | undefined {
         let node = create ? this.ensureItem() : this.item;
-        for (const key of path) {
+        for (const segment of path) {
+            const key = typeof segment === 'string' ? segment : segment.name;
             if (!node) {
                 return undefined;
             }
             if (node.isSequence()) {
-                let entry = node.getChildren().find(child => child.getChild(key));
+                let entry = node.getChildren().find(child => {
+                    if (!child.isMap()) {
+                        return false;
+                    }
+                    const marker = child.getChild(key);
+                    if (typeof segment === 'string') {
+                        return marker !== undefined;
+                    }
+                    const value = marker?.getText() === '' ? '' : marker?.toObject();
+                    return matchesSectionSelector(value, segment.value, segment.optional);
+                });
                 if (!entry && create) {
                     entry = node.createChild('-');
                     entry.setKind(ETreeItemKind.Map);
-                    entry.createChild(key).fromObject(null);
+                    if (typeof segment === 'string' || !segment.optional || (segment.value !== null && segment.value !== '')) {
+                        entry.createChild(key).fromObject(typeof segment === 'string' ? null : segment.value);
+                    }
                 }
                 node = entry;
+            } else if (typeof segment !== 'string' && segment.optional && node.isMap()) {
+                // Older registries stored shared single-core settings directly as a map.
+                const marker = node.getChild(key);
+                if (marker && !matchesSectionSelector(marker.toObject(), segment.value, true)) {
+                    return undefined;
+                }
             } else {
                 node = node.getChild(key) ?? (create ? node.createChild(key, true).setKind(ETreeItemKind.Map) : undefined);
             }
@@ -187,7 +217,7 @@ export class DebuggerWrap extends CTreeItemWrap {
     }
 
     /** Writes a typed scalar into a nested section without replacing its other options. */
-    setSectionParameter(path: string[], param: string, value: string | number, pname?: string): void {
+    setSectionParameter(path: SectionPathSegment[], param: string, value: string | number, pname?: string): void {
         const section = this.getSection(path, true)?.item;
         if (!section) {
             return;
@@ -214,63 +244,6 @@ export class DebuggerWrap extends CTreeItemWrap {
         const trace = this.item?.getChild('trace');
         const source = trace?.isSequence() ? trace.getChildren().find(entry => entry.getChild(transport)) : undefined;
         return source ? new DebuggerTraceWrap(source) : undefined;
-    }
-
-    get sectionNames(): string[] {
-        return this.item?.getChildren()
-            .map(child => child.getTag()?.toLocaleLowerCase() || '').filter(Boolean) ?? [];
-    }
-
-    isSectionEnabled(section: string): boolean {
-        return !!this.item?.getChild(section);
-    }
-
-    toggleSection(section: string, defaults: Record<string, string | Record<string, string>>): void {
-        let sectionNode = this.item?.getChild(section);
-        if (sectionNode) {
-            // remove section if exists
-            this.item?.removeChild(sectionNode);
-        } else {
-            // create one
-            sectionNode = this.item?.createChild(section, true);
-            sectionNode?.setKind(ETreeItemKind.Map).setText(undefined);
-            for (const [key, value] of Object.entries(defaults)) {
-                if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-                    const entries = Object.entries(value);
-                    sectionNode?.setKind(ETreeItemKind.Sequence);
-                    const pnameNode = sectionNode?.createChild('-');
-                    for (const [k, v] of entries) {
-                        pnameNode?.setValue(k, v);
-                    }
-                } else {
-                    sectionNode?.setValue(key, value as string | undefined);
-                }
-            }
-        }
-    }
-
-    setParameter(section: string | undefined, param: string, value: string | undefined) {
-        const section_node = section ? this.item?.getChild(section) : this.item;
-        if (!section_node) {
-            return;
-        }
-
-        if (section_node.isSequence()) {
-            const children = section_node.getChildren().filter(p => p.getChild()?.getTag() === param);
-            if (children.length > 0) {
-                // For sequence sections, set the parameter on every sequence element.
-                for (const child of children) {
-                    child.setValue(param, value);
-                }
-            } else {
-                // No entries yet: create the first sequence element and set the parameter on it.
-                const entry = section_node.createChild('-');
-                entry.setKind(ETreeItemKind.Map).setText(undefined);
-                entry.setValue(param, value);
-            }
-        } else {
-            section_node.setValue(param, value);
-        }
     }
 }
 

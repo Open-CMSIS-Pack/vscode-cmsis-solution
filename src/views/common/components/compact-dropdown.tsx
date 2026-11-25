@@ -21,6 +21,7 @@ import { SearchList } from './search-list';
 import './compact-dropdown.css';
 
 export interface CompactDropdownProps {
+    'aria-label'?: string;
     displayText?: (value: string) => string;
     titleText?: (value: string) => string;
     available: string[];
@@ -115,7 +116,7 @@ export const CompactDropdown = (props: CompactDropdownProps) => {
         <div className={expanded ? `${props.className} compact-dropdown expanded` : `${props.className} compact-dropdown`} style={props.style} ref={rootRef}>
             <div className='compact-dropdown-inner'>
                 {props.addonBefore && <div className="compact-dropdown-addon-before">{props.addonBefore}</div>}
-                <div className={`compact-dropdown-trigger ${props.disabled ? ' disabled' : ''}`} onClick={toggleDropdown} ref={triggerRef} title={toolTip(props.selected)} tabIndex={0} role='combobox' aria-haspopup='listbox' aria-expanded={expanded} aria-controls='compact-dropdown-popover'>
+                <div className={`compact-dropdown-trigger ${props.disabled ? ' disabled' : ''}`} onClick={toggleDropdown} ref={triggerRef} title={toolTip(props.selected)} tabIndex={0} role='combobox' aria-label={props['aria-label'] ?? (typeof props.addonBefore === 'string' ? props.addonBefore : undefined)} aria-haspopup='listbox' aria-expanded={expanded} aria-controls='compact-dropdown-popover'>
                     <span className='compact-dropdown-value'>
                         {props.displayText ? props.displayText(props.selected) : props.selected || props.unselectedLabel}
                     </span>

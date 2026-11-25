@@ -1,0 +1,120 @@
+debug-adapters:
+  - name: CMSIS-DAP@pyOCD
+    alias-name:
+      - CMSIS-DAP
+      - DAP-Link
+    template: CMSIS-DAP-pyOCD.adapter.json
+    defaults:
+      gdbserver:
+        active:
+        port: 3333
+      stdio:
+        port: 4444
+      protocol: swd
+      clock: 10000000
+    user-interface:
+      - section: Debug Interface
+        description: Interface configuration for the debug port
+        options:
+          - name: Clock (kHz)
+            description: Debug clock speed
+            yml-node: clock
+            type: number
+            range:
+              - 10
+              - 30000
+            scale: 1000
+            default: 10000
+          - name: Protocol
+            description: Debug protocol
+            yml-node: protocol
+            type: enum
+            values:
+              - name: JTAG
+                value: jtag
+                description: Use JTAG interface (4 pins)
+              - name: SWD
+                value: swd
+                description: Use Serial Wire Debug (SWD) interface (2 pins)
+            default: swd
+      - section: Telnet
+        description: Serial input/output via semihosting or RTT channel 0
+        yml-node:
+          name: stdio
+          kind: sequence
+        select: false
+        options: []
+        subsections:
+          - section: ${{ processors.name }}
+            collapsible: false
+            yml-node:
+              name: pname
+              value: ${{ processors.name }}
+              optional: true
+            options:
+              - name: Telnet Mode
+                description: Configure Serial I/O redirect
+                yml-node: mode
+                type: enum
+                default: monitor
+                values:
+                  - name: Telnet Server
+                    value: server
+                    description: Serial I/O to Telnet server port
+                  - name: Debug Console
+                    value: console
+                    description: Serial output to console (Debug console in VS Code)
+                  - name: Serial Monitor
+                    value: monitor
+                    description: Serial I/O via TCP/IP port to VS Code Serial Monitor
+                  - name: Text File
+                    value: file
+                    description: Serial output to file (default
+                      ./out/<solution-name>+<target-type>.<pname>.out)
+                  - name: Disabled
+                    value: off
+                    description: Serial I/O disabled
+      - section: Trace
+        yml-node:
+          name: trace
+          kind: sequence
+        options: []
+        subsections:
+          - section: Serial Wire
+            yml-node:
+              name: swo-uart
+              select:
+                node: mode
+                selected:
+                  - file
+                  - server
+                unselected: off
+            usage: available
+            select: true
+            options:
+              - name: Input Clock (kHz)
+                yml-node: input-clock
+                type: number
+                scale: 1000
+                default: 0
+                range:
+                  - 0
+                  - 9007199254740.99
+            condition: ${{ device.trace.serialwire && config.protocol === "swd" }}
+            condition-message: Serial Wire trace requires device support and SWD.
+          - section: '${{ device.trace.tracebuffer.name || "Trace Buffer" }}'
+            yml-node:
+              name: trace-buffer
+              value: ${{ device.trace.tracebuffer.name }}
+              select:
+                node: mode
+                selected:
+                  - file
+                  - server
+                unselected: off
+            usage: available
+            select: true
+            options: []
+  - name: Without sections
+    template: unused.adapter.json
+    user-interface: []
