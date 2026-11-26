@@ -216,11 +216,23 @@ export class TreeViewProviderImpl<A extends COutlineItem> implements TreeViewPro
     }
 
     public async resolveTreeItem(item: vscode.TreeItem, element: COutlineItem, token: vscode.CancellationToken): Promise<vscode.TreeItem> {
-        const isCurrent = () => !this.disposed && !token.isCancellationRequested
-            && this.itemVersions.get(item) === this.version && this.currentItems.get(element) === item;
+        const isCurrent = () => {
+            if (this.disposed || token.isCancellationRequested) {
+                return false;
+            }
+            return this.itemVersions.get(item) === this.version && this.currentItems.get(element) === item;
+        };
+        if (!isCurrent()) {
+            return item;
+        }
+        if (item.command || createItemCommand(element)) {
+            return item;
+        }
+        if (element.getTag() === 'project' || element.getTag() === 'layer') {
+            return item;
+        }
         const resourcePath = element.getAttribute('resourcePath');
-        if (!isCurrent() || item.command || createItemCommand(element) || !resourcePath
-            || element.getTag() === 'project' || element.getTag() === 'layer') {
+        if (!resourcePath) {
             return item;
         }
 
