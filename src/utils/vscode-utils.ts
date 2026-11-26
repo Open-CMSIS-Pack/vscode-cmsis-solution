@@ -30,12 +30,10 @@ export function showErrorMessage(msg?: string) {
 }
 
 /**
- * Retrieves the workspace folder owning a file, or the first folder when no file is supplied.
+ * Retrieves the file system path of the first workspace folder in the current VS Code session.
  *
- * @returns The workspace folder path, or an empty string when no matching folder exists.
+ * @returns The file system path of the first workspace folder, or an empty string if no workspace is open.
  */
-export function getWorkspaceFolder(filePath?: string) {
-    return (filePath
-        ? vscode.workspace.getWorkspaceFolder(vscode.Uri.file(filePath))
-        : vscode.workspace.workspaceFolders?.[0])?.uri.fsPath ?? '';
+export function getWorkspaceFolder() {
+    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
 }
