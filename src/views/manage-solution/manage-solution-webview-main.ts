@@ -228,6 +228,8 @@ export class ManageSolutionWebviewMain {
             : filePath;
         if (openExternal) {
             this.openFileExternal.openFile(resolvedPath);
+        } else if (resolvedPath.endsWith('.csolution.yml')) {
+            await this.commandsProvider.executeCommand(`${manifest.PACKAGE_NAME}.openManageSolutionTextEditor`, vscode.Uri.file(resolvedPath));
         } else {
             await this.commandsProvider.executeCommand('vscode.open', vscode.Uri.file(resolvedPath));
         }

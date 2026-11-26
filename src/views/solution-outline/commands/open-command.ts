@@ -80,8 +80,7 @@ export class OpenCommand {
                     await vscode.window.showInformationMessage("Unable to open What's New in Keil Studio Pack.");
                 }
             }, this),
-            this.commandsProvider.registerCommand(OpenCommand.openSolutionCommandId, () =>
-                (this.solutionManager.loadState.solutionPath) ? this.openFile(this.solutionManager.loadState.solutionPath) : undefined, this),
+            this.commandsProvider.registerCommand(OpenCommand.openSolutionCommandId, () => this.openSolutionFile(), this),
             this.commandsProvider.registerCommand(OpenCommand.openProjectCommandId, (node: COutlineItem) =>
                 this.commandHandler(OpenCommand.openProjectCommandId, node), this),
             this.commandsProvider.registerCommand(OpenCommand.openPrjConfCommandId, (node: COutlineItem) =>
@@ -126,7 +125,7 @@ export class OpenCommand {
         }
         return undefined;
     }
-
+  
     private openSourceFile(uri: vscode.Uri | undefined): Promise<void> | undefined {
         if (!uri) {
             return undefined;
@@ -151,6 +150,25 @@ export class OpenCommand {
             title: 'Open',
             arguments: [uri, { viewColumn: this.fileOpenGroupOrchestrator.getTargetViewColumn('solution-outline') }],
         };
+    }
+
+    private async openSolutionFile(): Promise<void> {
+        const solutionPath = this.solutionManager.loadState.solutionPath;
+        if (!solutionPath) {
+            return;
+        }
+
+        if (solutionPath.endsWith('.csolution.yaml')) {
+            await this.openFile(solutionPath);
+            return;
+        }
+
+        await this.commandsProvider.executeCommand(
+            `${PACKAGE_NAME}.openManageSolutionTextEditor`,
+            vscode.Uri.file(solutionPath),
+            this.fileOpenGroupOrchestrator.getTargetViewColumn('solution-outline'),
+        );
+        this.fileOpenGroupOrchestrator.rememberTargetViewColumn('solution-outline', vscode.window.tabGroups.activeTabGroup?.viewColumn);
     }
 
     private getFilePathForCommand(command: string, node: COutlineItem): string | undefined {
