@@ -423,4 +423,45 @@ describe('OpenCommand', () => {
             });
         });
     });
+
+    describe('resolveSourceFileCommand', () => {
+        it.each([false, true])('resolves annotations=%s without executing a command', async annotated => {
+            jest.mocked(mockAnnotationChecker.hasAnnotations).mockResolvedValue(annotated);
+            const opener = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+            const uri = Uri.file(path.join(testFolder, 'config.h'));
+            const command = await opener.resolveSourceFileCommand(uri);
+            expect(command).toEqual(annotated
+                ? { command: OpenCommand.openSourceSmartCommandId, title: 'Open', arguments: [uri] }
+                : { command: 'vscode.open', title: 'Open', arguments: [uri, { viewColumn: vscode.ViewColumn.Active }] });
+            expect(commandsProvider.executeCommand).not.toHaveBeenCalled();
+        });
+
+        it('reuses the candidate extension filter without scanning unsupported files', async () => {
+            const opener = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+            for (const extension of ['h', 'C', 'cpp', 'dbgconf', 'S', 'sct']) {
+                expect(opener.isConfigWizardCandidate(`config.${extension}`)).toBe(true);
+            }
+            expect(opener.isConfigWizardCandidate('notes.txt')).toBe(false);
+            expect((await opener.resolveSourceFileCommand(Uri.file('notes.txt'))).command).toBe('vscode.open');
+            expect(mockAnnotationChecker.hasAnnotations).not.toHaveBeenCalled();
+        });
+
+        it('keeps detection failures on the smart path, whose existing execution falls back to text', async () => {
+            jest.mocked(mockAnnotationChecker.hasAnnotations).mockRejectedValue(new Error('temporarily unreadable'));
+            const opener = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, mockAnnotationChecker);
+            const uri = Uri.file(path.join(testFolder, 'config.h'));
+            expect((await opener.resolveSourceFileCommand(uri)).command).toBe(OpenCommand.openSourceSmartCommandId);
+            await opener.activate(extensionContextFactory());
+            await commandsProvider.mockRunRegistered(OpenCommand.openSourceSmartCommandId, uri);
+            expect(commandsProvider.executeCommand).toHaveBeenLastCalledWith('vscode.open', expect.objectContaining({ fsPath: uri.fsPath }), { viewColumn: vscode.ViewColumn.Active });
+        });
+
+        it('reads the current shared column after asynchronous annotation detection', async () => {
+            let column = vscode.ViewColumn.Active;
+            const opener = new OpenCommand(solutionManagerFactory(), commandsProvider, mockOpenFileExternal, {
+                hasAnnotations: async () => { column = vscode.ViewColumn.Two; return false; },
+            }, { getTargetViewColumn: () => column, rememberTargetViewColumn: jest.fn() });
+            expect((await opener.resolveSourceFileCommand(Uri.file('config.h'))).arguments?.[1]).toEqual({ viewColumn: vscode.ViewColumn.Two });
+        });
+    });
 });

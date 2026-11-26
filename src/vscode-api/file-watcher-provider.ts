@@ -28,6 +28,7 @@ export type FileChangeHandlers = {
 
 export type WatchTarget
     = string
+    | RelativePattern
     | { workspaceFolder: WorkspaceFolder, glob: string }
 
 export type FileWatcherProvider = {
@@ -36,7 +37,7 @@ export type FileWatcherProvider = {
 
 export const fileWatcherProvider: FileWatcherProvider = {
     watchFiles: (watchTarget, handlers, thisValue) => {
-        const globPattern: GlobPattern = typeof watchTarget === 'string'
+        const globPattern: GlobPattern = typeof watchTarget === 'string' || !('workspaceFolder' in watchTarget)
             ? watchTarget
             : new RelativePattern(watchTarget.workspaceFolder, watchTarget.glob);
 
