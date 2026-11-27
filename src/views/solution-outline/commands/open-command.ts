@@ -125,7 +125,7 @@ export class OpenCommand {
         }
         return undefined;
     }
-  
+
     private openSourceFile(uri: vscode.Uri | undefined): Promise<void> | undefined {
         if (!uri) {
             return undefined;
