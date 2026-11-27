@@ -190,7 +190,7 @@
     },
     {
         "name": "vscode-jsonrpc",
-        "version": "8.2.1",
+        "version": "9.0.3",
         "spdx": "MIT",
         "url": "https://github.com/Microsoft/vscode-languageserver-node",
         "license": "https://github.com/Microsoft/vscode-languageserver-node/blob/main/License.txt"
