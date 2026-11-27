@@ -134,6 +134,24 @@ export class OpenCommand {
         return this.openFile(uri.fsPath, false);
     }
 
+    public isConfigWizardCandidate(filePath: string): boolean {
+        return OpenCommand.configWizardCandidateExtensions.has(path.extname(filePath).toLowerCase());
+    }
+
+    public async resolveSourceFileCommand(uri: vscode.Uri): Promise<vscode.Command> {
+        const useConfigWizard = await this.shouldOpenConfigWizard(uri.fsPath);
+        // Keep failed detection on the smart path so a later open can retry it.
+        if (useConfigWizard !== false) {
+            return { command: openSourceSmartCommandId, title: 'Open', arguments: [uri] };
+        }
+
+        return {
+            command: 'vscode.open',
+            title: 'Open',
+            arguments: [uri, { viewColumn: this.fileOpenGroupOrchestrator.getTargetViewColumn('solution-outline') }],
+        };
+    }
+
     private async openSolutionFile(): Promise<void> {
         const solutionPath = this.solutionManager.loadState.solutionPath;
         if (!solutionPath) {
@@ -191,23 +209,22 @@ export class OpenCommand {
                 }),
             configWizard: {
                 viewType: OpenCommand.configWizardViewType,
-                shouldOpen: this.shouldOpenConfigWizard.bind(this),
+                shouldOpen: async path => await this.shouldOpenConfigWizard(path) ?? false,
             },
         });
 
         this.fileOpenGroupOrchestrator.rememberTargetViewColumn('solution-outline', vscode.window.tabGroups.activeTabGroup?.viewColumn);
     }
 
-    private async shouldOpenConfigWizard(filePath: string): Promise<boolean> {
-        const extension = path.extname(filePath).toLowerCase();
-        if (!OpenCommand.configWizardCandidateExtensions.has(extension)) {
+    private async shouldOpenConfigWizard(filePath: string): Promise<boolean | undefined> {
+        if (!this.isConfigWizardCandidate(filePath)) {
             return false;
         }
 
         try {
             return await this.annotationChecker.hasAnnotations(filePath);
         } catch {
-            return false;
+            return undefined;
         }
     }
 

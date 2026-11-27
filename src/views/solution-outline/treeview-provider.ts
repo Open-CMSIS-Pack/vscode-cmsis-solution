@@ -16,8 +16,10 @@
 
 import * as vscode from 'vscode';
 import { TreeItemCollapsibleState } from 'vscode';
+import path from 'path';
 import { COutlineItem } from './tree-structure/solution-outline-item';
-import { openSourceSmartCommandId } from './commands/open-command';
+import { OpenCommand } from './commands/open-command';
+import { FileWatcherProvider, fileWatcherProvider } from '../../vscode-api/file-watcher-provider';
 
 export const solutionOutlineUriScheme = 'cmsis-csolution-outline';
 
@@ -83,31 +85,47 @@ export function createItemCommand(element: COutlineItem): vscode.Command | undef
     const uri = vscode.Uri.file(resourcePath);
     const isMarkdown = uri.fsPath.toLowerCase().endsWith('.md');
 
-    return {
-        command: isMarkdown ? 'markdown.showPreview' : openSourceSmartCommandId,
-        title: isMarkdown ? 'Open Preview' : 'Open',
+    return isMarkdown ? {
+        command: 'markdown.showPreview',
+        title: 'Open Preview',
         arguments: [uri],
-    };
+    } : undefined;
 }
 
 const CMSIS_Outline_TreeState = 'CMSIS_Outline_TreeState';
 
-export class TreeViewProviderImpl<A extends COutlineItem> implements TreeViewProvider<A>, vscode.TreeDataProvider<COutlineItem> {
+export class TreeViewProviderImpl<A extends COutlineItem> implements TreeViewProvider<A>, vscode.TreeDataProvider<COutlineItem>, vscode.Disposable {
     private readonly _onDidChangeTreeData: vscode.EventEmitter<COutlineItem | undefined | null | void> = new vscode.EventEmitter<COutlineItem | undefined | null | void>();
     public readonly onDidChangeTreeData: vscode.Event<COutlineItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
     private tree?: COutlineItem;
     private readonly treeView: vscode.TreeView<COutlineItem>;
     private context?: Pick<vscode.ExtensionContext, 'subscriptions' | 'workspaceState'>;
+    private readonly subscriptions: vscode.Disposable[] = [];
+    private readonly sourceWatchers = new Map<string, vscode.Disposable>();
+    private readonly itemVersions = new WeakMap<vscode.TreeItem, number>();
+    private readonly currentItems = new WeakMap<COutlineItem, vscode.TreeItem>();
+    private version = 0;
+    private disposed = false;
 
-    constructor(treeId: string) {
+    constructor(
+        treeId: string,
+        private readonly openCommand: Pick<OpenCommand, 'resolveSourceFileCommand' | 'isConfigWizardCandidate'>,
+        private readonly fileWatchers: FileWatcherProvider = fileWatcherProvider,
+    ) {
         this.treeView = vscode.window.createTreeView(treeId, { treeDataProvider: this, showCollapseAll: false });
     }
     public activate(context: Pick<vscode.ExtensionContext, 'subscriptions' | 'globalState' | 'workspaceState'>) {
+        if (this.context || this.disposed) {
+            return;
+        }
         this.context = context;
-        this.treeView.onDidCollapseElement(e => this.saveExpandedState(e.element, TreeItemCollapsibleState.Collapsed));
-        this.treeView.onDidExpandElement(e => this.saveExpandedState(e.element, TreeItemCollapsibleState.Expanded));
-        context.subscriptions.push(this.treeView);
+        this.subscriptions.push(
+            this.treeView.onDidCollapseElement(e => this.saveExpandedState(e.element, TreeItemCollapsibleState.Collapsed)),
+            this.treeView.onDidExpandElement(e => this.saveExpandedState(e.element, TreeItemCollapsibleState.Expanded)),
+            vscode.window.tabGroups.onDidChangeTabGroups(() => this.refresh()),
+        );
+        context.subscriptions.push(this);
     }
 
     private saveExpandedState(element: COutlineItem, isExpanded: TreeItemCollapsibleState): void {
@@ -172,7 +190,71 @@ export class TreeViewProviderImpl<A extends COutlineItem> implements TreeViewPro
     }
 
     public refresh(): void {
+        if (this.disposed) {
+            return;
+        }
+        this.version++;
+        this.disposeSourceWatchers();
         this._onDidChangeTreeData.fire(undefined);
+    }
+
+    private disposeSourceWatchers(): void {
+        this.sourceWatchers.forEach(watcher => watcher.dispose());
+        this.sourceWatchers.clear();
+    }
+
+    public dispose(): void {
+        if (this.disposed) {
+            return;
+        }
+        this.disposed = true;
+        this.version++;
+        this.disposeSourceWatchers();
+        this.subscriptions.forEach(subscription => subscription.dispose());
+        this.treeView.dispose();
+        this._onDidChangeTreeData.dispose();
+    }
+
+    public async resolveTreeItem(item: vscode.TreeItem, element: COutlineItem, token: vscode.CancellationToken): Promise<vscode.TreeItem> {
+        const isCurrent = () => {
+            if (this.disposed || token.isCancellationRequested) {
+                return false;
+            }
+            return this.itemVersions.get(item) === this.version && this.currentItems.get(element) === item;
+        };
+        if (!isCurrent()) {
+            return item;
+        }
+        if (item.command || createItemCommand(element)) {
+            return item;
+        }
+        if (element.getTag() === 'project' || element.getTag() === 'layer') {
+            return item;
+        }
+        const resourcePath = element.getAttribute('resourcePath');
+        if (!resourcePath) {
+            return item;
+        }
+
+        const uri = vscode.Uri.file(resourcePath);
+        const command = await this.openCommand.resolveSourceFileCommand(uri);
+        if (!isCurrent()) {
+            return item;
+        }
+
+        if (this.openCommand.isConfigWizardCandidate(resourcePath)
+            && !this.sourceWatchers.has(uri.toString())) {
+            const watcher = this.fileWatchers.watchFiles(new vscode.RelativePattern(
+                vscode.Uri.file(path.dirname(resourcePath)), path.basename(resourcePath).replace(/[?*[\]{}]/g, character => `[${character}]`),
+            ), {
+                onChange: () => this.refresh(),
+                onCreate: () => this.refresh(),
+                onDelete: () => this.refresh(),
+            });
+            this.sourceWatchers.set(uri.toString(), watcher);
+        }
+        item.command = command;
+        return item;
     }
 
     public getTreeItem(element: COutlineItem): vscode.TreeItem {
@@ -180,6 +262,8 @@ export class TreeViewProviderImpl<A extends COutlineItem> implements TreeViewPro
         const collapsedState = this.restoreExpandedState(element);
 
         const treeItem = new vscode.TreeItem(label, collapsedState);
+        this.itemVersions.set(treeItem, this.version);
+        this.currentItems.set(element, treeItem);
         treeItem.description = element.getAttribute('description');
 
         const icon = element.getAttribute('iconPath');

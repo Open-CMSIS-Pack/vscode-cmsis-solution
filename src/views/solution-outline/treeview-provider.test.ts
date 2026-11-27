@@ -20,6 +20,16 @@ import path from 'path';
 import * as vscode from 'vscode';
 import { createItemCommand, solutionOutlineUriScheme, TreeViewProviderImpl } from './treeview-provider';
 import { COutlineItem } from './tree-structure/solution-outline-item';
+import { OpenCommand } from './commands/open-command';
+import { extensionContextFactory } from '../../vscode-api/extension-context.factories';
+import { FileChangeHandlers } from '../../vscode-api/file-watcher-provider';
+
+const sourceOpener = (): Pick<OpenCommand, 'resolveSourceFileCommand' | 'isConfigWizardCandidate'> => ({
+    resolveSourceFileCommand: jest.fn(async uri => ({ command: 'vscode.open', title: 'Open', arguments: [uri] })),
+    isConfigWizardCandidate: jest.fn(() => true),
+});
+
+const createProvider = () => new TreeViewProviderImpl<COutlineItem>('cmsis.test', sourceOpener());
 
 describe('createItemCommand', () => {
     beforeAll(() => {
@@ -82,28 +92,19 @@ describe('createItemCommand', () => {
         });
     });
 
-    it('routes non-markdown files through smart source open command', () => {
+    it('defers non-markdown commands until lazy resolution', () => {
         const sourceNode = new COutlineItem('file');
         sourceNode.setAttribute('resourcePath', path.join('tmp', 'device.h'));
 
         const command = createItemCommand(sourceNode);
 
-        expect(command).toMatchObject({
-            command: 'cmsis-csolution.openSourceFileSmart',
-            title: 'Open',
-            arguments: [
-                {
-                    fsPath: path.join('tmp', 'device.h'),
-                    path: path.join('tmp', 'device.h'),
-                },
-            ],
-        });
+        expect(command).toBeUndefined();
     });
 });
 
 describe('TreeViewProviderImpl tooltip rendering', () => {
     it('uses markdown tooltip with theme icons enabled when tooltip text is available', () => {
-        const provider = new TreeViewProviderImpl<COutlineItem>('cmsis.test');
+        const provider = createProvider();
         const node = new COutlineItem('file');
         node.setAttribute('label', 'node');
         node.setAttribute('tooltip', 'tooltip with $(link-external)');
@@ -116,7 +117,7 @@ describe('TreeViewProviderImpl tooltip rendering', () => {
     });
 
     it('does not set a tooltip when tooltip text is missing', () => {
-        const provider = new TreeViewProviderImpl<COutlineItem>('cmsis.test');
+        const provider = createProvider();
         const node = new COutlineItem('file');
         node.setAttribute('label', 'node');
 
@@ -126,7 +127,7 @@ describe('TreeViewProviderImpl tooltip rendering', () => {
     });
 
     it.each(['group', 'component'])('uses the label instead of the synthetic URI as the %s tooltip', tag => {
-        const provider = new TreeViewProviderImpl<COutlineItem>('cmsis.test');
+        const provider = createProvider();
         const node = new COutlineItem(tag);
         node.setAttribute('label', 'Outline item');
 
@@ -139,7 +140,7 @@ describe('TreeViewProviderImpl tooltip rendering', () => {
 
 describe('TreeViewProviderImpl resource URI', () => {
     it('preserves file URIs for resource-backed items', () => {
-        const provider = new TreeViewProviderImpl<COutlineItem>('cmsis.test');
+        const provider = createProvider();
         const filePath = path.join('tmp', 'device.h');
         const node = new COutlineItem('file');
         node.setAttribute('resourcePath', filePath);
@@ -151,7 +152,7 @@ describe('TreeViewProviderImpl resource URI', () => {
     });
 
     it('assigns unique structural URIs to groups with duplicate labels', () => {
-        const provider = new TreeViewProviderImpl<COutlineItem>('cmsis.test');
+        const provider = createProvider();
         const root = new COutlineItem('root');
         const firstGroup = root.createChild('group');
         const secondGroup = root.createChild('group');
@@ -167,7 +168,7 @@ describe('TreeViewProviderImpl resource URI', () => {
     });
 
     it('assigns a structural URI without a command to components', () => {
-        const provider = new TreeViewProviderImpl<COutlineItem>('cmsis.test');
+        const provider = createProvider();
         const components = new COutlineItem('components');
         const component = components.createChild('component');
         component.setAttribute('label', 'Device:Startup');
@@ -180,7 +181,7 @@ describe('TreeViewProviderImpl resource URI', () => {
     });
 
     it('keeps group and component identity structural when resource paths are present', () => {
-        const provider = new TreeViewProviderImpl<COutlineItem>('cmsis.test');
+        const provider = createProvider();
         const group = new COutlineItem('group');
         group.setAttribute('resourcePath', path.join('tmp', 'group.yml'));
 
@@ -190,11 +191,184 @@ describe('TreeViewProviderImpl resource URI', () => {
     });
 
     it('does not assign a URI to structural container nodes', () => {
-        const provider = new TreeViewProviderImpl<COutlineItem>('cmsis.test');
+        const provider = createProvider();
         const components = new COutlineItem('components');
 
         const treeItem = provider.getTreeItem(components);
 
         expect(treeItem.resourceUri).toBeUndefined();
+    });
+});
+
+describe('lazy source command lifecycle', () => {
+    const token = () => ({ isCancellationRequested: false, onCancellationRequested: jest.fn() });
+    const file = (filePath = path.join('tmp', 'config.h')) => {
+        const node = new COutlineItem('file');
+        node.setAttribute('resourcePath', filePath);
+        return node;
+    };
+    let opener: ReturnType<typeof sourceOpener>;
+    let watchFiles: jest.Mock;
+    let provider: TreeViewProviderImpl<COutlineItem>;
+
+    beforeEach(() => {
+        jest.spyOn(vscode.window, 'createTreeView').mockReturnValue({
+            onDidCollapseElement: jest.fn(() => ({ dispose: jest.fn() })),
+            onDidExpandElement: jest.fn(() => ({ dispose: jest.fn() })),
+            dispose: jest.fn(),
+        } as unknown as vscode.TreeView<COutlineItem>);
+        opener = sourceOpener();
+        watchFiles = jest.fn(() => ({ dispose: jest.fn() }));
+        provider = new TreeViewProviderImpl('cmsis.test', opener, { watchFiles });
+    });
+
+    afterEach(() => {
+        provider.dispose();
+        jest.restoreAllMocks();
+    });
+
+    it('does not scan or watch during tree construction', () => {
+        provider.getTreeItem(file());
+        provider.refresh();
+        provider.getTreeItem(file());
+        expect(opener.resolveSourceFileCommand).not.toHaveBeenCalled();
+        expect(watchFiles).not.toHaveBeenCalled();
+    });
+
+    it.each(['vscode.open', OpenCommand.openSourceSmartCommandId])('deduplicates watchers by URI for %s, including external files', async command => {
+        jest.mocked(opener.resolveSourceFileCommand).mockImplementation(async uri => ({ command, title: 'Open', arguments: [uri] }));
+        const filename = path.resolve('..', 'external-pack', 'config.h');
+        const first = file(filename);
+        const second = file(filename);
+        const items = [provider.getTreeItem(first), provider.getTreeItem(second)];
+        await Promise.all(items.map((item, index) => provider.resolveTreeItem(item, [first, second][index], token())));
+        expect(items.map(item => item.command?.command)).toEqual([command, command]);
+        expect(watchFiles).toHaveBeenCalledTimes(1);
+        expect(vscode.RelativePattern).toHaveBeenLastCalledWith(expect.objectContaining({ fsPath: path.dirname(filename) }), 'config.h');
+        await provider.resolveTreeItem(items[0], first, token());
+        expect(watchFiles).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['onChange', 'onCreate', 'onDelete'] as const)('invalidates commands and releases watchers on %s', async event => {
+        const node = file();
+        await provider.resolveTreeItem(provider.getTreeItem(node), node, token());
+        const watcher = watchFiles.mock.results[0].value;
+        const changed = jest.fn();
+        provider.onDidChangeTreeData(changed);
+        const handlers: FileChangeHandlers = watchFiles.mock.calls[0][1];
+        handlers[event]?.(node.getAttribute('resourcePath')!);
+        expect(changed).toHaveBeenCalledWith(undefined);
+        expect(watcher.dispose).toHaveBeenCalledTimes(1);
+        jest.mocked(opener.resolveSourceFileCommand).mockResolvedValue({ command: OpenCommand.openSourceSmartCommandId, title: 'Open' });
+        const item = await provider.resolveTreeItem(provider.getTreeItem(node), node, token());
+        expect(item.command?.command).toBe(OpenCommand.openSourceSmartCommandId);
+        expect(watchFiles).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not watch unsupported extensions', async () => {
+        jest.mocked(opener.isConfigWizardCandidate).mockReturnValue(false);
+        const text = file('notes.txt');
+        await provider.resolveTreeItem(provider.getTreeItem(text), text, token());
+        expect(watchFiles).not.toHaveBeenCalled();
+    });
+
+    it.each([path.join('tmp', 'config.h'), path.resolve('..', 'external-pack', 'config.h')])('invalidates Wizard routing after annotation removal in %s', async filename => {
+        const node = file(filename);
+        jest.mocked(opener.resolveSourceFileCommand).mockResolvedValueOnce({ command: OpenCommand.openSourceSmartCommandId, title: 'Open' });
+        const wizardItem = await provider.resolveTreeItem(provider.getTreeItem(node), node, token());
+        expect(wizardItem.command?.command).toBe(OpenCommand.openSourceSmartCommandId);
+        expect(watchFiles).toHaveBeenCalledTimes(1);
+        const watcher = watchFiles.mock.results[0].value;
+        const changed = jest.fn();
+        provider.onDidChangeTreeData(changed);
+        const handlers: FileChangeHandlers = watchFiles.mock.calls[0][1];
+        handlers.onChange?.(filename);
+        expect(changed).toHaveBeenCalledWith(undefined);
+        expect(watcher.dispose).toHaveBeenCalledTimes(1);
+        const nativeItem = await provider.resolveTreeItem(provider.getTreeItem(node), node, token());
+        expect(nativeItem.command?.command).toBe('vscode.open');
+        expect(watchFiles).toHaveBeenCalledTimes(2);
+    });
+
+    it('escapes glob metacharacters in exact filenames', async () => {
+        const node = file(path.join('tmp', 'config[0].h'));
+        await provider.resolveTreeItem(provider.getTreeItem(node), node, token());
+        expect(vscode.RelativePattern).toHaveBeenLastCalledWith(expect.anything(), 'config[[]0[]].h');
+    });
+
+    it('releases active watchers exactly once when disposed', async () => {
+        const node = file();
+        await provider.resolveTreeItem(provider.getTreeItem(node), node, token());
+        const watcher = watchFiles.mock.results[0].value;
+        provider.dispose();
+        provider.dispose();
+        expect(watcher.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['project', 'layer', 'markdown', 'explicit'])('preserves %s commands during resolution', async kind => {
+        const node = file(kind === 'markdown' ? 'notes.md' : 'config.h');
+        if (kind === 'project' || kind === 'layer') {
+            const project = new COutlineItem(kind);
+            project.setAttribute('resourcePath', 'project.yml');
+            await provider.resolveTreeItem(provider.getTreeItem(project), project, token());
+        } else {
+            if (kind === 'explicit') node.setAttribute('command', 'explicit.command');
+            const item = provider.getTreeItem(node);
+            const command = item.command;
+            await provider.resolveTreeItem(item, node, token());
+            expect(item.command).toBe(command);
+        }
+        expect(opener.resolveSourceFileCommand).not.toHaveBeenCalled();
+    });
+
+    it.each(['cancel', 'refresh', 'replace', 'solution', 'dispose'])('does not publish or watch an obsolete resolution after %s', async action => {
+        let complete!: (command: vscode.Command) => void;
+        jest.mocked(opener.resolveSourceFileCommand).mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+        const node = file();
+        const item = provider.getTreeItem(node);
+        const cancellation = token();
+        const resolving = provider.resolveTreeItem(item, node, cancellation);
+        if (action === 'cancel') cancellation.isCancellationRequested = true;
+        if (action === 'refresh') provider.refresh();
+        if (action === 'replace') provider.getTreeItem(node);
+        if (action === 'solution') provider.updateTree(new COutlineItem('root'));
+        if (action === 'dispose') provider.dispose();
+        complete({ command: 'vscode.open', title: 'Open' });
+        expect((await resolving).command).toBeUndefined();
+        expect(watchFiles).not.toHaveBeenCalled();
+    });
+
+    it('does not resolve already cancelled items', async () => {
+        const node = file();
+        await provider.resolveTreeItem(provider.getTreeItem(node), node, { ...token(), isCancellationRequested: true });
+        expect(opener.resolveSourceFileCommand).not.toHaveBeenCalled();
+    });
+
+    it('does not accumulate watchers across refreshes or solution changes', async () => {
+        for (let i = 0; i < 3; i++) {
+            const node = file();
+            await provider.resolveTreeItem(provider.getTreeItem(node), node, token());
+            provider.updateTree(new COutlineItem('root'));
+        }
+        expect(watchFiles).toHaveBeenCalledTimes(3);
+        for (const result of watchFiles.mock.results) expect(result.value.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it('subscribes once and disposes group and tree subscriptions', () => {
+        const groups = new vscode.EventEmitter<vscode.TabGroupChangeEvent>();
+        const subscribe = jest.spyOn(vscode.window.tabGroups, 'onDidChangeTabGroups').mockImplementation(groups.event);
+        const changed = jest.fn();
+        provider.onDidChangeTreeData(changed);
+        const context = extensionContextFactory();
+        provider.activate(context);
+        provider.activate(context);
+        groups.fire({ opened: [], closed: [], changed: [] });
+        expect(changed).toHaveBeenCalledTimes(1);
+        expect(subscribe).toHaveBeenCalledTimes(1);
+        expect(context.subscriptions).toContain(provider);
+        provider.dispose();
+        const results = jest.mocked(vscode.window.createTreeView).mock.results;
+        expect(results[results.length - 1].value.dispose).toHaveBeenCalledTimes(1);
+        subscribe.mockRestore();
     });
 });
