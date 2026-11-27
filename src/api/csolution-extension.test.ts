@@ -25,6 +25,7 @@ describe('CsolutionExtension', () => {
     let extension: CsolutionExtensionImpl;
     let context: { subscriptions: Disposable[] };
     const getBuildResult = jest.fn();
+    const getTaskResult = jest.fn();
 
     beforeEach(async () => {
         context = { subscriptions: [] };
@@ -38,6 +39,7 @@ describe('CsolutionExtension', () => {
             { getToolsEnvironment: jest.fn(), getToolchains: jest.fn() },
             { executeCommand: jest.fn() },
             { convertSolution: jest.fn() },
+            { getTaskResult },
         );
 
         await extension.activate(context as unknown as ExtensionContext);
@@ -51,7 +53,7 @@ describe('CsolutionExtension', () => {
     it('returns the APIv2', () => {
         const api = extension.getApi(2);
         expect(api.getBoards).toBeDefined();
-        for (const method of ['getBuildResult', 'getDebuggers', 'getToolchains', 'getToolsEnvironment', 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution', ...commandGetters]) {
+        for (const method of ['getTaskResult', 'getBuildResult', 'getDebuggers', 'getToolchains', 'getToolsEnvironment', 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution', ...commandGetters]) {
             expect(api).not.toHaveProperty(method);
         }
     });
@@ -60,7 +62,7 @@ describe('CsolutionExtension', () => {
         const api = extension.getApi(3);
         expect(api).not.toBe(extension.getApi(3));
         expect(api).not.toBe(extension.getApi(2));
-        for (const method of ['getBuildResult', 'getDebuggers', 'getToolchains', 'getBoards', 'getDevices', 'getDraftProjects', 'createNewSolution', 'build', 'getToolsEnvironment', 'getPacks', 'installPacks', 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution', ...commandGetters]) {
+        for (const method of ['getTaskResult', 'getBuildResult', 'getDebuggers', 'getToolchains', 'getBoards', 'getDevices', 'getDraftProjects', 'createNewSolution', 'build', 'getToolsEnvironment', 'getPacks', 'installPacks', 'getTargets', 'setActiveTarget', 'activateSolution', 'deactivateSolution', ...commandGetters]) {
             expect(api).toHaveProperty(method, expect.any(Function));
         }
     });
@@ -73,6 +75,15 @@ describe('CsolutionExtension', () => {
         expect(extension.getApi(3).getBuildResult(execution)).toBe(result);
         expect(extension.getApi(3).getBuildResult(execution)).toBe(result);
         expect(getBuildResult).toHaveBeenCalledWith(execution);
+    });
+
+    it('shares task result lookup across V3 API instances', () => {
+        const execution = { task: {} as import('vscode').Task, terminate: jest.fn() };
+        const result = Promise.resolve({ exitCode: 130, output: 'stopped' });
+        getTaskResult.mockReturnValue(result);
+        expect(extension.getApi(3).getTaskResult(execution)).toBe(result);
+        expect(extension.getApi(3).getTaskResult(execution)).toBe(result);
+        expect(getTaskResult).toHaveBeenCalledWith(execution);
     });
 
     it.each([1, 4, 0])('rejects unsupported version %s', version => {

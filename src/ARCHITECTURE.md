@@ -224,6 +224,23 @@ requests graceful shutdown. Standard pyOCD output and actionable helper errors
 are reported in the task terminal. Explicit task termination or closing the
 terminal can disconnect its UI early.
 
+The provider independently captures `PyocdTerminal.onDidWrite` for API V3
+`getTaskResult(execution)` on managed CMSIS Load and CMSIS Run tasks. Execution
+handles identify results; callback/start event matching includes workspace scope,
+task name and command arguments/options. Capture continues after terminal UI
+detachment and settles before managed completion is published. It retains a tail
+of 256 Ki UTF-16 code units per execution, with a truncation notice in the returned
+text, and the latest 20 completed execution results. Terminal forwarding is not
+truncated. This uses the build-result capture pattern without changing build
+result semantics or adding an output channel.
+
+Process exit alone does not complete a task: the child `close` event follows
+stream closure and decoder flushing. The shutdown timer leaves an already exited
+process to this close path so that trailing output is retained. The Windows
+helper waits for its stdout/stderr copy tasks before returning. Forced termination
+can still lose unflushed pyOCD output or interrupt helper forwarding; capture only
+retains text that reaches the terminal forwarding boundary.
+
 Cancellation reports exit code **130**, even if pyOCD handles the interrupt and
 returns zero. A cancelled Load therefore fails its sequential dependency and
 cannot advance to Run. Completion is reported once and removes the terminal from

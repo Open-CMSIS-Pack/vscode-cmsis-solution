@@ -20,6 +20,7 @@ import path from 'path';
 import fs from 'fs';
 import { StringDecoder } from 'string_decoder';
 import { pyocdWindowsHost } from './pyocd-windows';
+import type { CsolutionApiV3 } from '../../api/csolution-api-v3';
 
 export const PYOCD_TASK_TYPE = 'cmsis-csolution.pyocd';
 
@@ -45,6 +46,7 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
         private readonly env: NodeJS.ProcessEnv,
         private readonly complete: (exitCode: number) => void,
         private readonly platform = process.platform,
+        private readonly onStart?: () => void,
     ) {}
 
     public open(): void {
@@ -52,6 +54,7 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
             return;
         }
         this.opened = true;
+        this.onStart?.();
         if (this.cancelled) {
             this.finish(130);
             return;
@@ -142,7 +145,7 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
         }
         this.shutdownTimer = setTimeout(() => {
             if (this.child?.exitCode != null || this.child?.signalCode != null) {
-                this.finish(130);
+                // Process exit can precede pipe drainage. Only close completes the task.
                 return;
             }
             this.writeEmitter.fire('\r\npyOCD shutdown timed out; forcing termination.\r\n');
@@ -181,17 +184,138 @@ export class PyocdTerminal implements vscode.Pseudoterminal {
     }
 }
 
+interface TaskCapture {
+    result: Promise<CsolutionApiV3.TaskResult>;
+    onOutput(message: string): void;
+    onComplete(exitCode?: number): void;
+    started: boolean;
+    completed: boolean;
+    execution?: vscode.TaskExecution;
+}
+
+interface TaskResultEntry {
+    result: Promise<CsolutionApiV3.TaskResult>;
+    resolve(result: CsolutionApiV3.TaskResult | PromiseLike<CsolutionApiV3.TaskResult>): void;
+    capture?: TaskCapture;
+    key: string;
+}
+
+// Bound long-running Run output and provider-owned completed history independently.
+const OUTPUT_LIMIT = 256 * 1024;
+const COMPLETED_LIMIT = 20;
+const TRUNCATION_MARKER = '[Earlier pyOCD output truncated]\r\n';
+
 export class PyocdTaskProvider implements vscode.TaskProvider, vscode.Disposable {
     private readonly terminals = new Map<PyocdTerminal, vscode.Task>();
     private readonly endEmitter = new vscode.EventEmitter<{ task: vscode.Task; exitCode: number }>();
     public readonly onDidEndTask = this.endEmitter.event;
+    private readonly results = new Map<vscode.TaskExecution, TaskResultEntry>();
+    private readonly completed = new Set<vscode.TaskExecution>();
+    private readonly evicted = new WeakSet<vscode.TaskExecution>();
+    private readonly pendingCaptures = new Map<string, TaskCapture[]>();
 
     constructor(
         private readonly environment: () => NodeJS.ProcessEnv,
     ) {}
 
     public activate(context: Pick<vscode.ExtensionContext, 'subscriptions'>): void {
-        context.subscriptions.push(this, vscode.tasks.registerTaskProvider(PYOCD_TASK_TYPE, this));
+        context.subscriptions.push(this, vscode.tasks.registerTaskProvider(PYOCD_TASK_TYPE, this),
+            vscode.tasks.onDidStartTask(event => { this.trackExecution(event.execution); }),
+            vscode.tasks.onDidEndTask(event => {
+                const entry = this.trackExecution(event.execution);
+                // Terminal disposal can precede shutdown. A started capture waits for close.
+                if (entry?.capture) {
+                    if (!entry.capture.started) entry.capture.onComplete(130);
+                } else if (entry) {
+                    entry.resolve({ output: '' });
+                    this.retainCompleted(event.execution);
+                }
+            }));
+    }
+
+    public getTaskResult(execution: vscode.TaskExecution): Promise<CsolutionApiV3.TaskResult> {
+        const entry = this.results.get(execution) ??
+            ((vscode.tasks.taskExecutions ?? []).includes(execution) ? this.trackExecution(execution) : undefined);
+        return entry?.result ?? Promise.reject(new Error('No captured task result is available for this task execution'));
+    }
+
+    private taskKey(task: vscode.Task): string {
+        const definition = task.definition as PyocdTaskDefinition;
+        const scope = typeof task.scope === 'object' ? task.scope.uri.toString() : task.scope;
+        return JSON.stringify([scope, task.name, definition.command || '', definition.args,
+            definition.options?.cwd ?? '', Object.entries(definition.options?.env ?? {}).sort(([a], [b]) => a.localeCompare(b))]);
+    }
+
+    private trackExecution(execution: vscode.TaskExecution): TaskResultEntry | undefined {
+        if (this.evicted.has(execution)) return undefined;
+        if (execution.task.definition.type !== PYOCD_TASK_TYPE || !['CMSIS Load', 'CMSIS Run'].includes(execution.task.name)) {
+            return undefined;
+        }
+        let entry = this.results.get(execution);
+        if (!entry) {
+            let resolve!: TaskResultEntry['resolve'];
+            const result = new Promise<CsolutionApiV3.TaskResult>(complete => { resolve = complete; });
+            entry = { result, resolve, key: this.taskKey(execution.task) };
+            this.results.set(execution, entry);
+        }
+        if (!entry.capture) {
+            const pending = this.pendingCaptures.get(entry.key);
+            const capture = pending?.shift();
+            if (!pending?.length) this.pendingCaptures.delete(entry.key);
+            if (capture) {
+                entry.capture = capture;
+                capture.execution = execution;
+                entry.resolve(capture.result);
+                if (capture.completed) this.retainCompleted(execution);
+            }
+        }
+        return entry;
+    }
+
+    private retainCompleted(execution: vscode.TaskExecution): void {
+        this.completed.add(execution);
+        if (this.completed.size > COMPLETED_LIMIT) {
+            const oldest = this.completed.values().next().value!;
+            this.completed.delete(oldest);
+            this.results.delete(oldest);
+            this.evicted.add(oldest);
+        }
+    }
+
+    private createCapture(task: vscode.Task): TaskCapture {
+        let output = '';
+        let truncated = false;
+        let resolve!: (result: CsolutionApiV3.TaskResult) => void;
+        const result = new Promise<CsolutionApiV3.TaskResult>(complete => { resolve = complete; });
+        const capture: TaskCapture = {
+            result, started: false, completed: false,
+            onOutput: message => {
+                if (capture.completed) return;
+                output += message;
+                if (output.length > OUTPUT_LIMIT) {
+                    output = output.slice(-OUTPUT_LIMIT);
+                    // Do not retain half of a UTF-16 surrogate pair at the truncation boundary.
+                    if (/^[\uDC00-\uDFFF]/.test(output)) output = output.slice(1);
+                    truncated = true;
+                }
+            },
+            onComplete: exitCode => {
+                if (capture.completed) return;
+                capture.completed = true;
+                resolve({ exitCode, output: (truncated ? TRUNCATION_MARKER : '') + output });
+                output = '';
+                if (capture.execution) this.retainCompleted(capture.execution);
+            },
+        };
+        const key = this.taskKey(task);
+        const pending = this.pendingCaptures.get(key) ?? [];
+        pending.push(capture);
+        this.pendingCaptures.set(key, pending);
+        // Either the callback or the start event can arrive first.
+        for (const execution of new Set([...this.results.keys(), ...(vscode.tasks.taskExecutions ?? [])])) {
+            this.trackExecution(execution);
+        }
+        return capture;
     }
 
     public provideTasks(): vscode.Task[] {
@@ -204,10 +328,15 @@ export class PyocdTaskProvider implements vscode.TaskProvider, vscode.Disposable
         }
         const resolved = new vscode.Task(task.definition, task.scope ?? vscode.TaskScope.Workspace,
             task.name, task.source, new vscode.CustomExecution(async definition => {
+                let capture = ['CMSIS Load', 'CMSIS Run'].includes(resolved.name) ? this.createCapture(resolved) : undefined;
                 const terminal = new PyocdTerminal(definition as PyocdTaskDefinition, this.environment(), exitCode => {
+                    capture?.onComplete(exitCode);
+                    // A retained terminal must not keep an evicted result alive through its callbacks.
+                    capture = undefined;
                     this.terminals.delete(terminal);
                     this.endEmitter.fire({ task: resolved, exitCode });
-                });
+                }, process.platform, () => { if (capture) capture.started = true; });
+                terminal.onDidWrite(message => capture?.onOutput(message));
                 this.terminals.set(terminal, resolved);
                 return terminal;
             }), task.problemMatchers);
@@ -242,5 +371,18 @@ export class PyocdTaskProvider implements vscode.TaskProvider, vscode.Disposable
             terminal.close();
         }
         this.endEmitter.dispose();
+        for (const captures of this.pendingCaptures.values()) {
+            for (const capture of captures) if (!capture.started) capture.onComplete(130);
+        }
+        for (const entry of this.results.values()) {
+            if (entry.capture) {
+                if (!entry.capture.started) entry.capture.onComplete(130);
+            } else {
+                entry.resolve({ output: '' });
+            }
+        }
+        this.pendingCaptures.clear();
+        this.results.clear();
+        this.completed.clear();
     }
 }
