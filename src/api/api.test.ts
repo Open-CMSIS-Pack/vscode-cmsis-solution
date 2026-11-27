@@ -101,6 +101,7 @@ describe('Csolution Extension APIv2', () => {
             { getToolsEnvironment: jest.fn(), getToolchains: jest.fn() },
             { executeCommand: jest.fn() },
             { convertSolution: jest.fn() },
+            { getTaskResult: jest.fn() },
         );
     });
 

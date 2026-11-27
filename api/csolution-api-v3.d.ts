@@ -17,13 +17,24 @@
 import { CsolutionApiV2 } from './csolution-api-v2';
 import type * as vscode from 'vscode';
 
-/** API V3 retains the existing V2 operations, with build result capture. */
+/** API V3 retains the existing V2 operations, with build and managed pyOCD result capture. */
 export interface CsolutionApiV3 extends CsolutionApiV2 {
     dispose(): void;
     /** Await captured output and completion of a CMSIS Solution task from any entry point. Repeated calls return the same promise. Rejects unknown executions, including builds from before capture was active. Results are retained while the execution handle remains reachable. */
     getBuildResult(execution: vscode.TaskExecution): Promise<CsolutionApiV3.BuildResult>;
     /** Latest completed build for the active loaded solution and target, including failures; undefined if none was observed. Excludes clean/setup tasks and does not wait for running builds. A recorded success does not establish that sources or artifacts are up to date. */
     getBuildResult(): Promise<CsolutionApiV3.BuildResult | undefined>;
+    /**
+     * Await a managed cmsis-csolution.pyocd execution named CMSIS Load or CMSIS Run,
+     * including final shutdown output after terminal UI closure. Stopped tasks report 130.
+     * Retains the latest 20 completed executions; rejects unknown, unsupported or evicted handles.
+     * Repeated lookups return the same promise while retained. Already returned promises survive eviction.
+     * Output retains the last 256 Ki UTF-16 code units, prefixed with
+     * [Earlier pyOCD output truncated]\r\n if needed. Terminal forwarding is not truncated.
+     * Captures warnings even on exit code 0. Forced termination cannot recover unflushed
+     * output and may interrupt Windows helper forwarding. Results are in memory only.
+     */
+    getTaskResult(execution: vscode.TaskExecution): Promise<CsolutionApiV3.TaskResult>;
     /** Convert the loaded solution's active target without emitting conversion/configuration events. updateRte defaults to false. Rejects if no solution is loaded or an unexpected error occurs. */
     convertSolution(options?: { updateRte?: boolean }): Promise<CsolutionApiV3.ConvertResult>;
     /** Activate a solution file or directory in the current workspace using the existing command. */
@@ -67,6 +78,13 @@ export interface CsolutionApiV3 extends CsolutionApiV2 {
 }
 
 export namespace CsolutionApiV3 {
+    export interface TaskResult {
+        /** The exit code of pyOCD. The value is 130 for a stopped task; undefined if unavailable before capture starts. */
+        exitCode?: number;
+        /** The text that the task wrote to its terminal, in observed delivery order, subject to the documented tail limit and truncation notice. */
+        output: string;
+    }
+
     export interface BuildResult {
         /** Runner exit code, including negative toolbox error codes. Undefined for skipped tasks, cancellation without a nonzero code, or unavailable results. Only 0 means success. */
         exitCode?: number;

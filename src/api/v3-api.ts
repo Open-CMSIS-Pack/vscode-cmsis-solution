@@ -32,6 +32,7 @@ import { DebugHardwareCommands } from '../solutions/hardware/debug-hardware-comm
 import { loadDebugAdaptersYml } from '../debug/debug-adapters-yaml-file';
 import type { SolutionConverter } from '../solutions/solution-converter';
 import type { BuildTaskProvider } from '../tasks/build/build-task-provider';
+import type { PyocdTaskProvider } from '../debug/pyocd-task-provider';
 
 export class CsolutionApiV3Impl implements CsolutionApiV3 {
     private static readonly targetSelectionMutex = new Mutex();
@@ -45,6 +46,7 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
         private readonly commandsProvider: Pick<CommandsProvider, 'executeCommand'>,
         private readonly solutionConverter: Pick<SolutionConverter, 'convertSolution'>,
         private readonly buildTaskProvider: Pick<BuildTaskProvider, 'getBuildResult'>,
+        private readonly pyocdTaskProvider: Pick<PyocdTaskProvider, 'getTaskResult'>,
     ) {}
 
     public async convertSolution(options?: { updateRte?: boolean }): Promise<CsolutionApiV3.ConvertResult> {
@@ -302,6 +304,10 @@ export class CsolutionApiV3Impl implements CsolutionApiV3 {
 
     public build(...args: Parameters<CsolutionApiV2['build']>) {
         return this.existingApi.build(...args);
+    }
+
+    public getTaskResult(execution: TaskExecution): Promise<CsolutionApiV3.TaskResult> {
+        return this.pyocdTaskProvider.getTaskResult(execution);
     }
 
     public getBuildResult(execution: TaskExecution): Promise<CsolutionApiV3.BuildResult>;

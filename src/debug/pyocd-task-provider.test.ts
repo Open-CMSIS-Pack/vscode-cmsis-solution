@@ -23,6 +23,7 @@ import * as vscode from 'vscode';
 import { PYOCD_TASK_TYPE, PyocdTaskProvider, PyocdTerminal } from './pyocd-task-provider';
 import { pyocdWindowsHost } from './pyocd-windows';
 import { TestDataHandler } from '../__test__/test-data';
+import type { CsolutionApiV3 } from '../../api/csolution-api-v3';
 
 jest.mock('child_process', () => ({ spawn: jest.fn() }));
 
@@ -143,6 +144,27 @@ describe('managed pyOCD lifecycle', () => {
         expect(complete).toHaveBeenCalledWith(130);
         jest.runAllTimers();
         expect(child.kill).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits for stream closure when the shutdown timer observes process exit', () => {
+        const terminal = new PyocdTerminal(definition, {}, complete, 'linux');
+        const write = jest.fn();
+        const close = jest.fn();
+        terminal.onDidWrite(write);
+        terminal.onDidClose(close);
+        terminal.open();
+        terminal.close();
+        Object.assign(child, { exitCode: 0 });
+        child.emit('exit', 0);
+        jest.advanceTimersByTime(6000);
+        expect(complete).not.toHaveBeenCalled();
+        expect(close).not.toHaveBeenCalled();
+        child.stderr!.emit('data', Buffer.from('final shutdown diagnostic\n'));
+        child.emit('close', 0);
+        expect(write).toHaveBeenCalledWith('final shutdown diagnostic\r\n');
+        expect(complete.mock.calls).toEqual([[130]]);
+        expect(close).toHaveBeenCalledWith(130);
+        expect(jest.getTimerCount()).toBe(0);
     });
 
     it('sends Windows cancellation through the private control pipe, never Node SIGINT', () => {
@@ -359,5 +381,316 @@ describe('managed pyOCD lifecycle', () => {
         expect(close).toHaveBeenCalledWith(130);
         expect(provider.stopTask(compound)).toBe(false);
         provider.dispose();
+    });
+});
+
+describe('managed pyOCD task results', () => {
+    let provider: PyocdTaskProvider;
+    let start: vscode.EventEmitter<vscode.TaskStartEvent>;
+    let end: vscode.EventEmitter<vscode.TaskEndEvent>;
+    let active: vscode.TaskExecution[];
+    let subscriptions: vscode.Disposable[];
+    let originalTasks: typeof vscode.tasks;
+    const definition = { type: PYOCD_TASK_TYPE, args: ['load'], options: { cwd: '/project' } };
+
+    async function createTask(name = 'CMSIS Load', startFirst = false, taskDefinition = definition) {
+        const task = provider.resolveTask(new vscode.Task(taskDefinition, vscode.TaskScope.Workspace, name, 'Workspace'))!;
+        const child = childProcess();
+        jest.mocked(spawn).mockReturnValueOnce(child);
+        const execution = { task, terminate: jest.fn() };
+        active.push(execution);
+        if (startFirst) start.fire({ execution });
+        const callback = (task.execution as unknown as {
+            callback: (definition: vscode.TaskDefinition) => Promise<PyocdTerminal>;
+        }).callback;
+        const terminal = await callback(taskDefinition);
+        if (!startFirst) start.fire({ execution });
+        return { execution, terminal, child };
+    }
+
+    beforeEach(() => {
+        jest.useFakeTimers();
+        jest.mocked(spawn).mockReset();
+        start = new vscode.EventEmitter();
+        end = new vscode.EventEmitter();
+        active = [];
+        subscriptions = [];
+        originalTasks = { ...vscode.tasks };
+        Object.assign(vscode.tasks, {
+            taskExecutions: active, onDidStartTask: start.event, onDidEndTask: end.event,
+            registerTaskProvider: jest.fn(() => ({ dispose: jest.fn() })),
+        });
+        provider = new PyocdTaskProvider(() => ({}));
+        provider.activate({ subscriptions });
+    });
+
+    afterEach(() => {
+        subscriptions.forEach(subscription => subscription.dispose());
+        for (const key of Object.keys(vscode.tasks)) {
+            if (!(key in originalTasks)) Reflect.deleteProperty(vscode.tasks, key);
+        }
+        Object.assign(vscode.tasks, originalTasks);
+        start.dispose();
+        end.dispose();
+        jest.useRealTimers();
+        jest.restoreAllMocks();
+    });
+
+    it.each([
+        [0, 'loaded\n', ''],
+        [1, '', 'probe failed\n'],
+        [0, '', 'warning: target mismatch\n'],
+    ])('captures completion %s, stdout %j and stderr %j', async (exitCode, stdout, stderr) => {
+        const { execution, terminal, child } = await createTask();
+        const result = provider.getTaskResult(execution);
+        let settled = false;
+        void result.then(() => { settled = true; });
+        terminal.open();
+        child.stdout!.emit('data', Buffer.from(stdout));
+        child.stderr!.emit('data', Buffer.from(stderr));
+        await Promise.resolve();
+        expect(settled).toBe(false);
+        child.emit('close', exitCode);
+        const expected = { exitCode, output: (stdout + stderr).replace(/\n/g, '\r\n') };
+        await expect(result).resolves.toEqual(expected);
+        expect(provider.getTaskResult(execution)).toBe(result);
+        await expect(provider.getTaskResult(execution)).resolves.toEqual(expected);
+    });
+
+    it('captures interleaved output after terminal listener disposal and flushes split UTF-8', async () => {
+        const { execution, terminal, child } = await createTask();
+        const listener = terminal.onDidWrite(jest.fn());
+        terminal.open();
+        child.stdout!.emit('data', Buffer.from('stdout '));
+        listener.dispose();
+        const encoded = Buffer.from('€');
+        child.stdout!.emit('data', encoded.subarray(0, 1));
+        child.stderr!.emit('data', Buffer.from('stderr '));
+        child.stdout!.emit('data', encoded.subarray(1));
+        child.stdout!.emit('data', Buffer.from([0xe2]));
+        child.stdout!.emit('end');
+        child.stderr!.emit('end');
+        child.emit('close', 0);
+        await expect(provider.getTaskResult(execution)).resolves.toEqual({ exitCode: 0, output: 'stdout stderr €�' });
+    });
+
+    it.each([0, 130])('waits for trailing output after process exit (child code %s)', async code => {
+        const { execution, terminal, child } = await createTask();
+        const result = provider.getTaskResult(execution);
+        let settled = false;
+        void result.then(() => { settled = true; });
+        terminal.open();
+        expect(provider.stopTask(execution.task)).toBe(true);
+        // Simulate task UI detachment before pyOCD has finished shutting down.
+        end.fire({ execution });
+        Object.assign(child, { exitCode: code });
+        child.emit('exit', code);
+        jest.advanceTimersByTime(6000);
+        await Promise.resolve();
+        expect(settled).toBe(false);
+        child.stderr!.emit('data', Buffer.from('shutdown complete\n'));
+        child.stderr!.emit('end');
+        child.stdout!.emit('end');
+        child.emit('close', code);
+        await expect(result).resolves.toEqual({ exitCode: 130, output: 'shutdown complete\r\n' });
+        expect(jest.getTimerCount()).toBe(0);
+    });
+
+    it('retains received output and extension diagnostics during forced termination', async () => {
+        const { execution, terminal, child } = await createTask('CMSIS Run');
+        terminal.open();
+        child.stdout!.emit('data', Buffer.from('running\n'));
+        provider.stopTask(execution.task);
+        const killer = childProcess(456);
+        jest.mocked(spawn).mockReturnValueOnce(killer);
+        jest.advanceTimersByTime(6000);
+        child.stderr!.emit('data', Buffer.from('received before close\n'));
+        child.emit('close', null);
+        await expect(provider.getTaskResult(execution)).resolves.toEqual({
+            exitCode: 130,
+            output: 'running\r\n\r\npyOCD shutdown timed out; forcing termination.\r\nreceived before close\r\n',
+        });
+    });
+
+    it('captures startup exceptions before publishing provider completion', async () => {
+        const { execution, terminal } = await createTask();
+        jest.mocked(spawn).mockReset().mockImplementation(() => { throw new Error('spawn failed'); });
+        const seen: Array<Promise<CsolutionApiV3.TaskResult>> = [];
+        provider.onDidEndTask(() => seen.push(provider.getTaskResult(execution)));
+        terminal.open();
+        await expect(seen[0]).resolves.toEqual({ exitCode: 1, output: 'pyOCD: Error: spawn failed\r\n' });
+    });
+
+    it('captures helper errors received on stderr', async () => {
+        const { execution, terminal, child } = await createTask();
+        terminal.open();
+        child.stderr!.emit('data', Buffer.from('pyOCD: PyocdConsoleHost.Run: launch failed\n'));
+        child.emit('close', 1);
+        await expect(provider.getTaskResult(execution)).resolves.toEqual({
+            exitCode: 1, output: 'pyOCD: PyocdConsoleHost.Run: launch failed\r\n',
+        });
+    });
+
+    it('bounds retained output while forwarding every character to the terminal', async () => {
+        const { execution, terminal, child } = await createTask('CMSIS Run');
+        const write = jest.fn();
+        terminal.onDidWrite(write);
+        terminal.open();
+        const limit = 256 * 1024;
+        child.stdout!.emit('data', Buffer.from('x'.repeat(limit)));
+        child.stderr!.emit('data', Buffer.from('final warning'));
+        child.emit('close', 0);
+        await expect(provider.getTaskResult(execution)).resolves.toEqual({
+            exitCode: 0, output: '[Earlier pyOCD output truncated]\r\n' + 'x'.repeat(limit - 13) + 'final warning',
+        });
+        expect(write.mock.calls.flat().join('')).toBe('x'.repeat(limit) + 'final warning');
+    });
+
+    it('trims an oversized chunk without retaining half a surrogate pair', async () => {
+        const { execution, terminal, child } = await createTask();
+        terminal.open();
+        child.stdout!.emit('data', Buffer.from('discard😀' + 'x'.repeat(256 * 1024 - 1)));
+        child.emit('close', 0);
+        await expect(provider.getTaskResult(execution)).resolves.toEqual({
+            exitCode: 0, output: '[Earlier pyOCD output truncated]\r\n' + 'x'.repeat(256 * 1024 - 1),
+        });
+    });
+
+    it.each([false, true])('isolates concurrent and repeated identical tasks (start first: %s)', async startFirst => {
+        const first = await createTask('CMSIS Load', startFirst);
+        first.terminal.open();
+        const second = await createTask('CMSIS Load', startFirst);
+        second.terminal.open();
+        first.child.stdout!.emit('data', Buffer.from('first'));
+        second.child.stdout!.emit('data', Buffer.from('second'));
+        second.child.emit('close', 7);
+        first.child.emit('close', 0);
+        const third = await createTask('CMSIS Load', startFirst);
+        third.terminal.open();
+        third.child.emit('close', 0);
+        await expect(provider.getTaskResult(first.execution)).resolves.toEqual({ exitCode: 0, output: 'first' });
+        await expect(provider.getTaskResult(second.execution)).resolves.toEqual({ exitCode: 7, output: 'second' });
+        await expect(provider.getTaskResult(third.execution)).resolves.toEqual({ exitCode: 0, output: '' });
+    });
+
+    it('allows lookup before the custom execution callback and start event', async () => {
+        const task = provider.resolveTask(new vscode.Task(definition, vscode.TaskScope.Workspace, 'CMSIS Load', 'Workspace'))!;
+        const execution = { task, terminate: jest.fn() };
+        active.push(execution);
+        const result = provider.getTaskResult(execution);
+        const child = childProcess();
+        jest.mocked(spawn).mockReturnValueOnce(child);
+        const callback = (task.execution as unknown as { callback: (definition: vscode.TaskDefinition) => Promise<PyocdTerminal> }).callback;
+        const terminal = await callback(definition);
+        start.fire({ execution });
+        terminal.open();
+        child.stdout!.emit('data', Buffer.from('early lookup'));
+        child.emit('close', 0);
+        await expect(result).resolves.toEqual({ exitCode: 0, output: 'early lookup' });
+    });
+
+    it('settles cancellation before terminal open and leaves no timer', async () => {
+        const { execution, terminal } = await createTask();
+        const result = provider.getTaskResult(execution);
+        terminal.close();
+        end.fire({ execution });
+        await expect(result).resolves.toEqual({ exitCode: 130, output: '' });
+        terminal.open();
+        expect(spawn).not.toHaveBeenCalled();
+        expect(jest.getTimerCount()).toBe(0);
+    });
+
+    it('binds a completed capture when the execution becomes observable after the callback', async () => {
+        const task = provider.resolveTask(new vscode.Task(definition, vscode.TaskScope.Workspace, 'CMSIS Load', 'Workspace'))!;
+        const child = childProcess();
+        jest.mocked(spawn).mockReturnValueOnce(child);
+        const callback = (task.execution as unknown as { callback: (definition: vscode.TaskDefinition) => Promise<PyocdTerminal> }).callback;
+        const terminal = await callback(definition);
+        terminal.open();
+        child.stdout!.emit('data', Buffer.from('completed before start event'));
+        child.emit('close', 0);
+        const execution = { task, terminate: jest.fn() };
+        start.fire({ execution });
+        await expect(provider.getTaskResult(execution)).resolves.toEqual({ exitCode: 0, output: 'completed before start event' });
+    });
+
+    it('settles an execution that ends without invoking its custom callback', async () => {
+        const task = provider.resolveTask(new vscode.Task(definition, vscode.TaskScope.Workspace, 'CMSIS Load', 'Workspace'))!;
+        const execution = { task, terminate: jest.fn() };
+        active.push(execution);
+        const result = provider.getTaskResult(execution);
+        end.fire({ execution });
+        await expect(result).resolves.toEqual({ output: '' });
+    });
+
+    it('settles pre-open cancellation on provider disposal', async () => {
+        const { execution } = await createTask();
+        const result = provider.getTaskResult(execution);
+        provider.dispose();
+        await expect(result).resolves.toEqual({ exitCode: 130, output: '' });
+        expect(spawn).not.toHaveBeenCalled();
+        expect(jest.getTimerCount()).toBe(0);
+    });
+
+    it('isolates workspace scopes and command arguments when callbacks arrive in reverse order', async () => {
+        const firstScope = { uri: vscode.Uri.file('/first') } as vscode.WorkspaceFolder;
+        const secondScope = { uri: vscode.Uri.file('/second') } as vscode.WorkspaceFolder;
+        const firstDefinition = { ...definition, args: ['load', 'first'] };
+        const secondDefinition = { ...definition, args: ['load', 'second'] };
+        const firstTask = provider.resolveTask(new vscode.Task(firstDefinition, firstScope, 'CMSIS Load', 'Workspace'))!;
+        const secondTask = provider.resolveTask(new vscode.Task(secondDefinition, secondScope, 'CMSIS Load', 'Workspace'))!;
+        const firstExecution = { task: firstTask, terminate: jest.fn() };
+        const secondExecution = { task: secondTask, terminate: jest.fn() };
+        start.fire({ execution: firstExecution });
+        start.fire({ execution: secondExecution });
+        for (const [task, execution, output] of [
+            [secondTask, secondExecution, 'second'], [firstTask, firstExecution, 'first'],
+        ] as const) {
+            const child = childProcess();
+            jest.mocked(spawn).mockReturnValueOnce(child);
+            const callback = (task.execution as unknown as { callback: (definition: vscode.TaskDefinition) => Promise<PyocdTerminal> }).callback;
+            const terminal = await callback(task.definition);
+            terminal.open();
+            child.stdout!.emit('data', Buffer.from(output));
+            child.emit('close', 0);
+            await expect(provider.getTaskResult(execution)).resolves.toEqual({ exitCode: 0, output });
+        }
+    });
+
+    it('evicts the oldest completed lookup while leaving active and already returned promises intact', async () => {
+        const running = await createTask('CMSIS Run');
+        running.terminal.open();
+        const first = await createTask();
+        first.terminal.open();
+        const result = provider.getTaskResult(first.execution);
+        first.child.emit('close', 0);
+        for (let index = 0; index < 20; index++) {
+            const next = await createTask();
+            next.terminal.open();
+            next.child.emit('close', 0);
+            await expect(provider.getTaskResult(next.execution)).resolves.toEqual({ exitCode: 0, output: '' });
+        }
+        await expect(provider.getTaskResult(first.execution)).rejects.toThrow('No captured task result');
+        await expect(result).resolves.toEqual({ exitCode: 0, output: '' });
+        running.child.emit('close', 0);
+        await expect(provider.getTaskResult(running.execution)).resolves.toEqual({ exitCode: 0, output: '' });
+    });
+
+    it.each(['CMSIS Erase', 'CMSIS TargetInfo', 'CMSIS Load+Run', 'other'])('rejects unsupported managed task %s', async name => {
+        const { execution, terminal, child } = await createTask(name);
+        await expect(provider.getTaskResult(execution)).rejects.toThrow('No captured task result');
+        terminal.open();
+        child.emit('close', 0);
+    });
+
+    it('rejects unknown, copied and shell execution handles', async () => {
+        const { execution, terminal, child } = await createTask();
+        terminal.open();
+        child.emit('close', 0);
+        active.length = 0;
+        await expect(provider.getTaskResult({ ...execution })).rejects.toThrow('No captured task result');
+        const shell = { task: new vscode.Task({ type: 'shell' }, vscode.TaskScope.Workspace, 'CMSIS Load', 'Workspace'), terminate: jest.fn() };
+        active.push(shell);
+        await expect(provider.getTaskResult(shell)).rejects.toThrow('No captured task result');
     });
 });

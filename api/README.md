@@ -39,6 +39,57 @@ V3 is available through `getApi(3)`. It retains `getBoards`, `getDevices`,
 `getDraftProjects`, `createNewSolution`, and `build` with their V2 behavior.
 V2 is unchanged; the additional methods below are available only in V3.
 
+### Await a managed pyOCD task result
+
+V3 exposes `getTaskResult(execution)` for extension-managed pyOCD tasks named
+`CMSIS Load` and `CMSIS Run` (task type `cmsis-csolution.pyocd`). Obtain their
+individual execution handles through VS Code task events, or from `executeTask()`:
+
+```typescript
+const execution = await vscode.tasks.executeTask(managedLoadTask);
+const result = await api.getTaskResult(execution);
+console.log(result.exitCode, result.output);
+```
+
+Capture starts automatically, including for tasks launched from the UI. Calls made
+while a task is running wait for process completion and output-stream closure;
+calls made after completion return its retained result. Repeated lookups return
+the same promise while retained, including through different V3 API instances.
+Capture continues if the task terminal is hidden or its UI is closed. Stopped tasks
+report **130**, even when pyOCD handles the interrupt and exits with zero. Warnings
+are retained on successful executions too; exit code zero does not mean no warnings.
+
+`TaskResult` contains only `exitCode?: number` and `output: string`. Output combines
+stdout, stderr and extension/helper messages in observed delivery order, with the
+same formatting sent to the terminal. Separate pipes cannot establish an exact
+global ordering of writes within pyOCD. If execution ends before a capture can
+start, the exit code can be unavailable.
+
+To bound long-running Run tasks, capture keeps the last **262,144 UTF-16 code
+units** (256 Ki code units) per execution. It may drop a leading low surrogate to
+avoid splitting a character. If earlier text was discarded, the returned output
+starts with `[Earlier pyOCD output truncated]\r\n`; this notice is additional
+metadata in the output text, not text written to the terminal. All original output
+continues to the terminal, regardless of truncation. This fixed tail retains final
+shutdown diagnostics without growing with task duration; no new setting is needed.
+
+The shared provider retains the **20 most recently completed executions**, in
+completion order, plus active executions. This bounds provider-owned completed
+text to approximately 10 MiB of UTF-16 payload plus notices and bookkeeping.
+New lookups reject unknown, unsupported or evicted handles with
+`No captured task result is available for this task execution`. Already returned
+promises remain valid after eviction; callers retaining promises/results retain
+their own memory. Results are in memory only and do not survive extension reload.
+There is no latest-task lookup. The compound `CMSIS Load+Run` parent, CMSIS Erase,
+CMSIS TargetInfo and ordinary shell tasks are unsupported; use each managed child
+execution handle instead.
+
+Result capture leaves the existing graceful shutdown and forced-termination
+timeouts unchanged. It preserves received diagnostics, but forced termination
+cannot recover text pyOCD has not emitted or flushed and can interrupt forwarding
+through the Windows helper. Collection waits for stream closure; a descendant
+holding an inherited pipe open can delay completion.
+
 ### Await a build result
 
 `build()` returns the same VS Code `TaskExecution` as V2. Use `getBuildResult()` to

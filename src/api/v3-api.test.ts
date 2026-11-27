@@ -39,6 +39,7 @@ describe('CsolutionApiV3Impl', () => {
     const commandsProvider = { executeCommand: jest.fn() };
     const solutionConverter = { convertSolution: jest.fn() };
     const buildTaskProvider = { getBuildResult: jest.fn() };
+    const pyocdTaskProvider = { getTaskResult: jest.fn() };
 
     beforeEach(() => {
         existingApi = {
@@ -58,10 +59,18 @@ describe('CsolutionApiV3Impl', () => {
         solutionConverter.convertSolution.mockReset();
         buildTaskProvider.getBuildResult.mockReset();
         jest.spyOn(window, 'showInformationMessage').mockClear();
-        api = new CsolutionApiV3Impl(existingApi, dataManagerFactory(), solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverter, buildTaskProvider);
+        api = new CsolutionApiV3Impl(existingApi, dataManagerFactory(), solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverter, buildTaskProvider, pyocdTaskProvider);
     });
 
     afterEach(() => jest.restoreAllMocks());
+
+    it('delegates task result lookup without wrapping the completion promise', () => {
+        const execution = { task: {} as import('vscode').Task, terminate: jest.fn() };
+        const result = Promise.resolve({ exitCode: 0, output: 'warning: example\r\n' });
+        pyocdTaskProvider.getTaskResult.mockReturnValue(result);
+        expect(api.getTaskResult(execution)).toBe(result);
+        expect(pyocdTaskProvider.getTaskResult).toHaveBeenCalledWith(execution);
+    });
 
     describe('convertSolution', () => {
         it.each([undefined, {}, { updateRte: true }, { updateRte: false }])('converts the loaded active target with options %j', async options => {
@@ -357,7 +366,7 @@ describe('CsolutionApiV3Impl', () => {
 
         it('serializes overlapping selections across API instances through refresh', async () => {
             const otherApi = new CsolutionApiV3Impl(existingApi, dataManagerFactory(), solutionManager,
-                csolutionService, toolsEnvironment, commandsProvider, solutionConverter, buildTaskProvider);
+                csolutionService, toolsEnvironment, commandsProvider, solutionConverter, buildTaskProvider, pyocdTaskProvider);
             commandsProvider.executeCommand.mockImplementation(async () => {
                 const refreshed = new CSolution();
                 refreshed.solutionPath = solution.solutionPath;
@@ -417,7 +426,7 @@ describe('CsolutionApiV3Impl', () => {
         const dataManager = dataManagerFactory();
         const packs = [{ id: 'ARM::CMSIS@6.0.0', version: '6.0.0', installed: true }];
         const query = jest.spyOn(dataManager, 'getPacks').mockResolvedValue({ packs });
-        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverter, buildTaskProvider);
+        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverter, buildTaskProvider, pyocdTaskProvider);
         await expect(catalogApi.getPacks()).resolves.toEqual({ packs });
         await expect(catalogApi.getPacks({ scope: 'installed' })).resolves.toEqual({ packs });
         expect(query).toHaveBeenNthCalledWith(1, undefined);
@@ -589,7 +598,7 @@ describe('CsolutionApiV3Impl', () => {
         ];
         const dataManager = dataManagerFactory();
         const query = jest.spyOn(dataManager, 'getPacks').mockResolvedValue({ packs });
-        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverter, buildTaskProvider);
+        const catalogApi = new CsolutionApiV3Impl(existingApi, dataManager, solutionManager, csolutionService, toolsEnvironment, commandsProvider, solutionConverter, buildTaskProvider, pyocdTaskProvider);
         for (const [text, expected] of [
             [undefined, packs], ['', packs], ['cMsIs', packs.slice(0, 2)],
             ['[uart]', [packs[1]]], ['.*', []], [' CMSIS ', []], ['no match', []],
